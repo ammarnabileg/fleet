@@ -39,6 +39,7 @@ KINDS: dict[str, Kind] = {
     "driver_left_with_vehicle": Kind("critical", "custody.assign", ("driver", "plate")),
     "document_expiring": Kind("warning", "documents.view", ("document", "owner", "date", "days")),
     "document_expired": Kind("critical", "documents.view", ("document", "owner", "date")),
+    "onboarding_submitted": Kind("info", "employees.onboarding", ("driver",)),
 }
 
 

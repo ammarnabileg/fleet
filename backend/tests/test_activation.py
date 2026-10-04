@@ -38,7 +38,7 @@ def test_whatsapp_link_binds_the_phone_without_an_otp(admin_client, client, comp
     message = messaging.provider().sent[-1]
     assert message.to == d["phone"] and "http://localhost:8080/activate#t=" in message.text and "24" in message.text
     assert d["name"]["ar"] in message.text and d["name"]["en"] in message.text  # Arabic, then English
-    assert "رابط تفعيل" in message.text and "activate the driver app" in message.text
+    assert "أكمل بياناتك" in message.text and "complete your details" in message.text  # first time: registration
     assert message.text.count("/activate#t=") == 2 and len(set(re.findall(r"#t=(\S+)", message.text))) == 1
     tokens = _activate(client, _token_sent_to(d["phone"]))
     assert tokens.status_code == 200
@@ -97,7 +97,10 @@ def test_rate_limit_per_driver(admin_client, company):
 def test_manual_link_is_shown_for_the_office(admin_client, client, company):
     d = make_driver(admin_client, company["id"])
     sent_before = len(messaging.provider().sent)
-    out = _link(admin_client, d, "manual").json()
+    out = admin_client.post(
+        f"/api/v1/employees/{d['id']}/activation-link", json={"channel": "manual", "onboarding": False}
+    ).json()
+    assert out["onboarding"] is False
     assert out["sent_to"] is None and out["url"].startswith("http://localhost:8080/activate#t=")
     assert len(messaging.provider().sent) == sent_before
     assert _activate(client, out["url"].split("#t=")[1]).status_code == 200

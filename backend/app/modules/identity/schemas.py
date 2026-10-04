@@ -186,6 +186,8 @@ class ActivationLinkIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     channel: Literal["whatsapp", "manual"] = "whatsapp"
+    # the driver completes his data, documents and vehicle in the app first; default: until he is registered
+    onboarding: bool | None = None
 
 
 class ActivationLinkOut(BaseModel):
@@ -193,6 +195,7 @@ class ActivationLinkOut(BaseModel):
     expires_at: datetime
     url: str | None  # only for "manual"; a WhatsApp link is never shown to the sender
     sent_to: str | None  # the registered number, masked
+    onboarding: bool
 
 
 class ActivateIn(BaseModel):

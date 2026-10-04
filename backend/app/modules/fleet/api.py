@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query
 from fastapi.responses import FileResponse
 from pydantic import AwareDatetime
 from sqlalchemy.orm import Session
@@ -137,6 +137,7 @@ def handover(
         reason=body.reason,
         can_emergency=principal.has("custody.emergency"),
         actor_user_id=principal.user_id,
+        photos=[p.model_dump() for p in body.photos],
         **principal.scope,
     )
 
@@ -155,7 +156,23 @@ def return_vehicle(
         photo_sha256=body.photo_sha256,
         ended_at=body.ended_at,
         actor_user_id=principal.user_id,
+        photos=[p.model_dump() for p in body.photos],
         **principal.scope,
+    )
+
+
+@router.get("/custodies/{public_id}/photos/{sha256}")
+def custody_photo(
+    public_id: uuid.UUID,
+    sha256: Annotated[str, Path(pattern=r"^[0-9a-f]{64}$")],
+    principal: Principal = Depends(require_permission("custody.view")),
+    db: Session = Depends(get_session),
+):
+    info = service.custody_photo(db, public_id, sha256, **principal.scope)
+    return FileResponse(
+        files.path_of(info.sha256),
+        media_type=info.content_type,
+        headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"},
     )
 
 

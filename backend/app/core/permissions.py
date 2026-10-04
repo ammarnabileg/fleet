@@ -39,7 +39,8 @@ MODULES: list[tuple[str, list[Permission]]] = [
             "delete",
             "export",
             "view_salary",
-            sensitive=("delete", "view_salary"),
+            "onboarding",  # review drivers' self-registration (applies personal data, documents and custody)
+            sensitive=("delete", "view_salary", "onboarding"),
         ),
     ),
     ("documents", _module("documents", "view", "manage")),

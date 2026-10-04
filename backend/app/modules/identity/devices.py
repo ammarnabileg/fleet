@@ -60,19 +60,6 @@ class DevicePrincipal:
     name: dict
 
 
-def _driver_text(db: Session, key: str, **params) -> str:
-    """Drivers often read neither the office language nor each other's: a message to a driver carries the default
-    language and English (when English is active and is not the default)."""
-    default = i18n.default_language(db).code
-    active = {lang.code for lang in i18n.list_languages(db)}
-    langs = [default] + (["en"] if "en" in active and default != "en" else [])
-    texts = []
-    for lang in langs:
-        values = {k: i18n.pick(v, lang, default) if isinstance(v, dict) else v for k, v in params.items()}
-        texts.append(i18n.t(db, lang, key, **values))
-    return "\n\n".join(texts)
-
-
 def _otp_hash(phone: str, code: str) -> str:
     key = get_settings().secret_key.encode()
     return hmac.new(key, f"otp:{phone}:{code}".encode(), "sha256").hexdigest()
@@ -109,7 +96,7 @@ def request_otp(db: Session, *, phone: str, device_uid: str, ip: str | None) -> 
     )
     db.commit()
     if code:
-        text = _driver_text(db, "messages.otp", code=code, minutes=OTP_TTL.seconds // 60)
+        text = i18n.for_drivers(db, "messages.otp", code=code, minutes=OTP_TTL.seconds // 60)
         try:
             messaging.provider().send(phone, text)
         except messaging.DeliveryError as exc:  # same answer to the phone; the supervisors are told instead
@@ -279,7 +266,9 @@ def _masked(phone: str) -> str:
     return phone[:4] + "•" * (len(phone) - 8) + phone[-4:]
 
 
-def create_activation_link(db: Session, driver: people.EmployeeRef, *, channel: str, actor_user_id: int) -> dict:
+def create_activation_link(
+    db: Session, driver: people.EmployeeRef, *, channel: str, actor_user_id: int, onboarding: bool = False
+) -> dict:
     """A one-time link that binds the driver's phone without an OTP (first registration, or a supervisor-led
     phone change). "whatsapp" sends it to the driver's registered number and never shows it to the sender;
     "manual" shows it (a QR code at the office when WhatsApp is not available)."""
@@ -317,8 +306,12 @@ def create_activation_link(db: Session, driver: people.EmployeeRef, *, channel: 
     # the token travels after "#": browsers and link-preview robots never send it to a server
     url = f"{get_settings().public_url.rstrip('/')}/activate#t={token}"
     if channel == "whatsapp":
-        text = _driver_text(
-            db, "messages.activation", name=driver.name, url=url, hours=int(ACTIVATION_TTL.total_seconds() // 3600)
+        text = i18n.for_drivers(
+            db,
+            "messages.activation_onboarding" if onboarding else "messages.activation",
+            name=driver.name,
+            url=url,
+            hours=int(ACTIVATION_TTL.total_seconds() // 3600),
         )
         try:
             messaging.provider().send(driver.phone, text)
@@ -344,6 +337,7 @@ def create_activation_link(db: Session, driver: people.EmployeeRef, *, channel: 
         "expires_at": link.expires_at,
         "url": url if channel == "manual" else None,
         "sent_to": _masked(driver.phone) if channel == "whatsapp" else None,
+        "onboarding": onboarding,
     }
 
 

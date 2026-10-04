@@ -73,6 +73,13 @@ class VehicleOut(BaseModel):
     version: int
 
 
+class PhotoIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    position: Literal["front", "back", "left", "right", "interior", "other"]
+    sha256: Sha256
+
+
 class HandoverIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -83,6 +90,7 @@ class HandoverIn(BaseModel):
     started_at: AwareDatetime | None = None  # now when omitted; may be up to 7 days in the past
     kind: Literal["normal", "emergency"] = "normal"
     reason: Reason | None = None
+    photos: list[PhotoIn] = Field(default_factory=list, max_length=12)  # vehicle condition
 
 
 class ReturnIn(BaseModel):
@@ -91,6 +99,7 @@ class ReturnIn(BaseModel):
     odometer_km: Km
     photo_sha256: Sha256
     ended_at: AwareDatetime | None = None
+    photos: list[PhotoIn] = Field(default_factory=list, max_length=12)
 
 
 class CustodyVehicle(BaseModel):
@@ -129,8 +138,15 @@ class CustodyOut(BaseModel):
     needs_review: bool
 
 
+class CustodyPhotoOut(BaseModel):
+    stage: str
+    position: str
+    sha256: str
+
+
 class CustodyDetailOut(CustodyOut):
     readings: list[ReadingOut]
+    photos: list[CustodyPhotoOut]
 
 
 class CustodyReviewIn(BaseModel):

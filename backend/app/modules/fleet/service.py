@@ -21,7 +21,7 @@ from app.core.events import emit
 from app.modules.audit import service as audit
 from app.modules.documents import service as documents
 from app.modules.files import service as files
-from app.modules.fleet.models import Custody, OdometerReading, Vehicle
+from app.modules.fleet.models import Custody, CustodyPhoto, OdometerReading, Vehicle
 from app.modules.notifications import service as notifications
 from app.modules.org import service as org
 from app.modules.people import service as people
@@ -30,6 +30,7 @@ MANUAL_STATUSES = ("available", "maintenance", "accident", "inactive")  # "assig
 VEHICLE_FIELDS = ("plate_number", "make", "model", "year", "color", "vin", "company_id", "branch_id", "status")
 UNIQUE_ERRORS = {"vehicles_plate_number_idx": "plate_taken", "vehicles_vin_key": "vin_taken"}
 OVERLAP_ERRORS = {"custodies_vehicle_overlap": "vehicle_has_custody", "custodies_driver_overlap": "driver_has_custody"}
+PHOTO_POSITIONS = ("front", "back", "left", "right", "interior", "other")
 CLOCK_SKEW = timedelta(minutes=5)
 BACKDATE_LIMIT = timedelta(days=7)
 DRIVER_READING_DELAY = timedelta(hours=48)  # the app may be offline; older readings go through the office
@@ -515,6 +516,30 @@ def driver_reading(
 # ------------------------------------------------------------------ custody
 
 
+def _add_photos(db: Session, custody: Custody, stage: str, photos: list[dict] | None) -> None:
+    for photo in {p["sha256"]: p for p in photos or ()}.values():
+        db.add(
+            CustodyPhoto(custody_id=custody.id, stage=stage, position=photo["position"], file_sha256=photo["sha256"])
+        )
+    db.flush()
+
+
+def _photos_out(db: Session, custody_id: int) -> list[dict]:
+    q = select(CustodyPhoto).where(CustodyPhoto.custody_id == custody_id)
+    return [{"stage": p.stage, "position": p.position, "sha256": p.file_sha256} for p in db.scalars(q)]
+
+
+def custody_photo(db: Session, public_id, sha256: str, **scope) -> files.FileInfo:
+    custody = db.scalar(_scoped(select(Custody).where(Custody.public_id == public_id), Custody, **scope))
+    if (
+        custody is None
+        or db.get(CustodyPhoto, (custody.id, "handover", sha256)) is None
+        and db.get(CustodyPhoto, (custody.id, "return", sha256)) is None
+    ):
+        raise AppError(404, "file_not_found")
+    return files.get(db, sha256)
+
+
 def _custodies_out(db: Session, custodies: list[Custody]) -> list[dict]:
     plates = plate_numbers(db, {c.vehicle_id for c in custodies})
     drivers = people.names(db, {c.driver_id for c in custodies})
@@ -564,9 +589,13 @@ def handover(
     reason: str | None,
     can_emergency: bool,
     actor_user_id: int,
+    photos: list[dict] | None = None,
+    commit: bool = True,
     **scope,
 ) -> dict:
-    """An emergency handover skips the normal checks (vehicle status, driver status, expired licence), needs
+    """`photos`: condition photos [{"position", "sha256"}]. commit=False keeps everything in the caller's
+    transaction (an approved self-registration applies all of its parts at once).
+    An emergency handover skips the normal checks (vehicle status, driver status, expired licence), needs
     custody.emergency and a reason, and waits for review. Overlaps and ended employment are never skipped."""
     started_at = started_at or utcnow()
     _check_moment(started_at)
@@ -592,6 +621,8 @@ def handover(
         if has_license and expiry is not None and expiry < business_date(started_at):
             raise AppError(422, "driving_license_expired", date=expiry.isoformat())
     _check_photo(db, photo_sha256)
+    for photo in photos or ():
+        _check_photo(db, photo["sha256"])
     custody = Custody(
         vehicle_id=vehicle.id,
         driver_id=driver.id,
@@ -622,6 +653,7 @@ def handover(
         recorded_at=started_at,
         by_user=actor_user_id,
     )
+    _add_photos(db, custody, "handover", photos)
     vehicle.status = "assigned"
     vehicle.version += 1
     if kind == "emergency":
@@ -655,7 +687,8 @@ def handover(
             "kind": kind,
         },
     )
-    db.commit()
+    if commit:
+        db.commit()
     return out
 
 
@@ -667,6 +700,7 @@ def return_vehicle(
     photo_sha256: str,
     ended_at: datetime | None,
     actor_user_id: int,
+    photos: list[dict] | None = None,
     **scope,
 ) -> dict:
     custody = db.scalar(
@@ -681,6 +715,8 @@ def return_vehicle(
     if ended_at <= custody.started_at:
         raise AppError(422, "ended_before_start")
     _check_photo(db, photo_sha256)
+    for photo in photos or ():
+        _check_photo(db, photo["sha256"])
     vehicle = db.scalar(select(Vehicle).where(Vehicle.id == custody.vehicle_id).with_for_update())
     custody.ended_at, custody.returned_by = ended_at, actor_user_id
     db.flush()
@@ -694,6 +730,7 @@ def return_vehicle(
         recorded_at=ended_at,
         by_user=actor_user_id,
     )
+    _add_photos(db, custody, "return", photos)
     if vehicle.status == "assigned":
         vehicle.status = "available"
     vehicle.version += 1
@@ -754,7 +791,10 @@ def get_custody(db: Session, public_id, **scope) -> dict:
     readings = db.scalars(
         select(OdometerReading).where(OdometerReading.custody_id == custody.id).order_by(OdometerReading.recorded_at)
     )
-    return _custodies_out(db, [custody])[0] | {"readings": _readings_out(db, list(readings))}
+    return _custodies_out(db, [custody])[0] | {
+        "readings": _readings_out(db, list(readings)),
+        "photos": _photos_out(db, custody.id),
+    }
 
 
 def custody_at(db: Session, vehicle_public_id, at: datetime, **scope) -> dict:
@@ -817,6 +857,20 @@ def flag_departed_driver(db: Session, employee: people.EmployeeRef) -> None:
 
 def vehicle_ref_by_public_id(db: Session, public_id, **scope) -> VehicleRef:
     return _vref(_get_vehicle(db, public_id, **scope))
+
+
+def vehicle_by_plate(db: Session, plate: str) -> VehicleRef | None:
+    """Matches the way plates are unique: ignoring spaces and letter case."""
+    key = "".join(plate.upper().split())
+    vehicle = db.scalar(
+        select(Vehicle).where(func.upper(func.regexp_replace(Vehicle.plate_number, r"\s", "", "g")) == key)
+    )
+    return None if vehicle is None else _vref(vehicle)
+
+
+def holder(db: Session, vehicle_id: int) -> int | None:
+    """The driver holding the vehicle now, if any."""
+    return db.scalar(select(Custody.driver_id).where(Custody.vehicle_id == vehicle_id, Custody.ended_at.is_(None)))
 
 
 def vehicles(db: Session, ids: Iterable[int]) -> dict[int, VehicleRef]:

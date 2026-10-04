@@ -390,6 +390,28 @@ def set_app_access(db: Session, public_id, *, value: str, actor_user_id: int, **
     return _out(employee, status, False)
 
 
+def apply_self_registration(db: Session, employee_id: int, changes: dict, *, actor_user_id: int) -> None:
+    """Civil ID and nationality from an approved self-registration, in the caller's transaction."""
+    employee = db.scalar(select(Employee).where(Employee.id == employee_id).with_for_update())
+    before = _snapshot(employee)
+    for field in ("civil_id", "nationality"):
+        if changes.get(field):
+            setattr(employee, field, changes[field])
+    employee.version += 1
+    employee.updated_at = func.now()
+    _flush_unique(db)
+    audit.record(
+        db,
+        action="employee.self_registration_applied",
+        entity_type="employee",
+        entity_id=employee.public_id,
+        actor_user_id=actor_user_id,
+        company_id=employee.company_id,
+        before=before,
+        after=_snapshot(employee),
+    )
+
+
 def status_history(db: Session, public_id, **scope) -> list[dict]:
     employee = _get(db, public_id, **scope)
     q = select(StatusHistory).where(StatusHistory.employee_id == employee.id).order_by(StatusHistory.id.desc())

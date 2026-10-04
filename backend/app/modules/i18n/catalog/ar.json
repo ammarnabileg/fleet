@@ -87,7 +87,8 @@
     "vehicles.delete": "حذف السيارات",
     "vehicles.export": "تصدير السيارات",
     "vehicles.update": "تعديل السيارات",
-    "vehicles.view": "عرض السيارات"
+    "vehicles.view": "عرض السيارات",
+    "employees.onboarding": "مراجعة واعتماد التسجيل الذاتي للسائقين"
   },
   "modules": {
     "accidents": "الحوادث",
@@ -161,6 +162,7 @@
     "field_required": "الحقل مطلوب: {field}",
     "file_empty": "الملف فارغ",
     "file_not_found": "الملف غير موجود",
+    "file_not_yours": "هذا الملف لم يُرفع من هاتفك",
     "file_too_large": "حجم الملف أكبر من {max_mb} ميجابايت",
     "file_type_not_allowed": "نوع الملف غير مسموح (JPEG أو PNG أو PDF فقط)",
     "internal_server_error": "حدث خطأ غير متوقع",
@@ -181,6 +183,10 @@
     "not_authenticated": "يجب تسجيل الدخول",
     "not_found": "غير موجود",
     "nothing_to_review": "لا يوجد ما يحتاج مراجعة",
+    "onboarding_incomplete": "ناقص: {missing}",
+    "onboarding_not_found": "طلب التسجيل غير موجود",
+    "onboarding_not_open": "البيانات أُرسلت للمراجعة ولا يمكن تعديلها الآن",
+    "onboarding_not_submitted": "هذا الطلب ليس بانتظار المراجعة",
     "otp_invalid": "رمز التحقق غير صحيح أو منتهي",
     "otp_locked": "محاولات كثيرة، اطلب رمزًا جديدًا",
     "otp_rate_limited": "طلبات كثيرة، حاول بعد {minutes} دقيقة",
@@ -192,6 +198,7 @@
     "photo_must_be_image": "يجب أن تكون الصورة JPEG أو PNG",
     "photo_not_from_camera": "يجب التقاط الصورة بكاميرا التطبيق",
     "placeholder_mismatch": "يجب أن تحتوي الترجمة على نفس المتغيرات: {placeholders}",
+    "plate_not_found": "لا توجد سيارة برقم اللوحة {plate}: تأكد من الرقم أو راجع المشرف",
     "plate_taken": "رقم اللوحة مسجل لسيارة أخرى",
     "range_required": "حدد السيارة والفترة",
     "range_too_long": "الفترة أطول من {hours} ساعة",
@@ -249,7 +256,10 @@
     "tracking": "التتبع",
     "tracking.interval_moving_s": "تكرار الموقع أثناء الحركة (ثانية)",
     "tracking.interval_stationary_s": "تكرار الموقع عند التوقف (ثانية)",
-    "tracking.signal_loss_minutes": "تنبيه انقطاع الإشارة بعد (دقيقة)"
+    "tracking.signal_loss_minutes": "تنبيه انقطاع الإشارة بعد (دقيقة)",
+    "onboarding": "التسجيل الذاتي للسائق",
+    "onboarding.required_documents": "المستندات المطلوبة من السائق",
+    "onboarding.vehicle_photos": "صور السيارة المطلوبة"
   },
   "common": {
     "active": "نشط",
@@ -291,13 +301,17 @@
     "odometer_lower": "قراءة عداد {plate} ({value}) أقل من السابقة ({previous})",
     "odometer_off_duty": "{plate} قطعت {km} كم خارج العهدة",
     "odometer_photo_reused": "صورة عداد {plate} مستخدمة من قبل ({driver})",
+    "onboarding_submitted": "{driver} أرسل بياناته ومستنداته للمراجعة",
     "otp_delivery_failed": "لم يصل رمز الدخول إلى {driver} عبر واتساب: تحقق من قناة الرسائل",
     "signal_lost": "انقطعت إشارة {plate} ({driver}) منذ {minutes} دقيقة",
     "tracking_stopped": "خدمة التتبع متوقفة عند {driver} ({plate})"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
-    "activation": "مرحباً {name}، هذا رابط تفعيل تطبيق السائق على هاتفك:\n{url}\nالرابط لمرة واحدة وصالح لمدة {hours} ساعة. لا ترسله لأي شخص."
+    "activation": "مرحباً {name}، هذا رابط تفعيل تطبيق السائق على هاتفك:\n{url}\nالرابط لمرة واحدة وصالح لمدة {hours} ساعة. لا ترسله لأي شخص.",
+    "activation_onboarding": "مرحباً {name}، هذا رابط تطبيق السائق:\n{url}\nافتحه على هاتفك وأكمل بياناتك وصور مستنداتك وسيارتك. الرابط لمرة واحدة وصالح لمدة {hours} ساعة. لا ترسله لأي شخص.",
+    "onboarding_approved": "{name}، تم اعتماد بياناتك. يمكنك بدء العمل من التطبيق.",
+    "onboarding_rejected": "{name}، بياناتك تحتاج تصحيحاً: {reason}\nافتح التطبيق وعدّلها ثم أرسلها من جديد."
   },
   "vehicle_status": {
     "available": "متاحة",
@@ -332,5 +346,20 @@
     "info": "معلومة",
     "warning": "تحذير",
     "critical": "حرج"
+  },
+  "photo_position": {
+    "front": "الأمام",
+    "back": "الخلف",
+    "left": "الجانب الأيسر",
+    "right": "الجانب الأيمن",
+    "interior": "الداخل",
+    "other": "أخرى"
+  },
+  "onboarding_status": {
+    "none": "لم يبدأ",
+    "draft": "قيد الإدخال",
+    "submitted": "بانتظار المراجعة",
+    "approved": "معتمد",
+    "rejected": "يحتاج تصحيحاً"
   }
 }

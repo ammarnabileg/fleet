@@ -29,6 +29,12 @@ class Owner:
     label: dict | str  # a localized name or a plate number, for alerts
 
 
+def employee_type_codes(db: Session) -> dict[str, bool]:
+    """Active employee document types -> whether they need an expiry date."""
+    q = select(DocumentType).where(DocumentType.is_active.is_(True), DocumentType.applies_to == "employee")
+    return {t.code: t.requires_expiry for t in db.scalars(q)}
+
+
 def list_types(db: Session) -> list[dict]:
     q = select(DocumentType).where(DocumentType.is_active.is_(True)).order_by(DocumentType.sort_order)
     return [
@@ -48,6 +54,7 @@ def _out(d: Document, owner_public_id: str | None = None) -> dict:
         "issue_date": d.issue_date,
         "expiry_date": d.expiry_date,
         "has_file": d.file_sha256 is not None,
+        "has_back_file": d.file_back_sha256 is not None,
         "notes": d.notes,
         "is_current": d.is_current,
         "created_at": d.created_at,
@@ -80,7 +87,8 @@ def list_expiring(
     return [_out(d) | {"owner_db_id": d.owner_id} for d in db.scalars(q)]
 
 
-def add(db: Session, owner: Owner, data: dict, *, actor_user_id: int) -> dict:
+def add(db: Session, owner: Owner, data: dict, *, actor_user_id: int, commit: bool = True) -> dict:
+    """commit=False adds the document to the caller's transaction (driver self-registration approves at once)."""
     doc_type = db.get(DocumentType, data["type_code"])
     if doc_type is None or not doc_type.is_active:
         raise AppError(422, "document_type_not_found")
@@ -90,8 +98,9 @@ def add(db: Session, owner: Owner, data: dict, *, actor_user_id: int) -> dict:
         raise AppError(422, "expiry_date_required")
     if data.get("issue_date") and data.get("expiry_date") and data["expiry_date"] < data["issue_date"]:
         raise AppError(422, "expiry_before_issue")
-    if data.get("file_sha256"):
-        files.get(db, data["file_sha256"])
+    for field in ("file_sha256", "file_back_sha256"):
+        if data.get(field):
+            files.get(db, data[field])
     previous = db.scalar(
         select(Document)
         .where(
@@ -116,6 +125,7 @@ def add(db: Session, owner: Owner, data: dict, *, actor_user_id: int) -> dict:
         issue_date=data.get("issue_date"),
         expiry_date=data.get("expiry_date"),
         file_sha256=data.get("file_sha256"),
+        file_back_sha256=data.get("file_back_sha256"),
         notes=data.get("notes"),
         created_by=actor_user_id,
     )
@@ -132,17 +142,21 @@ def add(db: Session, owner: Owner, data: dict, *, actor_user_id: int) -> dict:
         company_id=owner.company_id,
         after=out | {"replaces": str(previous.public_id) if previous else None},
     )
-    db.commit()
+    if commit:
+        db.commit()
     return out
 
 
-def get_file(db: Session, public_id, *, all_companies: bool, company_ids: Iterable[int]) -> files.FileInfo:
+def get_file(
+    db: Session, public_id, *, side: str = "front", all_companies: bool, company_ids: Iterable[int]
+) -> files.FileInfo:
     doc = db.scalar(_scoped(select(Document).where(Document.public_id == public_id), all_companies, company_ids))
     if doc is None:
         raise AppError(404, "document_not_found")
-    if doc.file_sha256 is None:
+    sha = doc.file_back_sha256 if side == "back" else doc.file_sha256
+    if sha is None:
         raise AppError(404, "file_not_found")
-    return files.get(db, doc.file_sha256)
+    return files.get(db, sha)
 
 
 def current_expiry(db: Session, type_code: str, owner_type: str, owner_id: int) -> tuple[bool, date | None]:

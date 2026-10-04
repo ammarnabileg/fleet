@@ -225,6 +225,19 @@ def t(db: Session, code: str, key: str, /, **params) -> str:
     return PLACEHOLDER.sub(lambda m: str(params.get(m.group(1), m.group(0))), text)
 
 
+def for_drivers(db: Session, key: str, /, **params) -> str:
+    """Drivers often read neither the office language nor each other's: a message to a driver carries the default
+    language and English (when English is active and is not the default). A param may be a localized name."""
+    default = default_language(db).code
+    active = {lang.code for lang in list_languages(db)}
+    langs = [default] + (["en"] if "en" in active and default != "en" else [])
+    texts = []
+    for lang in langs:
+        values = {k: pick(v, lang, default) if isinstance(v, dict) else v for k, v in params.items()}
+        texts.append(t(db, lang, key, **values))
+    return "\n\n".join(texts)
+
+
 def negotiate(db: Session, user_locale: str | None, accept_language: str | None) -> str:
     active = {lang.code for lang in list_languages(db)}
     if user_locale in active:

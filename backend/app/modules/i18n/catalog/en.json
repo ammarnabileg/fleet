@@ -87,7 +87,8 @@
     "vehicles.delete": "Delete vehicles",
     "vehicles.export": "Export vehicles",
     "vehicles.update": "Edit vehicles",
-    "vehicles.view": "View vehicles"
+    "vehicles.view": "View vehicles",
+    "employees.onboarding": "Review and approve drivers' self-registration"
   },
   "modules": {
     "accidents": "Accidents",
@@ -161,6 +162,7 @@
     "field_required": "This field is required: {field}",
     "file_empty": "The file is empty",
     "file_not_found": "File not found",
+    "file_not_yours": "This file was not uploaded from your phone",
     "file_too_large": "The file is larger than {max_mb} MB",
     "file_type_not_allowed": "File type not allowed (JPEG, PNG or PDF only)",
     "internal_server_error": "Something went wrong",
@@ -181,6 +183,10 @@
     "not_authenticated": "Please sign in",
     "not_found": "Not found",
     "nothing_to_review": "Nothing to review",
+    "onboarding_incomplete": "Missing: {missing}",
+    "onboarding_not_found": "Registration not found",
+    "onboarding_not_open": "Your data is under review and cannot be changed now",
+    "onboarding_not_submitted": "This registration is not waiting for review",
     "otp_invalid": "The verification code is wrong or expired",
     "otp_locked": "Too many attempts, request a new code",
     "otp_rate_limited": "Too many requests, try again in {minutes} minutes",
@@ -192,6 +198,7 @@
     "photo_must_be_image": "The photo must be a JPEG or PNG image",
     "photo_not_from_camera": "The photo must be taken with the app's camera",
     "placeholder_mismatch": "The translation must keep the same placeholders: {placeholders}",
+    "plate_not_found": "No vehicle with plate {plate}: check the number or ask your supervisor",
     "plate_taken": "This plate number belongs to another vehicle",
     "range_required": "Choose a vehicle and a period",
     "range_too_long": "The period is longer than {hours} hours",
@@ -249,7 +256,10 @@
     "tracking": "Tracking",
     "tracking.interval_moving_s": "Location interval while moving (seconds)",
     "tracking.interval_stationary_s": "Location interval when stopped (seconds)",
-    "tracking.signal_loss_minutes": "Signal loss alert after (minutes)"
+    "tracking.signal_loss_minutes": "Signal loss alert after (minutes)",
+    "onboarding": "Driver self-registration",
+    "onboarding.required_documents": "Documents the driver must send",
+    "onboarding.vehicle_photos": "Required vehicle photos"
   },
   "common": {
     "active": "Active",
@@ -291,13 +301,17 @@
     "odometer_lower": "Odometer of {plate} ({value}) is lower than the previous reading ({previous})",
     "odometer_off_duty": "{plate} drove {km} km while not in custody",
     "odometer_photo_reused": "The odometer photo of {plate} was used before ({driver})",
+    "onboarding_submitted": "{driver} sent his data and documents for review",
     "otp_delivery_failed": "The sign-in code did not reach {driver} over WhatsApp: check the messaging channel",
     "signal_lost": "No signal from {plate} ({driver}) for {minutes} minutes",
     "tracking_stopped": "Tracking stopped on {driver}'s phone ({plate})"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
-    "activation": "Hello {name}, here is the link to activate the driver app on your phone:\n{url}\nIt works once and expires in {hours} hours. Do not share it."
+    "activation": "Hello {name}, here is the link to activate the driver app on your phone:\n{url}\nIt works once and expires in {hours} hours. Do not share it.",
+    "activation_onboarding": "Hello {name}, here is your driver app link:\n{url}\nOpen it on your phone and complete your details, document photos and vehicle photos. It works once and expires in {hours} hours. Do not share it.",
+    "onboarding_approved": "{name}, your registration is approved. You can start working from the app.",
+    "onboarding_rejected": "{name}, your registration needs a correction: {reason}\nOpen the app, fix it and send it again."
   },
   "vehicle_status": {
     "available": "Available",
@@ -332,5 +346,20 @@
     "info": "Info",
     "warning": "Warning",
     "critical": "Critical"
+  },
+  "photo_position": {
+    "front": "Front",
+    "back": "Back",
+    "left": "Left side",
+    "right": "Right side",
+    "interior": "Interior",
+    "other": "Other"
+  },
+  "onboarding_status": {
+    "none": "Not started",
+    "draft": "In progress",
+    "submitted": "Waiting for review",
+    "approved": "Approved",
+    "rejected": "Needs correction"
   }
 }

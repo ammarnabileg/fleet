@@ -85,6 +85,22 @@ class Custody(Base):
         return self.started_at <= t and (self.ended_at is None or t < self.ended_at)
 
 
+class CustodyPhoto(Base):
+    """Condition photos of the vehicle at handover and return."""
+
+    __tablename__ = "custody_photos"
+    __table_args__ = (
+        CheckConstraint("stage IN ('handover', 'return')", name="stage"),
+        CheckConstraint("position IN ('front', 'back', 'left', 'right', 'interior', 'other')", name="position"),
+        SCHEMA,
+    )
+
+    custody_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("fleet.custodies.id"), primary_key=True)
+    stage: Mapped[str] = mapped_column(Text, primary_key=True)
+    position: Mapped[str] = mapped_column(Text)
+    file_sha256: Mapped[str] = mapped_column(Text, ForeignKey("files.files.sha256"), primary_key=True)
+
+
 class OdometerReading(Base):
     __tablename__ = "odometer_readings"
     __table_args__ = (

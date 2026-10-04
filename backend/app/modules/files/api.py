@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, UploadFile
 from sqlalchemy.orm import Session
 
@@ -32,10 +34,15 @@ def upload(file: UploadFile, principal: Principal = Depends(get_principal), db: 
 
 @router.post("/driver/files", response_model=schemas.FileOut, status_code=201)
 def driver_upload(
-    file: UploadFile, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
+    file: UploadFile,
+    source: Literal["camera", "upload"] = "camera",
+    device: DevicePrincipal = Depends(require_device),
+    db: Session = Depends(get_session),
 ):
-    """Photos from the driver app's camera (odometer). The app has no gallery picker; the server records the
-    device, and readings accept only photos uploaded by the same device through this endpoint."""
-    info = service.store(db, read_limited(file), source="camera", uploaded_by_device=device.device_id, images_only=True)
+    """From the driver app. "camera": taken in the app (odometer and vehicle photos accept only these, from the
+    same device). "upload": picked from the phone (document scans), image or PDF."""
+    info = service.store(
+        db, read_limited(file), source=source, uploaded_by_device=device.device_id, images_only=source == "camera"
+    )
     db.commit()
     return info.__dict__

@@ -60,6 +60,7 @@ class Document(Base):
     issue_date: Mapped[date | None] = mapped_column(Date)
     expiry_date: Mapped[date | None] = mapped_column(Date)
     file_sha256: Mapped[str | None] = mapped_column(Text, ForeignKey("files.files.sha256"))
+    file_back_sha256: Mapped[str | None] = mapped_column(Text, ForeignKey("files.files.sha256"))
     notes: Mapped[str | None] = mapped_column(Text)
     is_current: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     created_by: Mapped[int | None] = mapped_column(BigInteger)

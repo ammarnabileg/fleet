@@ -23,6 +23,7 @@ class DocumentIn(BaseModel):
     issue_date: date | None = None
     expiry_date: date | None = None
     file_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")] | None = None
+    file_back_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")] | None = None
     notes: str | None = Field(None, max_length=1000)
 
 
@@ -36,6 +37,7 @@ class DocumentOut(BaseModel):
     issue_date: date | None
     expiry_date: date | None
     has_file: bool
+    has_back_file: bool
     notes: str | None
     is_current: bool
     created_at: datetime

@@ -1,7 +1,8 @@
 from datetime import date
 from decimal import Decimal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.core.types import LocalizedText
 
@@ -36,6 +37,20 @@ class DocumentSettings(_Section):
     commercial_license_alert_days: int = Field(60, ge=1, le=365)
 
 
+DOC_CODE = r"^[a-z][a-z0-9_]{1,30}$"
+
+
+class OnboardingSettings(_Section):
+    """What a driver must send in self-registration (document types from the documents module)."""
+
+    required_documents: list[Annotated[str, StringConstraints(pattern=DOC_CODE)]] = Field(
+        default_factory=lambda: ["residence", "driving_license", "passport"], max_length=10
+    )
+    vehicle_photos: list[Literal["front", "back", "left", "right", "interior"]] = Field(
+        default_factory=lambda: ["front", "back", "left", "right"], max_length=5
+    )
+
+
 class MaintenanceSettings(_Section):
     approval_limit: Decimal = Field(Decimal("100.000"), ge=0, max_digits=12, decimal_places=3)
 
@@ -63,6 +78,7 @@ SECTIONS: dict[str, type[_Section]] = {
     "cash": CashSettings,
     "odometer": OdometerSettings,
     "documents": DocumentSettings,
+    "onboarding": OnboardingSettings,
     "maintenance": MaintenanceSettings,
     "payroll": PayrollSettings,
     "daily_report": DailyReportSettings,

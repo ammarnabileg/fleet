@@ -8,6 +8,7 @@ from app.core.db import get_session
 from app.modules.i18n import service as i18n
 from app.modules.identity import schemas, service
 from app.modules.identity.service import Principal, get_principal, require_permission
+from app.modules.onboarding import service as onboarding
 from app.modules.people import service as people
 
 router = APIRouter(prefix="/api/v1", tags=["identity"])
@@ -234,7 +235,12 @@ def create_activation_link(
 ):
     """Always to the driver's registered number: the sender cannot choose another one."""
     driver = people.ref_by_public_id(db, public_id, **principal.scope)
-    return service.create_activation_link(db, driver, channel=body.channel, actor_user_id=principal.user_id)
+    with_onboarding = onboarding.needed(db, driver.id) if body.onboarding is None else body.onboarding
+    if with_onboarding:
+        onboarding.start(db, driver)  # same transaction as the link: both or neither
+    return service.create_activation_link(
+        db, driver, channel=body.channel, actor_user_id=principal.user_id, onboarding=with_onboarding
+    )
 
 
 @router.post("/devices/{public_id}/revoke", status_code=204)

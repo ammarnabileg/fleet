@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import FileResponse
@@ -77,10 +77,11 @@ def add_document(
 @router.get("/documents/{public_id}/file")
 def document_file(
     public_id: uuid.UUID,
+    side: Literal["front", "back"] = "front",
     principal: Principal = Depends(require_permission("documents.view")),
     db: Session = Depends(get_session),
 ):
-    info = service.get_file(db, public_id, **principal.scope)
+    info = service.get_file(db, public_id, side=side, **principal.scope)
     return FileResponse(
         files.path_of(info.sha256),
         media_type=info.content_type,
