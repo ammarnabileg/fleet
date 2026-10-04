@@ -3,8 +3,11 @@
 A deduction is created by the act that approves it (an accident's liability outcome, later a fine), with its source
 and reason: a total in equal monthly installments from a start month, the remainder on the last one (150.000 over
 3 months: 50.000 a month; 100.000 over 3: 33.333, 33.333, 33.334). One live deduction per source. Cancelled with a
-reason, never deleted. When the settings set a maximum monthly deduction, no month may go above it with the
-employee's other deductions; until it is set (BR-16, pending), nothing is capped.
+reason, never deleted.
+
+The schedule is the plan. What a month actually deducts is capped when payroll runs: at most the share of the salary
+in the settings (FR-PAY-03), the rest moving to the next month (`month_deduction`). The share is the client's decision
+after legal advice (BR-16) and has no default.
 """
 
 from collections.abc import Iterable
@@ -21,7 +24,6 @@ from app.core.errors import AppError
 from app.core.events import emit
 from app.modules.audit import service as audit
 from app.modules.identity import service as identity
-from app.modules.org import service as org
 from app.modules.payroll.models import Deduction
 from app.modules.people import service as people
 
@@ -47,29 +49,31 @@ def schedule(total: Decimal, installments: int, start_month: date) -> list[dict]
     ]
 
 
-def _monthly(rows: Iterable[Deduction]) -> dict[date, Decimal]:
-    out: dict[date, Decimal] = {}
-    for d in rows:
-        for step in schedule(d.total, d.installments, d.start_month):
-            out[step["month"]] = out.get(step["month"], Decimal(0)) + step["amount"]
-    return out
+def due_in(rows: Iterable[Deduction], month: date) -> Decimal:
+    """What the plans of these deductions ask for in `month`."""
+    month = month_start(month)
+    return sum(
+        (
+            step["amount"]
+            for d in rows
+            for step in schedule(d.total, d.installments, d.start_month)
+            if step["month"] == month
+        ),
+        Decimal(0),
+    )
 
 
-def _check_cap(db: Session, employee_id: int, new: Deduction) -> None:
-    cap = org.get_section(db, "payroll").max_monthly_deduction
-    if cap is None:  # BR-16 not decided yet: nothing to check against
-        return
-    others = db.scalars(select(Deduction).where(Deduction.employee_id == employee_id, Deduction.status == "approved"))
-    months = _monthly([*others, new])
-    for month in sorted(months):
-        if months[month] > cap:
-            raise AppError(
-                422,
-                "monthly_deduction_cap_exceeded",
-                month=month.strftime("%Y-%m"),
-                total=str(months[month]),
-                cap=str(cap),
-            )
+def month_cap(salary: Decimal, percent: Decimal) -> Decimal:
+    """The most a month may deduct: the share of that month's salary, rounded down to the fils."""
+    return (Decimal(salary) * Decimal(percent) / 100).quantize(CENT, rounding=ROUND_DOWN)
+
+
+def month_deduction(due: Decimal, carried_in: Decimal, cap: Decimal) -> tuple[Decimal, Decimal]:
+    """FR-PAY-03: this month deducts what is due plus what the earlier months could not, up to the cap; the rest moves
+    to the next month. Returns (deducted, carried to the next month)."""
+    owed = Decimal(due) + Decimal(carried_in)
+    deducted = min(owed, max(Decimal(cap), Decimal(0)))
+    return deducted, owed - deducted
 
 
 def _out(rows: list[Deduction], db: Session) -> list[dict]:
@@ -133,7 +137,6 @@ def create_deduction(
         start_month=start_month,
         created_by=actor_user_id,
     )
-    _check_cap(db, employee_id, d)
     db.add(d)
     try:
         with db.begin_nested():

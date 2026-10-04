@@ -71,9 +71,9 @@ class AccidentsSettings(_Section):
 
 
 class PayrollSettings(_Section):
-    max_monthly_deduction: Decimal | None = Field(
-        None, ge=0, max_digits=12, decimal_places=3
-    )  # required before payroll runs
+    # the share of a month's salary payroll may deduct; the rest moves to the next month (FR-PAY-03). Set by the client
+    # after legal advice (BR-16): no default, and payroll will not run without it
+    max_deduction_percent: Decimal | None = Field(None, gt=0, le=100, max_digits=5, decimal_places=2)
 
 
 class DailyReportSettings(_Section):

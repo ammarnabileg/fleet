@@ -484,27 +484,6 @@ def test_a_rejected_estimate_goes_back_to_the_center_or_to_another(admin_client,
     ]
 
 
-def test_the_monthly_maximum_when_the_settings_set_it(admin_client, client, setup):
-    s = setup
-    current = admin_client.get("/api/v1/settings").json()["payroll"]
-    r = admin_client.put(
-        "/api/v1/settings/payroll",
-        json={"version": current["version"], "value": current["value"] | {"max_monthly_deduction": "60.000"}},
-    )
-    assert r.status_code == 200, r.text
-    aid = estimated_and_approved(admin_client, client, s)
-    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "driver", "installments": 2})
-    assert r.status_code == 422 and r.json()["code"] == "monthly_deduction_cap_exceeded"
-    assert r.json()["params"]["total"] == "75.000" and r.json()["params"]["cap"] == "60.000"
-    assert admin_client.get(f"{A}/{aid}").json()["liability"] is None  # nothing half-recorded
-    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "driver", "installments": 3})
-    assert r.status_code == 200, r.text
-    r = admin_client.post(
-        f"{A}/{aid}/outcome", json={"liability": "driver", "installments": 3, "start_month": "2020-01-01"}
-    )
-    assert r.json()["code"] == "outcome_recorded"
-
-
 def test_a_start_month_in_the_past_is_refused(admin_client, client, setup):
     s = setup
     aid = estimated_and_approved(admin_client, client, s)
