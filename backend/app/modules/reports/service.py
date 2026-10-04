@@ -371,7 +371,8 @@ def maintenance_report(
             .group_by(InvoiceItem.kind)
         ).all()
     )
-    part = func.lower(func.trim(InvoiceItem.description))
+    part = func.lower(func.trim(InvoiceItem.description))  # one line per part, however each center wrote it
+    # its name as written, the same on every server (byte order: capitals first), not by the server's collation
     parts = [
         {
             "description": r.description,
@@ -381,7 +382,7 @@ def maintenance_report(
         }
         for r in db.execute(
             select(
-                func.min(InvoiceItem.description).label("description"),
+                func.min(func.trim(InvoiceItem.description).collate("C")).label("description"),
                 func.sum(InvoiceItem.quantity).label("quantity"),
                 func.sum(amount).label("amount"),
                 func.count(func.distinct(InvoiceItem.invoice_id)).label("invoices"),
