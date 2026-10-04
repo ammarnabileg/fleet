@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from app.core import errors, middleware
+from app.core import errors, messaging, middleware
 from app.core.config import get_settings
 from app.core.db import new_session
 from app.modules.audit.api import router as audit_router
@@ -23,6 +23,8 @@ VERSION = "0.1.0"
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    if settings.is_production:
+        messaging.provider()  # a missing or unsafe messaging configuration stops the deploy, not the first driver
     logging.basicConfig(level=logging.INFO, format='{"level":"%(levelname)s","logger":"%(name)s","msg":"%(message)s"}')
     docs = not settings.is_production
     app = FastAPI(

@@ -1,7 +1,8 @@
 """Driver devices: phone + OTP binds one device to one driver; the app then uses rotating bearer tokens.
 
-- OTP: 6 digits, 5 minutes, 3 attempts, at most 3 requests per phone per 15 minutes and 10 a day. The answer to
-  a request is the same whether or not the phone belongs to a driver: the endpoint cannot discover drivers.
+- OTP sent over WhatsApp (app.core.messaging): 6 digits, 5 minutes, 3 attempts, at most 3 requests per phone per
+  15 minutes and 10 a day. The answer to a request is the same whether or not the phone belongs to a driver (or the
+  message could be delivered): the endpoint cannot discover drivers.
 - Binding a new device revokes the previous one (one active device per driver) and alerts the supervisors.
 - Tokens are random strings stored only as hashes: access 15 minutes, refresh 30 days, rotated on every use. A
   refresh token used twice revokes its whole family (stolen token), except an immediate retry of the last rotation
@@ -11,6 +12,7 @@ Other modules use these through identity.service.
 """
 
 import hmac
+import logging
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -21,7 +23,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.core import crypto, sms
+from app.core import crypto, messaging
 from app.core.clock import utcnow
 from app.core.config import get_settings
 from app.core.db import get_session
@@ -42,6 +44,7 @@ ACCESS_TTL = timedelta(minutes=15)
 REFRESH_TTL = timedelta(days=30)
 RETRY_GRACE = timedelta(seconds=60)
 TOUCH_EVERY = timedelta(seconds=60)
+log = logging.getLogger("fleet.devices")
 
 
 @dataclass(frozen=True)
@@ -90,7 +93,21 @@ def request_otp(db: Session, *, phone: str, device_uid: str, ip: str | None) -> 
     db.commit()
     if code:
         lang = i18n.default_language(db).code
-        sms.provider().send(phone, i18n.t(db, lang, "messages.otp", code=code, minutes=OTP_TTL.seconds // 60))
+        text = i18n.t(db, lang, "messages.otp", code=code, minutes=OTP_TTL.seconds // 60)
+        try:
+            messaging.provider().send(phone, text)
+        except messaging.DeliveryError as exc:  # same answer to the phone; the supervisors are told instead
+            log.warning("sign-in code not delivered: %s", exc)
+            notifications.raise_alert(
+                db,
+                "otp_delivery_failed",
+                company_id=driver.company_id,
+                entity_type="employee",
+                entity_id=driver.public_id,
+                params={"driver": driver.name},
+                dedupe_key=f"otp_delivery_failed:{driver.id}",
+            )
+            db.commit()
 
 
 def _issue_tokens(db: Session, device_id: int, family: uuid.UUID) -> dict:
@@ -396,3 +413,23 @@ def last_seen(db: Session, employee_ids) -> dict[int, datetime]:
         return {}
     q = select(Device.employee_id, Device.last_seen_at).where(Device.employee_id.in_(ids), Device.revoked_at.is_(None))
     return {e: t for e, t in db.execute(q) if t}
+
+
+# ------------------------------------------------------------------ messaging channel health
+
+
+def check_messaging_channel(db: Session) -> str:
+    """Every few minutes: a WhatsApp session that dropped (it needs its QR code scanned again) or an unreachable
+    Evolution API stops every new phone binding, so it alerts at once and closes itself when the channel is back."""
+    try:
+        state = messaging.provider().connection_state()
+    except messaging.DeliveryError:
+        state = "unreachable"
+    if state == "open":
+        notifications.resolve(db, "messaging_down")
+    else:
+        notifications.raise_alert(
+            db, "messaging_down", company_id=None, params={"state": state}, dedupe_key="messaging_down"
+        )
+    db.commit()
+    return state

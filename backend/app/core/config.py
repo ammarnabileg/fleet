@@ -21,7 +21,10 @@ class Settings(BaseSettings):
 
     files_dir: str = "/data/files"
     max_upload_mb: int = 10
-    sms_provider: str = "log"
+    messaging_provider: str = "log"  # "whatsapp" in production (Evolution API)
+    evolution_api_url: str = ""
+    evolution_api_key: str = ""
+    evolution_instance: str = ""
     live_broker: str = "memory"  # "redis" in production: the API runs several worker processes
     hr_integration_mode: str = "off"
 

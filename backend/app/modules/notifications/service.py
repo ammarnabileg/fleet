@@ -24,6 +24,8 @@ class Kind:
 
 KINDS: dict[str, Kind] = {
     "device_replaced": Kind("warning", "devices.manage", ("driver", "model")),
+    "otp_delivery_failed": Kind("warning", "devices.manage", ("driver",)),
+    "messaging_down": Kind("critical", "devices.manage", ("state",)),
     "mock_location": Kind("critical", "tracking.live", ("driver",)),
     "signal_lost": Kind("warning", "tracking.live", ("driver", "plate", "minutes")),
     "location_permission_off": Kind("warning", "tracking.live", ("driver", "plate")),

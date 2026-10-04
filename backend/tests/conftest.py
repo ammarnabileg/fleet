@@ -79,7 +79,7 @@ def database_url(admin_engine, tmp_path_factory):
 
 @pytest.fixture(autouse=True)
 def fresh_database(database_url, admin_engine):
-    from app.core import sms
+    from app.core import messaging
     from app.core.db import get_engine
     from app.modules.i18n import service as i18n
     from app.modules.org import service as org
@@ -92,7 +92,7 @@ def fresh_database(database_url, admin_engine):
     org._cache.clear()
     i18n._effective_cache.clear()
     tracking._partitions.clear()
-    sms.provider().sent.clear()
+    messaging.provider().sent.clear()
     yield
 
 
@@ -257,9 +257,9 @@ def hand_over(admin_client, vehicle, driver, *, km=None, **extra) -> dict:
 
 
 def otp_code(phone: str) -> str:
-    from app.core import sms
+    from app.core import messaging
 
-    text_ = next(m.text for m in reversed(sms.provider().sent) if m.to == phone)
+    text_ = next(m.text for m in reversed(messaging.provider().sent) if m.to == phone)
     return re.search(r"\b(\d{6})\b", text_).group(1)
 
 

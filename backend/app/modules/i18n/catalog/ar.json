@@ -280,11 +280,13 @@
     "emergency_custody": "تسليم طارئ لـ {plate} إلى {driver}: {reason}",
     "gps_off": "الـ GPS مغلق عند {driver} ({plate})",
     "location_permission_off": "صلاحية الموقع غير مفعّلة دائمًا عند {driver} ({plate})",
+    "messaging_down": "قناة واتساب لرموز الدخول غير متصلة ({state}): لا يستطيع أي سائق ربط هاتف جديد حتى تعود",
     "mock_location": "موقع وهمي من جهاز السائق {driver}",
     "odometer_daily_limit": "{plate} قطعت {km} كم، أكثر من الحد اليومي {limit} كم",
     "odometer_lower": "قراءة عداد {plate} ({value}) أقل من السابقة ({previous})",
     "odometer_off_duty": "{plate} قطعت {km} كم خارج العهدة",
     "odometer_photo_reused": "صورة عداد {plate} مستخدمة من قبل ({driver})",
+    "otp_delivery_failed": "لم يصل رمز الدخول إلى {driver} عبر واتساب: تحقق من قناة الرسائل",
     "signal_lost": "انقطعت إشارة {plate} ({driver}) منذ {minutes} دقيقة",
     "tracking_stopped": "خدمة التتبع متوقفة عند {driver} ({plate})"
   },

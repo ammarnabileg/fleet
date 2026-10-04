@@ -6,7 +6,7 @@ from datetime import timedelta
 
 from sqlalchemy import text
 
-from app.core import sms
+from app.core import messaging
 from tests.conftest import bearer, bind_device, login, make_driver, make_employee, make_user, otp_code
 
 
@@ -25,8 +25,8 @@ def test_the_otp_request_reveals_nothing(admin_client, client, company):
     for phone in (d["phone"], not_allowed["phone"], office["phone"], "+96560000001"):
         r = _request(client, phone)
         assert (r.status_code, r.json()) == (202, {"status": "sent"})
-    assert [m.to for m in sms.provider().sent] == [d["phone"]]
-    assert "{" not in sms.provider().sent[0].text
+    assert [m.to for m in messaging.provider().sent] == [d["phone"]]
+    assert "{" not in messaging.provider().sent[0].text
     assert _verify(client, "+96560000001", "123456").json()["code"] == "otp_invalid"
 
 

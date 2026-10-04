@@ -20,6 +20,7 @@ from app.modules.i18n import service as i18n
 from app.modules.identity import security
 from app.modules.identity.devices import (  # noqa: F401  (driver devices, used by other modules from here)
     DevicePrincipal,
+    check_messaging_channel,
     device_status,
     list_devices,
     logout_device,

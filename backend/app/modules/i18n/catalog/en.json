@@ -280,11 +280,13 @@
     "emergency_custody": "Emergency handover of {plate} to {driver}: {reason}",
     "gps_off": "GPS is off for {driver} ({plate})",
     "location_permission_off": "Location permission is not set to always for {driver} ({plate})",
+    "messaging_down": "The WhatsApp channel for sign-in codes is down ({state}): no driver can bind a new phone until it is back",
     "mock_location": "Fake location from {driver}'s phone",
     "odometer_daily_limit": "{plate} drove {km} km, more than the daily limit of {limit} km",
     "odometer_lower": "Odometer of {plate} ({value}) is lower than the previous reading ({previous})",
     "odometer_off_duty": "{plate} drove {km} km while not in custody",
     "odometer_photo_reused": "The odometer photo of {plate} was used before ({driver})",
+    "otp_delivery_failed": "The sign-in code did not reach {driver} over WhatsApp: check the messaging channel",
     "signal_lost": "No signal from {plate} ({driver}) for {minutes} minutes",
     "tracking_stopped": "Tracking stopped on {driver}'s phone ({plate})"
   },
