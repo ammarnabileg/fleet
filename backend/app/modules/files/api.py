@@ -10,7 +10,16 @@ from app.modules.identity.service import DevicePrincipal, Principal, get_princip
 
 router = APIRouter(prefix="/api/v1", tags=["files"])
 
-UPLOADERS = ("documents.manage", "custody.assign", "odometer.review")
+UPLOADERS = (
+    "documents.manage",
+    "custody.assign",
+    "odometer.review",
+    "maintenance.create",
+    "invoices.create",
+    "portal.vehicles",  # maintenance centers: reception and repair photos
+    "portal.quotes",
+    "portal.invoices",
+)
 
 
 @router.post("/files", response_model=schemas.FileOut, status_code=201)

@@ -29,6 +29,12 @@
       if (cash) row2.push(BT.kpi({ label: 'الكاش لدى السائقين', value: fmt.money(cash.held_by_drivers), sub: fmt.int(cash.over_limit) + ' فوق حد ' + fmt.money(cash.limit) + ' · منه غير معتمد ' + fmt.money(cash.unapproved), dot: 'o', tone: cash.over_limit ? 'warning' : null, href: '#/cash' }));
       if (cash) row2.push(BT.kpi({ label: 'أُودع بإيصالات اليوم', value: fmt.money(cash.deposited_today), sub: BT.config.currency, dot: 'g', tone: 'success', href: '#/cash?tab=receipts' }));
       if (row2.length) rows.push(h`<div class="kpis">${row2}</div>`);
+      var mnt = d.maintenance;
+      if (mnt) rows.push(h`<div class="kpis">
+        ${BT.kpi({ label: 'صيانة بانتظار القرار', value: fmt.int(mnt.pending_approval), sub: 'طلبات وعروض أسعار فوق الحد', dot: 'o', tone: mnt.pending_approval ? 'warning' : null, href: '#/maintenance?status=pending' })}
+        ${BT.kpi({ label: 'تحت الإصلاح', value: fmt.int(mnt.under_repair), sub: fmt.int(mnt.referred) + ' محالة لم تصل المركز بعد', dot: 'p', href: '#/maintenance?status=at_center' })}
+        ${BT.kpi({ label: 'جاهزة للاستلام', value: fmt.int(mnt.ready), sub: 'من مراكز الصيانة', dot: 'g', tone: mnt.ready ? 'success' : null, href: '#/maintenance?status=ready' })}
+      </div>`);
 
       var a = d.alerts;
       var alertCard = h`<div class="card"><div class="card-h"><div class="card-t">تنبيهات مفتوحة</div><span class="flex gap-8">${a.critical ? BT.pill(a.critical + ' حرج', 'r') : ''}${a.warning ? BT.pill(a.warning + ' تحذير', 'o') : ''}${a.info ? BT.pill(a.info + ' معلومة', 'b') : ''}</span></div>

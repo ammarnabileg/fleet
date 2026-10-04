@@ -107,8 +107,10 @@
           <div class="card"><div class="card-h"><div class="card-t">${icon('key-round', 16)} سجل العُهد</div></div>${custodies == null ? raw('<div class="muted fs-sm">يحتاج صلاحية العهد</div>') : custodies.length ? h`<div class="list">${custodies.map(function (c) { return h`<button type="button" class="li" data-custody="${c.id}" style="width:100%;text-align:start"><span class="li-ic ${c.ended_at ? '' : 'g'}">${icon(c.ended_at ? 'history' : 'key-round', 16)}</span><div class="li-main"><div class="li-t">${A.person(c.driver)}</div><div class="li-d">${fmt.dt(c.started_at)} ← ${c.ended_at ? fmt.dt(c.ended_at) : 'مستمرة'}</div></div>${c.kind === 'emergency' ? A.pill('custody_kind', 'emergency') : ''}${c.needs_review ? BT.pill('تحتاج مراجعة', 'o') : ''}</button>`; })}</div>` : BT.empty('key-round', 'لم تُسلَّم بعد', '')}</div>
         </div>
         ${readings ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('gauge', 16)} قراءات العداد</div><a class="link-row" href="#/odometer">صفحة العداد ${icon('arrow-left', 14)}</a></div><div id="veh-readings"></div></div>` : ''}
+        ${api.can('maintenance.view') ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('wrench', 16)} الصيانة</div><a class="link-row" href="#/maintenance">صفحة الصيانة ${icon('arrow-left', 14)}</a></div><div id="veh-mnt"></div></div>` : ''}
         ${docs ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('file-badge', 16)} مستندات السيارة</div></div><div id="veh-docs">${vehDocs(docs)}</div></div>` : ''}`;
       function wire(x) {
+        if (document.getElementById('veh-mnt') && A.vehicleMaintenance) A.vehicleMaintenance(document.getElementById('veh-mnt'), x);
         if (readings && document.getElementById('veh-readings')) BT.table(document.getElementById('veh-readings'), { rows: readings, pageSize: 0, columns: readingColumns(false), rowClick: function (rd) { A.reading(rd); } });
         var on = function (sel, fn) { var b = document.getElementById(sel); if (b) b.onclick = fn; };
         on('veh-edit', function () { A.vehicleForm(x, function () { A.router.refresh(); }); });

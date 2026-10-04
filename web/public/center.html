@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>بوابة مراكز الصيانة</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230A6CFF'/%3E%3Cpath d='M12 5l6 7-6 7-6-7z' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="assets/css/fonts.css">
+  <link rel="stylesheet" href="assets/css/tokens.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/layout.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/overlays.css">
+</head>
+<body class="bt-bg">
+  <div class="app" id="app">
+    <aside class="sidebar" id="sidebar" aria-label="القائمة الرئيسية">
+      <div class="sb-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="sb-brand">
+        <span class="logo"><i data-icon="diamond" data-size="18"></i></span>
+        <div><div class="brand-name">Brilliant<i>Tech</i></div><small>بوابة مراكز الصيانة</small></div>
+      </div>
+      <div class="sb-company" style="cursor:default">
+        <span class="co-ic" style="background:#7C4DFF"><i data-icon="store" data-size="15"></i></span>
+        <span><b data-center-name>…</b><small data-brand>…</small></span>
+      </div>
+      <nav class="sb-nav" id="nav"></nav>
+      <div class="sb-foot">
+        <span class="av c2" data-me-av></span>
+        <div class="flex-1"><b data-me-name></b><small>مستخدم المركز</small></div>
+        <button type="button" class="icon-btn sm" data-action="user-menu" aria-label="قائمة المستخدم"><i data-icon="ellipsis-vertical" data-size="16"></i></button>
+      </div>
+    </aside>
+    <div class="sb-backdrop"></div>
+    <main class="main">
+      <header class="topbar">
+        <button type="button" class="icon-btn menu-btn" data-action="toggle-nav" aria-label="القائمة"><i data-icon="menu" data-size="20"></i></button>
+        <div class="tb-title" id="tb-title"></div>
+        <div class="tb-actions">
+          <button type="button" class="icon-btn hide-sm" data-action="theme" data-theme-icon="18" aria-label="تبديل الوضع"><i data-icon="moon" data-size="18"></i></button>
+          <button type="button" class="av c2" data-action="user-menu" aria-label="قائمة المستخدم" aria-haspopup="menu" data-me-av></button>
+        </div>
+      </header>
+      <section class="content" id="view" tabindex="-1"></section>
+    </main>
+  </div>
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/icons.js"></script>
+  <script src="assets/js/ui.js"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/mnt.js"></script>
+  <script src="assets/js/center/portal.js"></script>
+</body>
+</html>

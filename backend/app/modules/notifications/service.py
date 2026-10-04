@@ -45,6 +45,15 @@ KINDS: dict[str, Kind] = {
     "daily_report_overdue": Kind("warning", "daily_reports.review", ("driver", "date", "hours")),
     "ledger_invariant": Kind("critical", "cash.view", ("problem",)),
     "driver_left_with_cash": Kind("critical", "cash.view", ("driver", "balance")),
+    "maintenance_requested": Kind("info", "maintenance.approve", ("plate", "number")),
+    "maintenance_emergency": Kind("warning", "maintenance.approve", ("plate", "number")),
+    "maintenance_quote_pending": Kind(
+        "warning", "maintenance.approve", ("plate", "number", "center", "amount", "limit")
+    ),
+    "maintenance_ready": Kind("info", "maintenance.view", ("plate", "number", "center")),
+    "maintenance_invoice_pending": Kind("info", "invoices.approve", ("center", "number", "total")),
+    "maintenance_invoice_duplicate": Kind("warning", "invoices.approve", ("center", "number", "total")),
+    "maintenance_invoice_differs": Kind("warning", "invoices.approve", ("center", "number", "total", "quote")),
 }
 
 

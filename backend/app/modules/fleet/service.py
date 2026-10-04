@@ -739,6 +739,21 @@ def return_vehicle(
     for photo in photos or ():
         _check_photo(db, photo["sha256"])
     vehicle = db.scalar(select(Vehicle).where(Vehicle.id == custody.vehicle_id).with_for_update())
+    out = _end_custody(db, custody, vehicle, ended_at, odometer_km, photo_sha256, actor_user_id, photos)
+    db.commit()
+    return out
+
+
+def _end_custody(
+    db: Session,
+    custody: Custody,
+    vehicle: Vehicle,
+    ended_at: datetime,
+    odometer_km: int,
+    photo_sha256: str,
+    actor_user_id: int,
+    photos: list[dict] | None = None,
+) -> dict:
     custody.ended_at, custody.returned_by = ended_at, actor_user_id
     db.flush()
     _add_reading(
@@ -776,8 +791,76 @@ def return_vehicle(
             "ended_at": ended_at.isoformat(),
         },
     )
-    db.commit()
     return out
+
+
+# ------------------------------------------------------------------ maintenance centers (in the caller's transaction)
+
+
+def _vehicle_for_update(db: Session, vehicle_id: int) -> Vehicle:
+    return db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id).with_for_update())
+
+
+def received_for_maintenance(
+    db: Session, vehicle_id: int, *, odometer_km: int, photo_sha256: str, at: datetime, actor_user_id: int
+) -> CustodyRef | None:
+    """A maintenance center received the vehicle. The driver left it there, so an open custody ends at that moment
+    with the center's reading (tracking stops with it); otherwise the reading is recorded on its own. The vehicle
+    is "in maintenance" until it is picked up. Returns the custody that ended, if any."""
+    _check_moment(at)
+    _check_photo(db, photo_sha256)
+    # the custody first, then the vehicle: the same order as return_vehicle, so the two never deadlock
+    custody = db.scalar(
+        select(Custody).where(Custody.vehicle_id == vehicle_id, Custody.ended_at.is_(None)).with_for_update()
+    )
+    vehicle = _vehicle_for_update(db, vehicle_id)
+    if custody is not None:
+        if at <= custody.started_at:
+            raise AppError(422, "ended_before_start")
+        _end_custody(db, custody, vehicle, at, odometer_km, photo_sha256, actor_user_id)
+    else:
+        _add_reading(
+            db,
+            vehicle,
+            None,
+            kind="maintenance_in",
+            value_km=odometer_km,
+            photo_sha256=photo_sha256,
+            recorded_at=at,
+            by_user=actor_user_id,
+        )
+    vehicle.status = "maintenance"
+    vehicle.version += 1
+    return _cref(custody) if custody is not None else None
+
+
+def maintenance_reading(
+    db: Session, vehicle_id: int, *, odometer_km: int, photo_sha256: str, at: datetime, actor_user_id: int
+) -> None:
+    """The center's reading at the end of the repair: the next handover is compared with it, not with the
+    reception (a test drive is not distance off duty)."""
+    _check_moment(at)
+    _check_photo(db, photo_sha256)
+    vehicle = _vehicle_for_update(db, vehicle_id)
+    _add_reading(
+        db,
+        vehicle,
+        None,
+        kind="maintenance_out",
+        value_km=odometer_km,
+        photo_sha256=photo_sha256,
+        recorded_at=at,
+        by_user=actor_user_id,
+    )
+    vehicle.version += 1
+
+
+def released_from_maintenance(db: Session, vehicle_id: int) -> None:
+    """Picked up from the center: available again for a handover."""
+    vehicle = _vehicle_for_update(db, vehicle_id)
+    if vehicle.status == "maintenance":
+        vehicle.status = "available"
+        vehicle.version += 1
 
 
 def list_custodies(
@@ -908,6 +991,25 @@ def vehicles(db: Session, ids: Iterable[int]) -> dict[int, VehicleRef]:
     if not ids:
         return {}
     return {v.id: _vref(v) for v in db.scalars(select(Vehicle).where(Vehicle.id.in_(ids)))}
+
+
+def vehicle_cards(db: Session, ids: Iterable[int]) -> dict[int, dict]:
+    """How other modules' screens show a vehicle (a maintenance center needs make and model, not just the plate)."""
+    ids = set(ids)
+    if not ids:
+        return {}
+    return {
+        v.id: {
+            "id": str(v.public_id),
+            "plate_number": v.plate_number,
+            "make": v.make,
+            "model": v.model,
+            "year": v.year,
+            "color": v.color,
+            "status": v.status,
+        }
+        for v in db.scalars(select(Vehicle).where(Vehicle.id.in_(ids)))
+    }
 
 
 def plate_numbers(db: Session, ids: Iterable[int]) -> dict[int, str]:

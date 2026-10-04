@@ -465,6 +465,97 @@ def create_user(
     return snapshot
 
 
+PORTAL_ROLE = "maintenance_center"
+
+
+def _portal_role(db: Session) -> Role:
+    """The role of maintenance-center accounts. Whoever manages centers may create these accounts without holding
+    the portal permissions themselves (the generic rule for creating users), because the role grants nothing
+    outside the portal and the portal shows only the center's own vehicles. If someone widened the role, this
+    exception would hand out more than intended: refuse until the role is back to portal permissions only."""
+    roles = _roles_by_code(db, [PORTAL_ROLE])
+    perms = _roles_permissions(db, [roles[0].id])
+    if roles[0].all_permissions or not perms or any(not p.startswith("portal.") for p in perms):
+        raise AppError(409, "portal_role_changed", role=PORTAL_ROLE)
+    return roles[0]
+
+
+def create_portal_user(
+    db: Session, *, actor_user_id: int, username: str, full_name: str, phone: str | None, password: str
+) -> int:
+    """A maintenance-center account: the portal role, no company scope (it sees no company data). In the caller's
+    transaction; the caller links it to its center. Returns the user id."""
+    if db.scalar(select(User.id).where(func.lower(User.username) == username.strip().lower())):
+        raise AppError(409, "username_taken")
+    _check_password_policy(password)
+    role = _portal_role(db)
+    user = User(
+        username=username.strip(),
+        full_name=full_name.strip(),
+        phone=phone,
+        password_hash=security.hash_password(password),
+        must_change_password=True,
+        all_companies=False,
+    )
+    db.add(user)
+    db.flush()
+    _set_links(db, user.id, [role], set())
+    db.flush()
+    audit.record(
+        db,
+        action="user.created",
+        entity_type="user",
+        entity_id=user.public_id,
+        actor_user_id=actor_user_id,
+        after=_user_snapshot(db, user),
+    )
+    return user.id
+
+
+def set_portal_user_active(db: Session, user_id: int, *, active: bool, actor_user_id: int) -> None:
+    """Disables or enables a maintenance-center account (its sessions end at once). In the caller's transaction."""
+    user = db.get(User, user_id, with_for_update=True)
+    if user is None or user.is_superuser:
+        raise AppError(404, "user_not_found")
+    if user.is_active == active:
+        return
+    before = _user_snapshot(db, user)
+    user.is_active, user.version = active, user.version + 1
+    user.updated_at = func.now()
+    if not active:
+        _revoke_all_sessions(db, user.id)
+    db.flush()
+    audit.record(
+        db,
+        action="user.updated",
+        entity_type="user",
+        entity_id=user.public_id,
+        actor_user_id=actor_user_id,
+        before=before,
+        after=_user_snapshot(db, user),
+    )
+
+
+def users_brief(db: Session, ids: Iterable[int]) -> list[dict]:
+    """Accounts for another module's screens (a center's portal users)."""
+    ids = {i for i in ids if i is not None}
+    if not ids:
+        return []
+    users = db.scalars(select(User).where(User.id.in_(ids)).order_by(User.username))
+    return [
+        {
+            "user_id": u.id,
+            "public_id": str(u.public_id),
+            "username": u.username,
+            "full_name": u.full_name,
+            "phone": u.phone,
+            "is_active": u.is_active,
+            "last_login_at": u.last_login_at,
+        }
+        for u in users
+    ]
+
+
 def update_user(db: Session, principal: Principal, public_id, *, version: int, changes: dict) -> dict:
     user = _get_visible_user(db, principal, public_id)
     if user.version != version:

@@ -138,11 +138,17 @@
   api.branchOptions = function () { return api.branches.filter(function (b) { return b.is_active; }).map(function (b) { return { v: b.id, t: api.name(b.name) }; }); };
   api.defaultBranch = function () { var b = api.branches.find(function (x) { return x.is_default; }); return b ? b.id : null; };
 
+  /* حساب مركز صيانة: صلاحيات البوابة فقط، مكانه center.html لا لوحة الإدارة */
+  api.isCenterAccount = function (me) {
+    return !!me && !me.is_superuser && me.permissions.length > 0 && me.permissions.every(function (p) { return p.indexOf('portal.') === 0; });
+  };
+
   /* بداية كل صفحة محمية: الجلسة، الكتالوج، الشركات والفروع */
   api.boot = function () {
     return api.get('/auth/me').then(function (me) {
       api.me = me;
       api.csrf = me.csrf_token;
+      if (api.isCenterAccount(me)) { location.replace('center.html'); return new Promise(function () {}); }
       return Promise.all([
         api.loadCatalog(me.locale || 'ar').catch(function () { return api.loadCatalog('ar'); }),
         api.get('/companies/options').then(function (c) { api.companies = c; }),

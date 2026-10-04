@@ -104,7 +104,9 @@ class CustodyPhoto(Base):
 class OdometerReading(Base):
     __tablename__ = "odometer_readings"
     __table_args__ = (
-        CheckConstraint("kind IN ('handover', 'return', 'start_day', 'end_day')", name="kind"),
+        CheckConstraint(
+            "kind IN ('handover', 'return', 'start_day', 'end_day', 'maintenance_in', 'maintenance_out')", name="kind"
+        ),
         CheckConstraint("value_km >= 0", name="value_km"),
         CheckConstraint("corrected_km >= 0", name="corrected_km"),
         CheckConstraint("review_status IN ('ok', 'pending', 'reviewed')", name="review_status"),

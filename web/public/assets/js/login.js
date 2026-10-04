@@ -9,13 +9,16 @@
   var s1 = document.getElementById('step1'), s2 = document.getElementById('step2');
   var next = new URLSearchParams(location.search).get('next') || '';
   var target = 'admin.html' + (/^#\/[\w\-/?=&%.]*$/.test(next) ? next : '');
+  /* إلى لوحة الإدارة، أو إلى بوابة المراكز لحساب مركز صيانة */
+  function enter(me) { location.replace(api.isCenterAccount(me) ? 'center.html' : target); }
+  function go() { api.get('/auth/me', null, { noRedirect: true }).then(enter, function () { location.replace(target); }); }
 
   BT.hydrate(document);
   BT.render(document.getElementById('otp-box'), BT.otp.html(6));
   BT.form.live(s1);
 
   // الجلسة صالحة؟ إلى اللوحة مباشرة
-  api.get('/auth/me', null, { noRedirect: true }).then(function () { location.replace(target); }, function () { /* سجّل الدخول */ });
+  api.get('/auth/me', null, { noRedirect: true }).then(enter, function () { /* سجّل الدخول */ });
   api.get('/branding', null, { noRedirect: true }).then(function (b) {
     document.getElementById('client-name').textContent = b.display_name;
     document.title = 'تسجيل الدخول — ' + b.display_name;
@@ -39,7 +42,7 @@
         s2.querySelector('.otp input').focus();
         return;
       }
-      location.replace(target);
+      go();
     }, function (err) {
       b.classList.remove('is-loading'); b.disabled = false;
       showError('login-err', api.message(err));
@@ -57,7 +60,7 @@
     verifying = true;
     var b = s2.querySelector('[type=submit]'); b.classList.add('is-loading');
     api.request('POST', '/auth/mfa/verify', { body: { code: code }, noRedirect: true }).then(function () {
-      location.replace(target);
+      go();
     }, function (err) {
       verifying = false; b.classList.remove('is-loading');
       box.classList.add('invalid');

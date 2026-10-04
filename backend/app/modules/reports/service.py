@@ -19,6 +19,7 @@ from app.modules.cash.models import Account, Journal, JournalLine, Receipt
 from app.modules.daily_ops.models import Report
 from app.modules.documents.models import Document
 from app.modules.fleet.models import Custody, Vehicle
+from app.modules.maintenance import service as maintenance
 from app.modules.notifications.models import Alert
 from app.modules.org import service as org
 from app.modules.people.models import Employee
@@ -137,6 +138,9 @@ def dashboard(db: Session, *, permissions: frozenset[str], all_companies: bool, 
             )
         ).one()
         out["documents"] = {"expiring": expiring, "expired": expired}
+
+    if has("maintenance.view"):
+        out["maintenance"] = maintenance.counts(db, all_companies=all_companies, company_ids=company_ids)
 
     visible = Alert.permission.in_(list(permissions))
     alert_scope = literal(True) if all_companies else or_(Alert.company_id.is_(None), Alert.company_id.in_(company_ids))

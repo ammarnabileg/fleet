@@ -61,7 +61,8 @@ class MessagingSettings(_Section):
 
 
 class MaintenanceSettings(_Section):
-    approval_limit: Decimal = Field(Decimal("100.000"), ge=0, max_digits=12, decimal_places=3)
+    approval_limit: Decimal = Field(Decimal("100.000"), ge=0, max_digits=12, decimal_places=3)  # quotes above it
+    close_requires_invoice: bool = True  # a picked-up request closes once its invoice is approved
 
 
 class PayrollSettings(_Section):
