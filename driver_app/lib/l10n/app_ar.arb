@@ -238,5 +238,71 @@
   "signOutQ": "سيتوقف التتبع وتحتاج تفعيلاً جديداً للدخول. متابعة؟",
   "blockedTitle": "حسابك موقوف",
   "blockedText": "تواصل مع المشرف.",
-  "obReady": "كل شيء جاهز: أرسله للمراجعة."
+  "obReady": "كل شيء جاهز: أرسله للمراجعة.",
+  "maintenance": "الصيانة",
+  "maintenanceTitle": "طلبات الصيانة",
+  "kind_maintenance": "طلب صيانة",
+  "mntNew": "طلب صيانة جديد",
+  "mntIntro": "صِف المشكلة وصوّرها من الكاميرا. يصل الطلب للمشرف ليعتمده ويحدد مركز الصيانة.",
+  "mntNoVehicle": "تطلب الصيانة للسيارة التي في عهدتك. لا توجد سيارة معك الآن.",
+  "mntKind": "النوع",
+  "mntDescription": "وصف المشكلة",
+  "mntOdometer": "قراءة العداد (اختياري)",
+  "mntPhotos": "صور (حتى 4)",
+  "mntAddPhoto": "صورة",
+  "mntNone": "لا توجد طلبات صيانة",
+  "mntRequestNo": "طلب #{number}",
+  "@mntRequestNo": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "mntAtCenter": "المركز: {center}",
+  "@mntAtCenter": {
+    "placeholders": {
+      "center": {
+        "type": "String"
+      }
+    }
+  },
+  "mntReadyBanner": "سيارتك {plate} جاهزة للاستلام من {center}",
+  "@mntReadyBanner": {
+    "placeholders": {
+      "plate": {
+        "type": "String"
+      },
+      "center": {
+        "type": "String"
+      }
+    }
+  },
+  "mntRejected": "رُفض: {reason}",
+  "@mntRejected": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "mntSent": "أُرسل طلب الصيانة للمشرف",
+  "mntKind_periodic": "صيانة دورية",
+  "mntKind_mechanical": "ميكانيكا",
+  "mntKind_electrical": "كهرباء",
+  "mntKind_tyres": "إطارات",
+  "mntKind_battery": "بطارية",
+  "mntKind_ac": "تكييف",
+  "mntKind_bodywork": "سمكرة وصبغ",
+  "mntKind_other": "أخرى",
+  "mntStatus_requested": "بانتظار الاعتماد",
+  "mntStatus_approved": "معتمد",
+  "mntStatus_rejected": "مرفوض",
+  "mntStatus_referred": "محال لمركز الصيانة",
+  "mntStatus_at_center": "في مركز الصيانة",
+  "mntStatus_ready": "جاهزة للاستلام",
+  "mntStatus_picked_up": "تم الاستلام",
+  "mntStatus_closed": "مغلق",
+  "mntStatus_cancelled": "ملغى",
+  "mntTapToRemove": "اضغط للحذف"
 }

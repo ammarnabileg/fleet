@@ -43,7 +43,12 @@ class World {
   final FakeServer server;
 }
 
-Future<World> world({bool signedIn = true, Map<String, dynamic>? onboarding, Map<String, dynamic>? today}) async {
+Future<World> world({
+  bool signedIn = true,
+  Map<String, dynamic>? onboarding,
+  Map<String, dynamic>? today,
+  List<Map<String, dynamic>>? maintenance,
+}) async {
   final db = await testDb();
   final server = FakeServer();
   final tokens = TokenStore(db);
@@ -157,6 +162,7 @@ Future<World> world({bool signedIn = true, Map<String, dynamic>? onboarding, Map
       ],
     ),
   );
+  server.on('GET', '/api/v1/driver/maintenance', (r) => (200, maintenance ?? []));
   return World(state, server);
 }
 
@@ -442,5 +448,86 @@ void main() {
     expect(AppState.activationToken(Uri.parse('btfleet://activate?t=$token')), token);
     expect(AppState.activationToken(Uri.parse('https://fleet.example.com/other#t=$token')), isNull);
     expect(AppState.activationToken(Uri.parse('https://fleet.example.com/activate#t=short')), isNull);
+  });
+
+  testWidgets('maintenance: type, description and camera photos go out as one request', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final img = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.now());
+    var n = 0;
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': '${++n}' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on(
+      'POST',
+      '/api/v1/driver/maintenance',
+      (r) => (
+        201,
+        {
+          'id': 'm1',
+          'number': 41,
+          'vehicle_plate': '18/23456',
+          'kind': 'tyres',
+          'description': 'Flat',
+          'status': 'requested',
+          'center': null,
+          'created_at': '2026-10-04T07:00:00Z',
+          'ready_at': null,
+          'picked_up_at': null,
+          'decision_note': null,
+        },
+      ),
+    );
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('maintenance')));
+    await idle(tester);
+    await tester.tap(find.byKey(const Key('mnt-kind')));
+    await settle(tester);
+    await tester.tap(find.text('إطارات').last);
+    await settle(tester);
+    await tester.enterText(find.byKey(const Key('mnt-description')), 'الإطار الخلفي الأيسر مثقوب');
+    await tester.enterText(find.byKey(const Key('mnt-km')), '45230');
+    await tester.tap(find.byKey(const Key('mnt-photo')));
+    await idle(tester);
+    await tester.tap(find.byKey(const Key('mnt-photo')));
+    await idle(tester);
+    await shot(tester, '13-maintenance');
+    await tester.ensureVisible(find.byKey(const Key('mnt-send')));
+    await tester.tap(find.byKey(const Key('mnt-send')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/files').every((r) => r.url.queryParameters['source'] == 'camera'), isTrue);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/maintenance', method: 'POST').single.body) as Map;
+    expect((body['kind'], body['description'], body['odometer_km']), ('tyres', 'الإطار الخلفي الأيسر مثقوب', 45230));
+    expect(body['photos'], ['1' * 64, '2' * 64]);
+    expect(body['client_ref'], isA<String>());
+    expect(find.text('تم الإرسال'), findsOneWidget);
+  });
+
+  testWidgets('a vehicle ready at the center is announced on the home screen with where to collect it', (tester) async {
+    final w = (await tester.runAsync(
+      () => world(
+        maintenance: [
+          {
+            'id': 'm1',
+            'number': 41,
+            'vehicle_plate': '18/23456',
+            'kind': 'mechanical',
+            'description': 'Noise',
+            'status': 'ready',
+            'center': {'id': 'c', 'name': 'مركز النور', 'phone': '+965 2222 1100', 'address': 'الشويخ'},
+            'created_at': '2026-10-03T07:00:00Z',
+            'ready_at': '2026-10-04T09:00:00Z',
+            'picked_up_at': null,
+            'decision_note': null,
+          },
+        ],
+      ),
+    ))!;
+    await pumpApp(tester, w);
+    expect(find.textContaining('جاهزة للاستلام من مركز النور'), findsOneWidget);
+    expect(find.textContaining('الشويخ'), findsOneWidget);
+    await shot(tester, '14-maintenance-ready');
   });
 }

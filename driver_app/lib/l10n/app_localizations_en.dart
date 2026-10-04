@@ -462,4 +462,118 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get obReady => 'Everything is ready: send it for review.';
+
+  @override
+  String get maintenance => 'Maintenance';
+
+  @override
+  String get maintenanceTitle => 'Maintenance requests';
+
+  @override
+  String get kind_maintenance => 'Maintenance request';
+
+  @override
+  String get mntNew => 'New maintenance request';
+
+  @override
+  String get mntIntro =>
+      'Describe the problem and take photos. Your supervisor approves the request and chooses the maintenance center.';
+
+  @override
+  String get mntNoVehicle => 'Maintenance is requested for the vehicle in your custody. You have none now.';
+
+  @override
+  String get mntKind => 'Type';
+
+  @override
+  String get mntDescription => 'What is wrong';
+
+  @override
+  String get mntOdometer => 'Odometer (optional)';
+
+  @override
+  String get mntPhotos => 'Photos (up to 4)';
+
+  @override
+  String get mntAddPhoto => 'Photo';
+
+  @override
+  String get mntNone => 'No maintenance requests';
+
+  @override
+  String mntRequestNo(String number) {
+    return 'Request #$number';
+  }
+
+  @override
+  String mntAtCenter(String center) {
+    return 'Center: $center';
+  }
+
+  @override
+  String mntReadyBanner(String plate, String center) {
+    return 'Your vehicle $plate is ready for pickup at $center';
+  }
+
+  @override
+  String mntRejected(String reason) {
+    return 'Rejected: $reason';
+  }
+
+  @override
+  String get mntSent => 'Your maintenance request was sent to your supervisor';
+
+  @override
+  String get mntKind_periodic => 'Periodic service';
+
+  @override
+  String get mntKind_mechanical => 'Mechanical';
+
+  @override
+  String get mntKind_electrical => 'Electrical';
+
+  @override
+  String get mntKind_tyres => 'Tyres';
+
+  @override
+  String get mntKind_battery => 'Battery';
+
+  @override
+  String get mntKind_ac => 'Air conditioning';
+
+  @override
+  String get mntKind_bodywork => 'Bodywork';
+
+  @override
+  String get mntKind_other => 'Other';
+
+  @override
+  String get mntStatus_requested => 'Waiting for approval';
+
+  @override
+  String get mntStatus_approved => 'Approved';
+
+  @override
+  String get mntStatus_rejected => 'Rejected';
+
+  @override
+  String get mntStatus_referred => 'Sent to the center';
+
+  @override
+  String get mntStatus_at_center => 'At the center';
+
+  @override
+  String get mntStatus_ready => 'Ready for pickup';
+
+  @override
+  String get mntStatus_picked_up => 'Picked up';
+
+  @override
+  String get mntStatus_closed => 'Closed';
+
+  @override
+  String get mntStatus_cancelled => 'Cancelled';
+
+  @override
+  String get mntTapToRemove => 'tap to remove';
 }

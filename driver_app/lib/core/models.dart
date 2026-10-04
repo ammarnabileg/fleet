@@ -151,3 +151,54 @@ class Onboarding {
   bool get mustFill => required;
   bool get waiting => status == 'submitted';
 }
+
+/// A maintenance request as the driver follows it (the office and the center do the rest).
+class MaintenanceRequest {
+  MaintenanceRequest({
+    required this.id,
+    required this.number,
+    required this.plate,
+    required this.kind,
+    required this.description,
+    required this.status,
+    required this.createdAt,
+    this.centerName,
+    this.centerPhone,
+    this.centerAddress,
+    this.readyAt,
+    this.rejectedReason,
+  });
+
+  factory MaintenanceRequest.fromJson(Map<String, dynamic> j) {
+    final center = j['center'] as Map<String, dynamic>?;
+    return MaintenanceRequest(
+      id: j['id'] as String,
+      number: (j['number'] as num).toInt(),
+      plate: j['vehicle_plate'] as String,
+      kind: j['kind'] as String,
+      description: j['description'] as String,
+      status: j['status'] as String,
+      createdAt: DateTime.parse(j['created_at'] as String),
+      centerName: center?['name'] as String?,
+      centerPhone: center?['phone'] as String?,
+      centerAddress: center?['address'] as String?,
+      readyAt: j['ready_at'] == null ? null : DateTime.parse(j['ready_at'] as String),
+      rejectedReason: j['decision_note'] as String?,
+    );
+  }
+
+  final String id;
+  final int number;
+  final String plate;
+  final String kind;
+  final String description;
+  final String status;
+  final DateTime createdAt;
+  final String? centerName;
+  final String? centerPhone;
+  final String? centerAddress;
+  final DateTime? readyAt;
+  final String? rejectedReason;
+
+  bool get isReady => status == 'ready';
+}

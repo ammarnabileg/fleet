@@ -24,7 +24,7 @@ class OutboxItem {
   );
 
   final int id;
-  final String kind; // odometer | report
+  final String kind; // odometer | report | maintenance
   final Map<String, dynamic> payload;
   final Map<String, String> files; // payload field -> local file still to upload
   final DateTime createdAt;
@@ -46,6 +46,7 @@ class Outbox {
   static const _routes = {
     'odometer': ('/driver/odometer', 'camera', {'reading_exists'}),
     'report': ('/driver/reports', 'upload', {'report_exists'}),
+    'maintenance': ('/driver/maintenance', 'camera', {'request_exists'}),
   };
   static const _claimTimeout = Duration(minutes: 2);
 
@@ -177,12 +178,31 @@ class Outbox {
       );
     }
     try {
-      await api.post(path, body: payload);
+      await api.post(path, body: _lists(payload));
     } on ApiError catch (e) {
       if (!alreadyDone.contains(e.code)) rethrow;
     }
     await _deleteFiles(item);
     await db.raw.delete('outbox', where: 'id = ?', whereArgs: [item.id]);
+  }
+
+  /// Several files for one field are stored as "photos.0", "photos.1" (each uploaded and remembered on its own, so
+  /// a retry resumes where it stopped) and sent as one list "photos", in their order.
+  static Map<String, dynamic> _lists(Map<String, dynamic> payload) {
+    final out = <String, dynamic>{};
+    final lists = <String, Map<int, dynamic>>{};
+    for (final e in payload.entries) {
+      final m = RegExp(r'^(\w+)\.(\d+)$').firstMatch(e.key);
+      if (m == null) {
+        out[e.key] = e.value;
+      } else {
+        (lists[m.group(1)!] ??= {})[int.parse(m.group(2)!)] = e.value;
+      }
+    }
+    for (final e in lists.entries) {
+      out[e.key] = [for (final i in e.value.keys.toList()..sort()) e.value[i]];
+    }
+    return out;
   }
 
   Future<void> _deleteFiles(OutboxItem item) async {

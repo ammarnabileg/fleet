@@ -135,4 +135,34 @@ void main() {
     expect((await box.items()).single.lastError, 'too_old');
     expect(server.requests, isEmpty);
   });
+
+  test('a maintenance request sends its photos as one list, in order; a retry resumes and is recognised', () async {
+    final (db, _, api, server) = await session();
+    final box = Outbox(db);
+    var n = 0, failSecond = true;
+    server.on('POST', '/api/v1/driver/files', (req) {
+      n++;
+      if (n == 2 && failSecond) {
+        failSecond = false;
+        throw ApiError(0, 'network');
+      }
+      return (201, {'sha256': '$n' * 64, 'size_bytes': 7, 'content_type': 'image/jpeg'});
+    });
+    var posts = 0;
+    server.on('POST', '/api/v1/driver/maintenance', (req) {
+      posts++;
+      return posts == 1 ? throw ApiError(0, 'network') : (409, {'code': 'request_exists'});
+    });
+    final payload = {'client_ref': 'ref-1', 'kind': 'tyres', 'description': 'Flat tyre', 'odometer_km': null};
+    final id = await box.add('maintenance', payload, {'photos.0': await photo(), 'photos.1': await photo()});
+    expect(await box.sendNow(id, api), SendResult.queued); // the second photo failed
+    expect(await box.flush(api), 0); // both uploaded now, the request itself lost on the way
+    expect(await box.flush(api), 1, reason: 'the server already has it: request_exists counts as sent');
+    expect(server.calls('/api/v1/driver/files'), hasLength(3), reason: 'the first photo was not uploaded twice');
+    final bodies = [for (final r in server.calls('/api/v1/driver/maintenance')) jsonDecode(r.body) as Map];
+    expect(bodies.last['photos'], ['1' * 64, '3' * 64]);
+    expect(bodies.last['client_ref'], 'ref-1', reason: 'the same id on every try');
+    expect(bodies.last.keys.where((k) => k.toString().contains('.')), isEmpty);
+    expect(await box.items(), isEmpty);
+  });
 }

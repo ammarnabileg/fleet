@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
 import '../core/api.dart';
 import '../core/catalog.dart';
@@ -61,6 +62,7 @@ class AppState extends ChangeNotifier {
   Cash? cash;
   Onboarding? onboarding;
   List<Report> reports = [];
+  List<MaintenanceRequest> maintenance = [];
   List<OutboxItem> queued = [];
   Map<String, dynamic> tracking = {};
   Object? lastError;
@@ -155,6 +157,7 @@ class AppState extends ChangeNotifier {
     cash = null;
     onboarding = null;
     reports = [];
+    maintenance = [];
   }
 
   // ---------------------------------------------------------------- data
@@ -167,7 +170,7 @@ class AppState extends ChangeNotifier {
       if (onboarding!.waiting) return _set(Phase.waiting);
       if (!await platform.permissionsOk()) return _set(Phase.permissions);
       await platform.startTracking();
-      await Future.wait([loadToday(), loadCash(), loadReports()]);
+      await Future.wait([loadToday(), loadCash(), loadReports(), _quietly(loadMaintenance)]);
       await _readLocal();
       _set(Phase.ready);
     } on SessionEnded {
@@ -190,6 +193,20 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadReports() async =>
       reports = [for (final r in await api.get('/driver/reports') as List) Report.fromJson(r as Map<String, dynamic>)];
+
+  Future<void> loadMaintenance() async => maintenance = [
+    for (final r in await api.get('/driver/maintenance') as List)
+      MaintenanceRequest.fromJson(r as Map<String, dynamic>),
+  ];
+
+  /// Something the home screen can live without (the maintenance list): a failure does not hold the rest.
+  Future<void> _quietly(Future<void> Function() load) async {
+    try {
+      await load();
+    } on ApiError {
+      // shown next time
+    }
+  }
 
   Future<void> confirmReceipt(String id) async {
     await api.post('/driver/cash/receipts/$id/confirm');
@@ -244,6 +261,22 @@ class AppState extends ChangeNotifier {
         await loadCash();
       },
     );
+  }
+
+  /// A maintenance request for the vehicle the driver holds. The id is made here, once: a retry after a lost
+  /// answer is recognised by the server ("request_exists") instead of creating a second request.
+  Future<SendResult> sendMaintenance({
+    required String kind,
+    required String description,
+    int? km,
+    required List<String> photoPaths,
+  }) async {
+    final id = await outbox.add(
+      'maintenance',
+      {'client_ref': const Uuid().v4(), 'kind': kind, 'description': description, 'odometer_km': km},
+      {for (var i = 0; i < photoPaths.length; i++) 'photos.$i': photoPaths[i]},
+    );
+    return _sendNow(id, after: loadMaintenance);
   }
 
   Future<SendResult> _sendNow(int id, {required Future<void> Function() after}) async {

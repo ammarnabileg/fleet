@@ -937,6 +937,216 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'كل شيء جاهز: أرسله للمراجعة.'**
   String get obReady;
+
+  /// No description provided for @maintenance.
+  ///
+  /// In ar, this message translates to:
+  /// **'الصيانة'**
+  String get maintenance;
+
+  /// No description provided for @maintenanceTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلبات الصيانة'**
+  String get maintenanceTitle;
+
+  /// No description provided for @kind_maintenance.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلب صيانة'**
+  String get kind_maintenance;
+
+  /// No description provided for @mntNew.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلب صيانة جديد'**
+  String get mntNew;
+
+  /// No description provided for @mntIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'صِف المشكلة وصوّرها من الكاميرا. يصل الطلب للمشرف ليعتمده ويحدد مركز الصيانة.'**
+  String get mntIntro;
+
+  /// No description provided for @mntNoVehicle.
+  ///
+  /// In ar, this message translates to:
+  /// **'تطلب الصيانة للسيارة التي في عهدتك. لا توجد سيارة معك الآن.'**
+  String get mntNoVehicle;
+
+  /// No description provided for @mntKind.
+  ///
+  /// In ar, this message translates to:
+  /// **'النوع'**
+  String get mntKind;
+
+  /// No description provided for @mntDescription.
+  ///
+  /// In ar, this message translates to:
+  /// **'وصف المشكلة'**
+  String get mntDescription;
+
+  /// No description provided for @mntOdometer.
+  ///
+  /// In ar, this message translates to:
+  /// **'قراءة العداد (اختياري)'**
+  String get mntOdometer;
+
+  /// No description provided for @mntPhotos.
+  ///
+  /// In ar, this message translates to:
+  /// **'صور (حتى 4)'**
+  String get mntPhotos;
+
+  /// No description provided for @mntAddPhoto.
+  ///
+  /// In ar, this message translates to:
+  /// **'صورة'**
+  String get mntAddPhoto;
+
+  /// No description provided for @mntNone.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد طلبات صيانة'**
+  String get mntNone;
+
+  /// No description provided for @mntRequestNo.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلب #{number}'**
+  String mntRequestNo(String number);
+
+  /// No description provided for @mntAtCenter.
+  ///
+  /// In ar, this message translates to:
+  /// **'المركز: {center}'**
+  String mntAtCenter(String center);
+
+  /// No description provided for @mntReadyBanner.
+  ///
+  /// In ar, this message translates to:
+  /// **'سيارتك {plate} جاهزة للاستلام من {center}'**
+  String mntReadyBanner(String plate, String center);
+
+  /// No description provided for @mntRejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'رُفض: {reason}'**
+  String mntRejected(String reason);
+
+  /// No description provided for @mntSent.
+  ///
+  /// In ar, this message translates to:
+  /// **'أُرسل طلب الصيانة للمشرف'**
+  String get mntSent;
+
+  /// No description provided for @mntKind_periodic.
+  ///
+  /// In ar, this message translates to:
+  /// **'صيانة دورية'**
+  String get mntKind_periodic;
+
+  /// No description provided for @mntKind_mechanical.
+  ///
+  /// In ar, this message translates to:
+  /// **'ميكانيكا'**
+  String get mntKind_mechanical;
+
+  /// No description provided for @mntKind_electrical.
+  ///
+  /// In ar, this message translates to:
+  /// **'كهرباء'**
+  String get mntKind_electrical;
+
+  /// No description provided for @mntKind_tyres.
+  ///
+  /// In ar, this message translates to:
+  /// **'إطارات'**
+  String get mntKind_tyres;
+
+  /// No description provided for @mntKind_battery.
+  ///
+  /// In ar, this message translates to:
+  /// **'بطارية'**
+  String get mntKind_battery;
+
+  /// No description provided for @mntKind_ac.
+  ///
+  /// In ar, this message translates to:
+  /// **'تكييف'**
+  String get mntKind_ac;
+
+  /// No description provided for @mntKind_bodywork.
+  ///
+  /// In ar, this message translates to:
+  /// **'سمكرة وصبغ'**
+  String get mntKind_bodywork;
+
+  /// No description provided for @mntKind_other.
+  ///
+  /// In ar, this message translates to:
+  /// **'أخرى'**
+  String get mntKind_other;
+
+  /// No description provided for @mntStatus_requested.
+  ///
+  /// In ar, this message translates to:
+  /// **'بانتظار الاعتماد'**
+  String get mntStatus_requested;
+
+  /// No description provided for @mntStatus_approved.
+  ///
+  /// In ar, this message translates to:
+  /// **'معتمد'**
+  String get mntStatus_approved;
+
+  /// No description provided for @mntStatus_rejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'مرفوض'**
+  String get mntStatus_rejected;
+
+  /// No description provided for @mntStatus_referred.
+  ///
+  /// In ar, this message translates to:
+  /// **'محال لمركز الصيانة'**
+  String get mntStatus_referred;
+
+  /// No description provided for @mntStatus_at_center.
+  ///
+  /// In ar, this message translates to:
+  /// **'في مركز الصيانة'**
+  String get mntStatus_at_center;
+
+  /// No description provided for @mntStatus_ready.
+  ///
+  /// In ar, this message translates to:
+  /// **'جاهزة للاستلام'**
+  String get mntStatus_ready;
+
+  /// No description provided for @mntStatus_picked_up.
+  ///
+  /// In ar, this message translates to:
+  /// **'تم الاستلام'**
+  String get mntStatus_picked_up;
+
+  /// No description provided for @mntStatus_closed.
+  ///
+  /// In ar, this message translates to:
+  /// **'مغلق'**
+  String get mntStatus_closed;
+
+  /// No description provided for @mntStatus_cancelled.
+  ///
+  /// In ar, this message translates to:
+  /// **'ملغى'**
+  String get mntStatus_cancelled;
+
+  /// No description provided for @mntTapToRemove.
+  ///
+  /// In ar, this message translates to:
+  /// **'اضغط للحذف'**
+  String get mntTapToRemove;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

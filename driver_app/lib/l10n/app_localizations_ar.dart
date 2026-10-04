@@ -460,4 +460,117 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get obReady => 'كل شيء جاهز: أرسله للمراجعة.';
+
+  @override
+  String get maintenance => 'الصيانة';
+
+  @override
+  String get maintenanceTitle => 'طلبات الصيانة';
+
+  @override
+  String get kind_maintenance => 'طلب صيانة';
+
+  @override
+  String get mntNew => 'طلب صيانة جديد';
+
+  @override
+  String get mntIntro => 'صِف المشكلة وصوّرها من الكاميرا. يصل الطلب للمشرف ليعتمده ويحدد مركز الصيانة.';
+
+  @override
+  String get mntNoVehicle => 'تطلب الصيانة للسيارة التي في عهدتك. لا توجد سيارة معك الآن.';
+
+  @override
+  String get mntKind => 'النوع';
+
+  @override
+  String get mntDescription => 'وصف المشكلة';
+
+  @override
+  String get mntOdometer => 'قراءة العداد (اختياري)';
+
+  @override
+  String get mntPhotos => 'صور (حتى 4)';
+
+  @override
+  String get mntAddPhoto => 'صورة';
+
+  @override
+  String get mntNone => 'لا توجد طلبات صيانة';
+
+  @override
+  String mntRequestNo(String number) {
+    return 'طلب #$number';
+  }
+
+  @override
+  String mntAtCenter(String center) {
+    return 'المركز: $center';
+  }
+
+  @override
+  String mntReadyBanner(String plate, String center) {
+    return 'سيارتك $plate جاهزة للاستلام من $center';
+  }
+
+  @override
+  String mntRejected(String reason) {
+    return 'رُفض: $reason';
+  }
+
+  @override
+  String get mntSent => 'أُرسل طلب الصيانة للمشرف';
+
+  @override
+  String get mntKind_periodic => 'صيانة دورية';
+
+  @override
+  String get mntKind_mechanical => 'ميكانيكا';
+
+  @override
+  String get mntKind_electrical => 'كهرباء';
+
+  @override
+  String get mntKind_tyres => 'إطارات';
+
+  @override
+  String get mntKind_battery => 'بطارية';
+
+  @override
+  String get mntKind_ac => 'تكييف';
+
+  @override
+  String get mntKind_bodywork => 'سمكرة وصبغ';
+
+  @override
+  String get mntKind_other => 'أخرى';
+
+  @override
+  String get mntStatus_requested => 'بانتظار الاعتماد';
+
+  @override
+  String get mntStatus_approved => 'معتمد';
+
+  @override
+  String get mntStatus_rejected => 'مرفوض';
+
+  @override
+  String get mntStatus_referred => 'محال لمركز الصيانة';
+
+  @override
+  String get mntStatus_at_center => 'في مركز الصيانة';
+
+  @override
+  String get mntStatus_ready => 'جاهزة للاستلام';
+
+  @override
+  String get mntStatus_picked_up => 'تم الاستلام';
+
+  @override
+  String get mntStatus_closed => 'مغلق';
+
+  @override
+  String get mntStatus_cancelled => 'ملغى';
+
+  @override
+  String get mntTapToRemove => 'اضغط للحذف';
 }

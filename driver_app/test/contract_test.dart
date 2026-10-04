@@ -213,6 +213,27 @@ void main() {
       );
       expect(state.reports.single.status, 'submitted');
 
+      // ---- maintenance: a request for the vehicle held, with two camera photos; the office sees it with them
+      final p1 = await jpeg('mnt1');
+      final p2 = await jpeg('mnt2');
+      expect(
+        await state.sendMaintenance(
+          kind: 'tyres',
+          description: 'Flat rear tyre',
+          km: 30150,
+          photoPaths: [p1.path, p2.path],
+        ),
+        SendResult.sent,
+      );
+      expect(state.maintenance.single.status, 'requested');
+      final office = await admin.call('GET', '/maintenance/requests?vehicle_id=${vehicle['id']}') as List;
+      expect(
+        (office.single['kind'], office.single['source'], office.single['driver']['id']),
+        ('tyres', 'driver', driver['id']),
+      );
+      final request = await admin.call('GET', '/maintenance/requests/${office.single['id']}');
+      expect((request['photos'] as List).length, 2);
+
       // ---- cash, then sign out: the phone forgets the session and the server refuses its tokens
       await state.loadCash();
       expect(state.cash!.pending, '17.250');

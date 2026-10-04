@@ -7,6 +7,7 @@ import '../../core/errors.dart';
 import '../../core/outbox.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'maintenance.dart';
 import 'odometer.dart';
 import 'report.dart';
 
@@ -64,7 +65,7 @@ class HomeTab extends StatelessWidget {
 
   Future<void> _refresh() async {
     try {
-      await Future.wait([state.loadToday(), state.loadCash(), state.loadReports()]);
+      await Future.wait([state.loadToday(), state.loadCash(), state.loadReports(), state.loadMaintenance()]);
     } on ApiError {
       // offline: the last data stays on screen
     }
@@ -84,6 +85,10 @@ class HomeTab extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          for (final r in state.maintenance.where((r) => r.isReady)) ...[
+            ReadyBanner(request: r),
+            const SizedBox(height: 12),
+          ],
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -172,6 +177,14 @@ class HomeTab extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            key: const Key('maintenance'),
+            icon: const Icon(Icons.car_repair),
+            label: Text(l.maintenance),
+            onPressed: () =>
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => MaintenanceScreen(state: state))),
+          ),
           if (state.queued.isNotEmpty) ...[
             SectionTitle(l.outboxTitle),
             for (final item in state.queued) _QueuedTile(state: state, item: item),
@@ -192,7 +205,11 @@ class _QueuedTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = context.l;
     final failed = item.state == 'failed';
-    final what = item.kind == 'odometer' ? l.kind_odometer : l.kind_report;
+    final what = switch (item.kind) {
+      'odometer' => l.kind_odometer,
+      'maintenance' => l.kind_maintenance,
+      _ => l.kind_report,
+    };
     final reason = failed
         ? state.message(ApiError(422, item.lastError ?? ''), network: l.networkError, generic: item.lastError ?? '')
         : l.outboxQueued;
