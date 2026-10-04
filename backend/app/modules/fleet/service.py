@@ -274,6 +274,15 @@ def _previous_reading(db: Session, vehicle_id: int, before: datetime) -> Odomete
     )
 
 
+def _next_reading(db: Session, vehicle_id: int, after: datetime) -> OdometerReading | None:
+    return db.scalar(
+        select(OdometerReading)
+        .where(OdometerReading.vehicle_id == vehicle_id, OdometerReading.recorded_at > after)
+        .order_by(OdometerReading.recorded_at, OdometerReading.id)
+        .limit(1)
+    )
+
+
 def _recompute_last_km(db: Session, vehicle: Vehicle) -> None:
     latest = _previous_reading(db, vehicle.id, datetime.max.replace(tzinfo=utcnow().tzinfo))
     if latest is not None:
@@ -318,6 +327,10 @@ def _add_reading(
         days = max(1, (business_date(recorded_at) - previous.business_date).days)
         if driven > settings.daily_km_alert * days:
             flags.append("daily_limit")
+    # a reading sent late (offline phone) lands before readings already recorded: it must fit under them too
+    following = _next_reading(db, vehicle.id, recorded_at)
+    if following is not None and value_km > following.effective_km:
+        flags.append("higher_than_next")
     if db.scalar(select(func.count()).select_from(OdometerReading).where(OdometerReading.photo_sha256 == photo_sha256)):
         flags.append("photo_reused")
     reading = OdometerReading(
@@ -354,6 +367,10 @@ def _add_reading(
                 base | {"km": value_km - (previous_km or 0), "limit": settings.daily_km_alert},
             ),
             "photo_reused": ("odometer_photo_reused", base),
+            "higher_than_next": (
+                "odometer_higher_than_next",
+                base | {"next": following.effective_km if following else None},
+            ),
         }
         for flag in flags:
             kind_, params = alert[flag]

@@ -205,3 +205,41 @@ def test_uat19_a_start_of_day_sent_late_keeps_its_original_time(admin_client, cl
     assert r.status_code == 201
     assert datetime.fromisoformat(r.json()["recorded_at"]) == taken
     assert r.json()["business_date"] == str(business_date(taken))
+
+
+def test_a_late_reading_higher_than_the_one_after_it_is_flagged(admin_client, client, company):
+    """An offline phone sends this morning's reading after the vehicle was already returned with a lower one."""
+    v = make_vehicle(admin_client, company["id"], km=50_000)
+    d = make_driver(admin_client, company["id"])
+    h = bearer(bind_device(client, d["phone"]))
+    c = hand_over(admin_client, v, d, km=50_000, started_at=(now() - timedelta(hours=10)).isoformat())
+    _return(admin_client, c, 50_300, ended_at=(now() - timedelta(hours=1)).isoformat())
+    assert admin_client.get("/api/v1/odometer/readings", params={"review_status": "pending"}).json() == []
+
+    def late(kind, km, hours_ago):
+        taken = (now() - timedelta(hours=hours_ago)).isoformat()
+        r = client.post(
+            "/api/v1/driver/odometer",
+            headers=h,
+            json={"kind": kind, "value_km": km, "photo_sha256": _camera(client, h), "recorded_at": taken},
+        )
+        assert r.status_code == 201, r.text
+        return r.json()
+
+    assert late("start_day", 50_200, 3)["flags"] == []  # fits between the handover and the return
+    assert late("end_day", 50_400, 2)["flags"] == ["higher_than_next"]
+    alerts = admin_client.get("/api/v1/alerts", headers={"Accept-Language": "en"}).json()
+    assert [a["kind"] for a in alerts] == ["odometer_higher_than_next"]
+    assert "50400" in alerts[0]["message"] and "50300" in alerts[0]["message"]
+
+
+def test_a_handover_at_the_moment_of_the_return_is_not_compared_with_it_as_next(admin_client, company):
+    v = make_vehicle(admin_client, company["id"], km=60_000)
+    c = hand_over(
+        admin_client, v, make_driver(admin_client, company["id"]), started_at=(now() - timedelta(hours=5)).isoformat()
+    )
+    moment = (now() - timedelta(hours=2)).isoformat()
+    _return(admin_client, c, 60_100, ended_at=moment)
+    nxt = hand_over(admin_client, v, make_driver(admin_client, company["id"]), km=60_110, started_at=moment)
+    flags = admin_client.get(f"/api/v1/custodies/{nxt['id']}").json()["readings"][0]["flags"]
+    assert flags == ["off_duty_km"]  # 10 km idle: yes; "higher than the next reading": the return is not next

@@ -333,6 +333,7 @@
     "mock_location": "موقع وهمي من جهاز السائق {driver}",
     "odometer_daily_limit": "{plate} قطعت {km} كم، أكثر من الحد اليومي {limit} كم",
     "odometer_lower": "قراءة عداد {plate} ({value}) أقل من السابقة ({previous})",
+    "odometer_higher_than_next": "قراءة عداد {plate} ({value}) وصلت متأخرة وهي أعلى من القراءة التي بعدها ({next})",
     "odometer_off_duty": "{plate} قطعت {km} كم خارج العهدة",
     "odometer_photo_reused": "صورة عداد {plate} مستخدمة من قبل ({driver})",
     "onboarding_submitted": "{driver} أرسل بياناته ومستنداته للمراجعة",
@@ -368,7 +369,8 @@
     "lower_than_previous": "أقل من القراءة السابقة",
     "daily_limit": "أكثر من الحد اليومي",
     "off_duty_km": "مسافة خارج العهدة",
-    "photo_reused": "صورة مستخدمة من قبل"
+    "photo_reused": "صورة مستخدمة من قبل",
+    "higher_than_next": "أعلى من القراءة التالية"
   },
   "app_access": {
     "none": "بدون تطبيق",

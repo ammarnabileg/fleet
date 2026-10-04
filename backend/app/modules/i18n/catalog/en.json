@@ -333,6 +333,7 @@
     "mock_location": "Fake location from {driver}'s phone",
     "odometer_daily_limit": "{plate} drove {km} km, more than the daily limit of {limit} km",
     "odometer_lower": "Odometer of {plate} ({value}) is lower than the previous reading ({previous})",
+    "odometer_higher_than_next": "Odometer of {plate} ({value}) arrived late and is higher than the reading after it ({next})",
     "odometer_off_duty": "{plate} drove {km} km while not in custody",
     "odometer_photo_reused": "The odometer photo of {plate} was used before ({driver})",
     "onboarding_submitted": "{driver} sent his data and documents for review",
@@ -368,7 +369,8 @@
     "lower_than_previous": "Lower than the previous reading",
     "daily_limit": "Above the daily limit",
     "off_duty_km": "Distance outside custody",
-    "photo_reused": "Photo used before"
+    "photo_reused": "Photo used before",
+    "higher_than_next": "Higher than the next reading"
   },
   "app_access": {
     "none": "No app",

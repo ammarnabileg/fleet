@@ -92,4 +92,10 @@ def test_statuses_and_flags_have_labels():
 
     for lang, catalog in LANGS.items():
         assert set(MANUAL_STATUSES) | {"assigned"} == catalog["vehicle_status"].keys(), lang
-        assert {"lower_than_previous", "daily_limit", "off_duty_km", "photo_reused"} == catalog["odometer_flags"].keys()
+        assert {
+            "lower_than_previous",
+            "higher_than_next",
+            "daily_limit",
+            "off_duty_km",
+            "photo_reused",
+        } == catalog["odometer_flags"].keys()
