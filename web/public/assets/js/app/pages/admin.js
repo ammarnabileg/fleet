@@ -6,39 +6,144 @@
   var BT = window.BT, h = BT.h, raw = BT.raw, icon = BT.icon, fmt = BT.fmt, api = BT.api, A = BT.A;
 
   /* ================= استيراد ملف البيانات ================= */
-  BT.pages['import'] = function () {
+  BT.pages['import'] = function (p, q) {
     A.setTitle('استيراد البيانات');
-    var v = A.view(), file = null;
-    BT.render(v, h`${A.head('استيراد ملف البيانات', 'ملف Excel المرفق بالعقد (السيارات، المستخدمون والسائقون، الأرصدة الافتتاحية) كما هو: نفس أسماء الأوراق ونفس الأعمدة', '')}
-      <div class="card"><div class="form" style="max-width:560px">${BT.f.upload({ name: 'file', label: 'ملف Excel (.xlsx)', accept: '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', accept_label: 'xlsx · حتى 10MB' })}
-        <div class="flex gap-8"><button type="button" class="btn btn-primary" data-check>${icon('list-checks', 15)} فحص الملف دون حفظ</button><button type="button" class="btn btn-success hidden" data-apply>${icon('check', 15)} تنفيذ الاستيراد</button></div>
-        <div class="banner info fs-sm">${icon('info', 15)}<div>الفحص لا يغيّر شيئاً. التنفيذ لا يتاح إلا لملف بلا أخطاء، ويُطبَّق كله أو لا شيء. نفس الملف يمكن استيراده مرة أخرى: يحدّث الموجود ولا يكرره.</div></div></div>
+    var v = A.view(), tab = q.tab === 'sheets' ? 'sheets' : 'template';
+    BT.render(v, h`${A.head('استيراد البيانات', 'الفحص لا يغيّر شيئاً، والتنفيذ لملف بلا أخطاء فقط ويُطبَّق كله أو لا شيء. نفس الملف يمكن استيراده مرة أخرى: يحدّث الموجود ولا يكرره.', '')}
+      ${BT.tabs('imp', [['template', 'قالب العقد'], ['sheets', 'ملف بصيغة أخرى']], tab, 'tabs-line')}
+      <div data-panel="template" data-group="imp" class="${tab === 'template' ? 'active' : ''}"><div data-p="template"></div></div>
+      <div data-panel="sheets" data-group="imp" class="${tab === 'sheets' ? 'active' : ''}"><div data-p="sheets"></div></div>`);
+    templatePanel(v.querySelector('[data-p="template"]'));
+    sheetsPanel(v.querySelector('[data-p="sheets"]'));
+    v.addEventListener('bt:tab', function (e) { history.replaceState(null, '', '#/import?tab=' + e.detail); });
+  };
+
+  function templatePanel(el) {
+    var file = null;
+    BT.render(el, h`<div class="card"><div class="form" style="max-width:560px">
+        <p class="muted fs-sm">ملف Excel المرفق بالعقد (السيارات، المستخدمون والسائقون، الأرصدة الافتتاحية) كما هو: نفس أسماء الأوراق ونفس الأعمدة.</p>
+        ${BT.f.upload({ name: 'file', label: 'ملف Excel (.xlsx)', accept: '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', accept_label: 'xlsx · حتى 10MB' })}
+        <div class="flex gap-8"><button type="button" class="btn btn-primary" data-check>${icon('list-checks', 15)} فحص الملف دون حفظ</button><button type="button" class="btn btn-success hidden" data-apply>${icon('check', 15)} تنفيذ الاستيراد</button></div></div>
         <div data-result class="mt-16"></div></div>`);
-    var input = v.querySelector('input[type=file]'), res = v.querySelector('[data-result]'), applyBtn = v.querySelector('[data-apply]');
+    var input = el.querySelector('input[type=file]'), res = el.querySelector('[data-result]'), applyBtn = el.querySelector('[data-apply]');
     input.addEventListener('change', function () { file = input.files[0] || null; applyBtn.classList.add('hidden'); BT.render(res, ''); });
     function run(apply, btn) {
       if (!file) { BT.toast('اختر الملف أولاً', { type: 'error' }); return; }
       btn.classList.add('is-loading'); btn.disabled = true;
       api.uploadForm('/imports/workbook', file, { apply: apply }).then(function (r) {
         btn.classList.remove('is-loading'); btn.disabled = false;
-        BT.render(res, result(r));
+        BT.render(res, result(r, true));
         applyBtn.classList.toggle('hidden', apply || r.errors.length > 0);
         if (apply) { BT.toast('تم الاستيراد'); file = null; input.value = ''; }
       }, function (err) { btn.classList.remove('is-loading'); btn.disabled = false; BT.render(res, h`<div class="banner danger">${icon('circle-x', 16)}<div>${api.message(err)}</div></div>`); });
     }
-    v.querySelector('[data-check]').onclick = function (e) { run(false, e.currentTarget); };
-    applyBtn.onclick = function (e) {
+    el.querySelector('[data-check]').onclick = function (e) { run(false, e.currentTarget); };
+    applyBtn.onclick = function () {
       BT.confirm({ title: 'تنفيذ الاستيراد', message: 'تُضاف السجلات الجديدة وتُحدَّث الموجودة دفعة واحدة.', confirmText: 'تنفيذ', tone: 'success' }).then(function (r) { if (r.ok) run(true, applyBtn); });
     };
-  };
+  }
+
+  /* ملف العميل بصيغته: أي أسماء أوراق وأي ترتيب أعمدة، حتى بلا صف عناوين.
+     الخادم يقترح نوع كل ورقة وعمود كل حقل، والمستخدم يؤكد أو يصحح قبل الفحص. */
+  var KIND = { vehicles: 'السيارات', employees: 'الموظفون والسائقون' };
+  function colName(i) { var s = ''; i++; while (i > 0) { var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+  function sheetsPanel(el) {
+    var file = null, pv = null;
+    BT.render(el, h`<div class="card"><div class="form">
+        <p class="muted fs-sm">ملف Excel بصيغتكم كما هو: أوراق السيارات والموظفين بأي ترتيب أعمدة، ولو بلا صف عناوين. يقترح النظام نوع كل ورقة والعمود المناسب لكل حقل، فراجعها قبل الفحص. المستندات (الإقامة، الرخصة، الجواز) والهاتف والآيبان يكملها السائق في التسجيل الذاتي إن لم تكن في الملف.</p>
+        <div style="max-width:560px">${BT.f.upload({ name: 'file', label: 'ملف Excel (.xlsx)', accept: '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', accept_label: 'xlsx · حتى 10MB' })}</div>
+        <div data-plan></div></div>
+        <div data-result class="mt-16"></div></div>`);
+    var input = el.querySelector('input[type=file]'), planBox = el.querySelector('[data-plan]'), res = el.querySelector('[data-result]');
+    input.addEventListener('change', function () {
+      file = input.files[0] || null; pv = null; BT.render(res, '');
+      if (!file) { BT.render(planBox, ''); return; }
+      A.load(planBox, Promise.all([api.uploadForm('/imports/sheets/preview', file), api.get('/companies/options'), api.get('/branches')]), function (r) {
+        pv = r[0];
+        setTimeout(function () { wire(r[1]); });
+        return form(r[1], r[2]);
+      }).catch(function () {});
+    });
+    function options(sheet, kind, field) {
+      return [{ v: '', t: '— لا يوجد —' }].concat(sheet.columns.map(function (c) {
+        var sample = c.samples.filter(Boolean).slice(0, 2).join('، ');
+        return { v: c.index, t: colName(c.index) + (c.header ? ' · ' + c.header : '') + (sample ? ' — ' + sample : '') };
+      }));
+    }
+    function mappingRows(sheet, kind) {
+      var picked = kind === sheet.kind ? sheet.mapping : {};
+      return pv.fields[kind].map(function (f) {
+        return h`<tr><td>${api.t('import_field', f.key)}${f.required ? raw('<span class="req">*</span>') : ''}</td><td>${BT.f.select({ name: 'col_' + f.key, value: picked[f.key] != null ? picked[f.key] : '', placeholder: false, options: options(sheet, kind, f.key) })}</td></tr>`;
+      });
+    }
+    function sheetCard(sheet, i) {
+      var kind = sheet.kind || '';
+      return h`<div class="card mt-12" data-sheet="${i}"><div class="card-h"><div class="card-t">${icon('sheet', 15)} ${sheet.name}</div><span class="muted fs-sm">${fmt.int(sheet.rows)} صف${sheet.header_row ? ' · العناوين في الصف ' + sheet.header_row : sheet.rows ? ' · بلا صف عناوين' : ''}</span></div>
+        <div class="card-b"><div class="form-grid">${BT.f.select({ name: 'kind', label: 'تُستورد كـ', value: kind, placeholder: false, options: [{ v: '', t: 'لا تُستورد' }, { v: 'vehicles', t: KIND.vehicles }, { v: 'employees', t: KIND.employees }] })}${BT.f.input({ name: 'first_row', label: 'أول صف بيانات', value: sheet.first_row, num: true })}</div>
+        <div data-map>${kind ? h`<div class="table-wrap mt-8"><table class="t compact"><thead><tr><th>الحقل</th><th>العمود في الملف</th></tr></thead><tbody>${mappingRows(sheet, kind)}</tbody></table></div>` : ''}</div></div></div>`;
+    }
+    function form(companies, branches) {
+      var active = companies.filter(function (c) { return c.is_active; });
+      return h`<div class="form-grid mt-12">${BT.f.select({ name: 'company_id', label: 'الشركة', required: true, value: active.length === 1 ? active[0].id : '', options: active.map(function (c) { return { v: c.id, t: api.name(c.name) }; }) })}
+          ${BT.f.select({ name: 'branch_id', label: 'الفرع', value: '', placeholder: 'الفرع الرئيسي', options: branches.filter(function (b) { return b.is_active; }).map(function (b) { return { v: b.id, t: api.name(b.name) }; }) })}
+          ${BT.f.input({ name: 'driver_keywords', label: 'يُعدّ الموظف سائقاً إذا احتوت مهنته على', value: 'سائق، driver', hint: 'كلمات مفصولة بفواصل' })}</div>
+        ${pv.sheets.map(function (sh, i) { return sh.rows ? sheetCard(sh, i) : ''; })}
+        ${pv.sheets.some(function (sh) { return !sh.rows; }) ? h`<div class="muted fs-sm mt-8">أوراق بلا بيانات لم تُعرض: ${pv.sheets.filter(function (sh) { return !sh.rows; }).map(function (sh) { return sh.name; }).join('، ')}</div>` : ''}
+        <div class="flex gap-8 mt-12"><button type="button" class="btn btn-primary" data-check>${icon('list-checks', 15)} فحص دون حفظ</button><button type="button" class="btn btn-success hidden" data-apply>${icon('check', 15)} تنفيذ الاستيراد</button></div>`;
+    }
+    function plan() {
+      var vals = BT.form.values(planBox);
+      var out = { company_id: Number(vals.company_id), branch_id: vals.branch_id ? Number(vals.branch_id) : null, driver_keywords: String(vals.driver_keywords || '').split(/[,،]/).map(function (x) { return x.trim(); }).filter(Boolean), sheets: [] };
+      BT.$$('[data-sheet]', planBox).forEach(function (card) {
+        var sheet = pv.sheets[+card.getAttribute('data-sheet')], kind = card.querySelector('[name=kind]').value;
+        if (!kind) return;
+        var columns = {};
+        BT.$$('select[name^="col_"]', card).forEach(function (sel) { if (sel.value !== '') columns[sel.name.slice(4)] = Number(sel.value); });
+        out.sheets.push({ name: sheet.name, kind: kind, first_row: Number(card.querySelector('[name=first_row]').value) || sheet.first_row, columns: columns });
+      });
+      return out;
+    }
+    function wire() {
+      var applyBtn = planBox.querySelector('[data-apply]');
+      BT.$$('[data-sheet] [name=kind]', planBox).forEach(function (sel) {
+        sel.onchange = function () {
+          var card = sel.closest('[data-sheet]'), sheet = pv.sheets[+card.getAttribute('data-sheet')];
+          BT.render(card.querySelector('[data-map]'), sel.value ? h`<div class="table-wrap mt-8"><table class="t compact"><thead><tr><th>الحقل</th><th>العمود في الملف</th></tr></thead><tbody>${mappingRows(sheet, sel.value)}</tbody></table></div>` : '');
+          applyBtn.classList.add('hidden');
+        };
+      });
+      planBox.addEventListener('change', function (e) { if (e.target.name !== 'file') applyBtn.classList.add('hidden'); });
+      function run(apply, btn) {
+        var pl = plan();
+        if (!pl.company_id) { BT.toast('اختر الشركة', { type: 'error' }); return; }
+        if (!pl.sheets.length) { BT.toast('لم تُختر أي ورقة للاستيراد', { type: 'error' }); return; }
+        var fd = new FormData();
+        fd.append('file', file, file.name || 'file');
+        fd.append('plan', JSON.stringify(pl));
+        btn.classList.add('is-loading'); btn.disabled = true;
+        api.request('POST', '/imports/sheets', { form: fd, query: { apply: apply } }).then(function (r) {
+          btn.classList.remove('is-loading'); btn.disabled = false;
+          BT.render(res, result(r, false));
+          applyBtn.classList.toggle('hidden', apply || r.errors.length > 0);
+          if (apply) BT.toast('تم الاستيراد');
+          res.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, function (err) { btn.classList.remove('is-loading'); btn.disabled = false; BT.render(res, h`<div class="banner danger">${icon('circle-x', 16)}<div>${api.message(err)}</div></div>`); });
+      }
+      planBox.querySelector('[data-check]').onclick = function (e) { run(false, e.currentTarget); };
+      applyBtn.onclick = function () {
+        BT.confirm({ title: 'تنفيذ الاستيراد', message: 'تُضاف السجلات الجديدة وتُحدَّث الموجودة دفعة واحدة.', confirmText: 'تنفيذ', tone: 'success' }).then(function (r) { if (r.ok) run(true, applyBtn); });
+      };
+    }
+  }
   function issue(x) {
     var params = Object.assign({}, x.params || {});
+    if (params.field) params.field = api.t('import_field', params.field, null, params.field);
     return h`<tr><td>${x.sheet}</td><td class="num">${x.row || '—'}</td><td>${api.t('errors', x.code, params, x.code)}</td></tr>`;
   }
-  function result(r) {
+  function result(r, template) {
     var c = function (o) { return fmt.int(o.created) + ' جديد · ' + fmt.int(o.updated) + ' تحديث'; };
     return h`<div class="${r.errors.length ? 'banner danger' : r.applied ? 'banner success' : 'banner info'}">${icon(r.errors.length ? 'circle-x' : 'circle-check', 16)}<div>${r.errors.length ? h`<b>${fmt.int(r.errors.length)} خطأ</b>: صحّح الملف وافحصه من جديد` : r.applied ? 'تم الاستيراد' : 'الملف سليم وجاهز للتنفيذ'}</div></div>
-      <div class="kpis mt-12">${BT.kpi({ label: 'السيارات', value: c(r.vehicles), dot: 'b' })}${BT.kpi({ label: 'الموظفون والسائقون', value: c(r.people), dot: 'g' })}${BT.kpi({ label: 'المستندات', value: fmt.int(r.documents), dot: 'p' })}${BT.kpi({ label: 'الأرصدة الافتتاحية', value: fmt.int(r.opening_balances), dot: 'o' })}</div>
+      <div class="kpis mt-12">${BT.kpi({ label: 'السيارات', value: c(r.vehicles), dot: 'b' })}${BT.kpi({ label: 'الموظفون والسائقون', value: c(r.people), dot: 'g' })}${BT.kpi({ label: 'المستندات', value: fmt.int(r.documents), dot: 'p' })}${template ? BT.kpi({ label: 'الأرصدة الافتتاحية', value: fmt.int(r.opening_balances), dot: 'o' }) : ''}</div>
       ${r.errors.length ? h`<div class="section-t mt-12">الأخطاء</div><div class="table-wrap"><table class="t compact"><thead><tr><th>الورقة</th><th class="num">الصف</th><th>المشكلة</th></tr></thead><tbody>${r.errors.map(issue)}</tbody></table></div>` : ''}
       ${r.warnings.length ? h`<div class="section-t mt-12">تنبيهات (لا تمنع الاستيراد)</div><div class="table-wrap"><table class="t compact"><thead><tr><th>الورقة</th><th class="num">الصف</th><th>الملاحظة</th></tr></thead><tbody>${r.warnings.map(issue)}</tbody></table></div>` : ''}`;
   }

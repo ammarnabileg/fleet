@@ -73,11 +73,21 @@ def test_unique_numbers_give_precise_errors(admin_client, company):
         assert r.status_code == 409 and r.json()["code"] == code, r.text
 
 
-def test_a_driver_needs_a_phone(admin_client, company):
+def test_a_driver_needs_a_phone_for_the_app(admin_client, company):
+    """A driver can be recorded before his phone is known (an imported list), but gets the app only with one."""
     r = admin_client.post(
         "/api/v1/employees",
         json={"employee_number": "D0", "name": name("س", "S"), "company_id": company["id"], "is_driver": True},
     )
+    assert r.status_code == 201 and r.json()["app_access"] == "none", r.text
+    d = r.json()
+    r = admin_client.put(f"/api/v1/employees/{d['id']}/app-access", json={"app_access": "active"})
+    assert r.status_code == 422 and r.json()["code"] == "driver_phone_required"
+    r = admin_client.patch(f"/api/v1/employees/{d['id']}", json={"version": d["version"], "phone": "+96550001234"})
+    assert r.status_code == 200, r.text
+    d = admin_client.put(f"/api/v1/employees/{d['id']}/app-access", json={"app_access": "active"}).json()
+    assert d["app_access"] == "active"
+    r = admin_client.patch(f"/api/v1/employees/{d['id']}", json={"version": d["version"], "phone": None})
     assert r.status_code == 422 and r.json()["code"] == "driver_phone_required"
 
 

@@ -4,13 +4,10 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from app.core.types import LocalizedText
+from app.core.types import Iban, LocalizedText
 
 Phone = Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\+[1-9][0-9]{7,14}$")]
 CivilId = Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^[0-9]{12}$")]
-Iban = Annotated[
-    str, StringConstraints(strip_whitespace=True, to_upper=True, pattern=r"^[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}$")
-]
 Code = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{1,30}$")]
 Short = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
 Salary = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=3)]

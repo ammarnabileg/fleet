@@ -44,7 +44,7 @@ class Employee(Base):
         CheckConstraint("phone ~ '^\\+[1-9][0-9]{7,14}$'", name="phone"),
         CheckConstraint("basic_salary >= 0", name="basic_salary"),
         CheckConstraint("app_access IN ('none', 'active', 'suspended', 'disabled')", name="app_access"),
-        CheckConstraint("NOT is_driver OR phone IS NOT NULL", name="driver_phone"),
+        CheckConstraint("NOT is_driver OR phone IS NOT NULL OR app_access = 'none'", name="driver_phone"),
         Index("employees_phone_idx", "phone", unique=True, postgresql_where=text("phone IS NOT NULL")),
         Index("employees_company_id_idx", "company_id"),
         SCHEMA,

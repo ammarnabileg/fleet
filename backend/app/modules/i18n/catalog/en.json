@@ -324,7 +324,14 @@
     "connection_check_failed": "The service did not answer as expected, nothing was saved: {error}",
     "storage_in_use": "{count} files are in the bucket: it cannot be changed nor its key removed, or they could no longer be read (the key may be replaced with a new key for the same bucket)",
     "storage_unavailable": "File storage is unavailable right now, try again shortly",
-    "storage_not_r2": "File storage is not set to R2"
+    "storage_not_r2": "File storage is not set to R2",
+    "registration_expired": "The registration expired on {date}: an expiry alert follows the import",
+    "insurance_expired": "The insurance expired on {date}: an expiry alert follows the import",
+    "civil_id_check_digit": "Civil ID {value} fails its check digit: it may be mistyped",
+    "driver_without_phone": "A driver without a phone: recorded, but no app or activation link until a phone is added",
+    "invalid_iban": "Invalid IBAN: {value} (the check digits do not match)",
+    "import_sheet_missing": "Sheet “{sheet}” is not in the file",
+    "import_bad_mapping": "The columns of sheet “{sheet}” are incomplete or wrong: {fields}"
   },
   "settings": {
     "branding": "Branding",
@@ -587,5 +594,21 @@
     "charged": "Charged to the driver",
     "company": "Borne by the company",
     "cancelled": "Cancelled"
+  },
+  "import_field": {
+    "plate_number": "Plate number",
+    "make": "Make",
+    "model": "Model",
+    "year": "Year",
+    "color": "Color",
+    "vin": "VIN",
+    "registration_expiry": "Registration expiry",
+    "insurance_expiry": "Insurance expiry",
+    "civil_id": "Civil ID",
+    "name": "Name",
+    "job_title": "Profession",
+    "phone": "Phone",
+    "nationality": "Nationality",
+    "iban": "IBAN"
   }
 }

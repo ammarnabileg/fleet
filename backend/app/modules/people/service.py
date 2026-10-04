@@ -252,8 +252,6 @@ def create_employee(
     data["branch_id"] = data.get("branch_id") or org.default_branch_id(db)
     _check_branch(db, data["branch_id"])
     status = _active_status(db, data.get("status_code") or "active")
-    if data["is_driver"] and not data.get("phone"):
-        raise AppError(422, "driver_phone_required")
     employee = Employee(**{**data, "status_code": status.code}, app_access="none")
     db.add(employee)
     _flush_unique(db)
@@ -309,8 +307,8 @@ def update_employee(
     for field in (*FIELDS, *SALARY_FIELDS):
         if field in changes:
             setattr(employee, field, changes[field])
-    if employee.is_driver and not employee.phone:
-        raise AppError(422, "driver_phone_required")
+    if employee.is_driver and not employee.phone and employee.app_access in ("active", "suspended"):
+        raise AppError(422, "driver_phone_required")  # the app signs a driver in by his phone
     if not employee.is_driver and employee.app_access in ("active", "suspended"):
         employee.app_access = "none"  # no longer a driver: no driver app
     employee.version += 1
@@ -387,6 +385,8 @@ def set_app_access(db: Session, public_id, *, value: str, actor_user_id: int, co
         raise AppError(422, "not_a_driver")
     if value == "active" and status.is_terminal:
         raise AppError(422, "employment_ended")
+    if value == "active" and not employee.phone:
+        raise AppError(422, "driver_phone_required")
     before = employee.app_access
     employee.app_access = value
     employee.version += 1
