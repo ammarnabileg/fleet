@@ -316,7 +316,8 @@
     "fine_not_open": "The fine is already decided",
     "fine_has_no_driver": "Nobody held the vehicle at the time of the fine: there is no driver to charge",
     "fine_charged": "The fine is charged to the driver: cancel the deduction first, from the deductions page",
-    "fine_paid": "The fine's payment is already recorded"
+    "fine_paid": "The fine's payment is already recorded",
+    "range_too_long_days": "The period is longer than {days} days"
   },
   "settings": {
     "branding": "Branding",

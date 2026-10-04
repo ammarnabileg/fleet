@@ -238,46 +238,4 @@
     }).catch(function () {});
   }
 
-  /* ================= التقارير ================= */
-  BT.pages['reports'] = function () {
-    A.setTitle('التقارير');
-    var v = A.view();
-    var to = BT.config.today, from = BT.date.add(to, -6);
-    BT.render(v, h`${A.head('التقارير', 'ملخص السائقين خلال فترة (حتى 93 يوماً) وأرصدة الكاش، مع التصدير إلى CSV يفتح في Excel', '')}
-      ${api.can('reports.view') ? h`<div class="card"><form class="toolbar" data-range style="margin:0 0 12px">${BT.f.date({ name: 'from', label: 'من', value: from, required: true })}${BT.f.date({ name: 'to', label: 'إلى', value: to, required: true })}<button type="submit" class="btn btn-primary" style="align-self:flex-end">${icon('chart-column', 15)} عرض</button>${api.can('reports.export') ? h`<button type="button" class="btn btn-outline" data-csv style="align-self:flex-end">${icon('download', 15)} CSV</button>` : ''}</form><div data-sum></div></div>` : ''}
-      ${api.can('cash.view') && api.can('reports.export') ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('wallet', 16)} أرصدة الكاش لكل السائقين</div><button type="button" class="btn btn-sm btn-outline ms-auto" data-bal-csv>${icon('download', 14)} CSV</button></div><div class="hint">نفس أرقام صفحة الكاش، للتسليم إلى المحاسبة.</div></div>` : ''}`);
-    var sumEl = v.querySelector('[data-sum]');
-    function load(f, t2) {
-      A.load(sumEl, api.get('/reports/daily-summary', { date_from: f, date_to: t2 }), function (d) {
-        setTimeout(function () {
-          var el = sumEl.querySelector('[data-t]');
-          if (el) BT.table(el, {
-            rows: d.rows, pageSize: 25, sort: { key: 'orders', dir: 'desc' },
-            search: { placeholder: 'السائق أو الرقم الوظيفي…', text: function (r) { return api.name(r.driver.name) + ' ' + r.employee_number; } },
-            columns: [
-              { key: 'driver', label: 'السائق', sort: function (r) { return api.name(r.driver.name); }, render: function (r) { return A.person(r.driver, r.employee_number); } },
-              { key: 'days', label: 'أيام', num: true },
-              { key: 'orders', label: 'الطلبات', num: true, render: function (r) { return fmt.int(r.orders); } },
-              { key: 'reported_cash', label: 'الكاش المُبلّغ', num: true, sort: function (r) { return Number(r.reported_cash); }, render: function (r) { return fmt.money(r.reported_cash); } },
-              { key: 'approved_cash', label: 'المعتمد', num: true, sort: function (r) { return Number(r.approved_cash); }, render: function (r) { return fmt.money(r.approved_cash); } },
-              { key: 'waiting', label: 'بانتظار', num: true },
-              { key: 'rejected', label: 'مرفوض', num: true }
-            ],
-            empty: { icon: 'chart-column', title: 'لا توجد تقارير في هذه الفترة' }
-          });
-        });
-        var T = d.totals || {};
-        return h`<div class="kpis">${BT.kpi({ label: 'الطلبات', value: fmt.int(T.orders), dot: 'o' })}${BT.kpi({ label: 'الكاش المُبلّغ', value: fmt.money(T.reported_cash), dot: 'b' })}${BT.kpi({ label: 'الكاش المعتمد', value: fmt.money(T.approved_cash), dot: 'g' })}${BT.kpi({ label: 'سائقون', value: fmt.int(d.rows.length), dot: 'p' })}</div><div data-t></div>`;
-      }).catch(function () {});
-    }
-    var form = v.querySelector('[data-range]');
-    if (form) {
-      form.addEventListener('submit', function (e) { e.preventDefault(); var x = BT.form.values(form); load(x.from, x.to); });
-      var csv = v.querySelector('[data-csv]');
-      if (csv) csv.onclick = function () { var x = BT.form.values(form); A.downloadFile('/reports/daily-summary', { date_from: x.from, date_to: x.to, format: 'csv' }, 'daily-summary-' + x.from + '-' + x.to + '.csv'); };
-      load(from, to);
-    }
-    var bc = v.querySelector('[data-bal-csv]');
-    if (bc) bc.onclick = function () { A.downloadFile('/reports/cash-balances', { format: 'csv' }, 'cash-balances.csv'); };
-  };
 })();

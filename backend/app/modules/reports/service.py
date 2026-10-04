@@ -7,23 +7,27 @@ Dashboard (BRD FR-DSH): every section appears only for a user holding its permis
 import csv
 import io
 from collections.abc import Iterable
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
-from sqlalchemy import case, func, literal, or_, select
+from sqlalchemy import and_, case, func, literal, or_, select
 from sqlalchemy.orm import Session
 
-from app.core.clock import today, utcnow
+from app.core.clock import KUWAIT, today, utcnow
 from app.core.errors import AppError
 from app.modules.accidents import service as accidents
+from app.modules.accidents.models import Accident
 from app.modules.cash.models import Account, Journal, JournalLine, Receipt
 from app.modules.daily_ops.models import Report
 from app.modules.documents.models import Document
 from app.modules.fines import service as fines
 from app.modules.fleet.models import Custody, Vehicle
 from app.modules.maintenance import service as maintenance
+from app.modules.maintenance.models import Center, Invoice, InvoiceItem
+from app.modules.maintenance.models import Request as MntRequest
 from app.modules.notifications.models import Alert
 from app.modules.org import service as org
+from app.modules.payroll.models import Deduction
 from app.modules.people.models import Employee
 from app.modules.tracking.models import LastPosition
 
@@ -234,3 +238,300 @@ def to_csv(header: list[str], rows: Iterable[list]) -> bytes:
 
 def name_in(name: dict, lang: str, default: str) -> str:
     return name.get(lang) or name.get(default) or next(iter(name.values()), "")
+
+
+# ------------------------------------------------------------------ maintenance and accidents (BRD FR-RPT-05, 06)
+
+MAX_YEAR_DAYS = 366  # cost reports look at a year
+
+
+def _period(date_from: date, date_to: date) -> tuple[datetime, datetime]:
+    """The period as Kuwait days: from the first day's midnight to the midnight after the last day."""
+    if date_to < date_from:
+        raise AppError(422, "invalid_range")
+    if (date_to - date_from).days >= MAX_YEAR_DAYS:
+        raise AppError(422, "range_too_long_days", days=MAX_YEAR_DAYS)
+    start = datetime.combine(date_from, time.min, tzinfo=KUWAIT)
+    return start, datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=KUWAIT)
+
+
+def _vehicle_cards(db: Session, ids) -> dict[int, dict]:
+    ids = set(ids) - {None}
+    if not ids:
+        return {}
+    return {
+        v.id: {"id": str(v.public_id), "plate_number": v.plate_number, "make": v.make, "model": v.model}
+        for v in db.scalars(select(Vehicle).where(Vehicle.id.in_(ids)))
+    }
+
+
+def _people(db: Session, ids) -> dict[int, dict]:
+    ids = set(ids) - {None}
+    if not ids:
+        return {}
+    return {
+        e.id: {"id": str(e.public_id), "name": e.name} for e in db.scalars(select(Employee).where(Employee.id.in_(ids)))
+    }
+
+
+def maintenance_report(
+    db: Session, *, date_from: date, date_to: date, all_companies: bool, company_ids: Iterable[int]
+) -> dict:
+    """Time at the centers (vehicles received in the period; a vehicle still there counts until now) and the cost
+    (invoices approved and dated in the period): by center, by vehicle, and the parts replaced (FR-RPT-05)."""
+    start, end = _period(date_from, date_to)
+    now = utcnow()
+    stay = func.extract("epoch", func.coalesce(MntRequest.picked_up_at, now) - MntRequest.received_at)
+    received = and_(
+        MntRequest.received_at >= start,
+        MntRequest.received_at < end,
+        _in_scope(MntRequest.company_id, all_companies, company_ids),
+    )
+    approved = and_(
+        Invoice.status == "approved",
+        Invoice.invoice_date.between(date_from, date_to),
+        _in_scope(Invoice.company_id, all_companies, company_ids),
+    )
+    stays = {
+        r.center_id: r
+        for r in db.execute(
+            select(
+                MntRequest.center_id,
+                func.count().label("received"),
+                func.count().filter(MntRequest.picked_up_at.is_(None)).label("still_there"),
+                func.avg(stay).label("avg"),
+                func.max(stay).label("max"),
+            )
+            .where(received)
+            .group_by(MntRequest.center_id)
+        )
+    }
+    costs = {
+        r.center_id: r
+        for r in db.execute(
+            select(Invoice.center_id, func.count().label("n"), func.sum(Invoice.total).label("total"))
+            .where(approved)
+            .group_by(Invoice.center_id)
+        )
+    }
+    centers = {c.id: c for c in db.scalars(select(Center).where(Center.id.in_(set(stays) | set(costs))))}
+    by_center = []
+    for cid in sorted(set(stays) | set(costs), key=lambda i: centers[i].name):
+        s, c = stays.get(cid), costs.get(cid)
+        total = Decimal(c.total) if c else ZERO
+        by_center.append(
+            {
+                "center": {"id": str(centers[cid].public_id), "name": centers[cid].name},
+                "received": s.received if s else 0,
+                "still_there": s.still_there if s else 0,
+                "avg_stay_seconds": int(s.avg) if s and s.avg is not None else None,
+                "max_stay_seconds": int(s.max) if s and s.max is not None else None,
+                "invoices": c.n if c else 0,
+                "cost": total,
+                "avg_cost": (total / c.n).quantize(Decimal("0.001")) if c else None,
+            }
+        )
+    v_stays = {
+        r.vehicle_id: r
+        for r in db.execute(
+            select(MntRequest.vehicle_id, func.count().label("n"), func.sum(stay).label("seconds"))
+            .where(received)
+            .group_by(MntRequest.vehicle_id)
+        )
+    }
+    v_costs = {
+        r.vehicle_id: r
+        for r in db.execute(
+            select(MntRequest.vehicle_id, func.count().label("n"), func.sum(Invoice.total).label("total"))
+            .join(MntRequest, MntRequest.id == Invoice.request_id)
+            .where(approved)
+            .group_by(MntRequest.vehicle_id)
+        )
+    }
+    cards = _vehicle_cards(db, set(v_stays) | set(v_costs))
+    by_vehicle = sorted(
+        (
+            {
+                "vehicle": cards[vid],
+                "times_received": v_stays[vid].n if vid in v_stays else 0,
+                "stay_seconds": int(v_stays[vid].seconds or 0) if vid in v_stays else 0,
+                "invoices": v_costs[vid].n if vid in v_costs else 0,
+                "cost": Decimal(v_costs[vid].total) if vid in v_costs else ZERO,
+            }
+            for vid in set(v_stays) | set(v_costs)
+        ),
+        key=lambda x: (-x["cost"], x["vehicle"]["plate_number"]),
+    )
+    amount = InvoiceItem.quantity * InvoiceItem.unit_price
+    kinds = dict(
+        db.execute(
+            select(InvoiceItem.kind, func.sum(amount))
+            .join(Invoice, Invoice.id == InvoiceItem.invoice_id)
+            .where(approved)
+            .group_by(InvoiceItem.kind)
+        ).all()
+    )
+    part = func.lower(func.trim(InvoiceItem.description))
+    parts = [
+        {
+            "description": r.description,
+            "quantity": Decimal(r.quantity),
+            "amount": Decimal(r.amount).quantize(Decimal("0.001")),
+            "invoices": r.invoices,
+        }
+        for r in db.execute(
+            select(
+                func.min(InvoiceItem.description).label("description"),
+                func.sum(InvoiceItem.quantity).label("quantity"),
+                func.sum(amount).label("amount"),
+                func.count(func.distinct(InvoiceItem.invoice_id)).label("invoices"),
+            )
+            .join(Invoice, Invoice.id == InvoiceItem.invoice_id)
+            .where(approved, InvoiceItem.kind == "part")
+            .group_by(part)
+            .order_by(func.sum(amount).desc(), part)
+            .limit(100)
+        )
+    ]
+    all_stays = [x for x in by_center if x["avg_stay_seconds"] is not None]
+    received_n = sum(x["received"] for x in by_center)
+    return {
+        "from": date_from,
+        "to": date_to,
+        "totals": {
+            "received": received_n,
+            "still_there": sum(x["still_there"] for x in by_center),
+            "avg_stay_seconds": (
+                int(sum(x["avg_stay_seconds"] * x["received"] for x in all_stays) / received_n) if received_n else None
+            ),
+            "invoices": sum(x["invoices"] for x in by_center),
+            "cost": sum((x["cost"] for x in by_center), ZERO),
+            "parts": Decimal(kinds.get("part") or 0).quantize(Decimal("0.001")),
+            "labour": Decimal(kinds.get("labour") or 0).quantize(Decimal("0.001")),
+            "other": Decimal(kinds.get("other") or 0).quantize(Decimal("0.001")),
+        },
+        "by_center": by_center,
+        "by_vehicle": by_vehicle,
+        "parts": parts,
+    }
+
+
+def accidents_report(
+    db: Session, *, date_from: date, date_to: date, all_companies: bool, company_ids: Iterable[int]
+) -> dict:
+    """Accidents that happened in the period (not the cancelled ones): by driver, by vehicle and by outcome, the
+    approved estimate against the actual repair cost, and the deductions; plus every open accident still waiting
+    for its police report, whatever its date (FR-RPT-06)."""
+    start, end = _period(date_from, date_to)
+    scope = _in_scope(Accident.company_id, all_companies, company_ids)
+    rows = list(
+        db.scalars(
+            select(Accident)
+            .where(Accident.occurred_at >= start, Accident.occurred_at < end, Accident.status != "cancelled", scope)
+            .order_by(Accident.occurred_at, Accident.id)
+        )
+    )
+    repair_ids = [a.repair_request_id for a in rows if a.repair_request_id]
+    actual = (
+        dict(
+            db.execute(
+                select(Invoice.request_id, func.sum(Invoice.total))
+                .where(Invoice.request_id.in_(repair_ids), Invoice.status == "approved")
+                .group_by(Invoice.request_id)
+            ).all()
+        )
+        if repair_ids
+        else {}
+    )
+    deducted = (
+        dict(
+            db.execute(
+                select(Deduction.source_id, Deduction.total).where(
+                    Deduction.source_type == "accident",
+                    Deduction.status == "approved",
+                    Deduction.source_id.in_([a.id for a in rows]),
+                )
+            ).all()
+        )
+        if rows
+        else {}
+    )
+    waiting = list(
+        db.scalars(
+            select(Accident)
+            .where(Accident.status == "open", Accident.police_report_sha256.is_(None), scope)
+            .order_by(Accident.created_at)
+        )
+    )
+    cards = _vehicle_cards(db, {a.vehicle_id for a in rows + waiting})
+    names = _people(db, {a.driver_id for a in rows + waiting})
+    estimate = {a.id: a.estimate_total if a.estimate_status == "approved" else None for a in rows}
+
+    def line(a: Accident) -> dict:
+        cost = actual.get(a.repair_request_id)
+        return {
+            "id": str(a.public_id),
+            "number": a.number,
+            "occurred_at": a.occurred_at,
+            "vehicle": cards.get(a.vehicle_id),
+            "driver": names.get(a.driver_id),
+            "injuries": a.injuries,
+            "liability": a.liability,
+            "liability_percent": a.liability_percent,
+            "has_police_report": a.police_report_sha256 is not None,
+            "estimate": estimate[a.id],
+            "actual_cost": Decimal(cost) if cost is not None else None,
+            "difference": (Decimal(cost) - estimate[a.id]) if cost is not None and estimate[a.id] else None,
+            "deduction": deducted.get(a.id),
+            "status": a.status,
+        }
+
+    lines = [line(a) for a in rows]
+
+    def group(key) -> list[dict]:
+        out: dict = {}
+        for x in lines:
+            ref = x[key]
+            k = ref["id"] if ref else None
+            g = out.setdefault(
+                k,
+                {key: ref, "accidents": 0, "liable": 0, "estimate": ZERO, "actual_cost": ZERO, "deduction": ZERO},
+            )
+            g["accidents"] += 1
+            g["liable"] += x["liability"] in ("driver", "shared")
+            g["estimate"] += x["estimate"] or ZERO
+            g["actual_cost"] += x["actual_cost"] or ZERO
+            g["deduction"] += x["deduction"] or ZERO
+        return sorted(out.values(), key=lambda g: (-g["accidents"], -g["estimate"]))
+
+    now = utcnow()
+    return {
+        "from": date_from,
+        "to": date_to,
+        "totals": {
+            "accidents": len(lines),
+            "injuries": sum(1 for x in lines if x["injuries"]),
+            "estimate": sum((x["estimate"] or ZERO for x in lines), ZERO),
+            "actual_cost": sum((x["actual_cost"] or ZERO for x in lines), ZERO),
+            "deduction": sum((x["deduction"] or ZERO for x in lines), ZERO),
+            "waiting_police_report": len(waiting),
+        },
+        "by_outcome": {
+            k: sum(1 for x in lines if (x["liability"] or "pending") == k)
+            for k in ("pending", "none", "driver", "shared")
+        },
+        "by_driver": group("driver"),
+        "by_vehicle": group("vehicle"),
+        "accidents": lines,
+        "waiting_police_report": [
+            {
+                "id": str(a.public_id),
+                "number": a.number,
+                "occurred_at": a.occurred_at,
+                "vehicle": cards.get(a.vehicle_id),
+                "driver": names.get(a.driver_id),
+                "days": (now - a.created_at).days,
+            }
+            for a in waiting
+        ],
+    }

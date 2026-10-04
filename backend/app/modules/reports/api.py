@@ -84,3 +84,132 @@ def cash_balances(
         for b in cash.driver_balances(db, drivers)[:limit]
     ]
     return _csv(principal, "cash-balances.csv", ["driver", "approved", "unapproved", "total", "over_limit"], rows)
+
+
+def _needs(principal: Principal, permission: str) -> None:
+    if not principal.has(permission):
+        raise AppError(403, "permission_denied", permission=permission)
+
+
+def _money(value) -> str:
+    return "" if value is None else f"{value:.3f}"
+
+
+def _num(value) -> str:
+    """A quantity or a percentage without trailing zeros: 3, 2.5, 33.33."""
+    return "" if value is None else f"{value.normalize():f}"
+
+
+def _hours(seconds) -> str:
+    return "" if seconds is None else f"{seconds / 3600:.1f}"
+
+
+@router.get("/reports/maintenance", response_model=schemas.MaintenanceReport)
+def maintenance_report(
+    date_from: date,
+    date_to: date,
+    format: Literal["json", "csv"] = "json",
+    section: Literal["centers", "vehicles", "parts"] = "centers",
+    principal: Principal = Depends(require_permission("reports.view")),
+    db: Session = Depends(get_session),
+):
+    """Time at the centers and the cost by center, by vehicle, and the parts (BRD FR-RPT-05)."""
+    _needs(principal, "maintenance.view")
+    data = service.maintenance_report(db, date_from=date_from, date_to=date_to, **principal.scope)
+    if format == "json":
+        return data
+    name = f"maintenance-{section}-{date_from}-{date_to}.csv"
+    if section == "centers":
+        header = [
+            "center",
+            "received",
+            "still_there",
+            "avg_stay_hours",
+            "max_stay_hours",
+            "invoices",
+            "cost",
+            "avg_cost",
+        ]
+        rows = [
+            [
+                r["center"]["name"],
+                r["received"],
+                r["still_there"],
+                _hours(r["avg_stay_seconds"]),
+                _hours(r["max_stay_seconds"]),
+                r["invoices"],
+                _money(r["cost"]),
+                _money(r["avg_cost"]),
+            ]
+            for r in data["by_center"]
+        ]
+    elif section == "vehicles":
+        header = ["plate", "make", "model", "times_received", "stay_hours", "invoices", "cost"]
+        rows = [
+            [
+                r["vehicle"]["plate_number"],
+                r["vehicle"]["make"] or "",
+                r["vehicle"]["model"] or "",
+                r["times_received"],
+                _hours(r["stay_seconds"]),
+                r["invoices"],
+                _money(r["cost"]),
+            ]
+            for r in data["by_vehicle"]
+        ]
+    else:
+        header = ["part", "quantity", "amount", "invoices"]
+        rows = [[r["description"], _num(r["quantity"]), _money(r["amount"]), r["invoices"]] for r in data["parts"]]
+    return _csv(principal, name, header, rows)
+
+
+@router.get("/reports/accidents", response_model=schemas.AccidentsReport)
+def accidents_report(
+    date_from: date,
+    date_to: date,
+    format: Literal["json", "csv"] = "json",
+    accept_language: Annotated[str | None, Header()] = None,
+    principal: Principal = Depends(require_permission("reports.view")),
+    db: Session = Depends(get_session),
+):
+    """By driver, vehicle and outcome; estimate against the actual repair cost; deductions (BRD FR-RPT-06)."""
+    _needs(principal, "accidents.view")
+    data = service.accidents_report(db, date_from=date_from, date_to=date_to, **principal.scope)
+    if format == "json":
+        return data
+    lang = i18n.negotiate(db, principal.locale, accept_language)
+    default = i18n.default_language(db).code
+    header = [
+        "number",
+        "occurred_at",
+        "plate",
+        "driver",
+        "injuries",
+        "police_report",
+        "liability",
+        "liability_percent",
+        "estimate",
+        "actual_cost",
+        "difference",
+        "deduction",
+        "status",
+    ]
+    rows = [
+        [
+            r["number"],
+            r["occurred_at"].astimezone(service.KUWAIT).strftime("%Y-%m-%d %H:%M"),
+            r["vehicle"]["plate_number"] if r["vehicle"] else "",
+            service.name_in(r["driver"]["name"], lang, default) if r["driver"] else "",
+            "yes" if r["injuries"] else "",
+            "yes" if r["has_police_report"] else "",
+            r["liability"] or "",
+            _num(r["liability_percent"]),
+            _money(r["estimate"]),
+            _money(r["actual_cost"]),
+            _money(r["difference"]),
+            _money(r["deduction"]),
+            r["status"],
+        ]
+        for r in data["accidents"]
+    ]
+    return _csv(principal, f"accidents-{date_from}-{date_to}.csv", header, rows)
