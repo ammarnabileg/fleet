@@ -23,8 +23,10 @@ class AppDb {
   }
 
   static Future<void> _configure(Database db) async {
-    await db.rawQuery('PRAGMA journal_mode=WAL');
+    // the timeout first: when both engines open at once (the service started at boot, the driver opens the app),
+    // the second one's journal_mode waits for the first one's WAL setup instead of failing with "locked"
     await db.rawQuery('PRAGMA busy_timeout=8000');
+    await db.rawQuery('PRAGMA journal_mode=WAL');
   }
 
   static Future<void> _create(Database db, int version) async {
