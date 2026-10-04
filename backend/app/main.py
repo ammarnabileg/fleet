@@ -1,0 +1,46 @@
+import logging
+
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+
+from app.core import errors, middleware
+from app.core.config import get_settings
+from app.core.db import new_session
+from app.modules.audit.api import router as audit_router
+from app.modules.identity.api import router as identity_router
+from app.modules.org.api import router as org_router
+
+VERSION = "0.1.0"
+
+
+def create_app() -> FastAPI:
+    settings = get_settings()
+    logging.basicConfig(level=logging.INFO, format='{"level":"%(levelname)s","logger":"%(name)s","msg":"%(message)s"}')
+    docs = not settings.is_production
+    app = FastAPI(
+        title="BrilliantTech Fleet API",
+        version=VERSION,
+        docs_url="/api/docs" if docs else None,
+        redoc_url=None,
+        openapi_url="/api/openapi.json" if docs else None,
+    )
+    errors.install(app)
+    middleware.install(app)
+
+    @app.get("/healthz", include_in_schema=False)
+    def healthz():
+        return {"status": "ok", "version": VERSION}
+
+    @app.get("/readyz", include_in_schema=False)
+    def readyz():
+        try:
+            with new_session() as db:
+                db.execute(text("SELECT 1"))
+        except Exception:  # noqa: BLE001
+            return JSONResponse({"status": "database_unavailable"}, status_code=503)
+        return {"status": "ready"}
+
+    for router in (identity_router, org_router, audit_router):
+        app.include_router(router)
+    return app

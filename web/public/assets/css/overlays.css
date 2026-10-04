@@ -1,0 +1,192 @@
+/* =====================================================================
+   BrilliantTech UI — Overlays: modal, drawer, bottom sheet, confirm,
+   toast, dropdown menu, popover, tooltip, lightbox, command palette.
+   كلها تُفتح من JavaScript عن طريق BT.modal / BT.drawer / ... (ui.js)
+   ===================================================================== */
+
+#bt-overlays { position: relative; z-index: 1000; }
+.overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--backdrop);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  opacity: 0; transition: opacity .18s ease;
+}
+.overlay.show { opacity: 1; }
+.phone-screen .overlay { position: absolute; padding: 0; }
+
+/* ---------- Modal ---------- */
+.modal {
+  background: var(--surface); color: var(--text-2);
+  border-radius: var(--r-xl); box-shadow: var(--shadow-xl);
+  width: 100%; max-width: 560px; max-height: calc(100vh - 48px);
+  display: flex; flex-direction: column; outline: none;
+  transform: translateY(12px) scale(.98); transition: transform .22s var(--ease);
+}
+.overlay.show .modal { transform: none; }
+.modal.sm { max-width: 420px; }
+.modal.lg { max-width: 780px; }
+.modal.xl { max-width: 1040px; }
+.modal-h { display: flex; align-items: flex-start; gap: 12px; padding: 18px 22px 12px; }
+.modal-h .mh-ic { width: 40px; height: 40px; border-radius: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--primary-soft); color: var(--primary-strong); }
+.modal-h .mh-ic.danger { background: var(--danger-soft); color: var(--danger-text); }
+.modal-h .mh-ic.warn { background: var(--warning-soft); color: var(--warning-text); }
+.modal-h .mh-ic.success { background: var(--success-soft); color: var(--success-text); }
+.modal-h h3 { font-size: 17px; }
+.modal-h p { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.modal-h .x { margin-inline-start: auto; margin-top: -4px; margin-inline-end: -8px; }
+.modal-b { padding: 6px 22px 18px; overflow-y: auto; flex: 1; }
+.modal-f {
+  display: flex; align-items: center; gap: 8px; padding: 14px 22px;
+  border-top: 1px solid var(--border); background: var(--surface-sunken);
+  border-radius: 0 0 var(--r-xl) var(--r-xl); flex-wrap: wrap;
+}
+.modal-f .f-note { font-size: 11.5px; color: var(--muted); margin-inline-end: auto; }
+.modal-f .spacer { margin-inline-end: auto; }
+.confirm-msg { font-size: 13.5px; line-height: 1.7; color: var(--text-2); }
+
+/* ---------- Drawer (side panel) — يفتح من اليسار في الواجهة العربية ---------- */
+.overlay.drawer-ov { justify-content: flex-end; align-items: stretch; padding: 0; }
+.drawer {
+  background: var(--surface); width: 100%; max-width: 520px; height: 100%;
+  display: flex; flex-direction: column; box-shadow: var(--shadow-xl); outline: none;
+  transform: translateX(-100%); transition: transform .26s var(--ease);
+}
+.drawer.lg { max-width: 720px; }
+.overlay.show .drawer { transform: none; }
+.drawer .modal-h { border-bottom: 1px solid var(--border); padding-bottom: 14px; }
+.drawer .modal-b { padding-top: 16px; }
+.drawer .modal-f { border-radius: 0; }
+
+/* ---------- Bottom sheet (تطبيق السائق) ---------- */
+.overlay.sheet-ov { align-items: flex-end; padding: 0; }
+.sheet {
+  background: var(--surface); width: 100%; max-height: 88%;
+  border-radius: 24px 24px 0 0; display: flex; flex-direction: column; outline: none;
+  transform: translateY(100%); transition: transform .26s var(--ease); box-shadow: var(--shadow-xl);
+}
+.overlay.show .sheet { transform: none; }
+.sheet .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--border-strong); margin: 8px auto 2px; flex-shrink: 0; }
+.sheet .modal-h { padding: 10px 18px 8px; }
+.sheet .modal-b { padding: 4px 18px 16px; }
+.sheet .modal-f { border-radius: 0; background: var(--surface); border-top: 0; padding: 4px 18px 24px; }
+.sheet .modal-f .btn { flex: 1; }
+@media (max-width: 600px) {
+  .overlay:not(.drawer-ov):not(.lightbox-ov):not(.cmdk-ov) { align-items: flex-end; padding: 0; }
+  .overlay:not(.drawer-ov) .modal { max-width: none; border-radius: 22px 22px 0 0; max-height: 92vh; transform: translateY(40px); }
+  .overlay.show:not(.drawer-ov) .modal { transform: none; }
+  .modal-f { border-radius: 0; }
+}
+
+/* ---------- Toasts ---------- */
+.toasts { position: fixed; bottom: 20px; left: 20px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; max-width: calc(100vw - 40px); }
+.phone-screen .toasts { position: absolute; bottom: auto; top: 54px; left: 12px; right: 12px; }
+.toast {
+  pointer-events: auto; display: flex; align-items: center; gap: 10px; min-width: 280px; max-width: 420px;
+  background: var(--text); color: var(--surface); border-radius: 12px; padding: 11px 14px; font-size: 13px;
+  box-shadow: var(--shadow-lg); opacity: 0; transform: translateY(10px); transition: all .22s var(--ease);
+}
+:root[data-theme="dark"] .toast { background: #26303F; color: var(--text); }
+.toast.show { opacity: 1; transform: none; }
+.toast .t-ic { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.toast.success .t-ic { background: var(--success); color: #fff; }
+.toast.error .t-ic { background: var(--danger); color: #fff; }
+.toast.warning .t-ic { background: var(--warning); color: #fff; }
+.toast.info .t-ic { background: var(--primary); color: #fff; }
+.toast .t-body { flex: 1; min-width: 0; line-height: 1.5; }
+.toast .t-body small { display: block; opacity: .7; font-size: 11.5px; }
+.toast .t-act { color: #7DB8FF; font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+.toast .t-x { opacity: .6; color: inherit; }
+.toast .t-x:hover { opacity: 1; }
+.phone-screen .toast { min-width: 0; max-width: none; }
+
+/* ---------- Dropdown menu & popover ---------- */
+.menu {
+  position: fixed; z-index: 1500; min-width: 200px; max-width: 320px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow-lg); padding: 6px; outline: none;
+  opacity: 0; transform: translateY(-4px); transition: opacity .12s, transform .12s;
+}
+.menu.show { opacity: 1; transform: none; }
+.menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px;
+  border-radius: 8px; font-size: 13px; color: var(--text-2); text-align: start;
+}
+.menu-item svg { color: var(--text-3); flex-shrink: 0; }
+.menu-item:hover, .menu-item:focus { background: var(--surface-3); color: var(--text); outline: none; }
+.menu-item.danger { color: var(--danger-text); }
+.menu-item.danger svg { color: var(--danger-text); }
+.menu-item.checked::after { content: "✓"; margin-inline-start: auto; color: var(--primary); font-weight: 700; }
+.menu-item small { margin-inline-start: auto; color: var(--muted); font-size: 11.5px; }
+.menu-sep { height: 1px; background: var(--border); margin: 5px 4px; }
+.menu-head { padding: 8px 10px 6px; font-size: 11.5px; color: var(--muted); }
+.popover { min-width: 280px; max-width: 360px; padding: 12px 14px; }
+.popover.wide { max-width: 420px; }
+.notif-menu { width: 380px; max-width: calc(100vw - 24px); padding: 0; }
+.notif-menu .nm-h { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.notif-menu .nm-list { max-height: 400px; overflow-y: auto; padding: 4px 6px; }
+.notif-menu .nm-f { padding: 8px; border-top: 1px solid var(--border); text-align: center; }
+.notif { display: flex; gap: 10px; padding: 10px 8px; border-radius: 9px; text-align: start; width: 100%; position: relative; }
+.notif:hover { background: var(--surface-hover); }
+.notif.unread::after { content: ""; position: absolute; top: 16px; left: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+.notif .n-t { font-size: 13px; color: var(--text); line-height: 1.5; padding-left: 14px; }
+.notif .n-d { font-size: 11.5px; color: var(--muted); }
+
+/* ---------- Tooltip: <span data-tip="النص"> ---------- */
+[data-tip] { position: relative; }
+[data-tip]:hover::after, [data-tip]:focus-visible::after {
+  content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: var(--text); color: var(--surface); font-size: 11.5px; font-weight: 500; line-height: 1.5;
+  padding: 5px 9px; border-radius: 7px; white-space: nowrap; z-index: 1600; pointer-events: none; box-shadow: var(--shadow-md);
+}
+[data-tip]:hover::before, [data-tip]:focus-visible::before {
+  content: ""; position: absolute; bottom: calc(100% + 3px); left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: var(--text); z-index: 1600; pointer-events: none;
+}
+[data-tip-pos="bottom"]:hover::after { bottom: auto; top: calc(100% + 8px); }
+[data-tip-pos="bottom"]:hover::before { bottom: auto; top: calc(100% + 3px); border-top-color: transparent; border-bottom-color: var(--text); }
+
+/* ---------- Lightbox (عرض الصور والمستندات) ---------- */
+.overlay.lightbox-ov { background: rgba(5, 8, 14, .88); flex-direction: column; gap: 14px; }
+.lb-stage { max-width: min(920px, 100%); max-height: calc(100vh - 150px); display: flex; align-items: center; justify-content: center; }
+.lb-stage img { max-width: 100%; max-height: calc(100vh - 150px); border-radius: 12px; }
+.lb-stage > * { transform: scale(.96); transition: transform .2s var(--ease); }
+.overlay.show .lb-stage > * { transform: none; }
+.lb-cap { color: #E6ECF5; font-size: 13px; text-align: center; max-width: 720px; }
+.lb-cap small { display: block; color: #9AA6B8; font-size: 12px; margin-top: 2px; }
+.lb-btn { position: absolute; width: 44px; height: 44px; border-radius: 50%; background: rgba(255, 255, 255, .12); color: #fff; display: flex; align-items: center; justify-content: center; transition: background .15s; }
+.lb-btn:hover { background: rgba(255, 255, 255, .22); }
+.lb-close { top: 18px; left: 18px; }
+.lb-prev { right: 18px; top: 50%; transform: translateY(-50%); }
+.lb-next { left: 18px; top: 50%; transform: translateY(-50%); }
+.lb-count { position: absolute; top: 28px; right: 24px; color: #9AA6B8; font-size: 12.5px; direction: ltr; }
+.lb-doc { background: #fff; color: #0B1F3A; width: min(620px, 92vw); min-height: 70vh; border-radius: 8px; padding: 36px 40px; font-size: 13px; line-height: 1.8; box-shadow: var(--shadow-xl); }
+.lb-doc h3 { color: #0B1F3A; text-align: center; margin-bottom: 14px; }
+.lb-doc .kv > div { border-bottom-color: #EEF1F5; }
+.lb-doc .kv > div > span:first-child { color: #6B7385; }
+.lb-doc .kv > div > :last-child { color: #0B1F3A; }
+
+/* ---------- Command palette (Ctrl+K) ---------- */
+.overlay.cmdk-ov { align-items: flex-start; padding-top: 12vh; }
+.cmdk { background: var(--surface); width: 100%; max-width: 620px; border-radius: 16px; box-shadow: var(--shadow-xl); overflow: hidden; transform: translateY(-8px); transition: transform .18s var(--ease); }
+.overlay.show .cmdk { transform: none; }
+.cmdk-in { display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--border); }
+.cmdk-in svg { color: var(--muted); flex-shrink: 0; }
+.cmdk-in input { flex: 1; height: 56px; border: 0; outline: none; background: transparent; font-size: 15px; color: var(--text); }
+.cmdk-list { max-height: 380px; overflow-y: auto; padding: 6px; }
+.cmdk-group { font-size: 11.5px; color: var(--muted); padding: 10px 10px 4px; }
+.cmdk-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: 9px; font-size: 13.5px; color: var(--text-2); text-align: start; }
+.cmdk-item svg { color: var(--text-3); flex-shrink: 0; }
+.cmdk-item small { margin-inline-start: auto; color: var(--muted); font-size: 11.5px; }
+.cmdk-item.active { background: var(--primary-soft); color: var(--primary-strong); }
+.cmdk-item.active svg { color: var(--primary-strong); }
+.cmdk-foot { display: flex; gap: 14px; padding: 9px 16px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--muted); background: var(--surface-sunken); }
+.cmdk-empty { padding: 30px; text-align: center; color: var(--muted); font-size: 13px; }
+
+/* ---------- Print: يطبع محتوى [data-print] فقط (مثل الإيصال) ---------- */
+@media print {
+  body.printing > *:not(#bt-print) { display: none !important; }
+  body.printing #bt-print { display: block !important; }
+  body.printing::before { display: none; }
+  #bt-print .receipt { border: 0; }
+}
+#bt-print { display: none; }

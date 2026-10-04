@@ -1,0 +1,155 @@
+/* =====================================================================
+   BrilliantTech UI — Design tokens
+   كل الألوان والمقاسات هنا. غيّر القيمة هنا فتتغير في كل الشاشات.
+   الوضع الليلي: <html data-theme="dark"> (يضبطه BT.theme في core.js)
+   ===================================================================== */
+:root {
+  color-scheme: light;
+
+  /* الخط */
+  --font: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+  --fs-xs: 11px;
+  --fs-sm: 12.5px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-2xl: 26px;
+  --fs-3xl: 34px;
+
+  /* الخلفية العامة (نفس تدرجات العرض التقديمي) */
+  --bg: #F3F5FA;
+  --blob-1: rgba(118, 168, 255, .45);
+  --blob-2: rgba(150, 232, 205, .38);
+  --blob-3: rgba(190, 165, 255, .36);
+  --blob-4: rgba(255, 205, 165, .36);
+
+  /* الأسطح */
+  --surface: #FFFFFF;
+  --surface-glass: rgba(255, 255, 255, .93);
+  --surface-2: #F7F9FC;      /* القائمة الجانبية */
+  --surface-3: #F1F3F8;      /* خلفية التبويبات والبحث */
+  --surface-hover: #F5F8FD;
+  --surface-sunken: #F4F7FB;
+
+  /* الحدود */
+  --border: #ECEFF4;
+  --border-strong: #DCE2EC;  /* حقول الإدخال */
+  --divider: #F2F4F8;
+
+  /* النصوص */
+  --text: #0B1F3A;           /* العناوين والأرقام */
+  --text-2: #3A4254;         /* النص العادي */
+  --text-3: #6B7385;         /* تسميات */
+  --muted: #8A93A6;
+  --faint: #9AA3B5;
+  --on-primary: #FFFFFF;
+
+  /* الأساسي */
+  --primary: #0A84FF;
+  --primary-strong: #0A6CFF;
+  --primary-soft: #E4EEFF;
+  --primary-softer: #F1F6FF;
+  --ring: rgba(10, 132, 255, .35);
+
+  /* الحالات: لون أساسي / لون نص / خلفية فاتحة */
+  --success: #28A745;  --success-text: #1E8E3E;  --success-soft: #E2F5E7;
+  --warning: #FF9F0A;  --warning-text: #B85F00;  --warning-soft: #FFF0DA;
+  --danger:  #FF3B30;  --danger-text:  #D12F2F;  --danger-soft:  #FDE6E6;
+  --info:    #0A84FF;  --info-text:    #1A5FD0;  --info-soft:    #E5EFFF;
+  --purple:  #7C4DFF;  --purple-text:  #7040D8;  --purple-soft:  #F0E8FF;
+  --neutral: #8A93A6;  --neutral-text: #5B6478;  --neutral-soft: #EEF0F4;
+
+  /* الرسوم البيانية */
+  --series-1: #2A78D6;
+  --chart-grid: #EEF1F6;
+  --chart-axis: #8A93A6;
+
+  /* الخريطة */
+  --map-land: #F4F1EA;
+  --map-water: #CFE3F7;
+  --map-ring: #E4DED2;
+  --map-road: #FFFFFF;
+  --map-label: #8A7F6A;
+  --map-water-label: #6C8FB5;
+
+  /* الزوايا */
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+  --r-pill: 999px;
+
+  /* الظلال */
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, .06);
+  --shadow-sm: 0 3px 10px rgba(20, 40, 90, .06);
+  --shadow-md: 0 8px 22px rgba(20, 40, 90, .08);
+  --shadow-lg: 0 20px 50px rgba(20, 40, 90, .14);
+  --shadow-xl: 0 30px 80px rgba(10, 20, 50, .28);
+  --backdrop: rgba(11, 31, 58, .38);
+
+  /* المسافات والمقاسات */
+  --sidebar-w: 248px;
+  --topbar-h: 60px;
+  --gap: 16px;
+  --pad: 24px;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0C1119;
+  --blob-1: rgba(40, 90, 190, .30);
+  --blob-2: rgba(30, 140, 120, .20);
+  --blob-3: rgba(100, 70, 190, .22);
+  --blob-4: rgba(170, 100, 50, .16);
+
+  --surface: #141B26;
+  --surface-glass: rgba(20, 27, 38, .94);
+  --surface-2: #10161F;
+  --surface-3: #1B2431;
+  --surface-hover: #1A2330;
+  --surface-sunken: #111822;
+
+  --border: #222C3B;
+  --border-strong: #2E3A4D;
+  --divider: #1C2533;
+
+  --text: #EAF0F8;
+  --text-2: #BCC6D6;
+  --text-3: #93A0B5;
+  --muted: #7F8AA0;
+  --faint: #6A7589;
+
+  --primary: #3D9BFF;
+  --primary-strong: #5AAAFF;
+  --primary-soft: rgba(61, 155, 255, .16);
+  --primary-softer: rgba(61, 155, 255, .08);
+  --ring: rgba(61, 155, 255, .45);
+
+  --success: #34C759;  --success-text: #5BD27B;  --success-soft: rgba(52, 199, 89, .15);
+  --warning: #FFA826;  --warning-text: #FFB84D;  --warning-soft: rgba(255, 159, 10, .15);
+  --danger:  #FF5147;  --danger-text:  #FF7A72;  --danger-soft:  rgba(255, 69, 58, .15);
+  --info:    #3D9BFF;  --info-text:    #7DB8FF;  --info-soft:    rgba(61, 155, 255, .15);
+  --purple:  #9A78FF;  --purple-text:  #B49BFF;  --purple-soft:  rgba(124, 77, 255, .18);
+  --neutral: #7F8AA0;  --neutral-text: #A5B0C2;  --neutral-soft: rgba(127, 138, 160, .16);
+
+  --series-1: #3987E5;
+  --chart-grid: #222C3B;
+  --chart-axis: #7F8AA0;
+
+  --map-land: #1A212C;
+  --map-water: #12304F;
+  --map-ring: #232C39;
+  --map-road: #2A3444;
+  --map-label: #8C8471;
+  --map-water-label: #7FA3C9;
+
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, .3);
+  --shadow-sm: 0 3px 10px rgba(0, 0, 0, .25);
+  --shadow-md: 0 8px 22px rgba(0, 0, 0, .3);
+  --shadow-lg: 0 20px 50px rgba(0, 0, 0, .45);
+  --shadow-xl: 0 30px 80px rgba(0, 0, 0, .6);
+  --backdrop: rgba(3, 6, 12, .62);
+}

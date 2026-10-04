@@ -1,0 +1,9 @@
+{
+  "tracking": {"interval_moving_s": 30, "interval_stationary_s": 300, "signal_loss_minutes": 10},
+  "cash": {"driver_balance_alert": "80.000", "report_review_hours": 24},
+  "odometer": {"daily_km_alert": 400, "off_duty_km_alert": 5},
+  "documents": {"expiry_alert_days": 30, "commercial_license_alert_days": 60},
+  "maintenance": {"approval_limit": "100.000"},
+  "daily_report": {"require_orders_count": true, "require_cash": true, "require_screenshot": true},
+  "branding": {"display_name": "أجواد جروب", "primary_color": "#0A6CFF"}
+}

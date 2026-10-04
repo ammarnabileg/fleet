@@ -1,0 +1,183 @@
+/* =====================================================================
+   BrilliantTech UI — Layout: app shell (sidebar + topbar + content),
+   presentation frame mode, driver phone frame.
+   ===================================================================== */
+
+/* ---------- App shell ---------- */
+.app { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  background: var(--surface-2);
+  border-inline-end: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 14px 12px 12px;
+  overflow-y: auto;
+  z-index: 40;
+}
+.sb-dots { display: none; gap: 7px; margin: 2px 6px 14px; }
+.sb-dots i { width: 11px; height: 11px; border-radius: 50%; display: block; }
+.sb-dots i:nth-child(1) { background: #FF5F57; }
+.sb-dots i:nth-child(2) { background: #FEBC2E; }
+.sb-dots i:nth-child(3) { background: #28C840; }
+
+.sb-brand { display: flex; align-items: center; gap: 10px; padding: 4px 6px 12px; }
+.logo {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  background: linear-gradient(135deg, #4DA8FF, #0A6CFF);
+  color: #fff; display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 10px rgba(10, 108, 255, .3);
+}
+.logo.sm { width: 24px; height: 24px; border-radius: 7px; }
+.logo.lg { width: 48px; height: 48px; border-radius: 13px; }
+.brand-name { direction: ltr; font-weight: 700; font-size: 16px; color: var(--text); letter-spacing: -.1px; }
+.brand-name i { font-style: normal; color: var(--primary); }
+.sb-brand small { display: block; font-size: 11px; color: var(--muted); margin-top: -1px; }
+
+.sb-company {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: 8px 10px; margin-bottom: 12px; text-align: start; transition: border-color .15s;
+}
+.sb-company:hover { border-color: var(--border-strong); }
+.sb-company .co-ic { width: 28px; height: 28px; border-radius: 8px; background: var(--primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.sb-company b { display: block; font-size: 13px; }
+.sb-company small { display: block; font-size: 11px; color: var(--muted); }
+.sb-company .chev { margin-inline-start: auto; color: var(--muted); }
+
+.sb-nav { display: flex; flex-direction: column; gap: 1px; }
+.nav-sec { font-size: 11px; color: var(--faint); margin: 14px 10px 5px; font-weight: 500; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13.5px; color: var(--text-2);
+  padding: 7px 10px; border-radius: 9px; text-decoration: none !important;
+  transition: background .12s, color .12s;
+}
+.nav-item svg { color: var(--text-3); flex-shrink: 0; }
+.nav-item:hover { background: var(--surface-3); color: var(--text); }
+.nav-item.active { background: var(--primary-soft); color: var(--primary-strong); font-weight: 600; }
+.nav-item.active svg { color: var(--primary-strong); }
+.nav-item .count {
+  margin-inline-start: auto; font-size: 11px; font-weight: 600; min-width: 20px; height: 20px; padding: 0 6px;
+  border-radius: 10px; background: var(--surface-3); color: var(--text-3);
+  display: inline-flex; align-items: center; justify-content: center; direction: ltr;
+}
+.nav-item .count.hot { background: var(--danger-soft); color: var(--danger-text); }
+.nav-item.active .count { background: var(--surface); color: var(--primary-strong); }
+
+.sb-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 9px; }
+.sb-foot b { display: block; font-size: 13px; }
+.sb-foot small { display: block; font-size: 11px; color: var(--muted); }
+
+.sb-backdrop { display: none; }
+
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--surface-glass); }
+
+.topbar {
+  height: var(--topbar-h); flex-shrink: 0;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 var(--pad);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-glass);
+  backdrop-filter: saturate(1.4) blur(10px);
+  position: sticky; top: 0; z-index: 30;
+}
+.tb-title { min-width: 0; }
+.tb-title h1 { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crumbs { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.crumbs a { color: var(--muted); }
+.crumbs a:hover { color: var(--primary-strong); }
+.tb-actions { margin-inline-start: auto; display: flex; align-items: center; gap: 8px; }
+.tb-search {
+  display: flex; align-items: center; gap: 8px; width: 260px; height: 36px; padding: 0 12px;
+  border-radius: 18px; background: var(--surface-3); color: var(--faint); font-size: 13px; text-align: start;
+  border: 1px solid transparent; transition: border-color .15s;
+}
+.tb-search:hover { border-color: var(--border-strong); }
+.tb-search kbd { margin-inline-start: auto; }
+.menu-btn { display: none !important; }
+
+.content { padding: 20px var(--pad) 40px; display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.page-head h2 { font-size: 22px; }
+.page-head p { color: var(--text-3); font-size: 13.5px; margin-top: 2px; }
+.page-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* ---------- Presentation frame (مثل صور العرض التقديمي) ----------
+   فعّله من قائمة المستخدم أو أضف class="frame" على body */
+body.frame .app {
+  max-width: 1320px; height: calc(100vh - 64px); min-height: 0;
+  margin: 32px auto; border-radius: 18px; overflow: hidden;
+  box-shadow: var(--shadow-lg); border: 1px solid rgba(255, 255, 255, .9);
+}
+body.frame .sidebar { position: relative; height: 100%; }
+body.frame .main { overflow-y: auto; }
+body.frame .sb-dots { display: flex; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1180px) {
+  :root { --sidebar-w: 224px; --pad: 18px; }
+  .tb-search { width: 200px; }
+}
+@media (max-width: 900px) {
+  .sidebar {
+    position: fixed; inset-block: 0; inset-inline-start: 0; height: 100%;
+    transform: translateX(100%); transition: transform .25s var(--ease);
+    box-shadow: var(--shadow-xl); z-index: 70;
+  }
+  [dir="ltr"] .sidebar { transform: translateX(-100%); }
+  .app.nav-open .sidebar { transform: none; }
+  .app.nav-open .sb-backdrop { display: block; position: fixed; inset: 0; background: var(--backdrop); z-index: 60; }
+  .menu-btn { display: inline-flex !important; }
+  .tb-search { width: 38px; padding: 0; justify-content: center; }
+  .tb-search span, .tb-search kbd { display: none; }
+  body.frame .app { margin: 0; height: 100vh; border-radius: 0; max-width: none; }
+}
+@media (max-width: 560px) {
+  :root { --pad: 14px; --gap: 12px; }
+  .crumbs { display: none; }
+  .tb-actions .hide-sm { display: none; }
+}
+
+/* =====================================================================
+   Driver app — phone frame on desktop, full screen on mobile
+   ===================================================================== */
+body.driver-body { display: flex; align-items: center; justify-content: center; gap: 48px; padding: 20px; min-height: 100vh; }
+.phone {
+  width: 390px; height: 820px; max-height: calc(100vh - 40px); flex-shrink: 0;
+  background: #15171C; border-radius: 52px; padding: 12px;
+  box-shadow: 0 30px 70px rgba(20, 40, 90, .28);
+}
+.phone-screen {
+  position: relative; height: 100%; overflow: hidden; border-radius: 42px;
+  background: var(--surface-2); display: flex; flex-direction: column;
+  isolation: isolate;
+}
+.status-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 26px 4px; font-size: 13px; font-weight: 600; direction: ltr; color: var(--text); flex-shrink: 0; }
+.status-bar .island { width: 108px; height: 30px; border-radius: 16px; background: #15171C; }
+.status-bar .sig { display: flex; gap: 5px; align-items: center; }
+.app-head { display: flex; align-items: center; gap: 10px; padding: 8px 18px 10px; flex-shrink: 0; }
+.app-head h2 { font-size: 20px; }
+.app-head .back { width: 34px; height: 34px; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow-xs); display: inline-flex; align-items: center; justify-content: center; color: var(--text); }
+.screen { flex: 1; overflow-y: auto; padding: 4px 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+.tabbar { display: flex; justify-content: space-around; padding: 8px 6px 22px; background: var(--surface); border-top: 1px solid var(--border); flex-shrink: 0; }
+.tabbar button { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px; color: var(--muted); min-width: 58px; padding: 2px 0; }
+.tabbar button.active { color: var(--primary); font-weight: 600; }
+.driver-side { max-width: 380px; }
+.driver-side .label { font-size: 13px; color: var(--primary-strong); font-weight: 500; }
+.driver-side h1 { font-size: 34px; margin-top: 4px; }
+.driver-side p { margin-top: 10px; color: var(--text-2); line-height: 1.7; }
+.driver-side .jump { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+
+@media (max-width: 900px) { .driver-side { display: none; } }
+@media (max-width: 520px) {
+  body.driver-body { padding: 0; }
+  .phone { width: 100%; height: 100vh; height: 100dvh; max-height: none; border-radius: 0; padding: 0; box-shadow: none; }
+  .phone-screen { border-radius: 0; }
+  .status-bar { display: none; }
+}

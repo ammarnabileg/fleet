@@ -1,0 +1,149 @@
+import uuid
+
+from fastapi import APIRouter, Depends, Request, Response
+from sqlalchemy.orm import Session
+
+from app.core.config import get_settings
+from app.core.db import get_session
+from app.modules.identity import schemas, service
+from app.modules.identity.service import Principal, get_principal, require_permission
+
+router = APIRouter(prefix="/api/v1", tags=["identity"])
+
+
+def _set_cookie(response: Response, token: str) -> None:
+    settings = get_settings()
+    response.set_cookie(
+        service.SESSION_COOKIE,
+        token,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+        path="/",
+        max_age=settings.session_absolute_hours * 3600,
+    )
+
+
+def _client(request: Request) -> dict:
+    return {"ip": request.client.host if request.client else None, "user_agent": request.headers.get("user-agent")}
+
+
+@router.post("/auth/login", response_model=schemas.LoginOut)
+def login(body: schemas.LoginIn, request: Request, response: Response, db: Session = Depends(get_session)):
+    result = service.login(db, body.username, body.password, **_client(request))
+    _set_cookie(response, result.token)
+    return schemas.LoginOut(
+        mfa_required=result.mfa_required, csrf_token=None if result.mfa_required else result.csrf_token
+    )
+
+
+@router.post("/auth/mfa/verify", response_model=schemas.LoginOut)
+def verify_mfa(body: schemas.CodeIn, request: Request, response: Response, db: Session = Depends(get_session)):
+    result = service.verify_mfa(db, request.cookies.get(service.SESSION_COOKIE), body.code, **_client(request))
+    _set_cookie(response, result.token)
+    return schemas.LoginOut(mfa_required=False, csrf_token=result.csrf_token)
+
+
+@router.post("/auth/logout", status_code=204)
+def logout(response: Response, principal: Principal = Depends(get_principal), db: Session = Depends(get_session)):
+    service.logout(db, principal)
+    response.delete_cookie(service.SESSION_COOKIE, path="/")
+
+
+@router.get("/auth/me", response_model=schemas.MeOut)
+def me(principal: Principal = Depends(get_principal)):
+    return schemas.MeOut(
+        public_id=principal.public_id,
+        username=principal.username,
+        full_name=principal.full_name,
+        is_superuser=principal.is_superuser,
+        all_branches=principal.all_branches,
+        permissions=sorted(principal.permissions),
+        branch_ids=sorted(principal.branch_ids),
+        csrf_token=principal.csrf_token,
+        must_change_password=principal.must_change_password,
+    )
+
+
+@router.post("/auth/password", status_code=204)
+def change_password(
+    body: schemas.PasswordChangeIn, principal: Principal = Depends(get_principal), db: Session = Depends(get_session)
+):
+    service.change_own_password(db, principal, body.current_password, body.new_password)
+
+
+@router.post("/auth/mfa/setup", response_model=schemas.TotpSetupOut)
+def mfa_setup(principal: Principal = Depends(get_principal), db: Session = Depends(get_session)):
+    return schemas.TotpSetupOut(otpauth_uri=service.start_totp_setup(db, principal))
+
+
+@router.post("/auth/mfa/enable", status_code=204)
+def mfa_enable(body: schemas.CodeIn, principal: Principal = Depends(get_principal), db: Session = Depends(get_session)):
+    service.confirm_totp_setup(db, principal, body.code)
+
+
+@router.get("/users", response_model=list[schemas.UserOut])
+def list_users(principal: Principal = Depends(require_permission("users.view")), db: Session = Depends(get_session)):
+    return service.list_users(db, principal)
+
+
+@router.post("/users", response_model=schemas.UserOut, status_code=201)
+def create_user(
+    body: schemas.UserCreateIn,
+    principal: Principal = Depends(require_permission("users.manage")),
+    db: Session = Depends(get_session),
+):
+    return service.create_user(db, principal, **body.model_dump())
+
+
+@router.patch("/users/{public_id}", response_model=schemas.UserOut)
+def update_user(
+    public_id: uuid.UUID,
+    body: schemas.UserUpdateIn,
+    principal: Principal = Depends(require_permission("users.manage")),
+    db: Session = Depends(get_session),
+):
+    changes = body.model_dump(exclude_unset=True)
+    version = changes.pop("version")
+    return service.update_user(db, principal, public_id, version=version, changes=changes)
+
+
+@router.post("/users/{public_id}/password", status_code=204)
+def reset_password(
+    public_id: uuid.UUID,
+    body: schemas.PasswordResetIn,
+    principal: Principal = Depends(require_permission("users.manage")),
+    db: Session = Depends(get_session),
+):
+    service.reset_password(db, principal, public_id, body.new_password)
+
+
+@router.get("/roles", response_model=list[schemas.RoleOut])
+def list_roles(_: Principal = Depends(require_permission("users.view")), db: Session = Depends(get_session)):
+    return service.list_roles(db)
+
+
+@router.post("/roles", response_model=schemas.RoleOut, status_code=201)
+def create_role(
+    body: schemas.RoleCreateIn,
+    principal: Principal = Depends(require_permission("roles.manage")),
+    db: Session = Depends(get_session),
+):
+    return service.create_role(db, principal, **body.model_dump())
+
+
+@router.patch("/roles/{code}", response_model=schemas.RoleOut)
+def update_role(
+    code: str,
+    body: schemas.RoleUpdateIn,
+    principal: Principal = Depends(require_permission("roles.manage")),
+    db: Session = Depends(get_session),
+):
+    changes = body.model_dump(exclude_unset=True)
+    version = changes.pop("version")
+    return service.update_role(db, principal, code, version=version, changes=changes)
+
+
+@router.get("/permissions", response_model=list[schemas.PermissionOut])
+def list_permissions(_: Principal = Depends(get_principal)):
+    return [schemas.PermissionOut(code=c, name_ar=ar, name_en=en) for c, (ar, en) in sorted(service.catalog().items())]

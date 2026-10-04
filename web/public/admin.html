@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>لوحة الإدارة — نظام إدارة الأسطول</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230A6CFF'/%3E%3Cpath d='M12 5l6 7-6 7-6-7z' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="assets/css/fonts.css">
+  <link rel="stylesheet" href="assets/css/tokens.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/layout.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/overlays.css">
+</head>
+<body class="bt-bg">
+  <div class="app" id="app">
+    <!-- ============ القائمة الجانبية ============ -->
+    <aside class="sidebar" id="sidebar" aria-label="القائمة الرئيسية">
+      <div class="sb-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="sb-brand">
+        <span class="logo"><i data-icon="diamond" data-size="18"></i></span>
+        <div><div class="brand-name">Brilliant<i>Tech</i></div><small>نظام إدارة الأسطول</small></div>
+      </div>
+      <button type="button" class="sb-company" data-action="switch-branch" aria-haspopup="menu">
+        <span class="co-ic"><i data-icon="building-2" data-size="15"></i></span>
+        <span><b>أجواد جروب</b><small>كل الفروع</small></span>
+        <i class="chev" data-icon="chevrons-up-down" data-size="15"></i>
+      </button>
+      <nav class="sb-nav" id="nav"></nav>
+      <div class="sb-foot">
+        <span class="av c1">سا</span>
+        <div class="flex-1"><b>سامي الأنصاري</b><small>مدير النظام</small></div>
+        <button type="button" class="icon-btn sm" data-action="user-menu" aria-label="قائمة المستخدم"><i data-icon="ellipsis-vertical" data-size="16"></i></button>
+      </div>
+    </aside>
+    <div class="sb-backdrop"></div>
+
+    <!-- ============ المحتوى ============ -->
+    <main class="main">
+      <header class="topbar">
+        <button type="button" class="icon-btn menu-btn" data-action="toggle-nav" aria-label="القائمة"><i data-icon="menu" data-size="20"></i></button>
+        <div class="tb-title" id="tb-title"></div>
+        <div class="tb-actions">
+          <button type="button" class="tb-search" data-action="search" aria-label="بحث"><i data-icon="search" data-size="16"></i><span>ابحث عن سيارة أو سائق…</span><kbd>Ctrl K</kbd></button>
+          <button type="button" class="icon-btn hide-sm" data-action="theme" data-theme-icon="18" data-tip="الوضع الداكن" data-tip-pos="bottom" aria-label="تبديل الوضع"><i data-icon="moon" data-size="18"></i></button>
+          <button type="button" class="icon-btn" data-action="notifications" aria-label="الإشعارات" aria-haspopup="dialog"><i data-icon="bell" data-size="19"></i><span class="dot-badge" id="bell-badge" hidden>0</span></button>
+          <button type="button" class="av" data-action="user-menu" aria-label="قائمة المستخدم" aria-haspopup="menu">سا</button>
+        </div>
+      </header>
+      <section class="content" id="view" tabindex="-1"></section>
+    </main>
+  </div>
+
+  <!-- السكربتات: الترتيب مهم -->
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/icons.js"></script>
+  <script src="assets/js/ui.js"></script>
+  <script src="assets/js/charts.js"></script>
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/admin.js"></script>
+  <script src="assets/js/pages/dashboard.js"></script>
+  <script src="assets/js/pages/fleet.js"></script>
+  <script src="assets/js/pages/operations.js"></script>
+  <script src="assets/js/pages/maintenance.js"></script>
+  <script src="assets/js/pages/people.js"></script>
+  <script src="assets/js/pages/management.js"></script>
+</body>
+</html>
