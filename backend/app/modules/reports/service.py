@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import today, utcnow
 from app.core.errors import AppError
+from app.modules.accidents import service as accidents
 from app.modules.cash.models import Account, Journal, JournalLine, Receipt
 from app.modules.daily_ops.models import Report
 from app.modules.documents.models import Document
@@ -141,6 +142,9 @@ def dashboard(db: Session, *, permissions: frozenset[str], all_companies: bool, 
 
     if has("maintenance.view"):
         out["maintenance"] = maintenance.counts(db, all_companies=all_companies, company_ids=company_ids)
+
+    if has("accidents.view"):
+        out["accidents"] = accidents.counts(db, all_companies=all_companies, company_ids=company_ids)
 
     visible = Alert.permission.in_(list(permissions))
     alert_scope = literal(True) if all_companies else or_(Alert.company_id.is_(None), Alert.company_id.in_(company_ids))

@@ -811,6 +811,8 @@ def receive(db: Session, public_id, *, user_id: int, data: dict) -> dict:
     r.condition_note = data.get("condition_note")
     r.seen_at = r.seen_at or utcnow()
     _event(db, r, "received", by_user=user_id, at=at, note=data.get("condition_note"))
+    if _approved_quote(db, r.id) is not None:  # an accident repair: its damage estimate was approved already
+        _event(db, r, "in_repair", by_user=user_id, note=":accident_estimate")
     _add_photos(db, r, "reception", [data["odometer_photo"], *(data.get("photos") or [])])
     _audit(
         db,
@@ -1225,4 +1227,96 @@ def counts(db: Session, *, all_companies: bool, company_ids: Iterable[int]) -> d
         "under_repair": sum(rows.get(s, 0) for s in UNDER_REPAIR),
         "ready": rows.get("ready", 0),
         "referred": rows.get("referred", 0),
+    }
+
+
+# ------------------------------------------------------------------ for the accidents module
+
+
+def center_brief(db: Session, public_id) -> dict:
+    """A center the maintenance manager picks for a damage estimate: it must exist and be active."""
+    c = _center(db, public_id)
+    if not c.is_active:
+        raise AppError(409, "center_inactive")
+    return {"id": c.id, "public_id": str(c.public_id), "name": c.name}
+
+
+def centers_brief(db: Session, ids: Iterable[int]) -> dict[int, dict]:
+    ids = set(ids)
+    if not ids:
+        return {}
+    return {c.id: _center_ref(c) for c in db.scalars(select(Center).where(Center.id.in_(ids)))}
+
+
+def portal_center_id(db: Session, user_id: int) -> int:
+    """The center of a portal account (403 for anyone else, or an inactive center)."""
+    return center_of(db, user_id).id
+
+
+def accident_repair(
+    db: Session,
+    *,
+    vehicle_id: int,
+    company_id: int,
+    driver_id: int | None,
+    center_id: int,
+    description: str,
+    amount: Decimal,
+    items: list[dict],
+    estimate_by: int,
+    approved_by: int,
+) -> int:
+    """The repair of an accident, at the center that estimated the damage: a request already approved and referred,
+    whose approved quote is the estimate (the center does not quote again; the repair starts at reception, and the
+    invoice is compared with the estimate). In the caller's transaction; returns the request's id."""
+    r = Request(
+        vehicle_id=vehicle_id,
+        company_id=company_id,
+        driver_id=driver_id,
+        kind="bodywork",
+        description=description,
+        created_by_user=approved_by,
+        decided_by=approved_by,
+        decided_at=utcnow(),
+        center_id=center_id,
+        referred_by=approved_by,
+        referred_at=utcnow(),
+        status="referred",
+    )
+    db.add(r)
+    _flush(db, REQUEST_ERRORS)  # a vehicle is at one center at a time
+    db.refresh(r)
+    center = db.get(Center, center_id)
+    for status, note in (("requested", ":accident"), ("approved", ":accident"), ("referred", center.name)):
+        db.add(RequestEvent(request_id=r.id, status=status, by_user=approved_by, note=note))
+    db.add(
+        Quote(
+            request_id=r.id,
+            amount=amount,
+            items=items,
+            status="approved",
+            created_by=estimate_by,
+            decided_by=approved_by,
+            decided_at=utcnow(),
+        )
+    )
+    _audit(db, "maintenance.requested", r, actor_user_id=approved_by, after={"accident": True})
+    _emit(db, "maintenance.request.referred", r, center_id=str(center.public_id))
+    return r.id
+
+
+def repair_summary(db: Session, request_id: int | None) -> dict | None:
+    """Where the accident's repair stands and what it actually cost: its approved invoices (BRD FR-ACC-08)."""
+    if request_id is None:
+        return None
+    r = db.get(Request, request_id)
+    invoices = list(db.scalars(select(Invoice).where(Invoice.request_id == r.id, Invoice.status != "rejected")))
+    approved = [i.total for i in invoices if i.status == "approved"]
+    return {
+        "id": str(r.public_id),
+        "number": r.number,
+        "status": r.status,
+        "actual_cost": sum(approved, Decimal(0)) if approved else None,
+        "invoices_pending": sum(1 for i in invoices if i.status == "pending"),
+        "picked_up_at": r.picked_up_at,
     }

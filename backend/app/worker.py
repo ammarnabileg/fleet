@@ -15,6 +15,7 @@ celery = Celery(
         "app.modules.documents.tasks",
         "app.modules.daily_ops.tasks",
         "app.modules.cash.tasks",
+        "app.modules.accidents.tasks",
     ],
 )
 
@@ -40,4 +41,5 @@ celery.conf.beat_schedule = {
     "document-expiry": {"task": "documents.scan_expiring", "schedule": crontab(hour=7, minute=0)},
     "daily-report-overdue": {"task": "daily_ops.scan_overdue", "schedule": crontab(minute=5)},
     "ledger-invariants": {"task": "cash.check_invariants", "schedule": crontab(hour=2, minute=0)},
+    "police-reports": {"task": "accidents.scan_police_reports", "schedule": crontab(hour=9, minute=15)},
 }

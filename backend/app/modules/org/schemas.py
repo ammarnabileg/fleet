@@ -65,6 +65,11 @@ class MaintenanceSettings(_Section):
     close_requires_invoice: bool = True  # a picked-up request closes once its invoice is approved
 
 
+class AccidentsSettings(_Section):
+    min_photos: int = Field(3, ge=1, le=12)  # camera photos a driver must take (several angles)
+    police_report_alert_days: int = Field(2, ge=1, le=60)  # alert when an accident still has no police report
+
+
 class PayrollSettings(_Section):
     max_monthly_deduction: Decimal | None = Field(
         None, ge=0, max_digits=12, decimal_places=3
@@ -96,6 +101,7 @@ SECTIONS: dict[str, type[_Section]] = {
     "onboarding": OnboardingSettings,
     "messaging": MessagingSettings,
     "maintenance": MaintenanceSettings,
+    "accidents": AccidentsSettings,
     "payroll": PayrollSettings,
     "daily_report": DailyReportSettings,
     "branding": BrandingSettings,

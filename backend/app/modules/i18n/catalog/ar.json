@@ -285,7 +285,33 @@
     "vehicle_not_available": "السيارة غير متاحة للتسليم",
     "vehicle_not_found": "السيارة غير موجودة",
     "version_conflict": "عدّل شخص آخر هذا السجل، أعد تحميله",
-    "vin_taken": "رقم الشاسيه مسجل لسيارة أخرى"
+    "vin_taken": "رقم الشاسيه مسجل لسيارة أخرى",
+    "accident_not_found": "الحادث غير موجود",
+    "accident_not_open": "الحادث مغلق أو ملغى",
+    "accident_exists": "هذا الحادث مسجّل من قبل",
+    "accident_photos_required": "صوّر الحادث من {min} زوايا على الأقل",
+    "police_report_exists": "محضر الشرطة مرفق من قبل؛ لتغييره كلّم المكتب",
+    "police_report_required": "لا يمكن تسجيل المسؤولية قبل إرفاق محضر الشرطة",
+    "outcome_recorded": "المسؤولية مسجّلة من قبل",
+    "outcome_required": "سجّل المسؤولية أولاً",
+    "estimate_pending": "تقدير الأضرار بانتظار الاعتماد؛ اعتمده أو ارفضه أولاً",
+    "estimate_approved": "تقدير الأضرار معتمد؛ لا يمكن إحالة الحادث لمركز آخر",
+    "estimate_not_pending": "لا يوجد تقدير بانتظار الاعتماد",
+    "estimate_not_approved": "تقدير الأضرار لم يُعتمد بعد",
+    "estimate_not_expected": "لا يمكن إرسال تقدير الآن",
+    "estimate_items_mismatch": "مجموع البنود ({items}) لا يساوي إجمالي التقدير ({total})",
+    "accident_has_no_driver": "لم تكن السيارة مسلّمة لسائق وقت الحادث؛ لا يوجد من يُخصم منه",
+    "liability_percent_required": "حدّد نسبة مسؤولية السائق",
+    "shared_percent_below_100": "في المسؤولية المشتركة تكون النسبة أقل من 100%",
+    "installments_required": "حدّد عدد الأقساط",
+    "repair_exists": "طلب الإصلاح منشأ من قبل",
+    "monthly_deduction_cap_exceeded": "الخصم في شهر {month} يصبح {total} وهو أعلى من الحد الشهري {cap}؛ زد عدد الأقساط أو أخّر بدايتها",
+    "deduction_total_invalid": "مبلغ الخصم غير صحيح",
+    "installments_invalid": "عدد الأقساط بين 1 و60",
+    "start_month_in_past": "شهر بداية الخصم انتهى",
+    "deduction_exists": "يوجد خصم قائم لنفس المصدر",
+    "deduction_not_found": "الخصم غير موجود",
+    "deduction_cancelled": "الخصم ملغى من قبل"
   },
   "settings": {
     "branding": "الهوية",
@@ -321,7 +347,10 @@
     "messaging.bulk_daily_limit": "أقصى عدد رسائل في اليوم",
     "messaging.send_from_hour": "الإرسال من الساعة",
     "messaging.send_until_hour": "الإرسال حتى الساعة",
-    "maintenance.close_requires_invoice": "لا يُغلق طلب الصيانة إلا بعد اعتماد فاتورته"
+    "maintenance.close_requires_invoice": "لا يُغلق طلب الصيانة إلا بعد اعتماد فاتورته",
+    "accidents": "الحوادث",
+    "accidents.min_photos": "أقل عدد صور يلتقطها السائق للحادث",
+    "accidents.police_report_alert_days": "تنبيه إذا لم يُرفق محضر الشرطة بعد (أيام)"
   },
   "common": {
     "active": "نشط",
@@ -378,7 +407,11 @@
     "onboarding_submitted": "{driver} أرسل بياناته ومستنداته للمراجعة",
     "otp_delivery_failed": "لم يصل رمز الدخول إلى {driver} عبر واتساب: تحقق من قناة الرسائل",
     "signal_lost": "انقطعت إشارة {plate} ({driver}) منذ {minutes} دقيقة",
-    "tracking_stopped": "خدمة التتبع متوقفة عند {driver} ({plate})"
+    "tracking_stopped": "خدمة التتبع متوقفة عند {driver} ({plate})",
+    "accident_reported": "حادث للسيارة {plate} (رقم {number}) — السائق: {driver}",
+    "accident_injuries": "حادث بإصابات للسيارة {plate} (رقم {number}) — السائق: {driver}",
+    "accident_estimate_submitted": "{center} أرسل تقدير أضرار الحادث {number} ({plate}): {amount}",
+    "accident_awaiting_police_report": "الحادث {number} ({plate}) بدون محضر شرطة منذ {days} يوم"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
@@ -491,5 +524,48 @@
     "ac": "تكييف",
     "bodywork": "سمكرة وصبغ",
     "other": "أخرى"
+  },
+  "accident_stage": {
+    "reported": "مُبلّغ — بانتظار الإحالة",
+    "awaiting_estimate": "بانتظار تقدير المركز",
+    "estimate_pending": "التقدير بانتظار الاعتماد",
+    "estimate_rejected": "التقدير مرفوض",
+    "awaiting_outcome": "بانتظار تحديد المسؤولية",
+    "outcome_recorded": "المسؤولية محددة",
+    "closed": "مغلق",
+    "cancelled": "ملغى"
+  },
+  "accident_liability": {
+    "none": "لا مسؤولية على السائق",
+    "driver": "السائق مسؤول",
+    "shared": "مسؤولية مشتركة"
+  },
+  "accident_event": {
+    "reported": "تم الإبلاغ",
+    "police_report": "أُرفق محضر الشرطة",
+    "photos": "أُضيفت صور",
+    "referred": "أُحيل لمركز",
+    "estimate_submitted": "أرسل المركز التقدير",
+    "estimate_approved": "اعتُمد التقدير",
+    "estimate_rejected": "رُفض التقدير",
+    "outcome": "حُددت المسؤولية",
+    "repair_requested": "أُرسلت السيارة للإصلاح",
+    "closed": "أُغلق",
+    "cancelled": "أُلغي"
+  },
+  "estimate_status": {
+    "none": "لا يوجد",
+    "pending": "بانتظار الاعتماد",
+    "approved": "معتمد",
+    "rejected": "مرفوض"
+  },
+  "deduction_source": {
+    "accident": "حادث",
+    "fine": "مخالفة",
+    "other": "أخرى"
+  },
+  "deduction_status": {
+    "approved": "معتمد",
+    "cancelled": "ملغى"
   }
 }

@@ -863,6 +863,43 @@ def released_from_maintenance(db: Session, vehicle_id: int) -> None:
         vehicle.version += 1
 
 
+# ------------------------------------------------------------------ accidents (in the caller's transaction)
+
+
+def mark_accident(db: Session, vehicle_id: int) -> bool:
+    """An accident was reported: the vehicle is "in an accident" and cannot be handed over normally until it is
+    repaired or the accident is closed. A vehicle already at a center or inactive keeps its status."""
+    vehicle = _vehicle_for_update(db, vehicle_id)
+    if vehicle.status not in ("available", "assigned"):
+        return False
+    vehicle.status = "accident"
+    vehicle.version += 1
+    return True
+
+
+def clear_accident(db: Session, vehicle_id: int) -> None:
+    """The accident was closed or cancelled while the vehicle was still "in an accident": back to its driver if
+    someone still holds it, otherwise available."""
+    vehicle = _vehicle_for_update(db, vehicle_id)
+    if vehicle.status != "accident":
+        return
+    held = db.scalar(select(Custody.id).where(Custody.vehicle_id == vehicle_id, Custody.ended_at.is_(None)))
+    vehicle.status = "assigned" if held else "available"
+    vehicle.version += 1
+
+
+def custody_ref_at(db: Session, vehicle_id: int, at: datetime) -> CustodyRef | None:
+    """The custody that covered the vehicle at time `at`: the driver responsible then (accidents, fines)."""
+    custody = db.scalar(
+        select(Custody).where(
+            Custody.vehicle_id == vehicle_id,
+            Custody.started_at <= at,
+            or_(Custody.ended_at.is_(None), Custody.ended_at > at),
+        )
+    )
+    return None if custody is None else _cref(custody)
+
+
 def list_custodies(
     db: Session,
     *,

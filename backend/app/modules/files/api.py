@@ -16,9 +16,12 @@ UPLOADERS = (
     "odometer.review",
     "maintenance.create",
     "invoices.create",
+    "accidents.create",  # accident photos and the police report
+    "accidents.update",
     "portal.vehicles",  # maintenance centers: reception and repair photos
     "portal.quotes",
     "portal.invoices",
+    "portal.damage",  # the damage estimate and its photos
 )
 
 

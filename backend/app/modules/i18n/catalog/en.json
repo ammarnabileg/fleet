@@ -285,7 +285,33 @@
     "vehicle_not_available": "The vehicle is not available for handover",
     "vehicle_not_found": "Vehicle not found",
     "version_conflict": "Someone else changed this record, reload it",
-    "vin_taken": "This VIN belongs to another vehicle"
+    "vin_taken": "This VIN belongs to another vehicle",
+    "accident_not_found": "Accident not found",
+    "accident_not_open": "The accident is closed or cancelled",
+    "accident_exists": "This accident is already recorded",
+    "accident_photos_required": "Take at least {min} photos of the accident from different angles",
+    "police_report_exists": "The police report is already attached; ask the office to change it",
+    "police_report_required": "The liability cannot be recorded before the police report is attached",
+    "outcome_recorded": "The liability is already recorded",
+    "outcome_required": "Record the liability first",
+    "estimate_pending": "The damage estimate is waiting for approval; approve or reject it first",
+    "estimate_approved": "The damage estimate is approved; the accident cannot go to another center",
+    "estimate_not_pending": "No estimate is waiting for approval",
+    "estimate_not_approved": "The damage estimate is not approved yet",
+    "estimate_not_expected": "An estimate cannot be sent now",
+    "estimate_items_mismatch": "The items add up to {items}, not the estimate total ({total})",
+    "accident_has_no_driver": "Nobody held the vehicle at the accident time: there is no driver to charge",
+    "liability_percent_required": "Enter the driver's share of the liability",
+    "shared_percent_below_100": "A shared liability is below 100%",
+    "installments_required": "Enter the number of installments",
+    "repair_exists": "The repair request already exists",
+    "monthly_deduction_cap_exceeded": "Deductions in {month} would reach {total}, above the monthly maximum of {cap}; use more installments or start later",
+    "deduction_total_invalid": "Invalid deduction amount",
+    "installments_invalid": "Installments must be between 1 and 60",
+    "start_month_in_past": "The start month is already over",
+    "deduction_exists": "A deduction already exists for this source",
+    "deduction_not_found": "Deduction not found",
+    "deduction_cancelled": "The deduction is already cancelled"
   },
   "settings": {
     "branding": "Branding",
@@ -321,7 +347,10 @@
     "messaging.bulk_daily_limit": "Maximum messages a day",
     "messaging.send_from_hour": "Send from hour",
     "messaging.send_until_hour": "Send until hour",
-    "maintenance.close_requires_invoice": "Close a maintenance request only once its invoice is approved"
+    "maintenance.close_requires_invoice": "Close a maintenance request only once its invoice is approved",
+    "accidents": "Accidents",
+    "accidents.min_photos": "Minimum photos a driver takes of an accident",
+    "accidents.police_report_alert_days": "Alert when the police report is still missing after (days)"
   },
   "common": {
     "active": "Active",
@@ -378,7 +407,11 @@
     "onboarding_submitted": "{driver} sent his data and documents for review",
     "otp_delivery_failed": "The sign-in code did not reach {driver} over WhatsApp: check the messaging channel",
     "signal_lost": "No signal from {plate} ({driver}) for {minutes} minutes",
-    "tracking_stopped": "Tracking stopped on {driver}'s phone ({plate})"
+    "tracking_stopped": "Tracking stopped on {driver}'s phone ({plate})",
+    "accident_reported": "Accident: vehicle {plate} (no. {number}), driver {driver}",
+    "accident_injuries": "Accident with injuries: vehicle {plate} (no. {number}), driver {driver}",
+    "accident_estimate_submitted": "{center} sent the damage estimate for accident {number} ({plate}): {amount}",
+    "accident_awaiting_police_report": "Accident {number} ({plate}) has no police report after {days} days"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -491,5 +524,48 @@
     "ac": "Air conditioning",
     "bodywork": "Bodywork",
     "other": "Other"
+  },
+  "accident_stage": {
+    "reported": "Reported: to refer",
+    "awaiting_estimate": "Awaiting the center's estimate",
+    "estimate_pending": "Estimate awaiting approval",
+    "estimate_rejected": "Estimate rejected",
+    "awaiting_outcome": "Awaiting the liability decision",
+    "outcome_recorded": "Liability recorded",
+    "closed": "Closed",
+    "cancelled": "Cancelled"
+  },
+  "accident_liability": {
+    "none": "Driver not liable",
+    "driver": "Driver liable",
+    "shared": "Shared liability"
+  },
+  "accident_event": {
+    "reported": "Reported",
+    "police_report": "Police report attached",
+    "photos": "Photos added",
+    "referred": "Referred to a center",
+    "estimate_submitted": "The center sent its estimate",
+    "estimate_approved": "Estimate approved",
+    "estimate_rejected": "Estimate rejected",
+    "outcome": "Liability recorded",
+    "repair_requested": "Sent for repair",
+    "closed": "Closed",
+    "cancelled": "Cancelled"
+  },
+  "estimate_status": {
+    "none": "None",
+    "pending": "Awaiting approval",
+    "approved": "Approved",
+    "rejected": "Rejected"
+  },
+  "deduction_source": {
+    "accident": "Accident",
+    "fine": "Fine",
+    "other": "Other"
+  },
+  "deduction_status": {
+    "approved": "Approved",
+    "cancelled": "Cancelled"
   }
 }

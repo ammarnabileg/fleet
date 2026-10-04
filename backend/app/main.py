@@ -7,6 +7,7 @@ from sqlalchemy import text
 from app.core import errors, messaging, middleware
 from app.core.config import get_settings
 from app.core.db import new_session
+from app.modules.accidents.api import router as accidents_router
 from app.modules.audit.api import router as audit_router
 from app.modules.cash.api import router as cash_router
 from app.modules.daily_ops.api import router as daily_ops_router
@@ -20,6 +21,7 @@ from app.modules.maintenance.api import router as maintenance_router
 from app.modules.notifications.api import router as notifications_router
 from app.modules.onboarding.api import router as onboarding_router
 from app.modules.org.api import router as org_router
+from app.modules.payroll.api import router as payroll_router
 from app.modules.people.api import router as people_router
 from app.modules.reports.api import router as reports_router
 from app.modules.tracking.api import router as tracking_router
@@ -70,6 +72,8 @@ def create_app() -> FastAPI:
         onboarding_router,
         imports_router,
         maintenance_router,
+        accidents_router,
+        payroll_router,
         daily_ops_router,
         cash_router,
         reports_router,

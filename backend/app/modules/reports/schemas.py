@@ -17,6 +17,7 @@ class Dashboard(BaseModel):
     cash: dict | None = None
     documents: dict[str, int] | None = None
     maintenance: dict[str, int] | None = None
+    accidents: dict[str, int] | None = None
 
 
 class PersonRef(BaseModel):
