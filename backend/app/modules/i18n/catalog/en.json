@@ -125,6 +125,8 @@
   },
   "errors": {
     "account_locked": "The account is temporarily locked after repeated failed attempts",
+    "activation_link_invalid": "The activation link is invalid, used or expired: ask your supervisor for a new one",
+    "activation_rate_limited": "{count} links were already sent to this driver today, try tomorrow",
     "alert_not_found": "Alert not found",
     "branch_not_found": "Branch not found",
     "cannot_deactivate_default": "The default language cannot be turned off",
@@ -144,6 +146,7 @@
     "document_type_mismatch": "This document type does not apply to this owner",
     "document_type_not_found": "Unknown document type",
     "driver_access_disabled": "Your app access is stopped, contact your supervisor",
+    "driver_app_not_active": "Activate the driver's app access first",
     "driver_has_custody": "The driver holds another vehicle in this period",
     "driver_not_working": "The driver is not on the job",
     "driver_phone_required": "A driver needs a phone number",
@@ -168,6 +171,7 @@
     "invalid_recorded_at": "The reading time is not accepted",
     "invalid_settings": "Invalid settings values",
     "language_exists": "The language already exists",
+    "message_not_delivered": "WhatsApp could not deliver the message now: use the manual link or try later",
     "method_not_allowed": "Method not allowed",
     "mfa_already_enabled": "Two-step verification is already on",
     "mfa_setup_not_started": "Start the two-step verification setup first",
@@ -183,6 +187,7 @@
     "owner_not_found": "Document owner not found",
     "password_too_short": "The password is shorter than {min} characters",
     "permission_denied": "You do not have permission for this action",
+    "phone_not_on_whatsapp": "{phone} has no WhatsApp: fix the number or use the manual link",
     "phone_taken": "This phone number belongs to another employee",
     "photo_must_be_image": "The photo must be a JPEG or PNG image",
     "photo_not_from_camera": "The photo must be taken with the app's camera",
@@ -291,7 +296,8 @@
     "tracking_stopped": "Tracking stopped on {driver}'s phone ({plate})"
   },
   "messages": {
-    "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it."
+    "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
+    "activation": "Hello {name}, here is the link to activate the driver app on your phone:\n{url}\nIt works once and expires in {hours} hours. Do not share it."
   },
   "vehicle_status": {
     "available": "Available",

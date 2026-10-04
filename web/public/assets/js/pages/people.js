@@ -74,7 +74,8 @@
         <div data-panel="ded" data-group="empd" class="${tab === 'ded' ? 'active' : ''}">${ded.length ? BT.chart.table(['السبب', 'الإجمالي', 'الأقساط', 'الشهري'], ded.map(function (d) { return [d.reason, fmt.kwd(d.total), d.paid + ' / ' + d.count, fmt.kwd(d.per)]; })) : BT.empty('circle-check', 'لا توجد خصومات', '')}
           <div class="mt-12">${A.btn('إضافة خصم', { icon: 'plus', cls: 'btn-sm btn-soft', action: 'emp-ded', arg: e.id })}</div></div>
         <div data-panel="device" data-group="empd" class="${tab === 'device' ? 'active' : ''}">${e.device ? h`${BT.kv([['الحالة', e.device.bound ? BT.pill('مربوط برمز OTP', 'g') : BT.pill('غير مربوط', 'o')], ['الجهاز', e.device.model], ['منذ', fmt.date(e.device.since)], ['آخر دخول', 'اليوم']])}
-          <div class="banner info mt-12 fs-sm">${icon('shield-check', 15)}<div>حساب السائق مربوط بهاتف واحد. عند تغيير الهاتف يُعاد الربط برمز OTP جديد على الجوال المسجل.</div></div>` : BT.empty('smartphone', 'لا يوجد هاتف مربوط', '')}</div>
+          <div class="banner info mt-12 fs-sm">${icon('shield-check', 15)}<div>حساب السائق مربوط بهاتف واحد. عند تغيير الهاتف: أرسل رابط تفعيل جديداً على واتساب، أو يدخل السائق برمز يصله على واتساب الرقم المسجل.</div></div>` : BT.empty('smartphone', 'لا يوجد هاتف مربوط', e.role === 'سائق' ? 'أرسل رابط التفعيل على واتساب: يفتحه السائق فيرتبط هاتفه دون رمز' : '')}
+          ${e.role === 'سائق' ? h`<div class="mt-12">${A.btn('رابط التفعيل', { icon: 'send', cls: 'btn-sm btn-soft', action: 'emp-activation', arg: e.id })}</div>` : ''}</div>
         <div data-panel="log" data-group="empd" class="${tab === 'log' ? 'active' : ''}"><div class="timeline">
           <div class="tl-item"><span class="tl-ic g">${icon('check', 13)}</span><div><div class="tl-t">${e.status}</div><div class="tl-d">منذ ${fmt.date(e.join)} · نورة الشمري</div></div></div>
           <div class="tl-item"><span class="tl-ic">${icon('user-plus', 13)}</span><div><div class="tl-t">إنشاء الملف</div><div class="tl-d">${fmt.date(e.join)}</div></div></div></div></div>
@@ -88,6 +89,30 @@
     BT.on(dlg.el, 'click', '[data-renew-d]', function (ev, b) { A.renewDoc(e, b.getAttribute('data-renew-d')); });
   };
   BT.actions['emp-ded'] = function (id) { A.addDeduction(emp(id)); };
+  BT.actions['emp-activation'] = function (id) { A.activationLink(emp(id)); };
+
+  /* رابط تفعيل لمرة واحدة (24 ساعة) يربط هاتف السائق دون رمز OTP.
+     API: POST /api/v1/employees/{id}/activation-link  {channel: "whatsapp" | "manual"}
+     واتساب يذهب دائماً للرقم المسجل ولا يُعرض الرابط للمرسل؛ "manual" يعرض الرابط (رمز QR في المكتب). */
+  A.activationLink = function (e) {
+    var d = BT.modal.open({
+      title: 'رابط تفعيل التطبيق', subtitle: e.name, icon: 'send', size: 'sm',
+      body: h`<div class="form">
+        ${BT.kv([['يُرسل إلى', h`<bdi dir="ltr" class="num">+965 ${e.phone}</bdi> <span class="muted fs-sm">(الرقم المسجل)</span>`], ['الصلاحية', 'مرة واحدة · 24 ساعة']])}
+        <div class="banner info fs-sm mt-12">${icon('shield-check', 15)}<div>يفتح السائق الرابط من واتساب فيرتبط هاتفه مباشرة دون رمز. أي رابط سابق لم يُستخدم يُلغى، وإن كان له هاتف مربوط يُفصل ويصلك تنبيه.</div></div>
+        <div id="act-manual" class="hidden mt-12"><div class="banner warn fs-sm">${icon('triangle-alert', 15)}<div>الرابط اليدوي يفعّل حساب السائق لمن يملكه: اعرضه للسائق نفسه فقط.</div></div>
+          <div class="mt-8 num fs-sm" style="word-break:break-all" id="act-url"></div></div></div>`,
+      buttons: [
+        { label: 'عرض الرابط يدوياً', cls: 'btn-ghost', icon: 'eye', close: false, onClick: function () {
+          d.el.querySelector('#act-manual').classList.remove('hidden');
+          d.el.querySelector('#act-url').textContent = location.origin + '/activate#t=' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+        } },
+        { label: 'إرسال على واتساب', cls: 'btn-primary', icon: 'send', onClick: function () {
+          BT.toast('أُرسل رابط التفعيل على واتساب — ' + e.name, { sub: '+965 ' + e.phone.slice(0, 2) + '••••' + e.phone.slice(-2) + ' · صالح 24 ساعة' });
+        } }
+      ]
+    });
+  };
   A.renewDoc = function (e, type) {
     BT.modal.open({
       title: 'تحديث ' + type, subtitle: e.name, icon: 'file-badge', size: 'sm', form: true,

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
 
     files_dir: str = "/data/files"
     max_upload_mb: int = 10
+    public_url: str = "http://localhost:8080"  # the address drivers open (activation links)
     messaging_provider: str = "log"  # "whatsapp" in production (Evolution API)
     evolution_api_url: str = ""
     evolution_api_key: str = ""

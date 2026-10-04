@@ -181,3 +181,25 @@ class DeviceStatus(Base):
     last_upload_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     app_version: Mapped[str | None] = mapped_column(Text)
     payload: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'"))
+
+
+class ActivationLink(Base):
+    """One-time link sent to the driver's registered number; its token is stored only as a hash."""
+
+    __tablename__ = "activation_links"
+    __table_args__ = (
+        CheckConstraint("channel IN ('whatsapp', 'manual')", name="channel"),
+        Index("activation_links_employee_id_idx", "employee_id", "created_at"),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    token_hash: Mapped[str] = mapped_column(Text, unique=True)
+    channel: Mapped[str] = mapped_column(Text)
+    created_by: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    used_device_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("identity.devices.id"))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

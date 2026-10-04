@@ -1,6 +1,8 @@
 """Sign-in codes go out over WhatsApp (Evolution API). A delivery failure never changes the answer to the phone,
 and the supervisors are told when the channel is down."""
 
+import json
+
 import httpx
 import pytest
 
@@ -26,10 +28,7 @@ def test_evolution_send_text_request():
     (r,) = seen
     assert r.method == "POST" and str(r.url) == "https://evo.example/message/sendText/fleet%20otp"
     assert r.headers["apikey"] == "secret-key"
-    assert (
-        r.read().decode()
-        == httpx.Request("POST", "/", json={"number": "96550001234", "text": "رمز الدخول: 123456"}).read().decode()
-    )
+    assert json.loads(r.read()) == {"number": "96550001234", "text": "رمز الدخول: 123456", "linkPreview": False}
 
 
 @pytest.mark.parametrize(

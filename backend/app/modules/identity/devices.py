@@ -3,6 +3,8 @@
 - OTP sent over WhatsApp (app.core.messaging): 6 digits, 5 minutes, 3 attempts, at most 3 requests per phone per
   15 minutes and 10 a day. The answer to a request is the same whether or not the phone belongs to a driver (or the
   message could be delivered): the endpoint cannot discover drivers.
+- Or the supervisor sends a one-time activation link to the driver's registered WhatsApp number (24 hours): opening
+  it binds the phone without an OTP.
 - Binding a new device revokes the previous one (one active device per driver) and alerts the supervisors.
 - Tokens are random strings stored only as hashes: access 15 minutes, refresh 30 days, rotated on every use. A
   refresh token used twice revokes its whole family (stolen token), except an immediate retry of the last rotation
@@ -31,7 +33,7 @@ from app.core.errors import AppError
 from app.core.events import emit
 from app.modules.audit import service as audit
 from app.modules.i18n import service as i18n
-from app.modules.identity.models import Device, DeviceStatus, DeviceToken, OtpChallenge
+from app.modules.identity.models import ActivationLink, Device, DeviceStatus, DeviceToken, OtpChallenge
 from app.modules.notifications import service as notifications
 from app.modules.people import service as people
 
@@ -43,6 +45,8 @@ OTP_PER_DAY = 10  # with 3 attempts each: at most 30 guesses a day at a 6-digit 
 ACCESS_TTL = timedelta(minutes=15)
 REFRESH_TTL = timedelta(days=30)
 RETRY_GRACE = timedelta(seconds=60)
+ACTIVATION_TTL = timedelta(hours=24)
+ACTIVATION_PER_DAY = 5
 TOUCH_EVERY = timedelta(seconds=60)
 log = logging.getLogger("fleet.devices")
 
@@ -54,6 +58,19 @@ class DevicePrincipal:
     employee_public_id: str
     company_id: int
     name: dict
+
+
+def _driver_text(db: Session, key: str, **params) -> str:
+    """Drivers often read neither the office language nor each other's: a message to a driver carries the default
+    language and English (when English is active and is not the default)."""
+    default = i18n.default_language(db).code
+    active = {lang.code for lang in i18n.list_languages(db)}
+    langs = [default] + (["en"] if "en" in active and default != "en" else [])
+    texts = []
+    for lang in langs:
+        values = {k: i18n.pick(v, lang, default) if isinstance(v, dict) else v for k, v in params.items()}
+        texts.append(i18n.t(db, lang, key, **values))
+    return "\n\n".join(texts)
 
 
 def _otp_hash(phone: str, code: str) -> str:
@@ -92,8 +109,7 @@ def request_otp(db: Session, *, phone: str, device_uid: str, ip: str | None) -> 
     )
     db.commit()
     if code:
-        lang = i18n.default_language(db).code
-        text = i18n.t(db, lang, "messages.otp", code=code, minutes=OTP_TTL.seconds // 60)
+        text = _driver_text(db, "messages.otp", code=code, minutes=OTP_TTL.seconds // 60)
         try:
             messaging.provider().send(phone, text)
         except messaging.DeliveryError as exc:  # same answer to the phone; the supervisors are told instead
@@ -184,6 +200,24 @@ def verify_otp(
         db.commit()
         raise AppError(401, "otp_invalid")
     challenge.consumed_at = now
+    device, tokens = _bind_device(
+        db, driver, device_uid=device_uid, platform=platform, model=model, app_version=app_version, via="otp"
+    )
+    db.commit()
+    return tokens
+
+
+def _bind_device(
+    db: Session,
+    driver: people.EmployeeRef,
+    *,
+    device_uid: str,
+    platform: str | None,
+    model: str | None,
+    app_version: str | None,
+    via: str,
+) -> tuple[Device, dict]:
+    """One active device per driver: the previous one is revoked in the same transaction."""
     previous = db.scalar(
         select(Device).where(Device.employee_id == driver.id, Device.revoked_at.is_(None)).with_for_update()
     )
@@ -196,7 +230,7 @@ def verify_otp(
         platform=platform,
         model=model,
         app_version=app_version,
-        last_seen_at=now,
+        last_seen_at=utcnow(),
     )
     db.add(device)
     db.flush()
@@ -221,6 +255,7 @@ def verify_otp(
             "employee_id": str(driver.public_id),
             "platform": platform,
             "model": model,
+            "via": via,
             "replaced": str(previous.public_id) if previous else None,
         },
     )
@@ -234,8 +269,107 @@ def verify_otp(
             "replaced_device_id": str(previous.public_id) if previous else None,
         },
     )
+    return device, tokens | {"device_id": str(device.public_id)}
+
+
+# ------------------------------------------------------------------ activation links
+
+
+def _masked(phone: str) -> str:
+    return phone[:4] + "•" * (len(phone) - 8) + phone[-4:]
+
+
+def create_activation_link(db: Session, driver: people.EmployeeRef, *, channel: str, actor_user_id: int) -> dict:
+    """A one-time link that binds the driver's phone without an OTP (first registration, or a supervisor-led
+    phone change). "whatsapp" sends it to the driver's registered number and never shows it to the sender;
+    "manual" shows it (a QR code at the office when WhatsApp is not available)."""
+    if not driver.is_driver:
+        raise AppError(422, "not_a_driver")
+    if not driver.can_use_app:
+        raise AppError(422, "driver_app_not_active")
+    now = utcnow()
+    recent = db.scalar(
+        select(func.count())
+        .select_from(ActivationLink)
+        .where(ActivationLink.employee_id == driver.id, ActivationLink.created_at > now - timedelta(days=1))
+    )
+    if recent >= ACTIVATION_PER_DAY:
+        raise AppError(429, "activation_rate_limited", count=ACTIVATION_PER_DAY)
+    db.execute(
+        update(ActivationLink)
+        .where(
+            ActivationLink.employee_id == driver.id,
+            ActivationLink.used_at.is_(None),
+            ActivationLink.revoked_at.is_(None),
+        )
+        .values(revoked_at=func.now())
+    )
+    token = crypto.new_token(32)
+    link = ActivationLink(
+        employee_id=driver.id,
+        token_hash=crypto.token_hash(token),
+        channel=channel,
+        created_by=actor_user_id,
+        expires_at=now + ACTIVATION_TTL,
+    )
+    db.add(link)
+    db.flush()
+    # the token travels after "#": browsers and link-preview robots never send it to a server
+    url = f"{get_settings().public_url.rstrip('/')}/activate#t={token}"
+    if channel == "whatsapp":
+        text = _driver_text(
+            db, "messages.activation", name=driver.name, url=url, hours=int(ACTIVATION_TTL.total_seconds() // 3600)
+        )
+        try:
+            messaging.provider().send(driver.phone, text)
+        except messaging.NotOnWhatsApp:
+            db.rollback()
+            raise AppError(422, "phone_not_on_whatsapp", phone=driver.phone) from None
+        except messaging.DeliveryError as exc:
+            db.rollback()
+            log.warning("activation link not delivered: %s", exc)
+            raise AppError(502, "message_not_delivered") from None
+    audit.record(
+        db,
+        action="device.activation_link_created",
+        entity_type="employee",
+        entity_id=driver.public_id,
+        actor_user_id=actor_user_id,
+        company_id=driver.company_id,
+        after={"channel": channel},
+    )
     db.commit()
-    return tokens | {"device_id": str(device.public_id)}
+    return {
+        "channel": channel,
+        "expires_at": link.expires_at,
+        "url": url if channel == "manual" else None,
+        "sent_to": _masked(driver.phone) if channel == "whatsapp" else None,
+    }
+
+
+def activate(
+    db: Session, *, token: str, device_uid: str, platform: str | None, model: str | None, app_version: str | None
+) -> dict:
+    link = db.scalar(
+        select(ActivationLink).where(ActivationLink.token_hash == crypto.token_hash(token.strip())).with_for_update()
+    )
+    if link is None or link.used_at or link.revoked_at or link.expires_at <= utcnow():
+        raise AppError(401, "activation_link_invalid")
+    driver = people.ref(db, link.employee_id)
+    if driver is None or not driver.can_use_app:  # access changed after the link was sent
+        raise AppError(401, "activation_link_invalid")
+    device, tokens = _bind_device(
+        db,
+        driver,
+        device_uid=device_uid,
+        platform=platform,
+        model=model,
+        app_version=app_version,
+        via="activation_link",
+    )
+    link.used_at, link.used_device_id = utcnow(), device.id
+    db.commit()
+    return tokens
 
 
 # ------------------------------------------------------------------ tokens

@@ -125,6 +125,8 @@
   },
   "errors": {
     "account_locked": "الحساب مقفل مؤقتاً بسبب محاولات فاشلة متتالية",
+    "activation_link_invalid": "رابط التفعيل غير صالح أو مستخدم أو منتهي، اطلب رابطاً جديداً من المشرف",
+    "activation_rate_limited": "تم إرسال {count} روابط لهذا السائق اليوم، حاول غداً",
     "alert_not_found": "التنبيه غير موجود",
     "branch_not_found": "الفرع غير موجود",
     "cannot_deactivate_default": "لا يمكن تعطيل اللغة الافتراضية",
@@ -144,6 +146,7 @@
     "document_type_mismatch": "نوع المستند لا يناسب صاحبه",
     "document_type_not_found": "نوع المستند غير موجود",
     "driver_access_disabled": "تم إيقاف دخولك إلى التطبيق، راجع المشرف",
+    "driver_app_not_active": "فعّل حساب التطبيق للسائق أولاً",
     "driver_has_custody": "السائق معه سيارة أخرى في نفس الفترة",
     "driver_not_working": "السائق ليس على رأس العمل",
     "driver_phone_required": "رقم الهاتف مطلوب للسائق",
@@ -168,6 +171,7 @@
     "invalid_recorded_at": "وقت القراءة غير مقبول",
     "invalid_settings": "قيم الإعدادات غير صالحة",
     "language_exists": "اللغة موجودة بالفعل",
+    "message_not_delivered": "تعذّر الإرسال عبر واتساب الآن: استخدم الرابط اليدوي أو حاول لاحقاً",
     "method_not_allowed": "إجراء غير مسموح",
     "mfa_already_enabled": "التحقق بخطوتين مفعّل بالفعل",
     "mfa_setup_not_started": "ابدأ إعداد التحقق بخطوتين أولاً",
@@ -183,6 +187,7 @@
     "owner_not_found": "صاحب المستند غير موجود",
     "password_too_short": "كلمة المرور أقصر من {min} أحرف",
     "permission_denied": "ليست لديك صلاحية لهذا الإجراء",
+    "phone_not_on_whatsapp": "الرقم {phone} ليس عليه واتساب: صحّح الرقم أو استخدم الرابط اليدوي",
     "phone_taken": "رقم الهاتف مسجل لموظف آخر",
     "photo_must_be_image": "يجب أن تكون الصورة JPEG أو PNG",
     "photo_not_from_camera": "يجب التقاط الصورة بكاميرا التطبيق",
@@ -291,7 +296,8 @@
     "tracking_stopped": "خدمة التتبع متوقفة عند {driver} ({plate})"
   },
   "messages": {
-    "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد."
+    "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
+    "activation": "مرحباً {name}، هذا رابط تفعيل تطبيق السائق على هاتفك:\n{url}\nالرابط لمرة واحدة وصالح لمدة {hours} ساعة. لا ترسله لأي شخص."
   },
   "vehicle_status": {
     "available": "متاحة",

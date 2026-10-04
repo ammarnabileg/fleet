@@ -23,6 +23,10 @@ class DeliveryError(Exception):
     pass
 
 
+class NotOnWhatsApp(DeliveryError):
+    """The number has no WhatsApp account."""
+
+
 @dataclass(frozen=True)
 class Message:
     to: str
@@ -57,13 +61,17 @@ class EvolutionProvider:
             response = self._client.request(method, path, **kwargs)
         except httpx.HTTPError as exc:
             raise DeliveryError(f"evolution api unreachable: {exc.__class__.__name__}") from None
+        if response.status_code == 400 and '"exists":false' in response.text.replace(" ", ""):
+            raise NotOnWhatsApp("the number has no WhatsApp account")
         if response.status_code >= 300:
             raise DeliveryError(f"evolution api answered {response.status_code}")
         return response
 
     def send(self, to: str, text: str) -> None:
-        # Evolution expects the international number without "+": +96550000000 -> 96550000000
-        self._call("POST", f"/message/sendText/{self._instance}", json={"number": to.lstrip("+"), "text": text})
+        # Evolution expects the international number without "+": +96550000000 -> 96550000000.
+        # No link preview: WhatsApp would fetch the activation link to draw it.
+        body = {"number": to.lstrip("+"), "text": text, "linkPreview": False}
+        self._call("POST", f"/message/sendText/{self._instance}", json=body)
 
     def connection_state(self) -> str:
         """ "open" when the WhatsApp session is connected; "close" or "connecting" when it needs attention."""

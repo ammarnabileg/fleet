@@ -188,6 +188,19 @@ def verify_otp(body: schemas.OtpVerifyIn, db: Session = Depends(get_session)):
     )
 
 
+@router.post("/driver/auth/activate", response_model=schemas.TokensOut)
+def activate(body: schemas.ActivateIn, db: Session = Depends(get_session)):
+    """The app opens the activation link: the token (from after the "#") binds this phone, no OTP needed."""
+    return service.activate(
+        db,
+        token=body.token,
+        device_uid=body.device_uid,
+        platform=body.platform,
+        model=body.model,
+        app_version=body.app_version,
+    )
+
+
 @router.post("/driver/auth/refresh", response_model=schemas.TokensOut)
 def refresh(body: schemas.RefreshIn, db: Session = Depends(get_session)):
     return service.refresh_tokens(db, body.refresh_token)
@@ -210,6 +223,18 @@ def list_devices(
     db: Session = Depends(get_session),
 ):
     return service.list_devices(db, people.ref_by_public_id(db, public_id, **principal.scope))
+
+
+@router.post("/employees/{public_id}/activation-link", response_model=schemas.ActivationLinkOut, status_code=201)
+def create_activation_link(
+    public_id: uuid.UUID,
+    body: schemas.ActivationLinkIn,
+    principal: Principal = Depends(require_permission("devices.manage")),
+    db: Session = Depends(get_session),
+):
+    """Always to the driver's registered number: the sender cannot choose another one."""
+    driver = people.ref_by_public_id(db, public_id, **principal.scope)
+    return service.create_activation_link(db, driver, channel=body.channel, actor_user_id=principal.user_id)
 
 
 @router.post("/devices/{public_id}/revoke", status_code=204)

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -180,3 +180,26 @@ class DeviceOut(BaseModel):
     last_seen_at: datetime | None
     revoked_at: datetime | None
     revoked_reason: str | None
+
+
+class ActivationLinkIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    channel: Literal["whatsapp", "manual"] = "whatsapp"
+
+
+class ActivationLinkOut(BaseModel):
+    channel: str
+    expires_at: datetime
+    url: str | None  # only for "manual"; a WhatsApp link is never shown to the sender
+    sent_to: str | None  # the registered number, masked
+
+
+class ActivateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: Annotated[str, StringConstraints(strip_whitespace=True, min_length=20, max_length=100)]
+    device_uid: DeviceUid
+    platform: Meta | None = None
+    model: Meta | None = None
+    app_version: Meta | None = None
