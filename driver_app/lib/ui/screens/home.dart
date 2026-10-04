@@ -8,6 +8,7 @@ import '../../core/outbox.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'accident.dart';
+import 'fines.dart';
 import 'maintenance.dart';
 import 'odometer.dart';
 import 'report.dart';
@@ -212,6 +213,13 @@ class HomeTab extends StatelessWidget {
             label: Text(l.accident),
             onPressed: () =>
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => AccidentScreen(state: state))),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            key: const Key('fines'),
+            icon: const Icon(Icons.receipt_long_outlined),
+            label: Text(l.fines),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => FinesScreen(state: state))),
           ),
           if (state.queued.isNotEmpty) ...[
             SectionTitle(l.outboxTitle),

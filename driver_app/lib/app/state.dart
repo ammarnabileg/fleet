@@ -64,6 +64,7 @@ class AppState extends ChangeNotifier {
   List<Report> reports = [];
   List<MaintenanceRequest> maintenance = [];
   List<Accident> accidents = [];
+  List<Fine> fines = [];
   List<OutboxItem> queued = [];
   Map<String, dynamic> tracking = {};
   Object? lastError;
@@ -160,6 +161,7 @@ class AppState extends ChangeNotifier {
     reports = [];
     maintenance = [];
     accidents = [];
+    fines = [];
   }
 
   // ---------------------------------------------------------------- data
@@ -204,6 +206,9 @@ class AppState extends ChangeNotifier {
   Future<void> loadAccidents() async => accidents = [
     for (final a in await api.get('/driver/accidents') as List) Accident.fromJson(a as Map<String, dynamic>),
   ];
+
+  Future<void> loadFines() async =>
+      fines = [for (final f in await api.get('/driver/fines') as List) Fine.fromJson(f as Map<String, dynamic>)];
 
   /// Something the home screen can live without (the maintenance list): a failure does not hold the rest.
   Future<void> _quietly(Future<void> Function() load) async {

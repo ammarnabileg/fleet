@@ -265,3 +265,40 @@ class Accident {
   /// The driver can still send the police report (once the liability is decided it is too late from the app).
   bool get awaitsPoliceReport => isOpen && !hasPoliceReport && liability == null;
 }
+
+/// A traffic fine on the vehicle the driver held at that time, and how it was settled.
+class Fine {
+  Fine({
+    required this.id,
+    required this.number,
+    required this.plate,
+    required this.occurredAt,
+    required this.violation,
+    required this.amount,
+    required this.status,
+    this.location,
+    this.deduction,
+  });
+
+  factory Fine.fromJson(Map<String, dynamic> j) => Fine(
+    id: j['id'] as String,
+    number: (j['number'] as num).toInt(),
+    plate: j['vehicle_plate'] as String,
+    occurredAt: DateTime.parse(j['occurred_at'] as String),
+    violation: j['violation'] as String,
+    amount: j['amount'] as String,
+    status: j['status'] as String,
+    location: j['location_text'] as String?,
+    deduction: j['deduction'] == null ? null : Deduction.fromJson(j['deduction'] as Map<String, dynamic>),
+  );
+
+  final String id;
+  final int number;
+  final String plate;
+  final DateTime occurredAt;
+  final String violation;
+  final String amount;
+  final String status; // open | charged | company
+  final String? location;
+  final Deduction? deduction;
+}

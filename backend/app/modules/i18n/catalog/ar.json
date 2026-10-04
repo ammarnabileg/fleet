@@ -310,7 +310,13 @@
     "start_month_in_past": "شهر بداية الخصم انتهى",
     "deduction_exists": "يوجد خصم قائم لنفس المصدر",
     "deduction_not_found": "الخصم غير موجود",
-    "deduction_cancelled": "الخصم ملغى من قبل"
+    "deduction_cancelled": "الخصم ملغى من قبل",
+    "fine_not_found": "المخالفة غير موجودة",
+    "fine_exists": "رقم المخالفة مسجّل من قبل",
+    "fine_not_open": "تم البت في المخالفة من قبل",
+    "fine_has_no_driver": "لم تكن السيارة مسلّمة لسائق وقت المخالفة؛ لا يوجد من يُخصم منه",
+    "fine_charged": "المخالفة مخصومة من السائق؛ ألغِ الخصم أولاً من صفحة الخصومات",
+    "fine_paid": "سُجّل دفع المخالفة من قبل"
   },
   "settings": {
     "branding": "الهوية",
@@ -410,7 +416,8 @@
     "accident_reported": "حادث للسيارة {plate} (رقم {number}) — السائق: {driver}",
     "accident_injuries": "حادث بإصابات للسيارة {plate} (رقم {number}) — السائق: {driver}",
     "accident_estimate_submitted": "{center} أرسل تقدير أضرار الحادث {number} ({plate}): {amount}",
-    "accident_awaiting_police_report": "الحادث {number} ({plate}) بدون محضر شرطة منذ {days} يوم"
+    "accident_awaiting_police_report": "الحادث {number} ({plate}) بدون محضر شرطة منذ {days} يوم",
+    "fine_no_driver": "المخالفة {number} على السيارة {plate} في {at}: لم تكن مسلّمة لأي سائق في ذلك الوقت"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
@@ -566,5 +573,11 @@
   "deduction_status": {
     "approved": "معتمد",
     "cancelled": "ملغى"
+  },
+  "fine_status": {
+    "open": "بانتظار القرار",
+    "charged": "مخصومة من السائق",
+    "company": "على الشركة",
+    "cancelled": "ملغاة"
   }
 }

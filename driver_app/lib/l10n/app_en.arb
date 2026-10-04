@@ -205,5 +205,12 @@
   "accLiability_shared": "Shared liability: your share {percent}%",
   "accDeduction": "Deduction {total} KWD · installments: {count}",
   "accInstallment": "{month}: {amount} KWD",
-  "accAwaitingPolice": "Accident #{number} is waiting for the police report: tap to send a photo of it"
+  "accAwaitingPolice": "Accident #{number} is waiting for the police report: tap to send a photo of it",
+  "fines": "Traffic fines",
+  "finesTitle": "Traffic fines",
+  "finesIntro": "Fines on the vehicle while you held it, by the time of the fine. The company decides: it bears them, or they are deducted from your salary in installments.",
+  "finesNone": "No fines",
+  "fineStatus_open": "Under review",
+  "fineStatus_charged": "Deducted from your salary",
+  "fineStatus_company": "Borne by the company"
 }

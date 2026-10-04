@@ -13,6 +13,7 @@ from app.modules.cash.api import router as cash_router
 from app.modules.daily_ops.api import router as daily_ops_router
 from app.modules.documents.api import router as documents_router
 from app.modules.files.api import router as files_router
+from app.modules.fines.api import router as fines_router
 from app.modules.fleet.api import router as fleet_router
 from app.modules.i18n.api import router as i18n_router
 from app.modules.identity.api import router as identity_router
@@ -73,6 +74,7 @@ def create_app() -> FastAPI:
         imports_router,
         maintenance_router,
         accidents_router,
+        fines_router,
         payroll_router,
         daily_ops_router,
         cash_router,

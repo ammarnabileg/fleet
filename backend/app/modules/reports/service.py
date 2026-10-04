@@ -19,6 +19,7 @@ from app.modules.accidents import service as accidents
 from app.modules.cash.models import Account, Journal, JournalLine, Receipt
 from app.modules.daily_ops.models import Report
 from app.modules.documents.models import Document
+from app.modules.fines import service as fines
 from app.modules.fleet.models import Custody, Vehicle
 from app.modules.maintenance import service as maintenance
 from app.modules.notifications.models import Alert
@@ -142,6 +143,9 @@ def dashboard(db: Session, *, permissions: frozenset[str], all_companies: bool, 
 
     if has("maintenance.view"):
         out["maintenance"] = maintenance.counts(db, all_companies=all_companies, company_ids=company_ids)
+
+    if has("fines.view"):
+        out["fines"] = fines.counts(db, all_companies=all_companies, company_ids=company_ids)
 
     if has("accidents.view"):
         out["accidents"] = accidents.counts(db, all_companies=all_companies, company_ids=company_ids)

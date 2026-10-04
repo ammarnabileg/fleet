@@ -683,4 +683,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String accAwaitingPolice(String number) {
     return 'Accident #$number is waiting for the police report: tap to send a photo of it';
   }
+
+  @override
+  String get fines => 'Traffic fines';
+
+  @override
+  String get finesTitle => 'Traffic fines';
+
+  @override
+  String get finesIntro =>
+      'Fines on the vehicle while you held it, by the time of the fine. The company decides: it bears them, or they are deducted from your salary in installments.';
+
+  @override
+  String get finesNone => 'No fines';
+
+  @override
+  String get fineStatus_open => 'Under review';
+
+  @override
+  String get fineStatus_charged => 'Deducted from your salary';
+
+  @override
+  String get fineStatus_company => 'Borne by the company';
 }

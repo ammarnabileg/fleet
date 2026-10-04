@@ -1327,6 +1327,48 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'الحادث #{number} بانتظار محضر الشرطة: اضغط لإرسال صورته'**
   String accAwaitingPolice(String number);
+
+  /// No description provided for @fines.
+  ///
+  /// In ar, this message translates to:
+  /// **'المخالفات المرورية'**
+  String get fines;
+
+  /// No description provided for @finesTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'المخالفات المرورية'**
+  String get finesTitle;
+
+  /// No description provided for @finesIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'المخالفات على السيارة وهي في عهدتك، حسب وقت المخالفة. الشركة تقرر: على الشركة أو خصم من راتبك بأقساط.'**
+  String get finesIntro;
+
+  /// No description provided for @finesNone.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد مخالفات'**
+  String get finesNone;
+
+  /// No description provided for @fineStatus_open.
+  ///
+  /// In ar, this message translates to:
+  /// **'قيد المراجعة'**
+  String get fineStatus_open;
+
+  /// No description provided for @fineStatus_charged.
+  ///
+  /// In ar, this message translates to:
+  /// **'تُخصم من راتبك'**
+  String get fineStatus_charged;
+
+  /// No description provided for @fineStatus_company.
+  ///
+  /// In ar, this message translates to:
+  /// **'على الشركة'**
+  String get fineStatus_company;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

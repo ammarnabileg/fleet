@@ -18,6 +18,7 @@ class Dashboard(BaseModel):
     documents: dict[str, int] | None = None
     maintenance: dict[str, int] | None = None
     accidents: dict[str, int] | None = None
+    fines: dict[str, int | str] | None = None
 
 
 class PersonRef(BaseModel):

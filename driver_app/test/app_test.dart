@@ -49,6 +49,7 @@ Future<World> world({
   Map<String, dynamic>? today,
   List<Map<String, dynamic>>? maintenance,
   List<Map<String, dynamic>>? accidents,
+  List<Map<String, dynamic>>? fines,
 }) async {
   final db = await testDb();
   final server = FakeServer();
@@ -165,6 +166,7 @@ Future<World> world({
   );
   server.on('GET', '/api/v1/driver/maintenance', (r) => (200, maintenance ?? []));
   server.on('GET', '/api/v1/driver/accidents', (r) => (200, accidents ?? []));
+  server.on('GET', '/api/v1/driver/fines', (r) => (200, fines ?? []));
   return World(state, server);
 }
 
@@ -672,5 +674,54 @@ void main() {
     expect(find.textContaining('01-2027'), findsOneWidget);
     expect(find.byKey(const Key('acc-send-police-12')), findsNothing);
     await shot(tester, '16-accident-deduction');
+  });
+
+  testWidgets('traffic fines: the company decides, a deducted one shows its installments', (tester) async {
+    final w = (await tester.runAsync(
+      () => world(
+        fines: [
+          {
+            'id': 'f1',
+            'number': 7,
+            'vehicle_plate': '18/23456',
+            'occurred_at': '2026-10-02T15:10:00Z',
+            'violation': 'تجاوز السرعة',
+            'location_text': 'طريق الملك فهد',
+            'amount': '30.000',
+            'status': 'charged',
+            'deduction': {
+              'total': '30.000',
+              'installments': 2,
+              'schedule': [
+                {'month': '2026-11-01', 'amount': '15.000'},
+                {'month': '2026-12-01', 'amount': '15.000'},
+              ],
+            },
+          },
+          {
+            'id': 'f2',
+            'number': 8,
+            'vehicle_plate': '18/23456',
+            'occurred_at': '2026-10-03T09:00:00Z',
+            'violation': 'وقوف خاطئ',
+            'location_text': null,
+            'amount': '5.000',
+            'status': 'company',
+            'deduction': null,
+          },
+        ],
+      ),
+    ))!;
+    await pumpApp(tester, w);
+    await tester.ensureVisible(find.byKey(const Key('fines')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('fines')));
+    await idle(tester);
+    expect(find.text('تُخصم من راتبك'), findsOneWidget);
+    expect(find.text('على الشركة'), findsOneWidget);
+    expect(find.byKey(const Key('fine-deduction-7')), findsOneWidget);
+    expect(find.textContaining('\u206615.000'), findsNWidgets(2));
+    expect(find.byKey(const Key('fine-deduction-8')), findsNothing);
+    await shot(tester, '17-fines');
   });
 }

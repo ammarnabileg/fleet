@@ -290,6 +290,20 @@ void main() {
       expect([for (final s in charged.deduction!.schedule) s.amount], ['50.000', '50.000', '50.000']);
       expect(charged.awaitsPoliceReport, isFalse);
 
+      // ---- a traffic fine on the vehicle while the driver held it: charged in 2 installments, seen in the app
+      final ticket = await admin.call('POST', '/fines', {
+        'vehicle_id': vehicle['id'],
+        'occurred_at': DateTime.now().toUtc().subtract(const Duration(seconds: 5)).toIso8601String(),
+        'violation': 'Speeding',
+        'amount': '30.000',
+        'reference_no': 'C-$n',
+      });
+      expect(ticket['driver']['id'], driver['id'], reason: 'the driver is found from the custody log');
+      await admin.call('POST', '/fines/${ticket['id']}/charge', {'installments': 2});
+      await state.loadFines();
+      expect((state.fines.single.status, state.fines.single.deduction!.total), ('charged', '30.000'));
+      expect([for (final s in state.fines.single.deduction!.schedule) s.amount], ['15.000', '15.000']);
+
       // ---- cash, then sign out: the phone forgets the session and the server refuses its tokens
       await state.loadCash();
       expect(state.cash!.pending, '17.250');

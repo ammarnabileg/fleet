@@ -58,6 +58,7 @@ KINDS: dict[str, Kind] = {
     "accident_injuries": Kind("critical", "accidents.view", ("plate", "number", "driver")),
     "accident_estimate_submitted": Kind("info", "accidents.update", ("plate", "number", "center", "amount")),
     "accident_awaiting_police_report": Kind("warning", "accidents.view", ("plate", "number", "days")),
+    "fine_no_driver": Kind("warning", "fines.manage", ("plate", "number", "at")),
 }
 
 

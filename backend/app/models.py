@@ -6,6 +6,7 @@ from app.modules.cash import models as cash  # noqa: F401
 from app.modules.daily_ops import models as daily_ops  # noqa: F401
 from app.modules.documents import models as documents  # noqa: F401
 from app.modules.files import models as files  # noqa: F401
+from app.modules.fines import models as fines  # noqa: F401
 from app.modules.fleet import models as fleet  # noqa: F401
 from app.modules.i18n import models as i18n  # noqa: F401
 from app.modules.identity import models as identity  # noqa: F401

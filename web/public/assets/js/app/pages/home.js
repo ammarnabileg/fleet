@@ -42,6 +42,11 @@
         ${BT.kpi({ label: 'تقديرات بانتظار الاعتماد', value: fmt.int(acc.estimate_pending), sub: 'من مراكز الصيانة', dot: 'p', href: '#/accidents?chip=estimate' })}
         ${BT.kpi({ label: 'بانتظار تحديد المسؤولية', value: fmt.int(acc.awaiting_outcome), sub: 'التقدير معتمد', dot: 'b', href: '#/accidents?chip=outcome' })}
       </div>`);
+      var fin = d.fines;
+      if (fin) rows.push(h`<div class="kpis">
+        ${BT.kpi({ label: 'مخالفات بانتظار القرار', value: fmt.int(fin.open), sub: fin.no_driver ? fmt.int(fin.no_driver) + ' بلا سائق وقت المخالفة' : 'خصم من السائق أو على الشركة', dot: 'o', tone: fin.no_driver ? 'warning' : null, href: '#/fines' })}
+        ${BT.kpi({ label: 'غير مدفوعة للمرور', value: fmt.int(fin.unpaid), sub: fmt.money(fin.unpaid_total) + ' ' + BT.config.currency, dot: 'r', href: '#/fines?chip=unpaid' })}
+      </div>`);
 
       var a = d.alerts;
       var alertCard = h`<div class="card"><div class="card-h"><div class="card-t">تنبيهات مفتوحة</div><span class="flex gap-8">${a.critical ? BT.pill(a.critical + ' حرج', 'r') : ''}${a.warning ? BT.pill(a.warning + ' تحذير', 'o') : ''}${a.info ? BT.pill(a.info + ' معلومة', 'b') : ''}</span></div>

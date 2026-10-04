@@ -678,4 +678,26 @@ class AppLocalizationsAr extends AppLocalizations {
   String accAwaitingPolice(String number) {
     return 'الحادث #$number بانتظار محضر الشرطة: اضغط لإرسال صورته';
   }
+
+  @override
+  String get fines => 'المخالفات المرورية';
+
+  @override
+  String get finesTitle => 'المخالفات المرورية';
+
+  @override
+  String get finesIntro =>
+      'المخالفات على السيارة وهي في عهدتك، حسب وقت المخالفة. الشركة تقرر: على الشركة أو خصم من راتبك بأقساط.';
+
+  @override
+  String get finesNone => 'لا توجد مخالفات';
+
+  @override
+  String get fineStatus_open => 'قيد المراجعة';
+
+  @override
+  String get fineStatus_charged => 'تُخصم من راتبك';
+
+  @override
+  String get fineStatus_company => 'على الشركة';
 }

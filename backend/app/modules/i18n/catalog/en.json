@@ -310,7 +310,13 @@
     "start_month_in_past": "The start month is already over",
     "deduction_exists": "A deduction already exists for this source",
     "deduction_not_found": "Deduction not found",
-    "deduction_cancelled": "The deduction is already cancelled"
+    "deduction_cancelled": "The deduction is already cancelled",
+    "fine_not_found": "Fine not found",
+    "fine_exists": "This ticket number is already recorded",
+    "fine_not_open": "The fine is already decided",
+    "fine_has_no_driver": "Nobody held the vehicle at the time of the fine: there is no driver to charge",
+    "fine_charged": "The fine is charged to the driver: cancel the deduction first, from the deductions page",
+    "fine_paid": "The fine's payment is already recorded"
   },
   "settings": {
     "branding": "Branding",
@@ -410,7 +416,8 @@
     "accident_reported": "Accident: vehicle {plate} (no. {number}), driver {driver}",
     "accident_injuries": "Accident with injuries: vehicle {plate} (no. {number}), driver {driver}",
     "accident_estimate_submitted": "{center} sent the damage estimate for accident {number} ({plate}): {amount}",
-    "accident_awaiting_police_report": "Accident {number} ({plate}) has no police report after {days} days"
+    "accident_awaiting_police_report": "Accident {number} ({plate}) has no police report after {days} days",
+    "fine_no_driver": "Fine {number} on vehicle {plate} at {at}: nobody held the vehicle at that time"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -565,6 +572,12 @@
   },
   "deduction_status": {
     "approved": "Approved",
+    "cancelled": "Cancelled"
+  },
+  "fine_status": {
+    "open": "Awaiting decision",
+    "charged": "Charged to the driver",
+    "company": "Borne by the company",
     "cancelled": "Cancelled"
   }
 }

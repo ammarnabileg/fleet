@@ -18,6 +18,7 @@ UPLOADERS = (
     "invoices.create",
     "accidents.create",  # accident photos and the police report
     "accidents.update",
+    "fines.manage",  # a scan of the ticket
     "portal.vehicles",  # maintenance centers: reception and repair photos
     "portal.quotes",
     "portal.invoices",
