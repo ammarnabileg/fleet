@@ -1,0 +1,422 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../../app/state.dart';
+import '../../core/config.dart';
+import '../../core/errors.dart';
+import '../../core/outbox.dart';
+import '../theme.dart';
+import '../widgets/common.dart';
+import 'odometer.dart';
+import 'report.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key, required this.state});
+
+  final AppState state;
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int tab = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    final pages = [HomeTab(state: widget.state), CashTab(state: widget.state), AccountTab(state: widget.state)];
+    return Scaffold(
+      appBar: AppBar(title: Text([l.appTitle, l.cashTitle, l.tabAccount][tab])),
+      body: pages[tab],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: tab,
+        onDestinationSelected: (i) => setState(() => tab = i),
+        destinations: [
+          NavigationDestination(
+            icon: const Icon(Icons.home_outlined),
+            selectedIcon: const Icon(Icons.home),
+            label: l.tabHome,
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            selectedIcon: const Icon(Icons.account_balance_wallet),
+            label: l.tabCash,
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.person_outline),
+            selectedIcon: const Icon(Icons.person),
+            label: l.tabAccount,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String when(BuildContext context, DateTime t) =>
+    '\u2066${DateFormat('dd-MM-yyyy HH:mm', 'en').format(t.toLocal())}\u2069';
+
+class HomeTab extends StatelessWidget {
+  const HomeTab({super.key, required this.state});
+
+  final AppState state;
+
+  Future<void> _refresh() async {
+    try {
+      await Future.wait([state.loadToday(), state.loadCash(), state.loadReports()]);
+    } on ApiError {
+      // offline: the last data stays on screen
+    }
+    await state.reloadLocal();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    final today = state.today;
+    final custody = today?.custody;
+    final tracking = state.tracking;
+    final on = tracking['running'] == true;
+    final waiting = (tracking['queue'] as num?)?.toInt() ?? 0;
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: custody == null
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.directions_car_outlined, size: 32, color: AppColors.muted),
+                        const SizedBox(height: 8),
+                        Text(l.noCustody, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 4),
+                        Text(l.noCustodyHint, style: const TextStyle(color: AppColors.muted, height: 1.6)),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(color: AppColors.text, borderRadius: BorderRadius.circular(8)),
+                              child: Text(
+                                '\u2066${custody.plate}\u2069',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            Pill(on ? l.trackingOn : l.trackingOff, tone: on ? BannerTone.success : BannerTone.warn),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          l.custodySince(when(context, custody.startedAt)),
+                          style: const TextStyle(color: AppColors.muted),
+                        ),
+                        if (custody.lastKm != null)
+                          Text(
+                            l.lastKm('\u2066${NumberFormat('#,###', 'en').format(custody.lastKm)}\u2069'),
+                            style: const TextStyle(color: AppColors.muted),
+                          ),
+                        if (waiting > 0) ...[
+                          const SizedBox(height: 6),
+                          Text(l.trackingWaiting('$waiting'), style: const TextStyle(color: AppColors.warning)),
+                        ],
+                      ],
+                    ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (custody != null) ...[
+            today!.startDayDone
+                ? Banner2(text: l.startDayDone, tone: BannerTone.success, icon: Icons.check_circle_outline)
+                : FilledButton.icon(
+                    key: const Key('start-day'),
+                    icon: const Icon(Icons.speed),
+                    label: Text(l.startDay),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => OdometerScreen(state: state, kind: 'start_day'),
+                      ),
+                    ),
+                  ),
+            const SizedBox(height: 10),
+          ],
+          OutlinedButton.icon(
+            key: const Key('daily-report'),
+            icon: const Icon(Icons.assignment_outlined),
+            label: Text(l.dailyReport),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReportScreen(state: state))),
+          ),
+          if (custody != null && today!.startDayDone) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.nightlight_outlined),
+              label: Text(l.endDay),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => OdometerScreen(state: state, kind: 'end_day'),
+                ),
+              ),
+            ),
+          ],
+          if (state.queued.isNotEmpty) ...[
+            SectionTitle(l.outboxTitle),
+            for (final item in state.queued) _QueuedTile(state: state, item: item),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _QueuedTile extends StatelessWidget {
+  const _QueuedTile({required this.state, required this.item});
+
+  final AppState state;
+  final OutboxItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    final failed = item.state == 'failed';
+    final what = item.kind == 'odometer' ? l.kind_odometer : l.kind_report;
+    final reason = failed
+        ? state.message(ApiError(422, item.lastError ?? ''), network: l.networkError, generic: item.lastError ?? '')
+        : l.outboxQueued;
+    return Card(
+      child: ListTile(
+        leading: Icon(
+          failed ? Icons.error_outline : Icons.schedule,
+          color: failed ? AppColors.danger : AppColors.warning,
+        ),
+        title: Text(what),
+        subtitle: Text(failed ? l.outboxFailed(reason) : reason),
+        trailing: failed ? TextButton(onPressed: () => state.discard(item.id), child: Text(l.outboxDiscard)) : null,
+      ),
+    );
+  }
+}
+
+class CashTab extends StatelessWidget {
+  const CashTab({super.key, required this.state});
+
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    final cash = state.cash;
+    return RefreshIndicator(
+      onRefresh: () async {
+        try {
+          await state.loadCash();
+        } on ApiError {
+          // offline
+        }
+        await state.reloadLocal();
+      },
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (cash == null)
+            const Padding(
+              padding: EdgeInsets.all(40),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l.cashTotal, style: const TextStyle(color: AppColors.muted)),
+                    const SizedBox(height: 6),
+                    Text(
+                      money(cash.total, l.kwd),
+                      key: const Key('cash-total'),
+                      style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w700),
+                    ),
+                    const Divider(height: 26),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${l.cashPosted}\n${money(cash.posted, l.kwd)}',
+                            style: const TextStyle(height: 1.6),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            '${l.cashPending}\n${money(cash.pending, l.kwd)}',
+                            style: const TextStyle(height: 1.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (cash.overLimit) ...[
+              const SizedBox(height: 12),
+              Banner2(text: l.cashOverLimit(money(cash.alertLimit, l.kwd)), tone: BannerTone.warn),
+            ],
+            SectionTitle(l.receipts),
+            if (cash.receipts.isEmpty) Text(l.noReceipts, style: const TextStyle(color: AppColors.muted)),
+            for (final r in cash.receipts)
+              Card(
+                child: ListTile(
+                  title: Text(l.receiptNo('${r.number}')),
+                  subtitle: Text('${money(r.amount, l.kwd)} · ${when(context, r.createdAt)}'),
+                  trailing: r.confirmedAt != null
+                      ? Pill(l.receiptConfirmed, tone: BannerTone.success)
+                      : TextButton(
+                          onPressed: () async {
+                            final ok = await showDialog<bool>(
+                              context: context,
+                              builder: (c) => AlertDialog(
+                                content: Text(l.confirmReceiptQ('\u2066${r.amount}\u2069')),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l.cancel)),
+                                  FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l.confirmReceipt)),
+                                ],
+                              ),
+                            );
+                            if (ok != true) return;
+                            try {
+                              await state.confirmReceipt(r.id);
+                            } catch (e) {
+                              if (context.mounted) showError(context, state, e);
+                            }
+                          },
+                          child: Text(l.confirmReceipt),
+                        ),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class AccountTab extends StatelessWidget {
+  const AccountTab({super.key, required this.state});
+
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    final t = state.tracking;
+    final last = t['last_upload_at'] as String?;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.language),
+                title: Text(l.language),
+                trailing: SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'ar', label: Text('العربية')),
+                    ButtonSegment(value: 'en', label: Text('English')),
+                  ],
+                  selected: {state.lang},
+                  onSelectionChanged: (s) => state.setLang(s.first),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.gps_fixed),
+                title: Text(l.trackingDetails),
+                subtitle: Text(
+                  '${t['running'] == true ? l.trackingOn : l.trackingOff} · ${l.lastUpload(last == null ? l.never : when(context, DateTime.parse(last)))}'
+                  '${((t['queue'] as num?) ?? 0) > 0 ? ' · ${l.trackingWaiting('${t['queue']}')}' : ''}',
+                ),
+              ),
+              ListTile(leading: const Icon(Icons.info_outline), title: Text(l.appVersion(AppConfig.appVersion))),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+          icon: const Icon(Icons.logout),
+          label: Text(l.signOut),
+          onPressed: () async {
+            final ok = await showDialog<bool>(
+              context: context,
+              builder: (c) => AlertDialog(
+                content: Text(l.signOutQ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l.cancel)),
+                  FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(l.signOut)),
+                ],
+              ),
+            );
+            if (ok == true) await state.signOut();
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// After sending: sent, or kept on the phone until the network is back.
+class ResultScreen extends StatelessWidget {
+  const ResultScreen({super.key, required this.result});
+
+  final SendResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    final sent = result == SendResult.sent;
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                sent ? Icons.check_circle : Icons.cloud_off_outlined,
+                size: 72,
+                color: sent ? AppColors.success : AppColors.warning,
+              ),
+              const SizedBox(height: 18),
+              Text(
+                sent ? l.sentTitle : l.queuedTitle,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                sent ? l.sentText : l.queuedText,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.muted, height: 1.7),
+              ),
+              const SizedBox(height: 28),
+              FilledButton(onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst), child: Text(l.done)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

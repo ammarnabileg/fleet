@@ -1,0 +1,446 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:fleet_driver/app/state.dart';
+import 'package:fleet_driver/core/api.dart';
+import 'package:fleet_driver/core/tokens.dart';
+import 'package:fleet_driver/main.dart';
+import 'package:fleet_driver/ui/photos.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'support.dart';
+
+/// The whole app against a scripted server: what the driver taps, what reaches the API.
+Future<void> loadFonts() async {
+  final plex = FontLoader('IBMPlexSansArabic');
+  for (final w in ['Regular', 'Medium', 'SemiBold', 'Bold']) {
+    plex.addFont(rootBundle.load('assets/fonts/IBMPlexSansArabic-$w.ttf'));
+  }
+  await plex.load();
+  final sdk = Platform.environment['FLUTTER_ROOT'] ?? '/opt/flutter-sdk/flutter';
+  final icons = File('$sdk/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
+  if (icons.existsSync()) {
+    await (FontLoader('MaterialIcons')..addFont(Future.value(ByteData.view(icons.readAsBytesSync().buffer)))).load();
+  }
+}
+
+Future<String> testImage() async {
+  final dir = await Directory.systemTemp.createTemp('img');
+  final f = File('${dir.path}/odo.jpg');
+  await f.writeAsBytes(
+    base64Decode(
+      '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP////////////////////////////////////////////////////////////////////////////////////8AAAA//////////////////9k=',
+    ),
+  );
+  return f.path;
+}
+
+class World {
+  World(this.state, this.server);
+  final AppState state;
+  final FakeServer server;
+}
+
+Future<World> world({bool signedIn = true, Map<String, dynamic>? onboarding, Map<String, dynamic>? today}) async {
+  final db = await testDb();
+  final server = FakeServer();
+  final tokens = TokenStore(db);
+  if (signedIn) await tokens.save(tokensJson('1'));
+  final api = Api(baseUrl: 'http://fleet.test', tokens: tokens, client: server.client);
+  final state = AppState(
+    db: db,
+    api: api,
+    pollEvery: null,
+    platform: PhoneHooks(
+      permissionsOk: () async => true,
+      startTracking: () async {},
+      stopTracking: () async {},
+      deviceMeta: () async => {'platform': 'android', 'model': 'Test phone', 'app_version': '0.1.0'},
+    ),
+  );
+  server.on(
+    'GET',
+    '/api/v1/i18n/catalog/ar',
+    (r) => (
+      200,
+      {
+        'lang': 'ar',
+        'direction': 'rtl',
+        'revision': 1,
+        'messages': {
+          'errors': {'reading_exists': 'سُجّلت قراءة نهاية اليوم من قبل', 'otp_invalid': 'الرمز غير صحيح'},
+        },
+      },
+    ),
+  );
+  server.on(
+    'GET',
+    '/api/v1/driver/onboarding',
+    (r) => (
+      200,
+      onboarding ??
+          {
+            'required': false,
+            'status': 'approved',
+            'data': {},
+            'review_note': null,
+            'required_documents': [],
+            'vehicle_photos': [],
+            'document_types': [],
+          },
+    ),
+  );
+  server.on(
+    'GET',
+    '/api/v1/driver/today',
+    (r) => (
+      200,
+      today ??
+          {
+            'custody': {
+              'id': 'c1',
+              'plate_number': '18/23456',
+              'started_at': '2026-10-02T05:00:00Z',
+              'last_odometer_km': 45100,
+            },
+            'start_day_done': false,
+          },
+    ),
+  );
+  server.on(
+    'GET',
+    '/api/v1/driver/cash',
+    (r) => (
+      200,
+      {
+        'posted': '42.500',
+        'pending': '15.250',
+        'total': '57.750',
+        'alert_limit': '80.000',
+        'receipts': [
+          {
+            'id': 'r1',
+            'receipt_no': 12,
+            'branch_id': 1,
+            'amount': '20.000',
+            'created_at': '2026-10-03T14:00:00Z',
+            'driver_confirmed_at': null,
+          },
+        ],
+      },
+    ),
+  );
+  server.on(
+    'GET',
+    '/api/v1/driver/reports',
+    (r) => (
+      200,
+      [
+        {
+          'id': 'p1',
+          'driver': null,
+          'company_id': 1,
+          'vehicle_plate': '18/23456',
+          'business_date': '2026-10-03',
+          'orders_count': 24,
+          'cash_amount': '18.500',
+          'approved_cash': '18.500',
+          'has_screenshot': true,
+          'notes': null,
+          'status': 'approved',
+          'submitted_at': '2026-10-03T20:00:00Z',
+          'reviewed_at': null,
+          'review_note': null,
+        },
+      ],
+    ),
+  );
+  return World(state, server);
+}
+
+Future<void> pumpApp(WidgetTester tester, World w) async {
+  tester.view.physicalSize = const Size(1080, 2280);
+  tester.view.devicePixelRatio = 2.75;
+  await tester.pumpWidget(DriverApp(state: w.state));
+  await tester.runAsync(() => w.state.boot());
+  await settle(tester);
+}
+
+/// Lets real I/O (files, the database, the fake server) progress between frames until no spinner is left.
+Future<void> idle(WidgetTester tester) async {
+  for (var i = 0; i < 100; i++) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 15)));
+    await tester.pump(const Duration(milliseconds: 50));
+    if (find.byType(CircularProgressIndicator).evaluate().isEmpty) break;
+  }
+  await settle(tester);
+}
+
+Future<void> settle(WidgetTester tester) => tester.pumpAndSettle(
+  const Duration(milliseconds: 100),
+  EnginePhase.sendSemanticsUpdate,
+  const Duration(seconds: 5),
+);
+
+Future<void> shot(WidgetTester tester, String name) async {
+  if (Platform.environment['SCREENSHOTS'] != '1') return;
+  await expectLater(find.byType(MaterialApp), matchesGoldenFile('screenshots/$name.png'));
+}
+
+void main() {
+  setUpAll(loadFonts);
+
+  testWidgets('sign in with the WhatsApp code, land on today with the vehicle in custody', (tester) async {
+    final w = (await tester.runAsync(() => world(signedIn: false)))!;
+    w.server.on('POST', '/api/v1/driver/auth/otp', (r) => (202, {'status': 'sent'}));
+    w.server.on('POST', '/api/v1/driver/auth/verify', (r) => (200, tokensJson('9')));
+    await pumpApp(tester, w);
+    await shot(tester, '01-sign-in');
+    await tester.enterText(find.byKey(const Key('phone')), '65001234');
+    await tester.tap(find.byKey(const Key('send-code')));
+    await idle(tester);
+    final otp = jsonDecode(w.server.calls('/api/v1/driver/auth/otp').single.body) as Map;
+    expect(otp['phone'], '+96565001234');
+    expect((otp['device_uid'] as String).length, greaterThanOrEqualTo(8));
+    await shot(tester, '02-code');
+    await tester.enterText(find.byKey(const Key('code')), '123456');
+    await tester.tap(find.byKey(const Key('verify')));
+    await idle(tester);
+    final verify = jsonDecode(w.server.calls('/api/v1/driver/auth/verify').single.body) as Map;
+    expect((verify['code'], verify['model'], verify['device_uid']), ('123456', 'Test phone', otp['device_uid']));
+    expect(find.textContaining('18/23456'), findsOneWidget);
+    expect(find.byKey(const Key('start-day')), findsOneWidget);
+    await shot(tester, '03-home');
+  });
+
+  testWidgets('a wrong code shows the server message, in Arabic', (tester) async {
+    final w = (await tester.runAsync(() => world(signedIn: false)))!;
+    w.server.on('POST', '/api/v1/driver/auth/otp', (r) => (202, {'status': 'sent'}));
+    w.server.on('POST', '/api/v1/driver/auth/verify', (r) => (401, {'code': 'otp_invalid'}));
+    await pumpApp(tester, w);
+    await tester.enterText(find.byKey(const Key('phone')), '65001234');
+    await tester.tap(find.byKey(const Key('send-code')));
+    await idle(tester);
+    await tester.enterText(find.byKey(const Key('code')), '000000');
+    await tester.tap(find.byKey(const Key('verify')));
+    await idle(tester);
+    expect(find.text('الرمز غير صحيح'), findsOneWidget);
+  });
+
+  testWidgets('start of day: camera photo and reading go out with the photo time', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final img = await tester.runAsync(testImage);
+    final taken = DateTime.utc(2026, 10, 4, 5, 55);
+    Photos.camera = (_) async => TakenPhoto(img!, taken, lat: 29.3, lng: 48.0);
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'c' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('POST', '/api/v1/driver/odometer', (r) => (201, {'id': 'x'}));
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('start-day')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('odo-photo')));
+    await idle(tester);
+    await tester.enterText(find.byKey(const Key('km')), '45090');
+    await tester.pump();
+    expect(
+      find.textContaining('أقل من آخر قراءة'),
+      findsOneWidget,
+      reason: 'warned before sending; the server flags it anyway',
+    );
+    await shot(tester, '04-start-day');
+    await tester.enterText(find.byKey(const Key('km')), '45210');
+    await tester.tap(find.byKey(const Key('send-reading')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/files').single.url.queryParameters['source'], 'camera');
+    final body = jsonDecode(w.server.calls('/api/v1/driver/odometer').single.body) as Map;
+    expect(
+      (body['kind'], body['value_km'], body['photo_sha256'], body['recorded_at']),
+      ('start_day', 45210, 'c' * 64, '2026-10-04T05:55:00.000Z'),
+    );
+    expect(find.text('تم الإرسال'), findsOneWidget);
+    await shot(tester, '05-sent');
+  });
+
+  testWidgets('no network: the reading is kept on the phone and shown as waiting', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final img = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.utc(2026, 10, 4, 6));
+    await pumpApp(tester, w);
+    w.server.routes.remove('POST /api/v1/driver/files');
+    w.server.on('POST', '/api/v1/driver/files', (r) => throw const SocketException('offline'));
+    await tester.tap(find.byKey(const Key('start-day')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('odo-photo')));
+    await idle(tester);
+    await tester.enterText(find.byKey(const Key('km')), '45210');
+    await tester.tap(find.byKey(const Key('send-reading')));
+    await idle(tester);
+    expect(find.text('حُفظ على الهاتف'), findsOneWidget);
+    await tester.tap(find.text('تم'));
+    await settle(tester);
+    expect(find.text('بانتظار الإرسال'), findsOneWidget);
+    await shot(tester, '06-queued');
+  });
+
+  testWidgets('daily report: day, orders, cash with three decimals, the screenshot from the gallery', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final img = await tester.runAsync(testImage);
+    Photos.gallery = () async => TakenPhoto(img!, DateTime.now());
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'd' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('POST', '/api/v1/driver/reports', (r) => (201, {'id': 'n'}));
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('daily-report')));
+    await settle(tester);
+    await tester.enterText(find.byKey(const Key('orders')), '27');
+    await tester.enterText(find.byKey(const Key('cash')), '19.5');
+    await tester.tap(find.byKey(const Key('screenshot')));
+    await idle(tester);
+    await shot(tester, '07-report');
+    await tester.ensureVisible(find.byKey(const Key('send-report')));
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/files').single.url.queryParameters['source'], 'upload');
+    final body = jsonDecode(w.server.calls('/api/v1/driver/reports', method: 'POST').single.body) as Map;
+    expect((body['orders_count'], body['cash_amount'], body['screenshot_sha256']), (27, '19.500', 'd' * 64));
+    expect(RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(body['business_date'] as String), isTrue);
+  });
+
+  testWidgets('cash: balance and a receipt to confirm', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on('POST', '/api/v1/driver/cash/receipts/r1/confirm', (r) => (200, {'id': 'r1'}));
+    await pumpApp(tester, w);
+    await tester.tap(find.text('الكاش').last);
+    await settle(tester);
+    expect(find.textContaining('57.750'), findsOneWidget);
+    await shot(tester, '08-cash');
+    await tester.tap(find.text('أؤكد التسليم'));
+    await settle(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'أؤكد التسليم'));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/cash/receipts/r1/confirm'), hasLength(1));
+  });
+
+  testWidgets('self-registration: details, documents, vehicle photos from the camera, then review', (tester) async {
+    final w = (await tester.runAsync(
+      () => world(
+        onboarding: {
+          'required': true,
+          'status': 'rejected',
+          'data': {},
+          'review_note': 'صورة الإقامة غير واضحة',
+          'required_documents': ['residence'],
+          'vehicle_photos': ['front', 'back'],
+          'document_types': [
+            {
+              'code': 'residence',
+              'name': {'ar': 'الإقامة', 'en': 'Residence'},
+              'requires_expiry': false,
+            },
+          ],
+        },
+      ),
+    ))!;
+    final img = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.now());
+    Photos.gallery = () async => TakenPhoto(img!, DateTime.now());
+    var n = 0;
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': '${n++}'.padLeft(64, 'e'), 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    Map<String, dynamic>? saved;
+    w.server.on('PUT', '/api/v1/driver/onboarding', (r) {
+      saved = jsonDecode(r.body) as Map<String, dynamic>;
+      return (
+        200,
+        {
+          'required': true,
+          'status': 'draft',
+          'data': saved,
+          'review_note': null,
+          'required_documents': ['residence'],
+          'vehicle_photos': ['front', 'back'],
+          'document_types': [
+            {
+              'code': 'residence',
+              'name': {'ar': 'الإقامة', 'en': 'Residence'},
+              'requires_expiry': false,
+            },
+          ],
+        },
+      );
+    });
+    await pumpApp(tester, w);
+    expect(find.textContaining('صورة الإقامة غير واضحة'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('civil')), '290010112345');
+    await tester.enterText(find.byKey(const Key('nationality')), 'India');
+    await shot(tester, '09-onboarding-data');
+    Future<void> next() async {
+      await tester.tap(find.byKey(const Key('ob-next')));
+      await idle(tester);
+    }
+
+    Future<void> tapTile(String label, {bool sheet = false}) async {
+      await tester.ensureVisible(find.text(label).first);
+      await tester.tap(find.text(label).first);
+      await idle(tester);
+      if (sheet) {
+        await tester.tap(find.text('من المعرض'));
+        await idle(tester);
+      }
+      await idle(tester);
+    }
+
+    await next();
+    await tapTile('الوجه', sheet: true);
+    await tapTile('الظهر', sheet: true);
+    await shot(tester, '10-onboarding-docs');
+    await next();
+    await tester.enterText(find.byKey(const Key('plate')), '18/23456');
+    await tester.enterText(find.byKey(const Key('ob-km')), '45000');
+    await tapTile('صورة العداد');
+    await tapTile('الأمام');
+    await tapTile('الخلف');
+    await shot(tester, '11-onboarding-vehicle');
+    await next();
+    await shot(tester, '12-onboarding-review');
+    expect(saved!['civil_id'], '290010112345');
+    final docs = saved!['documents'] as List;
+    expect((docs.single['front_sha256'] as String).length, 64);
+    final vehicle = saved!['vehicle'] as Map;
+    expect(
+      (vehicle['plate_number'], vehicle['odometer_km'], (vehicle['photos'] as List).length),
+      ('18/23456', 45000, 2),
+    );
+    final sources = [for (final r in w.server.calls('/api/v1/driver/files')) r.url.queryParameters['source']];
+    expect(sources, [
+      'upload',
+      'upload',
+      'camera',
+      'camera',
+      'camera',
+    ], reason: 'vehicle and odometer photos from the camera only');
+    final submit = tester.widget<FilledButton>(
+      find.descendant(of: find.byKey(const Key('ob-submit')), matching: find.byType(FilledButton)),
+    );
+    expect(submit.onPressed, isNotNull, reason: 'everything required is there');
+  });
+
+  test('activation links: the token after "#" (App Link) or "?t=" (fallback page); anything else ignored', () {
+    final token = 'A' * 32;
+    expect(AppState.activationToken(Uri.parse('https://fleet.example.com/activate#t=$token')), token);
+    expect(AppState.activationToken(Uri.parse('btfleet://activate?t=$token')), token);
+    expect(AppState.activationToken(Uri.parse('https://fleet.example.com/other#t=$token')), isNull);
+    expect(AppState.activationToken(Uri.parse('https://fleet.example.com/activate#t=short')), isNull);
+  });
+}

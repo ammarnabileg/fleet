@@ -38,3 +38,67 @@ jobs:
       - run: docker build -t fleet-backend:ci backend
       - run: docker build -t fleet-web:ci web
       - run: docker build -t fleet-postgres:ci deploy/postgres
+
+  driver-app:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fleet
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.6"
+          channel: stable
+          cache: true
+      - name: analyze and test
+        working-directory: driver_app
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test --exclude-tags contract
+      # the app's own code against a real backend: activation link, tracking, readings, reports, registration
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: start a backend
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/fleet
+          SECRET_KEY: ci-contract-secret-key-not-for-production
+          COOKIE_SECURE: "false"
+          APP_ENV: development
+          MESSAGING_PROVIDER: log
+          LIVE_BROKER: memory
+          FILES_DIR: /tmp/fleet-files
+          ADMIN_PASSWORD: correct-horse-battery
+        run: |
+          pip install -r requirements.txt
+          alembic upgrade head
+          python -m app.ops.bootstrap --username admin --full-name "CI Admin"
+          nohup uvicorn app.main:create_app --factory --port 8000 > /tmp/api.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8000/healthz && break; sleep 1; done
+      - name: contract test
+        working-directory: driver_app
+        env:
+          BACKEND_URL: http://127.0.0.1:8000
+        run: flutter test --tags contract || (cat /tmp/api.log; exit 1)
+      - name: build the APK
+        working-directory: driver_app
+        run: flutter build apk --debug --dart-define=API_URL=https://fleet.example.com
+      - uses: actions/upload-artifact@v4
+        with:
+          name: driver-app-debug-apk
+          path: driver_app/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14

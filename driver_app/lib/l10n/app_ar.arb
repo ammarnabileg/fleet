@@ -1,0 +1,242 @@
+{
+  "@@locale": "ar",
+  "appTitle": "تطبيق السائق",
+  "retry": "إعادة المحاولة",
+  "cancel": "إلغاء",
+  "continueBtn": "متابعة",
+  "save": "حفظ",
+  "send": "إرسال",
+  "back": "رجوع",
+  "done": "تم",
+  "networkError": "لا يوجد اتصال بالإنترنت. حاول مرة أخرى.",
+  "genericError": "حدث خطأ غير متوقع. حاول مرة أخرى.",
+  "kwd": "د.ك",
+  "km": "كم",
+  "signInTitle": "تسجيل الدخول",
+  "signInHint": "أدخل رقم جوالك المسجل لدى الشركة. سيصلك رمز الدخول على واتساب.",
+  "phoneLabel": "رقم الجوال",
+  "phoneInvalid": "8 أرقام كويتية، أو رقم دولي يبدأ بـ +",
+  "sendCode": "إرسال الرمز",
+  "activationTip": "إذا وصلك رابط التفعيل على واتساب، افتحه من هذا الهاتف ولن تحتاج رمزاً.",
+  "otpTitle": "رمز الدخول",
+  "otpHint": "أدخل الرمز المكون من 6 أرقام الذي وصلك على واتساب على الرقم {phone}.",
+  "@otpHint": {
+    "placeholders": {
+      "phone": {
+        "type": "String"
+      }
+    }
+  },
+  "otpLabel": "الرمز",
+  "verify": "دخول",
+  "otpResend": "لم يصل الرمز؟ إعادة الإرسال",
+  "activating": "جاري تفعيل التطبيق على هذا الهاتف…",
+  "activationFailed": "تعذر التفعيل",
+  "permTitle": "صلاحيات التطبيق",
+  "permIntro": "ليعمل التتبع أثناء العهدة حتى والتطبيق مغلق، يحتاج التطبيق هذه الصلاحيات. لا يُسجَّل موقعك إلا والسيارة في عهدتك.",
+  "permLocation": "الموقع: «السماح طوال الوقت»",
+  "permLocationWhy": "ليصل موقع السيارة للمشرف أثناء العهدة.",
+  "permNotifications": "الإشعارات",
+  "permNotificationsWhy": "يظهر إشعار ثابت أثناء التتبع (شرط من أندرويد).",
+  "permBattery": "تجاهل تحسين البطارية",
+  "permBatteryWhy": "حتى لا يوقف الهاتف التتبع في الخلفية.",
+  "permGrant": "سماح",
+  "permGranted": "مسموح",
+  "permSettings": "فتح الإعدادات",
+  "permLocationRequired": "صلاحية الموقع مطلوبة للمتابعة.",
+  "gpsOff": "الـ GPS مغلق: شغّله من إعدادات الهاتف.",
+  "obTitle": "إكمال التسجيل",
+  "obIntro": "أدخل بياناتك وصوّر مستنداتك وسيارتك. لا يدخل شيء في السجلات قبل مراجعة الشركة.",
+  "obRejected": "أُعيد طلبك للتصحيح: {reason}",
+  "@obRejected": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "obStepData": "البيانات",
+  "obStepDocs": "المستندات",
+  "obStepVehicle": "السيارة",
+  "obStepReview": "المراجعة",
+  "civilId": "الرقم المدني",
+  "civilIdInvalid": "الرقم المدني 12 رقماً",
+  "nationality": "الجنسية",
+  "docNumber": "رقم المستند",
+  "docExpiry": "تاريخ الانتهاء",
+  "docFront": "الوجه",
+  "docBack": "الظهر",
+  "pickPhoto": "صورة",
+  "takePhoto": "التقاط صورة",
+  "fromGallery": "من المعرض",
+  "uploading": "جاري الرفع…",
+  "required": "مطلوب",
+  "plate": "رقم اللوحة",
+  "plateHint": "كما على اللوحة، مثال 18/23456",
+  "odometerKm": "قراءة العداد (كم)",
+  "odometerPhoto": "صورة العداد",
+  "noVehicle": "لا توجد سيارة معي الآن",
+  "vehiclePhotos": "صور حالة السيارة",
+  "obSubmit": "إرسال للمراجعة",
+  "obMissing": "أكمل: {items}",
+  "@obMissing": {
+    "placeholders": {
+      "items": {
+        "type": "String"
+      }
+    }
+  },
+  "obWaitingTitle": "بياناتك قيد المراجعة",
+  "obWaitingText": "سيصلك إشعار على واتساب عند الاعتماد أو إذا احتاج شيء للتصحيح.",
+  "refresh": "تحديث",
+  "position_front": "الأمام",
+  "position_back": "الخلف",
+  "position_left": "الجانب الأيسر",
+  "position_right": "الجانب الأيمن",
+  "position_interior": "الداخل",
+  "position_other": "أخرى",
+  "tabHome": "الرئيسية",
+  "tabCash": "الكاش",
+  "tabAccount": "الحساب",
+  "noCustody": "لا توجد سيارة في عهدتك الآن",
+  "noCustodyHint": "عند تسليمك سيارة تظهر هنا ويبدأ التتبع تلقائياً.",
+  "custodySince": "في عهدتك منذ {when}",
+  "@custodySince": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "lastKm": "آخر قراءة: {km} كم",
+  "@lastKm": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      }
+    }
+  },
+  "trackingOn": "التتبع يعمل",
+  "trackingOff": "التتبع متوقف",
+  "trackingWaiting": "بانتظار الإرسال: {count}",
+  "@trackingWaiting": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "startDay": "ابدأ اليوم",
+  "startDayDone": "بدأت اليوم",
+  "endDay": "إنهاء اليوم",
+  "dailyReport": "التقرير اليومي",
+  "outboxTitle": "بانتظار الإرسال",
+  "outboxQueued": "سيُرسل تلقائياً عند توفر الشبكة",
+  "outboxFailed": "لم يُقبل: {reason}",
+  "@outboxFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "outboxDiscard": "حذف",
+  "kind_odometer": "قراءة عداد",
+  "kind_report": "تقرير يومي",
+  "startDayTitle": "بداية اليوم",
+  "endDayTitle": "نهاية اليوم",
+  "odometerIntro": "صوّر العداد بوضوح ثم اكتب القراءة كما تظهر في الصورة.",
+  "retake": "إعادة التصوير",
+  "kmLower": "القراءة أقل من آخر قراءة ({km} كم). تأكد منها: سترسل للمراجعة.",
+  "@kmLower": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      }
+    }
+  },
+  "kmInvalid": "اكتب القراءة بالأرقام",
+  "photoRequired": "الصورة مطلوبة",
+  "sentTitle": "تم الإرسال",
+  "queuedTitle": "حُفظ على الهاتف",
+  "sentText": "وصل للشركة.",
+  "queuedText": "لا توجد شبكة الآن. سيُرسل تلقائياً بوقته الأصلي عند عودة الاتصال.",
+  "reportTitle": "التقرير اليومي",
+  "reportDate": "يوم العمل",
+  "today": "اليوم",
+  "yesterday": "أمس",
+  "dayBefore": "قبل أمس",
+  "ordersCount": "عدد الطلبات",
+  "cashAmount": "الكاش المحصّل",
+  "cashInvalid": "مبلغ بثلاث خانات عشرية كحد أقصى",
+  "screenshot": "لقطة شاشة ملخص اليوم من تطبيق الطلبات",
+  "notes": "ملاحظات",
+  "recentReports": "آخر التقارير",
+  "status_submitted": "بانتظار المراجعة",
+  "status_approved": "معتمد",
+  "status_rejected": "مرفوض",
+  "approvedCash": "المعتمد: {amount}",
+  "@approvedCash": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "cashTitle": "الكاش",
+  "cashTotal": "رصيد الكاش معك",
+  "cashPosted": "معتمد",
+  "cashPending": "بانتظار المراجعة",
+  "cashOverLimit": "الرصيد فوق الحد ({limit}): سلّم الكاش للصراف.",
+  "@cashOverLimit": {
+    "placeholders": {
+      "limit": {
+        "type": "String"
+      }
+    }
+  },
+  "receipts": "الإيصالات",
+  "receiptNo": "إيصال رقم {no}",
+  "@receiptNo": {
+    "placeholders": {
+      "no": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmReceipt": "أؤكد التسليم",
+  "receiptConfirmed": "مؤكد",
+  "confirmReceiptQ": "هل سلّمت {amount} د.ك للصراف؟",
+  "@confirmReceiptQ": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "noReceipts": "لا توجد إيصالات بعد",
+  "language": "اللغة",
+  "trackingDetails": "حالة التتبع",
+  "lastUpload": "آخر إرسال: {when}",
+  "@lastUpload": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "never": "لم يحدث بعد",
+  "appVersion": "الإصدار {version}",
+  "@appVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "signOut": "تسجيل الخروج",
+  "signOutQ": "سيتوقف التتبع وتحتاج تفعيلاً جديداً للدخول. متابعة؟",
+  "blockedTitle": "حسابك موقوف",
+  "blockedText": "تواصل مع المشرف.",
+  "obReady": "كل شيء جاهز: أرسله للمراجعة."
+}

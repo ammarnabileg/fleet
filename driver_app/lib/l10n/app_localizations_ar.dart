@@ -1,0 +1,463 @@
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
+
+import 'app_localizations.dart';
+
+// ignore_for_file: type=lint
+
+/// The translations for Arabic (`ar`).
+class AppLocalizationsAr extends AppLocalizations {
+  AppLocalizationsAr([String locale = 'ar']) : super(locale);
+
+  @override
+  String get appTitle => 'تطبيق السائق';
+
+  @override
+  String get retry => 'إعادة المحاولة';
+
+  @override
+  String get cancel => 'إلغاء';
+
+  @override
+  String get continueBtn => 'متابعة';
+
+  @override
+  String get save => 'حفظ';
+
+  @override
+  String get send => 'إرسال';
+
+  @override
+  String get back => 'رجوع';
+
+  @override
+  String get done => 'تم';
+
+  @override
+  String get networkError => 'لا يوجد اتصال بالإنترنت. حاول مرة أخرى.';
+
+  @override
+  String get genericError => 'حدث خطأ غير متوقع. حاول مرة أخرى.';
+
+  @override
+  String get kwd => 'د.ك';
+
+  @override
+  String get km => 'كم';
+
+  @override
+  String get signInTitle => 'تسجيل الدخول';
+
+  @override
+  String get signInHint => 'أدخل رقم جوالك المسجل لدى الشركة. سيصلك رمز الدخول على واتساب.';
+
+  @override
+  String get phoneLabel => 'رقم الجوال';
+
+  @override
+  String get phoneInvalid => '8 أرقام كويتية، أو رقم دولي يبدأ بـ +';
+
+  @override
+  String get sendCode => 'إرسال الرمز';
+
+  @override
+  String get activationTip => 'إذا وصلك رابط التفعيل على واتساب، افتحه من هذا الهاتف ولن تحتاج رمزاً.';
+
+  @override
+  String get otpTitle => 'رمز الدخول';
+
+  @override
+  String otpHint(String phone) {
+    return 'أدخل الرمز المكون من 6 أرقام الذي وصلك على واتساب على الرقم $phone.';
+  }
+
+  @override
+  String get otpLabel => 'الرمز';
+
+  @override
+  String get verify => 'دخول';
+
+  @override
+  String get otpResend => 'لم يصل الرمز؟ إعادة الإرسال';
+
+  @override
+  String get activating => 'جاري تفعيل التطبيق على هذا الهاتف…';
+
+  @override
+  String get activationFailed => 'تعذر التفعيل';
+
+  @override
+  String get permTitle => 'صلاحيات التطبيق';
+
+  @override
+  String get permIntro =>
+      'ليعمل التتبع أثناء العهدة حتى والتطبيق مغلق، يحتاج التطبيق هذه الصلاحيات. لا يُسجَّل موقعك إلا والسيارة في عهدتك.';
+
+  @override
+  String get permLocation => 'الموقع: «السماح طوال الوقت»';
+
+  @override
+  String get permLocationWhy => 'ليصل موقع السيارة للمشرف أثناء العهدة.';
+
+  @override
+  String get permNotifications => 'الإشعارات';
+
+  @override
+  String get permNotificationsWhy => 'يظهر إشعار ثابت أثناء التتبع (شرط من أندرويد).';
+
+  @override
+  String get permBattery => 'تجاهل تحسين البطارية';
+
+  @override
+  String get permBatteryWhy => 'حتى لا يوقف الهاتف التتبع في الخلفية.';
+
+  @override
+  String get permGrant => 'سماح';
+
+  @override
+  String get permGranted => 'مسموح';
+
+  @override
+  String get permSettings => 'فتح الإعدادات';
+
+  @override
+  String get permLocationRequired => 'صلاحية الموقع مطلوبة للمتابعة.';
+
+  @override
+  String get gpsOff => 'الـ GPS مغلق: شغّله من إعدادات الهاتف.';
+
+  @override
+  String get obTitle => 'إكمال التسجيل';
+
+  @override
+  String get obIntro => 'أدخل بياناتك وصوّر مستنداتك وسيارتك. لا يدخل شيء في السجلات قبل مراجعة الشركة.';
+
+  @override
+  String obRejected(String reason) {
+    return 'أُعيد طلبك للتصحيح: $reason';
+  }
+
+  @override
+  String get obStepData => 'البيانات';
+
+  @override
+  String get obStepDocs => 'المستندات';
+
+  @override
+  String get obStepVehicle => 'السيارة';
+
+  @override
+  String get obStepReview => 'المراجعة';
+
+  @override
+  String get civilId => 'الرقم المدني';
+
+  @override
+  String get civilIdInvalid => 'الرقم المدني 12 رقماً';
+
+  @override
+  String get nationality => 'الجنسية';
+
+  @override
+  String get docNumber => 'رقم المستند';
+
+  @override
+  String get docExpiry => 'تاريخ الانتهاء';
+
+  @override
+  String get docFront => 'الوجه';
+
+  @override
+  String get docBack => 'الظهر';
+
+  @override
+  String get pickPhoto => 'صورة';
+
+  @override
+  String get takePhoto => 'التقاط صورة';
+
+  @override
+  String get fromGallery => 'من المعرض';
+
+  @override
+  String get uploading => 'جاري الرفع…';
+
+  @override
+  String get required => 'مطلوب';
+
+  @override
+  String get plate => 'رقم اللوحة';
+
+  @override
+  String get plateHint => 'كما على اللوحة، مثال 18/23456';
+
+  @override
+  String get odometerKm => 'قراءة العداد (كم)';
+
+  @override
+  String get odometerPhoto => 'صورة العداد';
+
+  @override
+  String get noVehicle => 'لا توجد سيارة معي الآن';
+
+  @override
+  String get vehiclePhotos => 'صور حالة السيارة';
+
+  @override
+  String get obSubmit => 'إرسال للمراجعة';
+
+  @override
+  String obMissing(String items) {
+    return 'أكمل: $items';
+  }
+
+  @override
+  String get obWaitingTitle => 'بياناتك قيد المراجعة';
+
+  @override
+  String get obWaitingText => 'سيصلك إشعار على واتساب عند الاعتماد أو إذا احتاج شيء للتصحيح.';
+
+  @override
+  String get refresh => 'تحديث';
+
+  @override
+  String get position_front => 'الأمام';
+
+  @override
+  String get position_back => 'الخلف';
+
+  @override
+  String get position_left => 'الجانب الأيسر';
+
+  @override
+  String get position_right => 'الجانب الأيمن';
+
+  @override
+  String get position_interior => 'الداخل';
+
+  @override
+  String get position_other => 'أخرى';
+
+  @override
+  String get tabHome => 'الرئيسية';
+
+  @override
+  String get tabCash => 'الكاش';
+
+  @override
+  String get tabAccount => 'الحساب';
+
+  @override
+  String get noCustody => 'لا توجد سيارة في عهدتك الآن';
+
+  @override
+  String get noCustodyHint => 'عند تسليمك سيارة تظهر هنا ويبدأ التتبع تلقائياً.';
+
+  @override
+  String custodySince(String when) {
+    return 'في عهدتك منذ $when';
+  }
+
+  @override
+  String lastKm(String km) {
+    return 'آخر قراءة: $km كم';
+  }
+
+  @override
+  String get trackingOn => 'التتبع يعمل';
+
+  @override
+  String get trackingOff => 'التتبع متوقف';
+
+  @override
+  String trackingWaiting(String count) {
+    return 'بانتظار الإرسال: $count';
+  }
+
+  @override
+  String get startDay => 'ابدأ اليوم';
+
+  @override
+  String get startDayDone => 'بدأت اليوم';
+
+  @override
+  String get endDay => 'إنهاء اليوم';
+
+  @override
+  String get dailyReport => 'التقرير اليومي';
+
+  @override
+  String get outboxTitle => 'بانتظار الإرسال';
+
+  @override
+  String get outboxQueued => 'سيُرسل تلقائياً عند توفر الشبكة';
+
+  @override
+  String outboxFailed(String reason) {
+    return 'لم يُقبل: $reason';
+  }
+
+  @override
+  String get outboxDiscard => 'حذف';
+
+  @override
+  String get kind_odometer => 'قراءة عداد';
+
+  @override
+  String get kind_report => 'تقرير يومي';
+
+  @override
+  String get startDayTitle => 'بداية اليوم';
+
+  @override
+  String get endDayTitle => 'نهاية اليوم';
+
+  @override
+  String get odometerIntro => 'صوّر العداد بوضوح ثم اكتب القراءة كما تظهر في الصورة.';
+
+  @override
+  String get retake => 'إعادة التصوير';
+
+  @override
+  String kmLower(String km) {
+    return 'القراءة أقل من آخر قراءة ($km كم). تأكد منها: سترسل للمراجعة.';
+  }
+
+  @override
+  String get kmInvalid => 'اكتب القراءة بالأرقام';
+
+  @override
+  String get photoRequired => 'الصورة مطلوبة';
+
+  @override
+  String get sentTitle => 'تم الإرسال';
+
+  @override
+  String get queuedTitle => 'حُفظ على الهاتف';
+
+  @override
+  String get sentText => 'وصل للشركة.';
+
+  @override
+  String get queuedText => 'لا توجد شبكة الآن. سيُرسل تلقائياً بوقته الأصلي عند عودة الاتصال.';
+
+  @override
+  String get reportTitle => 'التقرير اليومي';
+
+  @override
+  String get reportDate => 'يوم العمل';
+
+  @override
+  String get today => 'اليوم';
+
+  @override
+  String get yesterday => 'أمس';
+
+  @override
+  String get dayBefore => 'قبل أمس';
+
+  @override
+  String get ordersCount => 'عدد الطلبات';
+
+  @override
+  String get cashAmount => 'الكاش المحصّل';
+
+  @override
+  String get cashInvalid => 'مبلغ بثلاث خانات عشرية كحد أقصى';
+
+  @override
+  String get screenshot => 'لقطة شاشة ملخص اليوم من تطبيق الطلبات';
+
+  @override
+  String get notes => 'ملاحظات';
+
+  @override
+  String get recentReports => 'آخر التقارير';
+
+  @override
+  String get status_submitted => 'بانتظار المراجعة';
+
+  @override
+  String get status_approved => 'معتمد';
+
+  @override
+  String get status_rejected => 'مرفوض';
+
+  @override
+  String approvedCash(String amount) {
+    return 'المعتمد: $amount';
+  }
+
+  @override
+  String get cashTitle => 'الكاش';
+
+  @override
+  String get cashTotal => 'رصيد الكاش معك';
+
+  @override
+  String get cashPosted => 'معتمد';
+
+  @override
+  String get cashPending => 'بانتظار المراجعة';
+
+  @override
+  String cashOverLimit(String limit) {
+    return 'الرصيد فوق الحد ($limit): سلّم الكاش للصراف.';
+  }
+
+  @override
+  String get receipts => 'الإيصالات';
+
+  @override
+  String receiptNo(String no) {
+    return 'إيصال رقم $no';
+  }
+
+  @override
+  String get confirmReceipt => 'أؤكد التسليم';
+
+  @override
+  String get receiptConfirmed => 'مؤكد';
+
+  @override
+  String confirmReceiptQ(String amount) {
+    return 'هل سلّمت $amount د.ك للصراف؟';
+  }
+
+  @override
+  String get noReceipts => 'لا توجد إيصالات بعد';
+
+  @override
+  String get language => 'اللغة';
+
+  @override
+  String get trackingDetails => 'حالة التتبع';
+
+  @override
+  String lastUpload(String when) {
+    return 'آخر إرسال: $when';
+  }
+
+  @override
+  String get never => 'لم يحدث بعد';
+
+  @override
+  String appVersion(String version) {
+    return 'الإصدار $version';
+  }
+
+  @override
+  String get signOut => 'تسجيل الخروج';
+
+  @override
+  String get signOutQ => 'سيتوقف التتبع وتحتاج تفعيلاً جديداً للدخول. متابعة؟';
+
+  @override
+  String get blockedTitle => 'حسابك موقوف';
+
+  @override
+  String get blockedText => 'تواصل مع المشرف.';
+
+  @override
+  String get obReady => 'كل شيء جاهز: أرسله للمراجعة.';
+}

@@ -1,0 +1,197 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'api.dart';
+import 'config.dart';
+import 'db.dart';
+import 'errors.dart';
+
+/// What the driver did while the phone may be offline (an odometer reading, a daily report): stored with its
+/// photo and original time, then sent in order. The server accepts readings up to 48 hours late with their real
+/// time, so a lost connection never loses a reading.
+class OutboxItem {
+  OutboxItem(this.id, this.kind, this.payload, this.files, this.createdAt, this.state, this.attempts, this.lastError);
+
+  factory OutboxItem.fromRow(Map<String, Object?> r) => OutboxItem(
+    r['id'] as int,
+    r['kind'] as String,
+    Map<String, dynamic>.from(jsonDecode(r['payload'] as String) as Map),
+    Map<String, String>.from(jsonDecode(r['files'] as String) as Map),
+    DateTime.parse(r['created_at'] as String),
+    r['state'] as String,
+    r['attempts'] as int,
+    r['last_error'] as String?,
+  );
+
+  final int id;
+  final String kind; // odometer | report
+  final Map<String, dynamic> payload;
+  final Map<String, String> files; // payload field -> local file still to upload
+  final DateTime createdAt;
+  final String state; // pending | sending | failed
+  final int attempts;
+  final String? lastError;
+}
+
+enum SendResult { sent, queued }
+
+class Outbox {
+  Outbox(this.db, {DateTime Function()? clock}) : _now = clock ?? DateTime.now;
+
+  final AppDb db;
+  final DateTime Function() _now;
+
+  /// Where each kind goes, how its files are uploaded, and which answers mean "already recorded" (the first try
+  /// reached the server but its answer was lost: the retry must not count as a failure).
+  static const _routes = {
+    'odometer': ('/driver/odometer', 'camera', {'reading_exists'}),
+    'report': ('/driver/reports', 'upload', {'report_exists'}),
+  };
+  static const _claimTimeout = Duration(minutes: 2);
+
+  Future<int> add(String kind, Map<String, dynamic> payload, Map<String, String> files) {
+    assert(_routes.containsKey(kind));
+    return db.raw.insert('outbox', {
+      'kind': kind,
+      'payload': jsonEncode(payload),
+      'files': jsonEncode(files),
+      'created_at': _now().toUtc().toIso8601String(),
+    });
+  }
+
+  Future<List<OutboxItem>> items() async => [
+    for (final r in await db.raw.query('outbox', orderBy: 'id')) OutboxItem.fromRow(r),
+  ];
+
+  Future<int> waiting() async =>
+      (await db.raw.rawQuery("SELECT count(*) AS n FROM outbox WHERE state != 'failed'")).first['n'] as int;
+
+  Future<void> discard(int id) async {
+    final rows = await db.raw.query('outbox', where: 'id = ?', whereArgs: [id]);
+    if (rows.isNotEmpty) await _deleteFiles(OutboxItem.fromRow(rows.first));
+    await db.raw.delete('outbox', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Sends one item now (right after the driver pressed send). A final refusal removes it and is thrown, so the
+  /// driver can correct and send again; no network leaves it queued.
+  Future<SendResult> sendNow(int id, Api api) async {
+    final item = await _claim(id);
+    if (item == null) return SendResult.queued;
+    try {
+      await _deliver(item, api);
+      return SendResult.sent;
+    } on ApiError catch (e) {
+      if (e.isTransient) {
+        await _release(item, e.code);
+        return SendResult.queued;
+      }
+      await discard(item.id);
+      rethrow;
+    } on SessionEnded {
+      await _release(item, 'session_ended');
+      rethrow;
+    }
+  }
+
+  /// Sends everything waiting, oldest first; stops at the first network problem to keep the order.
+  Future<int> flush(Api api) async {
+    var sent = 0;
+    final rows = await db.raw.query('outbox', where: "state != 'failed'", orderBy: 'id');
+    for (final r in rows) {
+      final candidate = OutboxItem.fromRow(r);
+      if (_now().difference(candidate.createdAt) > AppConfig.outboxMaxAge) {
+        await db.raw.update(
+          'outbox',
+          {'state': 'failed', 'last_error': 'too_old'},
+          where: 'id = ?',
+          whereArgs: [candidate.id],
+        );
+        continue;
+      }
+      final item = await _claim(candidate.id);
+      if (item == null) continue;
+      try {
+        await _deliver(item, api);
+        sent++;
+      } on ApiError catch (e) {
+        if (e.isTransient) {
+          await _release(item, e.code);
+          break;
+        }
+        await db.raw.update(
+          'outbox',
+          {'state': 'failed', 'last_error': e.code, 'claimed_at': null},
+          where: 'id = ?',
+          whereArgs: [item.id],
+        );
+      } on SessionEnded {
+        await _release(item, 'session_ended');
+        rethrow;
+      }
+    }
+    return sent;
+  }
+
+  /// Takes an item for sending, unless the other engine is sending it right now.
+  Future<OutboxItem?> _claim(int id) {
+    return db.exclusive((tx) async {
+      final rows = await tx.query('outbox', where: 'id = ?', whereArgs: [id]);
+      if (rows.isEmpty) return null;
+      final item = OutboxItem.fromRow(rows.first);
+      final claimed = rows.first['claimed_at'] as String?;
+      if (item.state == 'failed') return null;
+      if (item.state == 'sending' && claimed != null && _now().difference(DateTime.parse(claimed)) < _claimTimeout) {
+        return null;
+      }
+      await tx.update(
+        'outbox',
+        {'state': 'sending', 'claimed_at': _now().toUtc().toIso8601String()},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return item;
+    });
+  }
+
+  Future<void> _release(OutboxItem item, String error) => db.raw.update(
+    'outbox',
+    {'state': 'pending', 'claimed_at': null, 'attempts': item.attempts + 1, 'last_error': error},
+    where: 'id = ?',
+    whereArgs: [item.id],
+  );
+
+  Future<void> _deliver(OutboxItem item, Api api) async {
+    final (path, source, alreadyDone) = _routes[item.kind]!;
+    final payload = Map<String, dynamic>.from(item.payload);
+    final files = Map<String, String>.from(item.files);
+    // upload what is not uploaded yet, remembering each sha256 at once so a retry never uploads twice
+    for (final field in files.keys.toList()) {
+      final f = await api.upload(files[field]!, source: source);
+      payload[field] = f['sha256'];
+      files.remove(field);
+      await db.raw.update(
+        'outbox',
+        {'payload': jsonEncode(payload), 'files': jsonEncode(files)},
+        where: 'id = ?',
+        whereArgs: [item.id],
+      );
+    }
+    try {
+      await api.post(path, body: payload);
+    } on ApiError catch (e) {
+      if (!alreadyDone.contains(e.code)) rethrow;
+    }
+    await _deleteFiles(item);
+    await db.raw.delete('outbox', where: 'id = ?', whereArgs: [item.id]);
+  }
+
+  Future<void> _deleteFiles(OutboxItem item) async {
+    for (final path in item.files.values) {
+      try {
+        await File(path).delete();
+      } on FileSystemException {
+        // already gone
+      }
+    }
+  }
+}
