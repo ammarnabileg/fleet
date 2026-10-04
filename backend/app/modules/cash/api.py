@@ -100,6 +100,23 @@ def reverse(
     return service.reverse(db, public_id, reason=body.reason, actor_user_id=principal.user_id, **principal.scope)
 
 
+@router.post("/cash/settlements", response_model=schemas.SettlementOut, status_code=201)
+def settle(
+    body: schemas.SettlementIn,
+    principal: Principal = Depends(require_permission("cash.writeoff")),
+    db: Session = Depends(get_session),
+):
+    """End of service: brings the driver's cash account to zero and closes it."""
+    return service.settle(
+        db,
+        _driver(db, body.driver_id, principal),
+        payroll_amount=body.payroll_amount,
+        writeoff_amount=body.writeoff_amount,
+        reason=body.reason,
+        actor_user_id=principal.user_id,
+    )
+
+
 @router.get("/cash/treasury", response_model=list[schemas.TreasuryOut])
 def treasury(principal: Principal = Depends(require_permission("treasury.view")), db: Session = Depends(get_session)):
     return service.treasury(db)

@@ -8,24 +8,26 @@ import openpyxl
 import pytest
 from sqlalchemy import text
 
-from app.modules.imports.workbook import PEOPLE, PEOPLE_COLUMNS, VEHICLE_COLUMNS, VEHICLES
+from app.modules.imports.workbook import OPENING, OPENING_COLUMNS, PEOPLE, PEOPLE_COLUMNS, VEHICLE_COLUMNS, VEHICLES
 from tests.conftest import login, make_user
 
 COMPANY = "شركة أ"  # the "companies" fixture names
 
 
-def workbook(vehicles=(), people=(), *, break_header=False) -> bytes:
+def workbook(vehicles=(), people=(), opening=(), *, break_header=False) -> bytes:
     wb = openpyxl.Workbook()
     wb.active.title = "التعليمات"
-    for title, columns, rows in ((VEHICLES, VEHICLE_COLUMNS, vehicles), (PEOPLE, PEOPLE_COLUMNS, people)):
+    for title, columns, rows in (
+        (VEHICLES, VEHICLE_COLUMNS, vehicles),
+        (PEOPLE, PEOPLE_COLUMNS, people),
+        (OPENING, OPENING_COLUMNS, opening),
+    ):
         ws = wb.create_sheet(title)
         ws.append(columns[:-1] + ["something else"] if break_header and title == PEOPLE else columns)
         ws.append(["مثال"] + ["x"] * (len(columns) - 1))  # the grey example row
         for i, row in enumerate(rows, start=1):
             ws.append([i, *row])
         ws.append([len(rows) + 1])  # numbered but empty: ignored
-    ws = wb.create_sheet("الأرصدة الافتتاحية")
-    ws.append(["#"])
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
@@ -223,3 +225,36 @@ def test_permissions_scope_and_salary(admin_client, new_client, companies, main_
     r = post(c, data, apply=True).json()
     assert r["applied"] and [w["code"] for w in r["warnings"]] == ["salary_skipped"]
     assert admin_client.get("/api/v1/employees").json()[0]["basic_salary"] is None
+
+
+def test_opening_balances_are_imported_once(admin_client, client, companies, main_branch):
+
+    people = [person(branch=main_branch)]
+    opening = [["Ahmed Ali", "290010112345", "35.750", "24/10/2026", "المحاسب"]]
+    r = post(admin_client, workbook(people=people, opening=opening), apply=True).json()
+    assert r["applied"] and r["opening_balances"] == 1
+    driver = admin_client.get("/api/v1/employees", params={"is_driver": True}).json()[0]
+    statement = admin_client.get(f"/api/v1/cash/drivers/{driver['id']}/statement").json()
+    assert statement["posted"] == "35.750" and statement["lines"][0]["kind"] == "opening"
+    assert statement["lines"][0]["reason"] == "approved by المحاسب"
+    again = post(admin_client, workbook(people=people, opening=opening), apply=True).json()
+    assert again["applied"] and again["opening_balances"] == 0  # same amount: unchanged
+    changed = post(admin_client, workbook(people=people, opening=[opening[0][:2] + ["40", "24/10/2026", "x"]])).json()
+    assert [e["code"] for e in changed["errors"]] == ["opening_balance_exists"]
+    unknown = post(admin_client, workbook(opening=[["X", "290010199999", "1", "24/10/2026", "x"]])).json()
+    assert [e["code"] for e in unknown["errors"]] == ["unknown_value"]
+
+
+def test_opening_balances_need_the_cash_permission(admin_client, new_client, companies, main_branch):
+    make_user(
+        admin_client,
+        "importer",
+        permissions=["employees.create", "employees.update", "vehicles.create", "vehicles.update", "documents.manage"],
+    )
+    c = new_client()
+    login(c, "importer")
+    r = post(
+        c,
+        workbook(people=[person(branch=main_branch)], opening=[["Ahmed Ali", "290010112345", "1", "24/10/2026", "x"]]),
+    ).json()
+    assert [(e["sheet"], e["code"]) for e in r["errors"]] == [(OPENING, "permission_denied")]

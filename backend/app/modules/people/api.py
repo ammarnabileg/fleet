@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session
 
 from app.core.db import get_session
+from app.modules.cash import service as cash
 from app.modules.fleet import service as fleet
 from app.modules.identity import service as identity
 from app.modules.identity.service import Principal, get_principal, require_permission
@@ -125,6 +126,7 @@ def change_status(
         # the app already refuses the driver (every request checks the status); this also closes the device
         identity.revoke_employee_devices(db, employee.id, reason="employment_ended", actor_user_id=principal.user_id)
         fleet.flag_departed_driver(db, employee)
+        cash.flag_departed(db, employee)
     return service.get_employee(db, public_id, show_salary=principal.has(SALARY), **principal.scope)
 
 

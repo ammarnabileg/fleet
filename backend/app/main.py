@@ -20,6 +20,7 @@ from app.modules.notifications.api import router as notifications_router
 from app.modules.onboarding.api import router as onboarding_router
 from app.modules.org.api import router as org_router
 from app.modules.people.api import router as people_router
+from app.modules.reports.api import router as reports_router
 from app.modules.tracking.api import router as tracking_router
 
 VERSION = "0.1.0"
@@ -69,6 +70,7 @@ def create_app() -> FastAPI:
         imports_router,
         daily_ops_router,
         cash_router,
+        reports_router,
     ):
         app.include_router(router)
     return app

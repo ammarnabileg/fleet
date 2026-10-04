@@ -40,6 +40,15 @@ PEOPLE_COLUMNS = [
     "تاريخ انتهاء الإقامة *",
     "موديل الهاتف (للسائقين)",
 ]
+OPENING = "الأرصدة الافتتاحية"
+OPENING_COLUMNS = [
+    "#",
+    "اسم السائق *",
+    "الرقم المدني *",
+    "الرصيد الافتتاحي (د.ك) *",
+    "تاريخ الرصيد *",
+    "اعتماد المحاسب (الاسم) *",
+]
 EXAMPLE = "مثال"  # the grey example row is never imported
 DRIVER_ROLE = "سائق"
 COUNTRY_CODE = "965"
@@ -91,16 +100,18 @@ def parse_phone(v) -> str | None:
     return None
 
 
-def parse_decimal(v) -> Decimal | None:
+def parse_decimal(v, *, signed: bool = False) -> Decimal | None:
     try:
         d = Decimal(_text(v).replace(",", ""))
     except InvalidOperation:
         return None
-    return d if d >= 0 else None
+    if not d.is_finite() or d.as_tuple().exponent < -3:
+        return None
+    return d if signed or d >= 0 else None
 
 
 def read(data: bytes) -> dict[str, list[Row]]:
-    """Rows of the two sheets imported now (vehicles, people); the others come with their modules."""
+    """Rows of the sheets imported now (vehicles, people, opening balances); maintenance centres come with M3."""
     import openpyxl  # with defusedxml installed, openpyxl parses the XML safely
 
     try:
@@ -108,7 +119,7 @@ def read(data: bytes) -> dict[str, list[Row]]:
     except (zipfile.BadZipFile, KeyError, OSError, ValueError):
         raise AppError(422, "import_not_xlsx") from None
     out: dict[str, list[Row]] = {}
-    for sheet, columns in ((VEHICLES, VEHICLE_COLUMNS), (PEOPLE, PEOPLE_COLUMNS)):
+    for sheet, columns in ((VEHICLES, VEHICLE_COLUMNS), (PEOPLE, PEOPLE_COLUMNS), (OPENING, OPENING_COLUMNS)):
         if sheet not in wb.sheetnames:
             raise AppError(422, "import_bad_template", sheet=sheet)
         rows = wb[sheet].iter_rows(values_only=True)

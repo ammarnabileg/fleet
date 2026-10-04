@@ -18,5 +18,6 @@ class ImportResult(BaseModel):
     vehicles: Counts
     people: Counts
     documents: int
+    opening_balances: int
     errors: list[IssueOut]
     warnings: list[IssueOut]

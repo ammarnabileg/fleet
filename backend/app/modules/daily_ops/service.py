@@ -198,7 +198,7 @@ def approve(
             "driver_id": str(driver.public_id),
             "business_date": report.business_date.isoformat(),
             "orders": report.orders_count,
-            "cash": str(approved),
+            "cash": f"{approved:.3f}",
         },
     )
     db.commit()

@@ -33,5 +33,6 @@ def import_workbook(
         apply=apply,
         actor_user_id=principal.user_id,
         can_set_salary=principal.has("employees.view_salary"),
+        can_open=principal.has("cash.adjust"),
         **principal.scope,
     )

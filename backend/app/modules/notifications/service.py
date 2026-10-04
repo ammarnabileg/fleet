@@ -43,6 +43,7 @@ KINDS: dict[str, Kind] = {
     "cash_balance_high": Kind("warning", "cash.view", ("driver", "balance", "limit")),
     "daily_report_overdue": Kind("warning", "daily_reports.review", ("driver", "date", "hours")),
     "ledger_invariant": Kind("critical", "cash.view", ("problem",)),
+    "driver_left_with_cash": Kind("critical", "cash.view", ("driver", "balance")),
 }
 
 

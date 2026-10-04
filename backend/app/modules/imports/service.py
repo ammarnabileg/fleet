@@ -13,11 +13,12 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.modules.audit import service as audit
+from app.modules.cash import service as cash
 from app.modules.documents import service as documents
 from app.modules.fleet import service as fleet
 from app.modules.i18n import service as i18n
 from app.modules.imports import workbook as wb
-from app.modules.imports.workbook import PEOPLE, VEHICLES, Issue, Row
+from app.modules.imports.workbook import OPENING, PEOPLE, VEHICLES, Issue, Row
 from app.modules.org import service as org
 from app.modules.people import service as people
 
@@ -221,11 +222,41 @@ def _person(
     return action, docs
 
 
-def run(db: Session, data: bytes, *, apply: bool, actor_user_id: int, can_set_salary: bool, **scope) -> dict:
+def _opening(db: Session, row: Row, *, actor_user_id: int, can_open: bool, scope: dict) -> tuple[str, int]:
+    c = wb.OPENING_COLUMNS
+    if not can_open:
+        raise _RowError("permission_denied", permission="cash.adjust")
+    civil_id = _required(row, c[2]).replace(" ", "")
+    driver = people.find(db, civil_id=civil_id, phone=None)
+    if driver is None or not driver.is_driver:
+        raise _RowError("unknown_value", field=c[2].rstrip(" *"), value=civil_id)
+    if not (scope["all_companies"] or driver.company_id in set(scope["company_ids"])):
+        raise _RowError("company_out_of_scope")
+    amount = wb.parse_decimal(row.values[c[3]], signed=True) if _required(row, c[3]) else None
+    if amount is None:
+        raise _RowError("invalid_number", field=c[3].rstrip(" *"), value=wb.text(row, c[3]))
+    day = _date(row, c[4])
+    approver = _required(row, c[5])
+    created = cash.opening_balance(
+        db, driver, amount=amount, business_date=day, approved_by=approver, actor_user_id=actor_user_id
+    )
+    return ("created" if created else "unchanged"), 0
+
+
+def run(
+    db: Session,
+    data: bytes,
+    *,
+    apply: bool,
+    actor_user_id: int,
+    can_set_salary: bool,
+    can_open: bool = False,
+    **scope,
+) -> dict:
     sheets = wb.read(data)
     errors: list[Issue] = []
     warnings: list[Issue] = []
-    counts = {"vehicles": Counter(), "people": Counter(), "documents": 0}
+    counts = {"vehicles": Counter(), "people": Counter(), "opening": Counter(), "documents": 0}
     dupes = {
         VEHICLES: _duplicates(
             sheets[VEHICLES], lambda r: fleet.normalize_plate(wb.text(r, wb.VEHICLE_COLUMNS[1])).replace(" ", "")
@@ -233,15 +264,21 @@ def run(db: Session, data: bytes, *, apply: bool, actor_user_id: int, can_set_sa
         PEOPLE: _duplicates(sheets[PEOPLE], lambda r: wb.parse_phone(r.values[wb.PEOPLE_COLUMNS[4]])),
     }
     dupes[PEOPLE] |= _duplicates(sheets[PEOPLE], lambda r: wb.text(r, wb.PEOPLE_COLUMNS[3]).replace(" ", ""))
+    dupes[OPENING] = _duplicates(sheets[OPENING], lambda r: wb.text(r, wb.OPENING_COLUMNS[2]).replace(" ", ""))
     numbers = [people.next_employee_number(db)]
-    for sheet, handler, bucket in ((VEHICLES, _vehicle, "vehicles"), (PEOPLE, _person, "people")):
+    for sheet, handler, bucket in (
+        (VEHICLES, _vehicle, "vehicles"),
+        (PEOPLE, _person, "people"),
+        (OPENING, _opening, "opening"),
+    ):
         for row in sheets[sheet]:
             if row.number in dupes[sheet]:
                 errors.append(Issue(sheet, row.number, "duplicate_in_file", {"value": dupes[sheet][row.number]}))
                 continue
-            extra = (
-                {"can_set_salary": can_set_salary, "numbers": numbers, "warnings": warnings} if sheet == PEOPLE else {}
-            )
+            extra = {
+                PEOPLE: {"can_set_salary": can_set_salary, "numbers": numbers, "warnings": warnings},
+                OPENING: {"can_open": can_open},
+            }.get(sheet, {})
             try:
                 with db.begin_nested():
                     action, docs = handler(db, row, actor_user_id=actor_user_id, scope=scope, **extra)
@@ -261,6 +298,7 @@ def run(db: Session, data: bytes, *, apply: bool, actor_user_id: int, can_set_sa
             after={
                 "vehicles": dict(counts["vehicles"]),
                 "people": dict(counts["people"]),
+                "opening_balances": counts["opening"]["created"],
                 "documents": counts["documents"],
             },
         )
@@ -272,6 +310,7 @@ def run(db: Session, data: bytes, *, apply: bool, actor_user_id: int, can_set_sa
         "vehicles": {"created": counts["vehicles"]["created"], "updated": counts["vehicles"]["updated"]},
         "people": {"created": counts["people"]["created"], "updated": counts["people"]["updated"]},
         "documents": counts["documents"],
+        "opening_balances": counts["opening"]["created"],
         "errors": [vars(e) for e in errors],
         "warnings": [vars(w) for w in warnings],
     }

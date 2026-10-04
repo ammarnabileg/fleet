@@ -296,3 +296,51 @@ def test_reviewers_follow_permissions_and_company_scope(admin_client, client, ne
     login(c, "viewer")
     assert approve(c, rid).status_code == 403
     assert c.post("/api/v1/cash/receipts", json={"driver_id": b["id"], "amount": "1"}).status_code == 403
+
+
+def test_tled12_uat18_end_of_service_settles_the_account_to_zero(admin_client, client, earlier, db):
+    rid = report(client, earlier, cash="38.500").json()["id"]  # pending at resignation
+    admin_client.post(f"/api/v1/employees/{earlier['id']}/status", json={"status_code": "resigned"})
+    kinds = {a["kind"] for a in admin_client.get("/api/v1/alerts").json()}
+    assert "driver_left_with_cash" in kinds  # with the vehicle alert when he holds one
+    body = {"driver_id": earlier["id"], "payroll_amount": "60", "writeoff_amount": "60", "reason": "approved by CFO"}
+    r = admin_client.post("/api/v1/cash/settlements", json=body)
+    assert r.status_code == 409 and r.json()["code"] == "pending_journals_exist"
+    approve(admin_client, rid)  # 81.500 + 38.500 = 120.000
+    r = admin_client.post("/api/v1/cash/settlements", json=body | {"writeoff_amount": "50"})
+    assert r.status_code == 422 and r.json()["code"] == "settlement_must_zero"
+    r = admin_client.post("/api/v1/cash/settlements", json=body | {"writeoff_amount": "60", "reason": None})
+    assert r.status_code == 422 and r.json()["code"] == "reason_required"
+    r = admin_client.post("/api/v1/cash/settlements", json=body)
+    assert r.status_code == 201 and r.json()["closed"]
+    assert (D(r.json()["posted"]), D(r.json()["pending"])) == (D("0"), D("0"))
+    assert "driver_left_with_cash" not in {a["kind"] for a in admin_client.get("/api/v1/alerts").json()}
+    event = db.execute(
+        text("SELECT payload FROM integrations.outbox WHERE event_type = 'cash.settlement.posted'")
+    ).scalar()
+    assert event["payroll_amount"] == "60.000"
+    r = admin_client.post(
+        "/api/v1/cash/adjustments", json={"driver_id": earlier["id"], "amount": "1", "reason": "late"}
+    )
+    assert r.status_code == 409 and r.json()["code"] == "account_closed"
+    total = db.execute(
+        text(
+            "SELECT sum(l.amount) FROM cash.journal_lines l JOIN cash.journals j ON j.id = l.journal_id "
+            "WHERE j.status = 'posted'"
+        )
+    ).scalar()
+    assert total == 0
+
+
+def test_settlement_pays_out_what_the_company_owes(admin_client, driver):
+    admin_client.post(
+        "/api/v1/cash/adjustments", json={"driver_id": driver["id"], "amount": "-7", "reason": "overpaid"}
+    )
+    r = admin_client.post("/api/v1/cash/settlements", json={"driver_id": driver["id"]})
+    assert r.status_code == 409 and r.json()["code"] == "settlement_needs_end_of_service"
+    admin_client.post(f"/api/v1/employees/{driver['id']}/status", json={"status_code": "terminated"})
+    r = admin_client.post("/api/v1/cash/settlements", json={"driver_id": driver["id"], "payroll_amount": "7"})
+    assert r.status_code == 422
+    r = admin_client.post("/api/v1/cash/settlements", json={"driver_id": driver["id"]})
+    assert r.status_code == 201 and D(r.json()["posted"]) == D("0")
+    assert D(admin_client.get("/api/v1/cash/treasury").json()[0]["treasury"]) == D("-7.000")

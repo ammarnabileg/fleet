@@ -47,6 +47,15 @@ class BankDepositIn(BaseModel):
     reference: Reason  # the bank's deposit reference
 
 
+class SettlementIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    driver_id: str
+    payroll_amount: Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=3)] = Decimal("0")
+    writeoff_amount: Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=3)] = Decimal("0")
+    reason: Reason | None = None
+
+
 class LineOut(BaseModel):
     account: str
     branch_id: int | None
@@ -82,6 +91,10 @@ class StatementOut(BaseModel):
     pending: Decimal  # waiting for review ("unapproved")
     total: Decimal
     lines: list[StatementLine]
+
+
+class SettlementOut(StatementOut):
+    closed: bool
 
 
 class PersonRef(BaseModel):

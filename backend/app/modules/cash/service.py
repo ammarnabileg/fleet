@@ -69,6 +69,13 @@ def _journal(
     post: bool = False,
     business_date: date | None = None,
 ) -> Journal:
+    closed = db.scalar(
+        select(func.count())
+        .select_from(Account)
+        .where(Account.id.in_([a for a, _ in lines]), Account.closed_at.is_not(None))
+    )
+    if closed:
+        raise AppError(409, "account_closed")
     journal = Journal(
         kind=kind,
         business_date=business_date or today(),
@@ -392,6 +399,168 @@ def bank_deposit(db: Session, *, branch_id: int, amount: Decimal, reference: str
     )
     db.commit()
     return journal_out(db, journal)
+
+
+# ------------------------------------------------------------------ end of service (spec 8.4)
+
+
+def flag_departed(db: Session, driver: people.EmployeeRef) -> None:
+    """Employment ended while the driver still holds (or is owed) cash: someone must settle it."""
+    balance = driver_balance(db, driver.id)
+    if balance.posted or balance.pending:
+        notifications.raise_alert(
+            db,
+            "driver_left_with_cash",
+            company_id=driver.company_id,
+            entity_type="employee",
+            entity_id=driver.public_id,
+            params={"driver": driver.name, "balance": f"{balance.total:.3f}"},
+            dedupe_key=f"driver_left_with_cash:{driver.id}",
+            refresh=True,
+        )
+        db.commit()
+
+
+def settle(
+    db: Session,
+    driver: people.EmployeeRef,
+    *,
+    payroll_amount: Decimal,
+    writeoff_amount: Decimal,
+    reason: str | None,
+    actor_user_id: int,
+) -> dict:
+    """Brings the account of a driver whose employment ended to exactly zero, then closes it: what he owes is
+    recovered through payroll and/or written off (with a reason); what the company owes him is paid from the
+    treasury of his branch. Every pending journal must be decided first."""
+    if not driver.is_terminal:
+        raise AppError(409, "settlement_needs_end_of_service")
+    acc = account(db, "driver", driver_id=driver.id)
+    pending = db.scalar(
+        select(func.count())
+        .select_from(Journal)
+        .join(JournalLine, JournalLine.journal_id == Journal.id)
+        .where(JournalLine.account_id == acc, Journal.status == "pending")
+    )
+    if pending:
+        raise AppError(409, "pending_journals_exist", count=pending)
+    balance = driver_balance(db, driver.id).posted
+    if balance > 0 and payroll_amount + writeoff_amount != balance:
+        raise AppError(422, "settlement_must_zero", balance=f"{balance:.3f}")
+    if balance <= 0 and (payroll_amount or writeoff_amount):
+        raise AppError(422, "settlement_must_zero", balance=f"{balance:.3f}")
+    if writeoff_amount and not reason:
+        raise AppError(422, "reason_required")
+    journals = []
+    if payroll_amount:
+        journals.append(
+            _journal(
+                db,
+                "settlement",
+                source_type="settlement",
+                source_id=driver.id,
+                lines=[(account(db, "payroll_recovery"), payroll_amount), (acc, -payroll_amount)],
+                actor_user_id=actor_user_id,
+                reason=reason,
+                post=True,
+            )
+        )
+    if writeoff_amount:
+        journals.append(
+            _journal(
+                db,
+                "writeoff",
+                source_type="settlement",
+                source_id=driver.id,
+                lines=[(account(db, "writeoff"), writeoff_amount), (acc, -writeoff_amount)],
+                actor_user_id=actor_user_id,
+                reason=reason,
+                post=True,
+            )
+        )
+    if balance < 0:  # the company owes the driver: paid out of his branch's treasury
+        treasury = account(db, "treasury", branch_id=driver.branch_id)
+        journals.append(
+            _journal(
+                db,
+                "settlement",
+                source_type="settlement",
+                source_id=driver.id,
+                lines=[(acc, -balance), (treasury, balance)],
+                actor_user_id=actor_user_id,
+                reason=reason,
+                post=True,
+            )
+        )
+    db.execute(update(Account).where(Account.id == acc).values(closed_at=func.now()))
+    notifications.resolve(db, f"driver_left_with_cash:{driver.id}")
+    notifications.resolve(db, f"cash_balance_high:{driver.id}")
+    audit.record(
+        db,
+        action="cash.settlement",
+        entity_type="employee",
+        entity_id=driver.public_id,
+        actor_user_id=actor_user_id,
+        company_id=driver.company_id,
+        after={"balance": balance, "payroll": payroll_amount, "writeoff": writeoff_amount, "reason": reason},
+    )
+    emit(
+        db,
+        "cash.settlement.posted",
+        driver.public_id,
+        {  # payroll deducts payroll_amount from the final pay
+            "employee_id": str(driver.public_id),
+            "payroll_amount": f"{payroll_amount:.3f}",
+            "writeoff_amount": f"{writeoff_amount:.3f}",
+            "paid_out": f"{-balance if balance < 0 else ZERO:.3f}",
+        },
+    )
+    db.commit()
+    return statement(db, driver) | {"closed": True}
+
+
+def opening_balance(
+    db: Session,
+    driver: people.EmployeeRef,
+    *,
+    amount: Decimal,
+    business_date: date,
+    approved_by: str,
+    actor_user_id: int,
+) -> bool:
+    """The cash a driver holds on go-live day, approved by the accountant (onboarding workbook), in the caller's
+    transaction. Once per driver: the same amount again is skipped; a different one is an error (adjust instead)."""
+    existing = db.scalar(
+        select(Journal).where(
+            Journal.source_type == "import",
+            Journal.source_id == driver.id,
+            Journal.kind == "opening",
+            Journal.status != "rejected",
+        )
+    )
+    if existing is not None:
+        current = db.scalar(
+            select(JournalLine.amount)
+            .join(Account, Account.id == JournalLine.account_id)
+            .where(JournalLine.journal_id == existing.id, Account.kind == "driver")
+        )
+        if current == amount:
+            return False
+        raise AppError(409, "opening_balance_exists")
+    if not amount:
+        return False
+    _journal(
+        db,
+        "opening",
+        source_type="import",
+        source_id=driver.id,
+        lines=[(account(db, "driver", driver_id=driver.id), amount), (account(db, "opening"), -amount)],
+        actor_user_id=actor_user_id,
+        reason=f"approved by {approved_by}",
+        post=True,
+        business_date=business_date,
+    )
+    return True
 
 
 # ------------------------------------------------------------------ reading
