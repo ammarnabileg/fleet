@@ -1,6 +1,8 @@
 """Employees on the papers of a legal entity, configurable statuses with history, salary protection;
 UAT-18 (people part): ending service disables the driver app."""
 
+import json
+
 from sqlalchemy import text
 
 from tests.conftest import login, make_driver, make_employee, make_user, name
@@ -34,10 +36,16 @@ def test_salary_is_hidden_and_protected_without_view_salary(admin_client, new_cl
     assert r.status_code == 200 and r.json()["basic_salary"] is None
     r = admin_client.patch(f"/api/v1/employees/{e['id']}", json={"version": r.json()["version"], "basic_salary": "450"})
     assert r.status_code == 200 and r.json()["basic_salary"] == "450.000"
-    logged = db.execute(text("SELECT before::text || after::text FROM audit.events WHERE entity_type = 'employee'"))
-    dump = " ".join(row[0] or "" for row in logged)
-    assert "400" not in dump and "450" not in dump and "KW81" not in dump
-    assert "salary_fields_changed" in dump
+    snapshots = [
+        s
+        for row in db.execute(text("SELECT before, after FROM audit.events WHERE entity_type = 'employee'"))
+        for s in row
+    ]
+    snapshots = [s for s in snapshots if s]
+    assert snapshots and not any({"basic_salary", "iban"} & s.keys() for s in snapshots)
+    dump = " ".join(json.dumps(s) for s in snapshots)  # exact amounts: a random UUID can contain "450", never "450.0"
+    assert "400.0" not in dump and "450.0" not in dump and "KW81" not in dump
+    assert any(s.get("salary_fields_changed") == ["basic_salary"] for s in snapshots)
 
 
 def test_employees_are_company_scoped(admin_client, new_client, companies):
