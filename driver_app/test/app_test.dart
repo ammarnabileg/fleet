@@ -48,6 +48,7 @@ Future<World> world({
   Map<String, dynamic>? onboarding,
   Map<String, dynamic>? today,
   List<Map<String, dynamic>>? maintenance,
+  List<Map<String, dynamic>>? accidents,
 }) async {
   final db = await testDb();
   final server = FakeServer();
@@ -163,6 +164,7 @@ Future<World> world({
     ),
   );
   server.on('GET', '/api/v1/driver/maintenance', (r) => (200, maintenance ?? []));
+  server.on('GET', '/api/v1/driver/accidents', (r) => (200, accidents ?? []));
   return World(state, server);
 }
 
@@ -529,5 +531,146 @@ void main() {
     expect(find.textContaining('جاهزة للاستلام من مركز النور'), findsOneWidget);
     expect(find.textContaining('الشويخ'), findsOneWidget);
     await shot(tester, '14-maintenance-ready');
+  });
+
+  Map<String, dynamic> accident({
+    String stage = 'reported',
+    bool police = false,
+    String? liability,
+    String? percent,
+    Map<String, dynamic>? deduction,
+  }) => {
+    'id': 'a1',
+    'number': 12,
+    'vehicle_plate': '18/23456',
+    'occurred_at': '2026-10-04T06:30:00Z',
+    'description': 'صدمني من الخلف عند الإشارة',
+    'stage': stage,
+    'has_police_report': police,
+    'liability': liability,
+    'liability_percent': percent,
+    'deduction': deduction,
+    'created_at': '2026-10-04T06:35:00Z',
+  };
+
+  testWidgets('an accident: at least 3 camera photos, then it goes out with time and place', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final img = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.now(), lat: 29.37, lng: 47.97);
+    var n = 0;
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': '${++n}' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('POST', '/api/v1/driver/accidents', (r) => (201, accident()));
+    await pumpApp(tester, w);
+    await tester.ensureVisible(find.byKey(const Key('accident')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('accident')));
+    await idle(tester);
+    expect(find.textContaining('112'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('acc-description')), 'صدمني من الخلف عند الإشارة');
+    await tester.tap(find.byKey(const Key('acc-injuries')));
+    await settle(tester);
+    await tester.enterText(find.byKey(const Key('acc-injuries-note')), 'ألم في الرقبة');
+    await tester.enterText(find.byKey(const Key('acc-other-party')), 'بيك أب أبيض 12345');
+    for (var i = 0; i < 2; i++) {
+      await tester.ensureVisible(find.byKey(const Key('acc-photo')));
+      await settle(tester);
+      await tester.tap(find.byKey(const Key('acc-photo')));
+      await idle(tester);
+    }
+    await tester.ensureVisible(find.byKey(const Key('acc-send')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('acc-send')));
+    await idle(tester);
+    expect(find.byKey(const Key('acc-photos-missing')), findsOneWidget);
+    expect(w.server.calls('/api/v1/driver/accidents', method: 'POST'), isEmpty);
+    await tester.ensureVisible(find.byKey(const Key('acc-photo')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('acc-photo')));
+    await idle(tester);
+    await shot(tester, '15-accident');
+    await tester.ensureVisible(find.byKey(const Key('acc-send')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('acc-send')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/accidents', method: 'POST').single.body) as Map;
+    expect(body['photos'], ['1' * 64, '2' * 64, '3' * 64]);
+    expect((body['lat'], body['lng'], body['injuries'], body['injuries_note']), (29.37, 47.97, true, 'ألم في الرقبة'));
+    expect(body['other_party'], 'بيك أب أبيض 12345');
+    expect(body.containsKey('police_report'), isFalse);
+    expect(DateTime.parse(body['occurred_at'] as String).isBefore(DateTime.now()), isTrue);
+    expect(find.text('تم الإرسال'), findsOneWidget);
+  });
+
+  testWidgets('waiting for the police report: a banner on the home screen, sent later from the list', (tester) async {
+    final w = (await tester.runAsync(() => world(accidents: [accident()])))!;
+    final img = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.now());
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'c' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('POST', '/api/v1/driver/accidents/a1/police-report', (r) => (200, accident(police: true)));
+    await pumpApp(tester, w);
+    expect(find.textContaining('بانتظار محضر الشرطة'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('police-banner-12')));
+    await idle(tester);
+    await tester.dragUntilVisible(
+      find.byKey(const Key('acc-send-police-12')),
+      find.byType(ListView).last,
+      const Offset(0, -300),
+    );
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('acc-send-police-12')));
+    await idle(tester);
+    final call = w.server.calls('/api/v1/driver/accidents/a1/police-report').single;
+    expect(jsonDecode(call.body), {'number': null, 'file_sha256': 'c' * 64});
+    expect(find.text('تم الإرسال'), findsOneWidget);
+  });
+
+  testWidgets('the outcome and the deduction in monthly installments are shown to the driver', (tester) async {
+    final w = (await tester.runAsync(
+      () => world(
+        accidents: [
+          accident(
+            stage: 'outcome_recorded',
+            police: true,
+            liability: 'driver',
+            percent: '100.00',
+            deduction: {
+              'total': '150.000',
+              'installments': 3,
+              'schedule': [
+                {'month': '2026-11-01', 'amount': '50.000'},
+                {'month': '2026-12-01', 'amount': '50.000'},
+                {'month': '2027-01-01', 'amount': '50.000'},
+              ],
+            },
+          ),
+        ],
+      ),
+    ))!;
+    await pumpApp(tester, w);
+    expect(find.textContaining('بانتظار محضر الشرطة'), findsNothing);
+    await tester.ensureVisible(find.byKey(const Key('accident')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('accident')));
+    await idle(tester);
+    await tester.dragUntilVisible(
+      find.byKey(const Key('acc-deduction-12')),
+      find.byType(ListView).last,
+      const Offset(0, -300),
+    );
+    await settle(tester);
+    expect(find.text('المسؤولية عليك'), findsOneWidget);
+    expect(find.textContaining('150.000'), findsOneWidget);
+    expect(find.textContaining('\u206650.000'), findsNWidgets(3));
+    expect(find.textContaining('01-2027'), findsOneWidget);
+    expect(find.byKey(const Key('acc-send-police-12')), findsNothing);
+    await shot(tester, '16-accident-deduction');
   });
 }

@@ -234,6 +234,62 @@ void main() {
       final request = await admin.call('GET', '/maintenance/requests/${office.single['id']}');
       expect((request['photos'] as List).length, 2);
 
+      // ---- accident: three camera photos now, the police report later; a center estimates, the office decides the
+      // driver is liable: 150.000 in 3 installments, which the driver sees in the app
+      final shots = [
+        for (final s in ['acc1', 'acc2', 'acc3']) (await jpeg(s)).path,
+      ];
+      expect(
+        await state.sendAccident(
+          occurredAt: DateTime.now(),
+          lat: 29.37,
+          lng: 47.97,
+          description: 'Rear-ended at a traffic light',
+          injuries: false,
+          photoPaths: shots,
+        ),
+        SendResult.sent,
+      );
+      final mine = state.accidents.single;
+      expect((mine.stage, mine.awaitsPoliceReport), ('reported', true));
+      final police = await jpeg('police');
+      expect(
+        await state.sendPoliceReport(accidentId: mine.id, photoPath: police.path, number: 'PR-$n'),
+        SendResult.sent,
+      );
+      expect(state.accidents.single.hasPoliceReport, isTrue);
+      final acc = await admin.call('GET', '/accidents/${mine.id}');
+      expect(
+        (acc['driver']['id'], acc['source'], (acc['photos'] as List).length, acc['police_report_no'], acc['lat']),
+        (driver['id'], 'driver', 3, 'PR-$n', 29.37),
+      );
+      final center = await admin.call('POST', '/maintenance/centers', {'name': 'Contract Garage $n'});
+      await admin.call('POST', '/maintenance/centers/${center['id']}/users', {
+        'username': 'cg$n',
+        'full_name': 'Contract Garage',
+        'password': 'correct-horse-battery-$n',
+      });
+      await admin.call('POST', '/accidents/${mine.id}/refer', {'center_id': center['id']});
+      final portal = Admin(backend!);
+      final portalLogin = await portal.call('POST', '/auth/login', {
+        'username': 'cg$n',
+        'password': 'correct-horse-battery-$n',
+      });
+      portal.csrf = portalLogin['csrf_token'] as String;
+      await portal.call('POST', '/portal/accidents/${mine.id}/estimate', {
+        'total': '150.000',
+        'items': [
+          {'kind': 'part', 'description': 'Rear bumper', 'unit_price': '150.000'},
+        ],
+      });
+      await admin.call('POST', '/accidents/${mine.id}/estimate/approve');
+      await admin.call('POST', '/accidents/${mine.id}/outcome', {'liability': 'driver', 'installments': 3});
+      await state.loadAccidents();
+      final charged = state.accidents.single;
+      expect((charged.liability, charged.deduction!.total, charged.deduction!.installments), ('driver', '150.000', 3));
+      expect([for (final s in charged.deduction!.schedule) s.amount], ['50.000', '50.000', '50.000']);
+      expect(charged.awaitsPoliceReport, isFalse);
+
       // ---- cash, then sign out: the phone forgets the session and the server refuses its tokens
       await state.loadCash();
       expect(state.cash!.pending, '17.250');

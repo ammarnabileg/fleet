@@ -165,4 +165,57 @@ void main() {
     expect(bodies.last.keys.where((k) => k.toString().contains('.')), isEmpty);
     expect(await box.items(), isEmpty);
   });
+
+  test('a police report goes to its accident; one attached by the office meanwhile counts as done', () async {
+    final (db, _, api, server) = await session();
+    final box = Outbox(db);
+    server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (req) => (201, {'sha256': 'a' * 64, 'size_bytes': 7, 'content_type': 'image/jpeg'}),
+    );
+    server.on('POST', '/api/v1/driver/accidents/acc-7/police-report', (req) => (409, {'code': 'police_report_exists'}));
+    final id = await box.add(
+      'police_report',
+      {'accident_id': 'acc-7', 'number': 'PR-1'},
+      {'file_sha256': await photo()},
+    );
+    expect(await box.sendNow(id, api), SendResult.sent);
+    final body = jsonDecode(server.calls('/api/v1/driver/accidents/acc-7/police-report').single.body) as Map;
+    expect(body, {'number': 'PR-1', 'file_sha256': 'a' * 64}, reason: 'the accident id is in the path, not the body');
+    expect(await box.items(), isEmpty);
+  });
+
+  test('an accident report: photos as one list, the police report as its own field, a retry recognised', () async {
+    final (db, _, api, server) = await session();
+    final box = Outbox(db);
+    var n = 0;
+    server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (req) => (201, {'sha256': '${++n}' * 64, 'size_bytes': 7, 'content_type': 'image/jpeg'}),
+    );
+    var posts = 0;
+    server.on('POST', '/api/v1/driver/accidents', (req) {
+      posts++;
+      return posts == 1 ? throw ApiError(0, 'network') : (409, {'code': 'accident_exists'});
+    });
+    final id = await box.add(
+      'accident',
+      {
+        'client_ref': 'ref-9',
+        'occurred_at': '2026-10-04T06:00:00.000Z',
+        'description': 'Rear-ended',
+        'injuries': false,
+      },
+      {'photos.0': await photo(), 'photos.1': await photo(), 'photos.2': await photo(), 'police_report': await photo()},
+    );
+    expect(await box.sendNow(id, api), SendResult.queued);
+    expect(await box.flush(api), 1);
+    final body = jsonDecode(server.calls('/api/v1/driver/accidents').last.body) as Map;
+    expect(body['photos'], ['1' * 64, '2' * 64, '3' * 64]);
+    expect(body['police_report'], '4' * 64);
+    expect(body['occurred_at'], '2026-10-04T06:00:00.000Z', reason: 'the time of the accident, not of the sending');
+    expect(server.calls('/api/v1/driver/files'), hasLength(4));
+  });
 }

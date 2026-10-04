@@ -202,3 +202,66 @@ class MaintenanceRequest {
 
   bool get isReady => status == 'ready';
 }
+
+/// A deduction as the driver sees it: the total and its monthly installments (amounts as the server sends them).
+class Deduction {
+  Deduction({required this.total, required this.installments, required this.schedule});
+
+  factory Deduction.fromJson(Map<String, dynamic> j) => Deduction(
+    total: j['total'] as String,
+    installments: (j['installments'] as num).toInt(),
+    schedule: [
+      for (final s in j['schedule'] as List)
+        (month: DateTime.parse((s as Map<String, dynamic>)['month'] as String), amount: s['amount'] as String),
+    ],
+  );
+
+  final String total;
+  final int installments;
+  final List<({DateTime month, String amount})> schedule;
+}
+
+/// An accident the driver reported (or the office recorded for the vehicle the driver held then), with its outcome.
+class Accident {
+  Accident({
+    required this.id,
+    required this.number,
+    required this.plate,
+    required this.occurredAt,
+    required this.description,
+    required this.stage,
+    required this.hasPoliceReport,
+    this.liability,
+    this.liabilityPercent,
+    this.deduction,
+  });
+
+  factory Accident.fromJson(Map<String, dynamic> j) => Accident(
+    id: j['id'] as String,
+    number: (j['number'] as num).toInt(),
+    plate: j['vehicle_plate'] as String,
+    occurredAt: DateTime.parse(j['occurred_at'] as String),
+    description: j['description'] as String,
+    stage: j['stage'] as String,
+    hasPoliceReport: j['has_police_report'] as bool,
+    liability: j['liability'] as String?,
+    liabilityPercent: j['liability_percent'] as String?,
+    deduction: j['deduction'] == null ? null : Deduction.fromJson(j['deduction'] as Map<String, dynamic>),
+  );
+
+  final String id;
+  final int number;
+  final String plate;
+  final DateTime occurredAt;
+  final String description;
+  final String stage;
+  final bool hasPoliceReport;
+  final String? liability;
+  final String? liabilityPercent;
+  final Deduction? deduction;
+
+  bool get isOpen => stage != 'closed' && stage != 'cancelled';
+
+  /// The driver can still send the police report (once the liability is decided it is too late from the app).
+  bool get awaitsPoliceReport => isOpen && !hasPoliceReport && liability == null;
+}

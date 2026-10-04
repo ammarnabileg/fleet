@@ -1147,6 +1147,186 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'اضغط للحذف'**
   String get mntTapToRemove;
+
+  /// No description provided for @accident.
+  ///
+  /// In ar, this message translates to:
+  /// **'الإبلاغ عن حادث'**
+  String get accident;
+
+  /// No description provided for @accidentsTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'الحوادث'**
+  String get accidentsTitle;
+
+  /// No description provided for @kind_accident.
+  ///
+  /// In ar, this message translates to:
+  /// **'بلاغ حادث'**
+  String get kind_accident;
+
+  /// No description provided for @kind_police_report.
+  ///
+  /// In ar, this message translates to:
+  /// **'محضر الشرطة'**
+  String get kind_police_report;
+
+  /// No description provided for @accNew.
+  ///
+  /// In ar, this message translates to:
+  /// **'بلاغ حادث جديد'**
+  String get accNew;
+
+  /// No description provided for @accEmergency.
+  ///
+  /// In ar, this message translates to:
+  /// **'إن وُجدت إصابات اتصل بالطوارئ 112 أولاً.'**
+  String get accEmergency;
+
+  /// No description provided for @accIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'صوّر السيارة من عدة زوايا: الأمام والخلف والجانبين ومكان الضرر. يُسجّل الوقت والموقع تلقائياً.'**
+  String get accIntro;
+
+  /// No description provided for @accNoVehicle.
+  ///
+  /// In ar, this message translates to:
+  /// **'يُبلّغ عن الحادث للسيارة التي في عهدتك. لا توجد سيارة معك الآن؛ كلّم المشرف.'**
+  String get accNoVehicle;
+
+  /// No description provided for @accDescription.
+  ///
+  /// In ar, this message translates to:
+  /// **'ماذا حدث؟'**
+  String get accDescription;
+
+  /// No description provided for @accInjuries.
+  ///
+  /// In ar, this message translates to:
+  /// **'توجد إصابات'**
+  String get accInjuries;
+
+  /// No description provided for @accInjuriesNote.
+  ///
+  /// In ar, this message translates to:
+  /// **'تفاصيل الإصابات'**
+  String get accInjuriesNote;
+
+  /// No description provided for @accOtherParty.
+  ///
+  /// In ar, this message translates to:
+  /// **'الطرف الآخر (اللوحة، الاسم، التأمين)'**
+  String get accOtherParty;
+
+  /// No description provided for @accPhotos.
+  ///
+  /// In ar, this message translates to:
+  /// **'صور الحادث ({min} على الأقل)'**
+  String accPhotos(String min);
+
+  /// No description provided for @accPhotosNeeded.
+  ///
+  /// In ar, this message translates to:
+  /// **'صوّر {min} صور على الأقل من زوايا مختلفة'**
+  String accPhotosNeeded(String min);
+
+  /// No description provided for @accPoliceReport.
+  ///
+  /// In ar, this message translates to:
+  /// **'محضر الشرطة'**
+  String get accPoliceReport;
+
+  /// No description provided for @accPoliceReportNo.
+  ///
+  /// In ar, this message translates to:
+  /// **'رقم المحضر'**
+  String get accPoliceReportNo;
+
+  /// No description provided for @accPoliceLater.
+  ///
+  /// In ar, this message translates to:
+  /// **'لم يصدر المحضر بعد؟ أرسل البلاغ الآن وأرسل صورة المحضر لاحقاً من قائمة حوادثك.'**
+  String get accPoliceLater;
+
+  /// No description provided for @accSendPolice.
+  ///
+  /// In ar, this message translates to:
+  /// **'إرسال محضر الشرطة'**
+  String get accSendPolice;
+
+  /// No description provided for @accNone.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد حوادث'**
+  String get accNone;
+
+  /// No description provided for @accNo.
+  ///
+  /// In ar, this message translates to:
+  /// **'حادث #{number}'**
+  String accNo(String number);
+
+  /// No description provided for @accStage_review.
+  ///
+  /// In ar, this message translates to:
+  /// **'قيد المراجعة'**
+  String get accStage_review;
+
+  /// No description provided for @accStage_outcome.
+  ///
+  /// In ar, this message translates to:
+  /// **'بانتظار تحديد المسؤولية'**
+  String get accStage_outcome;
+
+  /// No description provided for @accStage_recorded.
+  ///
+  /// In ar, this message translates to:
+  /// **'المسؤولية محددة'**
+  String get accStage_recorded;
+
+  /// No description provided for @accStage_closed.
+  ///
+  /// In ar, this message translates to:
+  /// **'مغلق'**
+  String get accStage_closed;
+
+  /// No description provided for @accLiability_none.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا مسؤولية عليك'**
+  String get accLiability_none;
+
+  /// No description provided for @accLiability_driver.
+  ///
+  /// In ar, this message translates to:
+  /// **'المسؤولية عليك'**
+  String get accLiability_driver;
+
+  /// No description provided for @accLiability_shared.
+  ///
+  /// In ar, this message translates to:
+  /// **'مسؤولية مشتركة: نصيبك {percent}%'**
+  String accLiability_shared(String percent);
+
+  /// No description provided for @accDeduction.
+  ///
+  /// In ar, this message translates to:
+  /// **'خصم {total} د.ك · عدد الأقساط: {count}'**
+  String accDeduction(String total, String count);
+
+  /// No description provided for @accInstallment.
+  ///
+  /// In ar, this message translates to:
+  /// **'{month}: {amount} د.ك'**
+  String accInstallment(String month, String amount);
+
+  /// No description provided for @accAwaitingPolice.
+  ///
+  /// In ar, this message translates to:
+  /// **'الحادث #{number} بانتظار محضر الشرطة: اضغط لإرسال صورته'**
+  String accAwaitingPolice(String number);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

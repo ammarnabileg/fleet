@@ -7,6 +7,7 @@ import '../../core/errors.dart';
 import '../../core/outbox.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'accident.dart';
 import 'maintenance.dart';
 import 'odometer.dart';
 import 'report.dart';
@@ -65,7 +66,13 @@ class HomeTab extends StatelessWidget {
 
   Future<void> _refresh() async {
     try {
-      await Future.wait([state.loadToday(), state.loadCash(), state.loadReports(), state.loadMaintenance()]);
+      await Future.wait([
+        state.loadToday(),
+        state.loadCash(),
+        state.loadReports(),
+        state.loadMaintenance(),
+        state.loadAccidents(),
+      ]);
     } on ApiError {
       // offline: the last data stays on screen
     }
@@ -87,6 +94,18 @@ class HomeTab extends StatelessWidget {
         children: [
           for (final r in state.maintenance.where((r) => r.isReady)) ...[
             ReadyBanner(request: r),
+            const SizedBox(height: 12),
+          ],
+          for (final a in state.accidents.where((a) => a.awaitsPoliceReport)) ...[
+            InkWell(
+              key: Key('police-banner-${a.number}'),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AccidentScreen(state: state))),
+              child: Banner2(
+                text: l.accAwaitingPolice('${a.number}'),
+                tone: BannerTone.warn,
+                icon: Icons.description_outlined,
+              ),
+            ),
             const SizedBox(height: 12),
           ],
           Card(
@@ -185,6 +204,15 @@ class HomeTab extends StatelessWidget {
             onPressed: () =>
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => MaintenanceScreen(state: state))),
           ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            key: const Key('accident'),
+            style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+            icon: const Icon(Icons.car_crash_outlined),
+            label: Text(l.accident),
+            onPressed: () =>
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => AccidentScreen(state: state))),
+          ),
           if (state.queued.isNotEmpty) ...[
             SectionTitle(l.outboxTitle),
             for (final item in state.queued) _QueuedTile(state: state, item: item),
@@ -208,6 +236,8 @@ class _QueuedTile extends StatelessWidget {
     final what = switch (item.kind) {
       'odometer' => l.kind_odometer,
       'maintenance' => l.kind_maintenance,
+      'accident' => l.kind_accident,
+      'police_report' => l.kind_police_report,
       _ => l.kind_report,
     };
     final reason = failed

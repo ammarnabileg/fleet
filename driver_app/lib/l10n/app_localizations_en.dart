@@ -576,4 +576,111 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mntTapToRemove => 'tap to remove';
+
+  @override
+  String get accident => 'Report an accident';
+
+  @override
+  String get accidentsTitle => 'Accidents';
+
+  @override
+  String get kind_accident => 'Accident report';
+
+  @override
+  String get kind_police_report => 'Police report';
+
+  @override
+  String get accNew => 'New accident report';
+
+  @override
+  String get accEmergency => 'If anyone is hurt, call 112 first.';
+
+  @override
+  String get accIntro =>
+      'Photograph the vehicle from several angles: front, back, both sides and the damage. Time and place are recorded automatically.';
+
+  @override
+  String get accNoVehicle =>
+      'An accident is reported for the vehicle you hold. You have none now: call your supervisor.';
+
+  @override
+  String get accDescription => 'What happened?';
+
+  @override
+  String get accInjuries => 'Someone is injured';
+
+  @override
+  String get accInjuriesNote => 'Injury details';
+
+  @override
+  String get accOtherParty => 'The other party (plate, name, insurer)';
+
+  @override
+  String accPhotos(String min) {
+    return 'Accident photos (at least $min)';
+  }
+
+  @override
+  String accPhotosNeeded(String min) {
+    return 'Take at least $min photos from different angles';
+  }
+
+  @override
+  String get accPoliceReport => 'Police report';
+
+  @override
+  String get accPoliceReportNo => 'Report number';
+
+  @override
+  String get accPoliceLater =>
+      'No report yet? Send now and send a photo of the police report later from your accidents below.';
+
+  @override
+  String get accSendPolice => 'Send the police report';
+
+  @override
+  String get accNone => 'No accidents';
+
+  @override
+  String accNo(String number) {
+    return 'Accident #$number';
+  }
+
+  @override
+  String get accStage_review => 'Under review';
+
+  @override
+  String get accStage_outcome => 'Awaiting the liability decision';
+
+  @override
+  String get accStage_recorded => 'Liability decided';
+
+  @override
+  String get accStage_closed => 'Closed';
+
+  @override
+  String get accLiability_none => 'You are not liable';
+
+  @override
+  String get accLiability_driver => 'You are liable';
+
+  @override
+  String accLiability_shared(String percent) {
+    return 'Shared liability: your share $percent%';
+  }
+
+  @override
+  String accDeduction(String total, String count) {
+    return 'Deduction $total KWD · installments: $count';
+  }
+
+  @override
+  String accInstallment(String month, String amount) {
+    return '$month: $amount KWD';
+  }
+
+  @override
+  String accAwaitingPolice(String number) {
+    return 'Accident #$number is waiting for the police report: tap to send a photo of it';
+  }
 }

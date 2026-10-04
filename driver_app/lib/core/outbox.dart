@@ -24,7 +24,7 @@ class OutboxItem {
   );
 
   final int id;
-  final String kind; // odometer | report | maintenance
+  final String kind; // odometer | report | maintenance | accident | police_report
   final Map<String, dynamic> payload;
   final Map<String, String> files; // payload field -> local file still to upload
   final DateTime createdAt;
@@ -47,6 +47,9 @@ class Outbox {
     'odometer': ('/driver/odometer', 'camera', {'reading_exists'}),
     'report': ('/driver/reports', 'upload', {'report_exists'}),
     'maintenance': ('/driver/maintenance', 'camera', {'request_exists'}),
+    'accident': ('/driver/accidents', 'camera', {'accident_exists'}),
+    // the office may have attached a report meanwhile: the accident has one, nothing more to send
+    'police_report': ('/driver/accidents/{accident_id}/police-report', 'camera', {'police_report_exists'}),
   };
   static const _claimTimeout = Duration(minutes: 2);
 
@@ -177,8 +180,10 @@ class Outbox {
         whereArgs: [item.id],
       );
     }
+    final body = _lists(payload);
+    final url = path.replaceAllMapped(RegExp(r'\{(\w+)\}'), (m) => '${body.remove(m.group(1))}');
     try {
-      await api.post(path, body: _lists(payload));
+      await api.post(url, body: body);
     } on ApiError catch (e) {
       if (!alreadyDone.contains(e.code)) rethrow;
     }

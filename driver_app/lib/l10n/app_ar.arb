@@ -304,5 +304,90 @@
   "mntStatus_picked_up": "تم الاستلام",
   "mntStatus_closed": "مغلق",
   "mntStatus_cancelled": "ملغى",
-  "mntTapToRemove": "اضغط للحذف"
+  "mntTapToRemove": "اضغط للحذف",
+  "accident": "الإبلاغ عن حادث",
+  "accidentsTitle": "الحوادث",
+  "kind_accident": "بلاغ حادث",
+  "kind_police_report": "محضر الشرطة",
+  "accNew": "بلاغ حادث جديد",
+  "accEmergency": "إن وُجدت إصابات اتصل بالطوارئ 112 أولاً.",
+  "accIntro": "صوّر السيارة من عدة زوايا: الأمام والخلف والجانبين ومكان الضرر. يُسجّل الوقت والموقع تلقائياً.",
+  "accNoVehicle": "يُبلّغ عن الحادث للسيارة التي في عهدتك. لا توجد سيارة معك الآن؛ كلّم المشرف.",
+  "accDescription": "ماذا حدث؟",
+  "accInjuries": "توجد إصابات",
+  "accInjuriesNote": "تفاصيل الإصابات",
+  "accOtherParty": "الطرف الآخر (اللوحة، الاسم، التأمين)",
+  "accPhotos": "صور الحادث ({min} على الأقل)",
+  "@accPhotos": {
+    "placeholders": {
+      "min": {
+        "type": "String"
+      }
+    }
+  },
+  "accPhotosNeeded": "صوّر {min} صور على الأقل من زوايا مختلفة",
+  "@accPhotosNeeded": {
+    "placeholders": {
+      "min": {
+        "type": "String"
+      }
+    }
+  },
+  "accPoliceReport": "محضر الشرطة",
+  "accPoliceReportNo": "رقم المحضر",
+  "accPoliceLater": "لم يصدر المحضر بعد؟ أرسل البلاغ الآن وأرسل صورة المحضر لاحقاً من قائمة حوادثك.",
+  "accSendPolice": "إرسال محضر الشرطة",
+  "accNone": "لا توجد حوادث",
+  "accNo": "حادث #{number}",
+  "@accNo": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "accStage_review": "قيد المراجعة",
+  "accStage_outcome": "بانتظار تحديد المسؤولية",
+  "accStage_recorded": "المسؤولية محددة",
+  "accStage_closed": "مغلق",
+  "accLiability_none": "لا مسؤولية عليك",
+  "accLiability_driver": "المسؤولية عليك",
+  "accLiability_shared": "مسؤولية مشتركة: نصيبك {percent}%",
+  "@accLiability_shared": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "accDeduction": "خصم {total} د.ك · عدد الأقساط: {count}",
+  "@accDeduction": {
+    "placeholders": {
+      "total": {
+        "type": "String"
+      },
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "accInstallment": "{month}: {amount} د.ك",
+  "@accInstallment": {
+    "placeholders": {
+      "month": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "accAwaitingPolice": "الحادث #{number} بانتظار محضر الشرطة: اضغط لإرسال صورته",
+  "@accAwaitingPolice": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  }
 }

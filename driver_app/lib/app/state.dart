@@ -63,6 +63,7 @@ class AppState extends ChangeNotifier {
   Onboarding? onboarding;
   List<Report> reports = [];
   List<MaintenanceRequest> maintenance = [];
+  List<Accident> accidents = [];
   List<OutboxItem> queued = [];
   Map<String, dynamic> tracking = {};
   Object? lastError;
@@ -158,6 +159,7 @@ class AppState extends ChangeNotifier {
     onboarding = null;
     reports = [];
     maintenance = [];
+    accidents = [];
   }
 
   // ---------------------------------------------------------------- data
@@ -170,7 +172,7 @@ class AppState extends ChangeNotifier {
       if (onboarding!.waiting) return _set(Phase.waiting);
       if (!await platform.permissionsOk()) return _set(Phase.permissions);
       await platform.startTracking();
-      await Future.wait([loadToday(), loadCash(), loadReports(), _quietly(loadMaintenance)]);
+      await Future.wait([loadToday(), loadCash(), loadReports(), _quietly(loadMaintenance), _quietly(loadAccidents)]);
       await _readLocal();
       _set(Phase.ready);
     } on SessionEnded {
@@ -197,6 +199,10 @@ class AppState extends ChangeNotifier {
   Future<void> loadMaintenance() async => maintenance = [
     for (final r in await api.get('/driver/maintenance') as List)
       MaintenanceRequest.fromJson(r as Map<String, dynamic>),
+  ];
+
+  Future<void> loadAccidents() async => accidents = [
+    for (final a in await api.get('/driver/accidents') as List) Accident.fromJson(a as Map<String, dynamic>),
   ];
 
   /// Something the home screen can live without (the maintenance list): a failure does not hold the rest.
@@ -277,6 +283,48 @@ class AppState extends ChangeNotifier {
       {for (var i = 0; i < photoPaths.length; i++) 'photos.$i': photoPaths[i]},
     );
     return _sendNow(id, after: loadMaintenance);
+  }
+
+  /// An accident with the vehicle the driver held at [occurredAt] (taken when the report screen opened, so a report
+  /// sent hours later keeps the real time). Photos from the app's camera; the police report may come later.
+  Future<SendResult> sendAccident({
+    required DateTime occurredAt,
+    double? lat,
+    double? lng,
+    required String description,
+    required bool injuries,
+    String? injuriesNote,
+    String? otherParty,
+    required List<String> photoPaths,
+    String? policeReportPath,
+    String? policeReportNo,
+  }) async {
+    final id = await outbox.add(
+      'accident',
+      {
+        'client_ref': const Uuid().v4(),
+        'occurred_at': occurredAt.toUtc().toIso8601String(),
+        'lat': lat,
+        'lng': lng,
+        'description': description,
+        'injuries': injuries,
+        'injuries_note': injuriesNote,
+        'other_party': otherParty,
+        'police_report_no': policeReportNo,
+      },
+      {for (var i = 0; i < photoPaths.length; i++) 'photos.$i': photoPaths[i], 'police_report': ?policeReportPath},
+    );
+    return _sendNow(id, after: loadAccidents);
+  }
+
+  /// The police report photographed once it is issued (the accident waits for it).
+  Future<SendResult> sendPoliceReport({required String accidentId, required String photoPath, String? number}) async {
+    final id = await outbox.add(
+      'police_report',
+      {'accident_id': accidentId, 'number': number},
+      {'file_sha256': photoPath},
+    );
+    return _sendNow(id, after: loadAccidents);
   }
 
   Future<SendResult> _sendNow(int id, {required Future<void> Function() after}) async {

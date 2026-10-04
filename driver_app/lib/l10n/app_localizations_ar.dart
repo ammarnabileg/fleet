@@ -573,4 +573,109 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get mntTapToRemove => 'اضغط للحذف';
+
+  @override
+  String get accident => 'الإبلاغ عن حادث';
+
+  @override
+  String get accidentsTitle => 'الحوادث';
+
+  @override
+  String get kind_accident => 'بلاغ حادث';
+
+  @override
+  String get kind_police_report => 'محضر الشرطة';
+
+  @override
+  String get accNew => 'بلاغ حادث جديد';
+
+  @override
+  String get accEmergency => 'إن وُجدت إصابات اتصل بالطوارئ 112 أولاً.';
+
+  @override
+  String get accIntro =>
+      'صوّر السيارة من عدة زوايا: الأمام والخلف والجانبين ومكان الضرر. يُسجّل الوقت والموقع تلقائياً.';
+
+  @override
+  String get accNoVehicle => 'يُبلّغ عن الحادث للسيارة التي في عهدتك. لا توجد سيارة معك الآن؛ كلّم المشرف.';
+
+  @override
+  String get accDescription => 'ماذا حدث؟';
+
+  @override
+  String get accInjuries => 'توجد إصابات';
+
+  @override
+  String get accInjuriesNote => 'تفاصيل الإصابات';
+
+  @override
+  String get accOtherParty => 'الطرف الآخر (اللوحة، الاسم، التأمين)';
+
+  @override
+  String accPhotos(String min) {
+    return 'صور الحادث ($min على الأقل)';
+  }
+
+  @override
+  String accPhotosNeeded(String min) {
+    return 'صوّر $min صور على الأقل من زوايا مختلفة';
+  }
+
+  @override
+  String get accPoliceReport => 'محضر الشرطة';
+
+  @override
+  String get accPoliceReportNo => 'رقم المحضر';
+
+  @override
+  String get accPoliceLater => 'لم يصدر المحضر بعد؟ أرسل البلاغ الآن وأرسل صورة المحضر لاحقاً من قائمة حوادثك.';
+
+  @override
+  String get accSendPolice => 'إرسال محضر الشرطة';
+
+  @override
+  String get accNone => 'لا توجد حوادث';
+
+  @override
+  String accNo(String number) {
+    return 'حادث #$number';
+  }
+
+  @override
+  String get accStage_review => 'قيد المراجعة';
+
+  @override
+  String get accStage_outcome => 'بانتظار تحديد المسؤولية';
+
+  @override
+  String get accStage_recorded => 'المسؤولية محددة';
+
+  @override
+  String get accStage_closed => 'مغلق';
+
+  @override
+  String get accLiability_none => 'لا مسؤولية عليك';
+
+  @override
+  String get accLiability_driver => 'المسؤولية عليك';
+
+  @override
+  String accLiability_shared(String percent) {
+    return 'مسؤولية مشتركة: نصيبك $percent%';
+  }
+
+  @override
+  String accDeduction(String total, String count) {
+    return 'خصم $total د.ك · عدد الأقساط: $count';
+  }
+
+  @override
+  String accInstallment(String month, String amount) {
+    return '$month: $amount د.ك';
+  }
+
+  @override
+  String accAwaitingPolice(String number) {
+    return 'الحادث #$number بانتظار محضر الشرطة: اضغط لإرسال صورته';
+  }
 }
