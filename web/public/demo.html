@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>قالب الواجهات (بيانات تجريبية) — نظام إدارة الأسطول</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230A6CFF'/%3E%3Cpath d='M12 5l6 7-6 7-6-7z' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="assets/css/fonts.css">
+  <link rel="stylesheet" href="assets/css/tokens.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/layout.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/overlays.css">
+  <style>
+    .wrap { max-width: 1160px; margin: 0 auto; padding: 48px 24px 60px; }
+    .hero h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.15; margin-top: 18px; letter-spacing: -.5px; }
+    .hero p { font-size: 16.5px; line-height: 1.8; color: var(--text-2); max-width: 720px; margin-top: 12px; }
+    .portals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 34px; }
+    .portal { background: rgba(255, 255, 255, .82); border: 1px solid rgba(255, 255, 255, .95); border-radius: 20px; padding: 22px; box-shadow: var(--shadow-md); text-decoration: none !important; color: inherit; display: flex; flex-direction: column; gap: 10px; transition: transform .15s, box-shadow .15s; }
+    :root[data-theme="dark"] .portal { background: var(--surface); border-color: var(--border); }
+    .portal:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+    .portal h3 { font-size: 19px; }
+    .portal p { font-size: 13.5px; color: var(--text-2); line-height: 1.7; }
+    .portal .go { margin-top: auto; color: var(--primary-strong); font-weight: 600; font-size: 13.5px; display: flex; align-items: center; gap: 6px; }
+    .pages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+    .pages a { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); font-size: 13px; color: var(--text-2); text-decoration: none; }
+    .pages a:hover { border-color: var(--primary); color: var(--primary-strong); }
+    .sec-t { font-size: 17px; font-weight: 700; color: var(--text); margin-top: 40px; }
+    @media (max-width: 900px) { .portals { grid-template-columns: minmax(0, 1fr); } .pages { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+</head>
+<body class="bt-bg">
+  <div class="wrap">
+    <div class="between">
+      <div class="flex items-center gap-10"><span class="logo lg"><i data-icon="diamond" data-size="22"></i></span><div><div class="brand-name" style="font-size:20px">Brilliant<i>Tech</i></div><div class="muted fs-sm">UI Template · v1.0</div></div></div>
+      <button type="button" class="icon-btn" id="theme" data-theme-icon="19" aria-label="الوضع الداكن"><i data-icon="moon" data-size="19"></i></button>
+    </div>
+    <div class="hero">
+      <h1>قالب نظام إدارة الأسطول<br>HTML · CSS · JavaScript</h1>
+      <p>كل الشاشات والنوافذ المنبثقة من العرض التقديمي، جاهزة للتشغيل بفتح الملف مباشرة — بدون مكتبات وبدون build. البيانات تجريبية ومتسقة بين كل الشاشات، وملف واحد (<code class="ltr">data.js</code>) يُستبدل بالـ API عند الربط.</p>
+      <div class="flex gap-8 mt-16" style="flex-wrap:wrap"><span class="pill b lg">3 بوابات</span><span class="pill g lg">16 صفحة إدارة</span><span class="pill p lg">+60 نافذة منبثقة</span><span class="pill o lg">RTL · وضع داكن · جوال</span></div>
+    </div>
+
+    <div class="portals">
+      <a class="portal" href="demo-admin.html"><span class="icon-tile lg"><i data-icon="house" data-size="22"></i></span><h3>لوحة الإدارة</h3><p>التتبع، السيارات والعداد، التسليم، العمل اليومي، الكاش والخزينة، الصيانة، الحوادث، الموظفون، الرواتب، المالية، التقارير، الاعتمادات، الصلاحيات، والتدقيق.</p><span class="go">فتح <i data-icon="arrow-left" data-size="15"></i></span></a>
+      <a class="portal" href="driver.html"><span class="icon-tile lg"><i data-icon="smartphone" data-size="22"></i></span><h3>تطبيق السائق</h3><p>الدخول برمز OTP، بدء اليوم بصورة العداد، التقرير اليومي بلقطة الشاشة، الكاش والإيصالات، طلب صيانة، والإبلاغ عن حادث.</p><span class="go">فتح <i data-icon="arrow-left" data-size="15"></i></span></a>
+      <a class="portal" href="portal.html"><span class="icon-tile lg" style="background:var(--purple-soft);color:var(--purple-text)"><i data-icon="store" data-size="22"></i></span><h3>بوابة مراكز الصيانة</h3><p>السيارات المحالة ومراحلها، عرض السعر ببنود، الفاتورة ومقارنتها بالعرض، وتقدير تلفيات الحوادث.</p><span class="go">فتح <i data-icon="arrow-left" data-size="15"></i></span></a>
+    </div>
+
+    <div class="grid-2 mt-16">
+      <a class="portal" href="ui-kit.html" style="flex-direction:row;align-items:center"><span class="icon-tile lg" style="background:var(--success-soft);color:var(--success-text)"><i data-icon="layout-grid" data-size="22"></i></span><div><h3>مكتبة المكونات</h3><p>كل مكون وكل نوع نافذة منبثقة مع زر تجربة ومثال كود.</p></div></a>
+      <a class="portal" href="admin.html" style="flex-direction:row;align-items:center"><span class="icon-tile lg" style="background:var(--warning-soft);color:var(--warning-text)"><i data-icon="log-in" data-size="22"></i></span><div><h3>النظام الفعلي</h3><p>لوحة الإدارة المربوطة بالخادم (تحتاج تسجيل دخول).</p></div></a>
+    </div>
+
+    <div class="sec-t">صفحات لوحة الإدارة</div>
+    <div class="pages" id="pages"></div>
+
+    <div class="banner note mt-24"><i data-icon="info" data-size="16"></i><div><b>ملاحظة:</b> هذا قالب واجهات ببيانات وهمية، مرجع للتصميم وللشاشات التي لم تُبنَ بعد (الصيانة، الحوادث، الرواتب، المالية، بوابة المراكز). النظام الفعلي هو <a href="admin.html">admin.html</a>. هذه الصفحات لا تدخل صورة الإنتاج (web/.dockerignore).</div></div>
+  </div>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/icons.js"></script>
+  <script>
+    (function () {
+      var P = [['dashboard', 'house', 'لوحة التحكم'], ['tracking', 'map', 'التتبع الحي'], ['vehicles', 'car', 'السيارات'], ['vehicles/18-23456', 'file-text', 'ملف سيارة'], ['handover', 'key-round', 'تسليم السيارات'], ['odometer', 'gauge', 'العداد'], ['daily', 'clipboard-list', 'العمل اليومي'], ['cash', 'wallet', 'الكاش والخزينة'], ['maintenance', 'wrench', 'الصيانة'], ['accidents', 'triangle-alert', 'الحوادث'], ['accidents/A-0142', 'file-warning', 'ملف حادث'], ['employees', 'users', 'الموظفون'], ['payroll', 'receipt', 'الرواتب'], ['finance', 'landmark', 'المالية'], ['reports', 'chart-column', 'التقارير'], ['approvals', 'badge-check', 'الاعتمادات'], ['settings', 'settings', 'الإعدادات والصلاحيات'], ['audit', 'shield-check', 'سجل التدقيق']];
+      BT.render(document.getElementById('pages'), BT.h`${P.map(function (p) { return BT.h`<a href="demo-admin.html#/${p[0]}">${BT.icon(p[1], 16)}${p[2]}</a>`; })}`);
+      document.getElementById('theme').onclick = BT.theme.toggle;
+      BT.hydrate(document);
+    })();
+  </script>
+</body>
+</html>

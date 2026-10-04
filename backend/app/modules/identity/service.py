@@ -596,6 +596,17 @@ def update_role(db: Session, principal: Principal, code: str, *, version: int, c
     return after
 
 
+def user_names(db: Session, ids: Iterable[int]) -> dict[int, str]:
+    """Display names for other modules (the audit log shows who acted)."""
+    ids = {i for i in ids if i is not None}
+    if not ids:
+        return {}
+    return {
+        i: f"{name} ({username})"
+        for i, name, username in db.execute(select(User.id, User.full_name, User.username).where(User.id.in_(ids)))
+    }
+
+
 def bootstrap_superuser(db: Session, *, username: str, full_name: str, password: str) -> str:
     """First administrator of a new installation (ops command). Refuses if any superuser exists."""
     if db.scalar(select(User.id).where(User.is_superuser.is_(True))):

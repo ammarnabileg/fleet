@@ -53,3 +53,12 @@ def test_client_settings_file_applies_cleanly(database_url):
             version, model = org.all_sections(db)[section]
             assert version == 1
             assert {k: model.model_dump(mode="json")[k] for k in value} == value
+
+
+def test_branding_is_public_and_follows_the_settings(client, admin_client):
+    assert client.get("/api/v1/branding").json() == {"display_name": "BrilliantTech Fleet", "primary_color": "#0A6CFF"}
+    v = admin_client.get("/api/v1/settings").json()["branding"]["version"]
+    r = admin_client.put("/api/v1/settings/branding", json={"version": v, "value": {"display_name": "شركة التجربة"}})
+    assert r.status_code == 200, r.text
+    anonymous = client.__class__(client.app)  # no session cookie
+    assert anonymous.get("/api/v1/branding").json()["display_name"] == "شركة التجربة"

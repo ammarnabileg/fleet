@@ -10,6 +10,13 @@ from app.modules.org import schemas, service
 router = APIRouter(prefix="/api/v1", tags=["org"])
 
 
+@router.get("/branding", response_model=schemas.BrandingOut)
+def branding(db: Session = Depends(get_session)):
+    """Public: the sign-in page shows the installation's name before anyone signs in."""
+    b = service.get_section(db, "branding")
+    return schemas.BrandingOut(display_name=b.display_name, primary_color=b.primary_color)
+
+
 @router.get("/settings", response_model=dict[str, schemas.SettingOut])
 def get_settings(_: Principal = Depends(require_permission("settings.view")), db: Session = Depends(get_session)):
     return {

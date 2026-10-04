@@ -54,9 +54,10 @@ def test_document_rules(admin_client, company):
         r = admin_client.post("/api/v1/documents", json=body)
         assert r.status_code == 422 and r.json()["code"] == code, (code, r.text)
     assert admin_client.post("/api/v1/documents", json=base | {"type_code": "contract"}).status_code == 201
+    soon = today() + timedelta(days=100)
     r = admin_client.post(
         "/api/v1/documents",
-        json={"owner_type": "vehicle", "owner_id": v["id"], "type_code": "insurance", "expiry_date": "2030-01-01"},
+        json={"owner_type": "vehicle", "owner_id": v["id"], "type_code": "insurance", "expiry_date": str(soon)},
     )
     assert r.status_code == 201
     r = admin_client.post(
@@ -65,10 +66,18 @@ def test_document_rules(admin_client, company):
             "owner_type": "company",
             "owner_id": company["public_id"],
             "type_code": "commercial_license",
-            "expiry_date": "2030-01-01",
+            "expiry_date": str(soon),
         },
     )
     assert r.status_code == 201
+    owners = {
+        d["owner_type"]: (d["owner_id"], d["owner_name"])
+        for d in admin_client.get("/api/v1/documents/expiring", params={"within_days": 365}).json()
+    }
+    assert owners == {
+        "vehicle": (v["id"], v["plate_number"]),
+        "company": (company["public_id"], company["name"]),
+    }  # the contract has no expiry, so it never expires
 
 
 def test_documents_follow_the_owners_company_scope(admin_client, new_client, companies):
@@ -114,6 +123,7 @@ def test_expiry_scan_alerts_once_and_renewal_closes_it(admin_client, new_client,
     admin_client.post("/api/v1/documents", json=body)
     expiring = admin_client.get("/api/v1/documents/expiring", params={"within_days": 30}).json()
     assert len(expiring) == 1 and expiring[0]["type_code"] == "driving_license"
+    assert (expiring[0]["owner_id"], expiring[0]["owner_name"]) == (d["id"], d["name"])  # whose it is
     assert documents.scan_expiring(db, lambda t, i: "x") == 1
     assert documents.scan_expiring(db, lambda t, i: "x") == 0  # still open: not repeated
     alerts = admin_client.get("/api/v1/alerts", headers={"Accept-Language": "en"}).json()

@@ -82,6 +82,11 @@ class BrandingSettings(_Section):
     logo_file: str | None = Field(None, max_length=64)
 
 
+class BrandingOut(BaseModel):
+    display_name: str
+    primary_color: str
+
+
 SECTIONS: dict[str, type[_Section]] = {
     "tracking": TrackingSettings,
     "cash": CashSettings,

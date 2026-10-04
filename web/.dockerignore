@@ -1,0 +1,15 @@
+# The production image carries the real screens only. The design template with made-up data
+# (demo pages, the mock driver app and the maintenance-center portal) stays in the repository as a reference.
+tools
+public/demo.html
+public/demo-admin.html
+public/driver.html
+public/portal.html
+public/ui-kit.html
+public/assets/js/data.js
+public/assets/js/admin.js
+public/assets/js/kit.js
+public/assets/js/driver.js
+public/assets/js/portal.js
+public/assets/js/pages
+public/assets/css/driver.css

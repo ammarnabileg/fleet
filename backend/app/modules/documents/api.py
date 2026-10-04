@@ -61,7 +61,25 @@ def list_expiring(
     principal: Principal = Depends(require_permission("documents.view")),
     db: Session = Depends(get_session),
 ):
-    return service.list_expiring(db, within_days=within_days, **principal.scope)
+    """Whose document it is comes from the owner's own module: a name for people, a plate for vehicles."""
+    docs = service.list_expiring(db, within_days=within_days, **principal.scope)
+    ids = {
+        kind: {d["owner_db_id"] for d in docs if d["owner_type"] == kind} for kind in ("employee", "vehicle", "company")
+    }
+    staff = people.names(db, ids["employee"])
+    cars = fleet.vehicles(db, ids["vehicle"])
+    firms = {
+        c["id"]: c for c in org.list_companies(db, all_companies=True, company_ids=[]) if c["id"] in ids["company"]
+    }
+    for d in docs:
+        key = d.pop("owner_db_id")
+        if d["owner_type"] == "employee" and key in staff:
+            d["owner_id"], d["owner_name"] = staff[key]["id"], staff[key]["name"]
+        elif d["owner_type"] == "vehicle" and key in cars:
+            d["owner_id"], d["owner_name"] = str(cars[key].public_id), cars[key].plate_number
+        elif d["owner_type"] == "company" and key in firms:
+            d["owner_id"], d["owner_name"] = firms[key]["public_id"], firms[key]["name"]
+    return docs
 
 
 @router.post("/documents", response_model=schemas.DocumentOut, status_code=201)

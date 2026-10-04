@@ -11,6 +11,7 @@ class AuditEventOut(BaseModel):
     occurred_at: datetime
     actor_type: str
     actor_user_id: int | None
+    actor_name: str | None = None
     action: str
     entity_type: str
     entity_id: str | None

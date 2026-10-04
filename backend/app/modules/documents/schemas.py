@@ -41,3 +41,4 @@ class DocumentOut(BaseModel):
     notes: str | None
     is_current: bool
     created_at: datetime
+    owner_name: dict | str | None = None  # in the expiring list: whose document it is

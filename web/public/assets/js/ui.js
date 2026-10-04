@@ -507,11 +507,13 @@
      opts: { columns:[{key,label,num,sort,render,width,cls}], rows, pageSize,
              search:{placeholder, text:(row)=>string}, chips:{key,options:[{v,t}],all},
              tools: Raw, rowClick, rowClass, rowMenu:(row)=>items, selectable, bulk:[{label,icon,cls,run}],
-             empty:{icon,title,text}, foot:(rows)=>Raw, sort:{key,dir}, id:(row)=>key }
+             empty:{icon,title,text}, foot:(rows)=>Raw, sort:{key,dir}, id:(row)=>key,
+             fetch:({q, chip, offset, limit})=>Promise<rows> }
+     fetch: الصفوف من الخادم صفحةً صفحة (البحث والتصفية والترقيم على الخادم، بلا فرز محلي)
      ================================================================= */
   BT.table = function (el, o) {
-    var st = { q: '', chip: o.chips ? (o.chips.value || '') : '', page: 1, size: o.pageSize || 10, sort: o.sort || null, sel: {} };
-    var getRows = function () { return typeof o.rows === 'function' ? o.rows() : o.rows; };
+    var st = { q: '', chip: o.chips ? (o.chips.value || '') : '', page: 1, size: o.pageSize || (o.fetch ? 25 : 10), sort: o.fetch ? null : o.sort || null, sel: {}, selRows: {}, loaded: [], more: false, loading: !!o.fetch, error: null, ticket: 0 };
+    var getRows = function () { return o.fetch ? st.loaded : typeof o.rows === 'function' ? o.rows() : o.rows; };
     var idOf = o.id || function (r, i) { return r.id != null ? r.id : i; };
     var cols = o.columns.slice();
     if (o.rowMenu) cols.push({ key: '_menu', label: '', cls: 'actions', render: function (r, i) { return h`<button type="button" class="icon-btn sm" data-row-menu="${i}" aria-label="إجراءات">${icon('ellipsis-vertical', 16)}</button>`; } });
@@ -528,8 +530,20 @@
     var wrapEl = el.querySelector('[data-wrap]'), pager = el.querySelector('[data-pager]'), chipsEl = el.querySelector('[data-chips]'), bulkEl = el.querySelector('[data-bulk]');
     var current = [], pageRows = [];
 
+    function load() {
+      var ticket = ++st.ticket;
+      st.loading = true; st.error = null; draw();
+      Promise.resolve(o.fetch({ q: st.q.trim(), chip: st.chip, offset: (st.page - 1) * st.size, limit: st.size + 1 })).then(function (rows) {
+        if (ticket !== st.ticket) return;
+        st.loading = false; st.more = rows.length > st.size; st.loaded = rows.slice(0, st.size); draw();
+      }, function (err) {
+        if (ticket !== st.ticket) return;
+        st.loading = false; st.loaded = []; st.more = false; st.error = (BT.api && BT.api.message) ? BT.api.message(err) : 'تعذر تحميل البيانات'; draw();
+      });
+    }
     function filtered() {
       var rows = getRows();
+      if (o.fetch) return rows;
       if (o.chips && st.chip !== '') rows = rows.filter(function (r) { return o.chips.match ? o.chips.match(r, st.chip) : String(r[o.chips.key]) === String(st.chip); });
       if (st.q) { var q = norm(st.q); rows = rows.filter(function (r) { return norm(o.search.text ? o.search.text(r) : Object.values(r).join(' ')).indexOf(q) > -1; }); }
       if (st.sort) {
@@ -543,23 +557,23 @@
     function drawChips() {
       if (!chipsEl) return;
       var all = getRows();
-      var items = [{ v: '', t: o.chips.all || 'الكل' }].concat(o.chips.options);
+      var items = (o.chips.all === false ? [] : [{ v: '', t: o.chips.all || 'الكل' }]).concat(o.chips.options);
       BT.render(chipsEl, h`${items.map(function (it) {
-        var n = it.v === '' ? all.length : all.filter(function (r) { return o.chips.match ? o.chips.match(r, it.v) : String(r[o.chips.key]) === String(it.v); }).length;
-        return h`<button type="button" class="chip${String(st.chip) === String(it.v) ? ' active' : ''}" data-chip="${it.v}">${it.t} <span class="n">${BT.fmt.int(n)}</span></button>`;
+        var n = o.fetch ? (o.chips.counts ? o.chips.counts[it.v] : null) : it.v === '' ? all.length : all.filter(function (r) { return o.chips.match ? o.chips.match(r, it.v) : String(r[o.chips.key]) === String(it.v); }).length;
+        return h`<button type="button" class="chip${String(st.chip) === String(it.v) ? ' active' : ''}" data-chip="${it.v}">${it.t}${n != null ? h` <span class="n">${BT.fmt.int(n)}</span>` : ''}</button>`;
       })}`);
     }
     function draw() {
       current = filtered();
-      var pages = st.size ? Math.max(1, Math.ceil(current.length / st.size)) : 1;
-      st.page = Math.min(st.page, pages);
-      var start = st.size ? (st.page - 1) * st.size : 0;
-      pageRows = st.size ? current.slice(start, start + st.size) : current;
+      var pages = o.fetch ? st.page + (st.more ? 1 : 0) : st.size ? Math.max(1, Math.ceil(current.length / st.size)) : 1;
+      if (!o.fetch) st.page = Math.min(st.page, pages);
+      var start = o.fetch ? 0 : st.size ? (st.page - 1) * st.size : 0;
+      pageRows = o.fetch || !st.size ? current : current.slice(start, start + st.size);
       var allSel = pageRows.length && pageRows.every(function (r, i) { return st.sel[idOf(r, start + i)]; });
       var html = h`<table class="t${o.compact ? ' compact' : ''}"><thead><tr>
         ${o.selectable ? h`<th class="cell-check"><label class="check"><input type="checkbox" data-sel-all${allSel ? raw(' checked') : ''} aria-label="تحديد الكل"></label></th>` : ''}
         ${cols.map(function (c) {
-          var sortable = c.sort !== false && c.key !== '_menu' && c.label;
+          var sortable = !o.fetch && c.sort !== false && c.key !== '_menu' && c.label;
           var sorted = st.sort && st.sort.key === c.key;
           return h`<th class="${c.num ? 'num ' : ''}${sortable ? 'sortable ' : ''}${sorted ? 'sorted' : ''}"${c.width ? raw(' style="width:' + c.width + '"') : ''}${sortable ? h` data-sort="${c.key}"` : ''}${sorted ? raw(' aria-sort="' + (st.sort.dir === 'desc' ? 'descending' : 'ascending') + '"') : ''}>${c.label}${sortable ? icon(sorted ? (st.sort.dir === 'desc' ? 'arrow-down' : 'arrow-up') : 'arrow-up-down', 12, 'sort-ic') : ''}</th>`;
         })}</tr></thead><tbody>
@@ -570,10 +584,16 @@
             var v = c.render ? c.render(r, i) : r[c.key];
             return h`<td class="${c.num ? 'num ' : ''}${c.cls || ''}">${v == null || v === '' ? '—' : v}</td>`;
           })}</tr>`;
-        }) : h`<tr><td class="t-empty" colspan="${cols.length + (o.selectable ? 1 : 0)}">${BT.empty((o.empty || {}).icon || 'search-x', (o.empty || {}).title || 'لا توجد نتائج', (o.empty || {}).text || (st.q ? 'جرّب كلمة بحث أخرى' : ''))}</td></tr>`}
+        }) : h`<tr><td class="t-empty" colspan="${cols.length + (o.selectable ? 1 : 0)}">${st.loading ? raw('<div class="t-loading"><span class="spinner"></span> جاري التحميل…</div>') : st.error ? BT.empty('wifi-off', 'تعذر تحميل البيانات', st.error, raw('<button type="button" class="btn btn-sm btn-secondary mt-8" data-t-retry>إعادة المحاولة</button>')) : BT.empty((o.empty || {}).icon || 'search-x', (o.empty || {}).title || 'لا توجد نتائج', (o.empty || {}).text || (st.q ? 'جرّب كلمة بحث أخرى' : ''))}</td></tr>`}
         </tbody>${o.foot && current.length ? h`<tfoot>${o.foot(current)}</tfoot>` : ''}</table>`;
       BT.render(wrapEl, html);
-      if (pager) {
+      if (pager && o.fetch) {
+        BT.render(pager, h`<span>صفحة <span class="num">${BT.fmt.int(st.page)}</span>${pageRows.length ? h` · <span class="num">${BT.fmt.int(pageRows.length)}</span> صف` : ''}</span>
+          <div class="flex items-center gap-8"><select class="select" data-size aria-label="عدد الصفوف">${[25, 50, 100, 200].map(function (n) { return h`<option value="${n}"${n === st.size ? raw(' selected') : ''}>${n} صف</option>`; })}</select>
+          <div class="pages"><button type="button" data-page="${st.page - 1}"${st.page <= 1 || st.loading ? raw(' disabled') : ''} aria-label="السابق">${icon('chevron-right', 16)}</button>
+          <button type="button" class="active" disabled>${st.page}</button>
+          <button type="button" data-page="${st.page + 1}"${!st.more || st.loading ? raw(' disabled') : ''} aria-label="التالي">${icon('chevron-left', 16)}</button></div></div>`);
+      } else if (pager) {
         var from = current.length ? start + 1 : 0, to = start + pageRows.length;
         var nums = [], p;
         for (p = 1; p <= pages; p++) { if (p === 1 || p === pages || Math.abs(p - st.page) <= 1) nums.push(p); else if (nums[nums.length - 1] !== '…') nums.push('…'); }
@@ -585,7 +605,10 @@
       }
       drawBulk();
     }
-    function selectedRows() { var all = getRows(); return all.filter(function (r, i) { return st.sel[idOf(r, i)]; }); }
+    function selectedRows() {
+      if (o.fetch) return Object.keys(st.sel).filter(function (k) { return st.sel[k]; }).map(function (k) { return st.selRows[k]; });
+      var all = getRows(); return all.filter(function (r, i) { return st.sel[idOf(r, i)]; });
+    }
     function drawBulk() {
       if (!bulkEl) return;
       var n = Object.keys(st.sel).filter(function (k) { return st.sel[k]; }).length;
@@ -594,32 +617,39 @@
       BT.render(bulkEl, h`${icon('list-checks', 16)}<span>تم تحديد <b class="num">${n}</b></span><div class="btn-group ms-auto">${(o.bulk || []).map(function (b, i) { return h`<button type="button" class="btn btn-sm ${b.cls || 'btn-outline'}" data-bulk-i="${i}">${b.icon ? icon(b.icon, 14) : ''}${b.label}</button>`; })}<button type="button" class="btn btn-sm btn-ghost" data-bulk-clear>إلغاء التحديد</button></div>`);
     }
 
-    if (o.search) el.querySelector('#' + searchId).addEventListener('input', BT.debounce(function (e) { st.q = e.target.value; st.page = 1; draw(); }, 150));
-    BT.on(el, 'click', '[data-chip]', function (e, b) { st.chip = b.getAttribute('data-chip'); st.page = 1; drawChips(); draw(); if (o.onChip) o.onChip(st.chip); });
+    var reload = function () { if (o.fetch) load(); else draw(); };
+    if (o.search) el.querySelector('#' + searchId).addEventListener('input', BT.debounce(function (e) { st.q = e.target.value; st.page = 1; reload(); }, o.fetch ? 350 : 150));
+    BT.on(el, 'click', '[data-chip]', function (e, b) { st.chip = b.getAttribute('data-chip'); st.page = 1; drawChips(); reload(); if (o.onChip) o.onChip(st.chip); });
+    BT.on(el, 'click', '[data-t-retry]', function () { load(); });
     BT.on(el, 'click', '[data-sort]', function (e, th) {
       var k = th.getAttribute('data-sort');
       st.sort = st.sort && st.sort.key === k ? (st.sort.dir === 'asc' ? { key: k, dir: 'desc' } : null) : { key: k, dir: 'asc' };
       draw();
     });
-    BT.on(el, 'click', '[data-page]', function (e, b) { st.page = +b.getAttribute('data-page'); draw(); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
+    BT.on(el, 'click', '[data-page]', function (e, b) { st.page = +b.getAttribute('data-page'); reload(); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
     el.addEventListener('change', function (e) {
-      if (e.target.matches('[data-size]')) { st.size = +e.target.value; st.page = 1; draw(); }
-      if (e.target.matches('[data-sel]')) { st.sel[e.target.getAttribute('data-sel')] = e.target.checked; draw(); }
-      if (e.target.matches('[data-sel-all]')) { var start = (st.page - 1) * st.size; pageRows.forEach(function (r, i) { st.sel[idOf(r, start + i)] = e.target.checked; }); draw(); }
+      if (e.target.matches('[data-size]')) { st.size = +e.target.value; st.page = 1; reload(); }
+      if (e.target.matches('[data-sel]')) {
+        var k = e.target.getAttribute('data-sel');
+        st.sel[k] = e.target.checked;
+        if (o.fetch) { var hit = pageRows.find(function (r, i) { return String(idOf(r, i)) === k; }); if (hit) st.selRows[k] = hit; }
+        draw();
+      }
+      if (e.target.matches('[data-sel-all]')) { var start = o.fetch ? 0 : (st.page - 1) * st.size; pageRows.forEach(function (r, i) { var id = idOf(r, start + i); st.sel[id] = e.target.checked; st.selRows[id] = r; }); draw(); }
     });
-    BT.on(el, 'click', '[data-bulk-i]', function (e, b) { var cfg = o.bulk[+b.getAttribute('data-bulk-i')]; cfg.run(selectedRows(), function () { st.sel = {}; draw(); }); });
-    BT.on(el, 'click', '[data-bulk-clear]', function () { st.sel = {}; draw(); });
+    BT.on(el, 'click', '[data-bulk-i]', function (e, b) { var cfg = o.bulk[+b.getAttribute('data-bulk-i')]; cfg.run(selectedRows(), function () { st.sel = {}; st.selRows = {}; draw(); }); });
+    BT.on(el, 'click', '[data-bulk-clear]', function () { st.sel = {}; st.selRows = {}; draw(); });
     BT.on(el, 'click', '[data-row-menu]', function (e, b) { e.stopPropagation(); BT.menu(b, o.rowMenu(pageRows[+b.getAttribute('data-row-menu')]), { align: 'start' }); });
     if (o.rowClick) BT.on(el, 'click', 'tbody tr[data-i]', function (e, tr) {
       if (e.target.closest('button,a,input,label,select')) return;
       o.rowClick(pageRows[+tr.getAttribute('data-i')]);
     });
-    drawChips(); draw();
+    drawChips(); draw(); if (o.fetch) load();
     return {
-      refresh: function () { drawChips(); draw(); },
-      setChip: function (v) { st.chip = v; st.page = 1; drawChips(); draw(); },
+      refresh: function () { drawChips(); reload(); },
+      setChip: function (v) { st.chip = v; st.page = 1; drawChips(); reload(); },
       rows: function () { return current; },
-      clear: function () { st.sel = {}; draw(); }
+      clear: function () { st.sel = {}; st.selRows = {}; draw(); }
     };
   };
 

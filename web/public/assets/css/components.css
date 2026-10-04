@@ -473,3 +473,19 @@ button.li:hover, a.li:hover { background: var(--surface-hover); text-decoration:
 .diff-new { background: var(--success-soft); color: var(--success-text); padding: 0 4px; border-radius: 4px; }
 .code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 12px; background: #0F1722; color: #D6E2F5; border-radius: 10px; padding: 12px 14px; direction: ltr; text-align: left; overflow-x: auto; white-space: pre; line-height: 1.6; }
 .link-row { display: inline-flex; align-items: center; gap: 4px; color: var(--primary-strong); font-weight: 600; font-size: 12.5px; }
+
+/* ---------- Live data states ---------- */
+.spinner { display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-inline-end-color: transparent; animation: bt-spin .7s linear infinite; vertical-align: -3px; }
+.t-loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 36px 12px; color: var(--muted); }
+.page-loading { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 220px; color: var(--muted); }
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+.thumbs figure { margin: 0; border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; background: var(--surface-2); cursor: zoom-in; }
+.thumbs img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.thumbs figcaption { font-size: 11.5px; padding: 4px 8px; color: var(--text-3); }
+.live-map { height: calc(100vh - 230px); min-height: 420px; border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--border); }
+.live-map .leaflet-container { font-family: inherit; }
+.veh-mark { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .3); }
+.veh-mark.g { background: var(--success); } .veh-mark.o { background: var(--warning); } .veh-mark.r { background: var(--danger); } .veh-mark.n { background: var(--muted); }
+.veh-mark.sel { outline: 3px solid var(--primary); outline-offset: 1px; }
+.side-list { max-height: calc(100vh - 230px); overflow: auto; }
+.toolbar .page-actions .select, .toolbar .page-actions .input { width: auto; min-width: 150px; }

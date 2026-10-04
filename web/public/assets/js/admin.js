@@ -108,7 +108,7 @@
       { sep: true },
       { label: 'تسجيل الخروج', icon: 'log-out', danger: true, onClick: function () {
         BT.confirm({ title: 'تسجيل الخروج', message: 'هل تريد تسجيل الخروج من النظام على هذا الجهاز؟', confirmText: 'تسجيل الخروج', tone: 'danger', icon: 'log-out' })
-          .then(function (r) { if (r.ok) location.href = 'login.html'; });
+          .then(function (r) { if (r.ok) location.href = 'demo.html'; });
       } }
     ], { focus: true });
   };

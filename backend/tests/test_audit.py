@@ -25,6 +25,7 @@ def test_audit_view_is_company_scoped(admin_client, new_client, companies):
     assert events and {e["company_id"] for e in events} == {a["id"]}
     everything = admin_client.get("/api/v1/audit", params={"action": "company"}).json()
     assert {e["company_id"] for e in everything} == {a["id"], b["id"]}
+    assert {e["actor_name"] for e in everything} == {"System Administrator (admin)"}  # who, readable
 
 
 def test_application_role_has_least_privilege(database_url, admin_client):

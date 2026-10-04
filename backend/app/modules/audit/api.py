@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_session
 from app.modules.audit import service
 from app.modules.audit.schemas import AuditEventOut
+from app.modules.identity import service as identity
 from app.modules.identity.service import Principal, require_permission
 
 router = APIRouter(prefix="/api/v1/audit", tags=["audit"])
@@ -19,7 +20,7 @@ def list_audit(
     principal: Principal = Depends(require_permission("audit.view")),
     db: Session = Depends(get_session),
 ):
-    return service.list_events(
+    events = service.list_events(
         db,
         **principal.scope,
         entity_type=entity_type,
@@ -28,3 +29,7 @@ def list_audit(
         before_id=before_id,
         limit=limit,
     )
+    names = identity.user_names(db, (e.actor_user_id for e in events))
+    return [
+        AuditEventOut.model_validate(e).model_copy(update={"actor_name": names.get(e.actor_user_id)}) for e in events
+    ]
