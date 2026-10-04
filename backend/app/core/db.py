@@ -16,7 +16,7 @@ NAMING = {
 }
 
 
-MIGRATED_SCHEMAS = {"org", "identity", "audit", "integrations"}
+MIGRATED_SCHEMAS = {"org", "identity", "audit", "integrations", "i18n"}
 
 
 def include_name(name, type_, parent_names) -> bool:

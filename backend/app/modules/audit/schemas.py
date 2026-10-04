@@ -14,7 +14,7 @@ class AuditEventOut(BaseModel):
     action: str
     entity_type: str
     entity_id: str | None
-    branch_id: int | None
+    company_id: int | None
     before: Any
     after: Any
     ip: str | None

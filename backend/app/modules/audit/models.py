@@ -23,7 +23,7 @@ class AuditEvent(Base):
     action: Mapped[str] = mapped_column(Text)
     entity_type: Mapped[str] = mapped_column(Text)
     entity_id: Mapped[str | None] = mapped_column(Text)
-    branch_id: Mapped[int | None] = mapped_column(BigInteger)
+    company_id: Mapped[int | None] = mapped_column(BigInteger)
     before: Mapped[dict | None] = mapped_column(JSONB)
     after: Mapped[dict | None] = mapped_column(JSONB)
     ip: Mapped[str | None] = mapped_column(Text)

@@ -21,8 +21,7 @@ def list_audit(
 ):
     return service.list_events(
         db,
-        all_branches=principal.sees_all_branches,
-        branch_ids=principal.branch_ids,
+        **principal.scope,
         entity_type=entity_type,
         entity_id=entity_id,
         action=action,

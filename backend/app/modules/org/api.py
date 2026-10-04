@@ -10,10 +10,6 @@ from app.modules.org import schemas, service
 router = APIRouter(prefix="/api/v1", tags=["org"])
 
 
-def _scope(p: Principal) -> dict:
-    return {"all_branches": p.sees_all_branches, "branch_ids": p.branch_ids}
-
-
 @router.get("/settings", response_model=dict[str, schemas.SettingOut])
 def get_settings(_: Principal = Depends(require_permission("settings.view")), db: Session = Depends(get_session)):
     return {
@@ -26,7 +22,7 @@ def get_settings(_: Principal = Depends(require_permission("settings.view")), db
 def put_settings(
     section: str,
     body: schemas.SettingIn,
-    principal: Principal = Depends(require_permission("settings.manage")),
+    principal: Principal = Depends(require_permission("settings.update")),
     db: Session = Depends(get_session),
 ):
     version, value = service.update_section(
@@ -35,32 +31,62 @@ def put_settings(
     return schemas.SettingOut(version=version, value=value.model_dump(mode="json"))
 
 
+# ---- companies: the legal entities employees and vehicles belong to
+
+
+@router.get("/companies/options", response_model=list[schemas.CompanyOption])
+def company_options(principal: Principal = Depends(get_principal), db: Session = Depends(get_session)):
+    """Names only, for the company drop-downs of other screens."""
+    return service.list_companies(db, **principal.scope)
+
+
 @router.get("/companies", response_model=list[schemas.CompanyOut])
-def list_companies(_: Principal = Depends(get_principal), db: Session = Depends(get_session)):
-    return [
-        schemas.CompanyOut(public_id=str(c.public_id), name_ar=c.name_ar, name_en=c.name_en, is_active=c.is_active)
-        for c in service.list_companies(db)
-    ]
+def list_companies(
+    principal: Principal = Depends(require_permission("companies.view")), db: Session = Depends(get_session)
+):
+    return service.list_companies(db, **principal.scope)
+
+
+@router.get("/companies/{public_id}", response_model=schemas.CompanyOut)
+def get_company(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("companies.view")),
+    db: Session = Depends(get_session),
+):
+    return service.get_company(db, public_id, **principal.scope)
 
 
 @router.post("/companies", response_model=schemas.CompanyOut, status_code=201)
 def create_company(
     body: schemas.CompanyIn,
-    principal: Principal = Depends(require_permission("branches.manage")),
+    principal: Principal = Depends(require_permission("companies.create")),
     db: Session = Depends(get_session),
 ):
-    c = service.create_company(db, name_ar=body.name_ar, name_en=body.name_en, actor_user_id=principal.user_id)
-    return schemas.CompanyOut(public_id=str(c.public_id), name_ar=c.name_ar, name_en=c.name_en, is_active=c.is_active)
+    return service.create_company(
+        db, body.model_dump(), all_companies=principal.sees_all_companies, actor_user_id=principal.user_id
+    )
+
+
+@router.patch("/companies/{public_id}", response_model=schemas.CompanyOut)
+def update_company(
+    public_id: uuid.UUID,
+    body: schemas.CompanyUpdateIn,
+    principal: Principal = Depends(require_permission("companies.update")),
+    db: Session = Depends(get_session),
+):
+    changes = body.model_dump(exclude_unset=True)
+    version = changes.pop("version")
+    return service.update_company(
+        db, public_id, version=version, changes=changes, actor_user_id=principal.user_id, **principal.scope
+    )
+
+
+# ---- branches: operational locations, visible to everyone signed in
 
 
 @router.get("/branches", response_model=list[schemas.BranchOut])
-def list_branches(principal: Principal = Depends(get_principal), db: Session = Depends(get_session)):
-    return service.list_branches(db, **_scope(principal))
-
-
-@router.get("/branches/{public_id}", response_model=schemas.BranchOut)
-def get_branch(public_id: uuid.UUID, principal: Principal = Depends(get_principal), db: Session = Depends(get_session)):
-    return service.get_branch(db, public_id, **_scope(principal))
+def list_branches(_: Principal = Depends(get_principal), db: Session = Depends(get_session)):
+    return service.list_branches(db)
 
 
 @router.post("/branches", response_model=schemas.BranchOut, status_code=201)
@@ -69,7 +95,7 @@ def create_branch(
     principal: Principal = Depends(require_permission("branches.manage")),
     db: Session = Depends(get_session),
 ):
-    return service.create_branch(db, **body.model_dump(), actor_user_id=principal.user_id)
+    return service.create_branch(db, name=body.name, actor_user_id=principal.user_id)
 
 
 @router.patch("/branches/{public_id}", response_model=schemas.BranchOut)
@@ -81,6 +107,4 @@ def update_branch(
 ):
     changes = body.model_dump(exclude_unset=True)
     version = changes.pop("version")
-    return service.update_branch(
-        db, public_id, version=version, changes=changes, actor_user_id=principal.user_id, **_scope(principal)
-    )
+    return service.update_branch(db, public_id, version=version, changes=changes, actor_user_id=principal.user_id)

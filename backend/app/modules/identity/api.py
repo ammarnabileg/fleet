@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.db import get_session
+from app.modules.i18n import service as i18n
 from app.modules.identity import schemas, service
 from app.modules.identity.service import Principal, get_principal, require_permission
 
@@ -56,13 +57,21 @@ def me(principal: Principal = Depends(get_principal)):
         public_id=principal.public_id,
         username=principal.username,
         full_name=principal.full_name,
+        locale=principal.locale,
         is_superuser=principal.is_superuser,
-        all_branches=principal.all_branches,
+        all_companies=principal.all_companies,
         permissions=sorted(principal.permissions),
-        branch_ids=sorted(principal.branch_ids),
+        company_ids=sorted(principal.company_ids),
         csrf_token=principal.csrf_token,
         must_change_password=principal.must_change_password,
     )
+
+
+@router.put("/auth/me/locale", status_code=204)
+def set_locale(
+    body: schemas.LocaleIn, principal: Principal = Depends(get_principal), db: Session = Depends(get_session)
+):
+    service.set_own_locale(db, principal, body.locale)
 
 
 @router.post("/auth/password", status_code=204)
@@ -90,7 +99,7 @@ def list_users(principal: Principal = Depends(require_permission("users.view")),
 @router.post("/users", response_model=schemas.UserOut, status_code=201)
 def create_user(
     body: schemas.UserCreateIn,
-    principal: Principal = Depends(require_permission("users.manage")),
+    principal: Principal = Depends(require_permission("users.create")),
     db: Session = Depends(get_session),
 ):
     return service.create_user(db, principal, **body.model_dump())
@@ -100,7 +109,7 @@ def create_user(
 def update_user(
     public_id: uuid.UUID,
     body: schemas.UserUpdateIn,
-    principal: Principal = Depends(require_permission("users.manage")),
+    principal: Principal = Depends(require_permission("users.update")),
     db: Session = Depends(get_session),
 ):
     changes = body.model_dump(exclude_unset=True)
@@ -112,14 +121,14 @@ def update_user(
 def reset_password(
     public_id: uuid.UUID,
     body: schemas.PasswordResetIn,
-    principal: Principal = Depends(require_permission("users.manage")),
+    principal: Principal = Depends(require_permission("users.update")),
     db: Session = Depends(get_session),
 ):
     service.reset_password(db, principal, public_id, body.new_password)
 
 
 @router.get("/roles", response_model=list[schemas.RoleOut])
-def list_roles(_: Principal = Depends(require_permission("users.view")), db: Session = Depends(get_session)):
+def list_roles(_: Principal = Depends(require_permission("roles.view")), db: Session = Depends(get_session)):
     return service.list_roles(db)
 
 
@@ -144,6 +153,12 @@ def update_role(
     return service.update_role(db, principal, code, version=version, changes=changes)
 
 
-@router.get("/permissions", response_model=list[schemas.PermissionOut])
-def list_permissions(_: Principal = Depends(get_principal)):
-    return [schemas.PermissionOut(code=c, name_ar=ar, name_en=en) for c, (ar, en) in sorted(service.catalog().items())]
+@router.get("/permissions", response_model=list[schemas.PermissionGroupOut])
+def list_permissions(
+    request: Request,
+    lang: str | None = None,
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_session),
+):
+    code = lang or i18n.negotiate(db, principal.locale, request.headers.get("accept-language"))
+    return service.permission_groups(db, code)

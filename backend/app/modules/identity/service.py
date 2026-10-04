@@ -11,15 +11,15 @@ from fastapi import Depends, Request
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from app.core import crypto
+from app.core import crypto, permissions
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.errors import AppError
 from app.modules.audit import service as audit
+from app.modules.i18n import service as i18n
 from app.modules.identity import security
-from app.modules.identity.models import Role, RolePermission, User, UserBranch, UserRole
+from app.modules.identity.models import Role, RolePermission, User, UserCompany, UserRole
 from app.modules.identity.models import Session as UserSession
-from app.modules.identity.permissions import CATALOG
 from app.modules.org import service as org
 
 SESSION_COOKIE = "fleet_session"
@@ -27,6 +27,7 @@ CSRF_HEADER = "x-csrf-token"
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 MFA_WINDOW = timedelta(minutes=5)
 TOUCH_EVERY = timedelta(seconds=60)
+ALL_PERMISSIONS = frozenset(permissions.CATALOG)
 
 
 def utcnow() -> datetime:
@@ -42,23 +43,29 @@ class Principal:
     public_id: str
     username: str
     full_name: str
+    locale: str | None
     is_superuser: bool
-    all_branches: bool
+    all_companies: bool
     permissions: frozenset[str]
-    branch_ids: frozenset[int]
+    company_ids: frozenset[int]
     session_id: int
     csrf_token: str
     must_change_password: bool
 
     @property
-    def sees_all_branches(self) -> bool:
-        return self.is_superuser or self.all_branches
+    def sees_all_companies(self) -> bool:
+        return self.is_superuser or self.all_companies
 
     def has(self, permission: str) -> bool:
         return self.is_superuser or permission in self.permissions
 
-    def can_access_branch(self, branch_id: int) -> bool:
-        return self.sees_all_branches or branch_id in self.branch_ids
+    def can_access_company(self, company_id: int) -> bool:
+        return self.sees_all_companies or company_id in self.company_ids
+
+    @property
+    def scope(self) -> dict:
+        """Keyword arguments for the scoped queries of other modules."""
+        return {"all_companies": self.sees_all_companies, "company_ids": self.company_ids}
 
 
 def _load_session(db: Session, token: str | None) -> tuple[UserSession, User] | None:
@@ -83,17 +90,22 @@ def _load_session(db: Session, token: str | None) -> tuple[UserSession, User] | 
     return None if expired else (sess, user)
 
 
+def _roles_permissions(db: Session, role_ids: Iterable[int]) -> frozenset[str]:
+    role_ids = list(role_ids)
+    if not role_ids:
+        return frozenset()
+    if db.scalar(select(func.count()).select_from(Role).where(Role.id.in_(role_ids), Role.all_permissions)):
+        return ALL_PERMISSIONS
+    perms = db.scalars(select(RolePermission.permission).where(RolePermission.role_id.in_(role_ids)))
+    return frozenset(perms) & ALL_PERMISSIONS
+
+
 def user_permissions(db: Session, user_id: int) -> frozenset[str]:
-    q = (
-        select(RolePermission.permission)
-        .join(UserRole, UserRole.role_id == RolePermission.role_id)
-        .where(UserRole.user_id == user_id)
-    )
-    return frozenset(db.scalars(q))
+    return _roles_permissions(db, db.scalars(select(UserRole.role_id).where(UserRole.user_id == user_id)))
 
 
-def user_branch_ids(db: Session, user_id: int) -> frozenset[int]:
-    return frozenset(db.scalars(select(UserBranch.branch_id).where(UserBranch.user_id == user_id)))
+def user_company_ids(db: Session, user_id: int) -> frozenset[int]:
+    return frozenset(db.scalars(select(UserCompany.company_id).where(UserCompany.user_id == user_id)))
 
 
 def get_principal(request: Request, db: Session = Depends(get_session)) -> Principal:
@@ -113,10 +125,11 @@ def get_principal(request: Request, db: Session = Depends(get_session)) -> Princ
         public_id=str(user.public_id),
         username=user.username,
         full_name=user.full_name,
+        locale=user.locale,
         is_superuser=user.is_superuser,
-        all_branches=user.all_branches,
-        permissions=user_permissions(db, user.id),
-        branch_ids=user_branch_ids(db, user.id),
+        all_companies=user.all_companies,
+        permissions=ALL_PERMISSIONS if user.is_superuser else user_permissions(db, user.id),
+        company_ids=user_company_ids(db, user.id),
         session_id=sess.id,
         csrf_token=sess.csrf_token,
         must_change_password=user.must_change_password,
@@ -124,19 +137,32 @@ def get_principal(request: Request, db: Session = Depends(get_session)) -> Princ
 
 
 def require_permission(permission: str):
-    if permission not in CATALOG:
-        raise ValueError(f"unknown permission {permission!r}")
+    if not permissions.exists(permission):
+        raise ValueError(f"unknown permission {permission!r}: add it to app/core/permissions.py")
 
     def dependency(principal: Principal = Depends(get_principal)) -> Principal:
         if not principal.has(permission):
-            raise AppError(403, "permission_denied", permission)
+            raise AppError(403, "permission_denied", permission=permission)
         return principal
 
     return dependency
 
 
-def catalog() -> dict[str, tuple[str, str]]:
-    return dict(CATALOG)
+def permission_groups(db: Session, lang: str) -> list[dict]:
+    """The catalog grouped by module with labels in `lang`, for the roles screen."""
+    catalog = i18n.effective_catalog(db, lang)
+    labels, modules = catalog.get("permissions", {}), catalog.get("modules", {})
+    return [
+        {
+            "module": module,
+            "label": modules.get(module, module),
+            "permissions": [
+                {"code": p.code, "action": p.action, "label": labels.get(p.code, p.code), "sensitive": p.sensitive}
+                for p in perms
+            ],
+        }
+        for module, perms in permissions.MODULES
+    ]
 
 
 # ------------------------------------------------------------------ authentication
@@ -249,8 +275,9 @@ def _revoke_all_sessions(db: Session, user_id: int, except_session: int | None =
 
 
 def _check_password_policy(password: str) -> None:
-    if len(password) < get_settings().password_min_length:
-        raise AppError(422, "password_too_short", f"minimum {get_settings().password_min_length} characters")
+    minimum = get_settings().password_min_length
+    if len(password) < minimum:
+        raise AppError(422, "password_too_short", min=minimum)
 
 
 def change_own_password(db: Session, principal: Principal, current: str, new: str) -> None:
@@ -263,6 +290,14 @@ def change_own_password(db: Session, principal: Principal, current: str, new: st
     audit.record(
         db, action="user.password_changed", entity_type="user", entity_id=user.public_id, actor_user_id=user.id
     )
+    db.commit()
+
+
+def set_own_locale(db: Session, principal: Principal, locale: str | None) -> None:
+    if locale is not None:
+        i18n.get_language(db, locale)
+    user = db.get(User, principal.user_id)
+    user.locale = locale
     db.commit()
 
 
@@ -289,7 +324,7 @@ def confirm_totp_setup(db: Session, principal: Principal, code: str) -> None:
     db.commit()
 
 
-# ------------------------------------------------------------------ administration
+# ------------------------------------------------------------------ users
 
 
 def _user_snapshot(db: Session, user: User) -> dict:
@@ -304,21 +339,23 @@ def _user_snapshot(db: Session, user: User) -> dict:
         "username": user.username,
         "full_name": user.full_name,
         "phone": user.phone,
+        "locale": user.locale,
         "is_active": user.is_active,
-        "all_branches": user.all_branches,
+        "all_companies": user.all_companies,
         "is_superuser": user.is_superuser,
         "mfa_enabled": user.totp_enabled,
         "must_change_password": user.must_change_password,
         "version": user.version,
         "roles": list(roles),
-        "branch_ids": sorted(user_branch_ids(db, user.id)),
+        "company_ids": sorted(user_company_ids(db, user.id)),
     }
 
 
-def _visible(principal: Principal, branch_ids: frozenset[int], all_branches: bool) -> bool:
-    if principal.sees_all_branches:
+def _visible(principal: Principal, company_ids: frozenset[int], all_companies: bool) -> bool:
+    """A company-limited administrator only sees users whose companies are all inside their own scope."""
+    if principal.sees_all_companies:
         return True
-    return not all_branches and bool(branch_ids) and branch_ids <= principal.branch_ids
+    return not all_companies and bool(company_ids) and company_ids <= principal.company_ids
 
 
 def _roles_by_code(db: Session, codes: Iterable[str]) -> list[Role]:
@@ -326,47 +363,41 @@ def _roles_by_code(db: Session, codes: Iterable[str]) -> list[Role]:
     roles = list(db.scalars(select(Role).where(Role.code.in_(codes))))
     missing = set(codes) - {r.code for r in roles}
     if missing:
-        raise AppError(422, "unknown_role", ", ".join(sorted(missing)))
+        raise AppError(422, "unknown_role", codes=", ".join(sorted(missing)))
     return roles
 
 
-def _role_permissions(db: Session, role_ids: Iterable[int]) -> set[str]:
-    return set(db.scalars(select(RolePermission.permission).where(RolePermission.role_id.in_(list(role_ids)))))
+def _guard_grants(db: Session, principal: Principal, roles: list[Role], all_companies: bool, company_ids: set[int]):
+    """Nobody can hand out more than they hold: permissions, all-company access or companies outside their scope."""
+    if not principal.is_superuser:
+        if not _roles_permissions(db, [r.id for r in roles]) <= principal.permissions:
+            raise AppError(403, "cannot_grant_permissions")
+        if all_companies and not principal.all_companies:
+            raise AppError(403, "company_out_of_scope")
+        if not principal.all_companies and not company_ids <= principal.company_ids:
+            raise AppError(403, "company_out_of_scope")
+    if company_ids and not org.company_ids_exist(db, company_ids):
+        raise AppError(422, "unknown_company")
 
 
-def _guard_grants(db: Session, principal: Principal, roles: list[Role], all_branches: bool, branch_ids: set[int]):
-    """Nobody can hand out more than they hold: permissions, all-branch access or branches outside their scope."""
-    if principal.is_superuser:
-        pass
-    elif not _role_permissions(db, [r.id for r in roles]) <= principal.permissions:
-        raise AppError(403, "cannot_grant_permissions")
-    elif all_branches and not principal.all_branches:
-        raise AppError(403, "branch_out_of_scope")
-    elif not principal.all_branches and not branch_ids <= principal.branch_ids:
-        raise AppError(403, "branch_out_of_scope")
-    if branch_ids and not org.branch_ids_exist(db, branch_ids):
-        raise AppError(422, "unknown_branch")
-
-
-def _set_links(db: Session, user_id: int, roles: list[Role], branch_ids: set[int]) -> None:
+def _set_links(db: Session, user_id: int, roles: list[Role], company_ids: set[int]) -> None:
     db.execute(delete(UserRole).where(UserRole.user_id == user_id))
-    db.execute(delete(UserBranch).where(UserBranch.user_id == user_id))
+    db.execute(delete(UserCompany).where(UserCompany.user_id == user_id))
     db.add_all([UserRole(user_id=user_id, role_id=r.id) for r in roles])
-    db.add_all([UserBranch(user_id=user_id, branch_id=b) for b in sorted(branch_ids)])
+    db.add_all([UserCompany(user_id=user_id, company_id=c) for c in sorted(company_ids)])
 
 
 def list_users(db: Session, principal: Principal) -> list[dict]:
-    users = db.scalars(select(User).order_by(User.username))
     out = []
-    for user in users:
-        if _visible(principal, user_branch_ids(db, user.id), user.all_branches or user.is_superuser):
+    for user in db.scalars(select(User).order_by(User.username)):
+        if _visible(principal, user_company_ids(db, user.id), user.all_companies or user.is_superuser):
             out.append(_user_snapshot(db, user))
     return out
 
 
-def _get_visible_user(db: Session, principal: Principal, public_id: str) -> User:
+def _get_visible_user(db: Session, principal: Principal, public_id) -> User:
     user = db.scalar(select(User).where(User.public_id == public_id))
-    if user is None or not _visible(principal, user_branch_ids(db, user.id), user.all_branches or user.is_superuser):
+    if user is None or not _visible(principal, user_company_ids(db, user.id), user.all_companies or user.is_superuser):
         raise AppError(404, "user_not_found")
     return user
 
@@ -378,27 +409,32 @@ def create_user(
     username: str,
     full_name: str,
     phone: str | None,
+    locale: str | None,
     password: str,
     role_codes: list[str],
-    all_branches: bool,
-    branch_ids: list[int],
+    all_companies: bool,
+    company_ids: list[int],
 ) -> dict:
     if db.scalar(select(User.id).where(func.lower(User.username) == username.strip().lower())):
         raise AppError(409, "username_taken")
     _check_password_policy(password)
+    if locale is not None:
+        i18n.get_language(db, locale)
     roles = _roles_by_code(db, role_codes)
-    _guard_grants(db, principal, roles, all_branches, set(branch_ids))
+    company_ids = set() if all_companies else set(company_ids)
+    _guard_grants(db, principal, roles, all_companies, company_ids)
     user = User(
         username=username.strip(),
         full_name=full_name.strip(),
         phone=phone,
+        locale=locale,
         password_hash=security.hash_password(password),
         must_change_password=True,
-        all_branches=all_branches,
+        all_companies=all_companies,
     )
     db.add(user)
     db.flush()
-    _set_links(db, user.id, roles, set(branch_ids))
+    _set_links(db, user.id, roles, company_ids)
     db.flush()
     snapshot = _user_snapshot(db, user)
     audit.record(
@@ -413,21 +449,23 @@ def create_user(
     return snapshot
 
 
-def update_user(db: Session, principal: Principal, public_id: str, *, version: int, changes: dict) -> dict:
+def update_user(db: Session, principal: Principal, public_id, *, version: int, changes: dict) -> dict:
     user = _get_visible_user(db, principal, public_id)
     if user.version != version:
         raise AppError(409, "version_conflict")
     if user.is_superuser and not principal.is_superuser:
         raise AppError(403, "cannot_modify_superuser")
+    if changes.get("locale") is not None:
+        i18n.get_language(db, changes["locale"])
     before = _user_snapshot(db, user)
-    for field in ("full_name", "phone", "is_active", "all_branches"):
+    for field in ("full_name", "phone", "locale", "is_active", "all_companies"):
         if field in changes:
             setattr(user, field, changes[field])
-    if {"role_codes", "branch_ids", "all_branches"} & changes.keys():
+    if {"role_codes", "company_ids", "all_companies"} & changes.keys():
         roles = _roles_by_code(db, changes.get("role_codes", before["roles"]))
-        branch_ids = set(changes.get("branch_ids", before["branch_ids"]))
-        _guard_grants(db, principal, roles, user.all_branches, branch_ids)
-        _set_links(db, user.id, roles, branch_ids)
+        company_ids = set() if user.all_companies else set(changes.get("company_ids", before["company_ids"]))
+        _guard_grants(db, principal, roles, user.all_companies, company_ids)
+        _set_links(db, user.id, roles, company_ids)
     if changes.get("is_active") is False:
         _revoke_all_sessions(db, user.id)
     user.version += 1
@@ -447,7 +485,7 @@ def update_user(db: Session, principal: Principal, public_id: str, *, version: i
     return after
 
 
-def reset_password(db: Session, principal: Principal, public_id: str, new_password: str) -> None:
+def reset_password(db: Session, principal: Principal, public_id, new_password: str) -> None:
     user = _get_visible_user(db, principal, public_id)
     if user.is_superuser and not principal.is_superuser:
         raise AppError(403, "cannot_modify_superuser")
@@ -461,23 +499,29 @@ def reset_password(db: Session, principal: Principal, public_id: str, new_passwo
     db.commit()
 
 
+# ------------------------------------------------------------------ roles
+
+
 def _role_snapshot(db: Session, role: Role) -> dict:
-    perms = sorted(db.scalars(select(RolePermission.permission).where(RolePermission.role_id == role.id)))
+    if role.all_permissions:
+        perms = sorted(ALL_PERMISSIONS)
+    else:
+        perms = sorted(db.scalars(select(RolePermission.permission).where(RolePermission.role_id == role.id)))
     return {
         "code": role.code,
-        "name_ar": role.name_ar,
-        "name_en": role.name_en,
+        "name": role.name,
         "is_system": role.is_system,
+        "all_permissions": role.all_permissions,
         "permissions": perms,
         "version": role.version,
     }
 
 
-def _check_permissions(principal: Principal, permissions: list[str]) -> set[str]:
-    wanted = set(permissions)
-    unknown = wanted - CATALOG.keys()
+def _check_permissions(principal: Principal, wanted: list[str]) -> set[str]:
+    wanted = set(wanted)
+    unknown = wanted - ALL_PERMISSIONS
     if unknown:
-        raise AppError(422, "unknown_permission", ", ".join(sorted(unknown)))
+        raise AppError(422, "unknown_permission", codes=", ".join(sorted(unknown)))
     if not principal.is_superuser and not wanted <= principal.permissions:
         raise AppError(403, "cannot_grant_permissions")
     return wanted
@@ -487,13 +531,12 @@ def list_roles(db: Session) -> list[dict]:
     return [_role_snapshot(db, r) for r in db.scalars(select(Role).order_by(Role.code))]
 
 
-def create_role(
-    db: Session, principal: Principal, *, code: str, name_ar: str, name_en: str, permissions: list[str]
-) -> dict:
+def create_role(db: Session, principal: Principal, *, code: str, name: dict, permissions: list[str]) -> dict:
     wanted = _check_permissions(principal, permissions)
+    name = i18n.validate_localized(db, name)
     if db.scalar(select(Role.id).where(Role.code == code)):
         raise AppError(409, "role_exists")
-    role = Role(code=code, name_ar=name_ar, name_en=name_en)
+    role = Role(code=code, name=name, all_permissions=False)
     db.add(role)
     db.flush()
     db.add_all([RolePermission(role_id=role.id, permission=p) for p in sorted(wanted)])
@@ -515,9 +558,8 @@ def update_role(db: Session, principal: Principal, code: str, *, version: int, c
     if role.version != version:
         raise AppError(409, "version_conflict")
     before = _role_snapshot(db, role)
-    for field in ("name_ar", "name_en"):
-        if field in changes:
-            setattr(role, field, changes[field])
+    if "name" in changes:
+        role.name = i18n.validate_localized(db, changes["name"])
     if "permissions" in changes:
         wanted = _check_permissions(principal, changes["permissions"])
         db.execute(delete(RolePermission).where(RolePermission.role_id == role.id))
@@ -548,10 +590,11 @@ def bootstrap_superuser(db: Session, *, username: str, full_name: str, password:
         full_name=full_name,
         password_hash=security.hash_password(password),
         is_superuser=True,
-        all_branches=True,
+        all_companies=True,
     )
     db.add(user)
     db.flush()
+    db.add(UserRole(user_id=user.id, role_id=db.scalar(select(Role.id).where(Role.code == "system_admin"))))
     audit.record(
         db,
         action="user.bootstrapped",

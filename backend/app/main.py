@@ -8,6 +8,7 @@ from app.core import errors, middleware
 from app.core.config import get_settings
 from app.core.db import new_session
 from app.modules.audit.api import router as audit_router
+from app.modules.i18n.api import router as i18n_router
 from app.modules.identity.api import router as identity_router
 from app.modules.org.api import router as org_router
 
@@ -41,6 +42,6 @@ def create_app() -> FastAPI:
             return JSONResponse({"status": "database_unavailable"}, status_code=503)
         return {"status": "ready"}
 
-    for router in (identity_router, org_router, audit_router):
+    for router in (identity_router, org_router, i18n_router, audit_router):
         app.include_router(router)
     return app

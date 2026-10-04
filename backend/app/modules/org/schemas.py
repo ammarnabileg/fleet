@@ -1,7 +1,9 @@
-import uuid
+from datetime import date
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.core.types import LocalizedText
 
 Money = Field(ge=0, max_digits=12, decimal_places=3)
 
@@ -80,47 +82,84 @@ class SettingIn(BaseModel):
     value: dict
 
 
-# ---- companies & branches
+# ---- companies (legal entities) & branches (operational locations)
 
 
 class CompanyIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name_ar: str = Field(min_length=2, max_length=150)
-    name_en: str = Field(min_length=2, max_length=150)
+    name: LocalizedText
+    trade_name: LocalizedText | None = None
+    cr_number: str | None = Field(default=None, max_length=30)
+    license_number: str | None = Field(default=None, max_length=30)
+    license_expiry: date | None = None
+    pam_file_number: str | None = Field(default=None, max_length=30)
+    phone: str | None = Field(default=None, max_length=20)
+    address: str | None = Field(default=None, max_length=300)
+    contact_name: str | None = Field(default=None, max_length=150)
+    contact_phone: str | None = Field(default=None, max_length=20)
+
+
+class CompanyUpdateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: int
+    name: LocalizedText | None = None
+    trade_name: LocalizedText | None = None
+    cr_number: str | None = Field(default=None, max_length=30)
+    license_number: str | None = Field(default=None, max_length=30)
+    license_expiry: date | None = None
+    pam_file_number: str | None = Field(default=None, max_length=30)
+    phone: str | None = Field(default=None, max_length=20)
+    address: str | None = Field(default=None, max_length=300)
+    contact_name: str | None = Field(default=None, max_length=150)
+    contact_phone: str | None = Field(default=None, max_length=20)
+    is_active: bool | None = None
 
 
 class CompanyOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+    id: int
     public_id: str
-    name_ar: str
-    name_en: str
+    name: dict[str, str]
+    trade_name: dict[str, str] | None
+    cr_number: str | None
+    license_number: str | None
+    license_expiry: date | None
+    pam_file_number: str | None
+    phone: str | None
+    address: str | None
+    contact_name: str | None
+    contact_phone: str | None
+    is_active: bool
+    version: int
+
+
+class CompanyOption(BaseModel):
+    id: int
+    public_id: str
+    name: dict[str, str]
     is_active: bool
 
 
 class BranchIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    company_public_id: uuid.UUID
-    name_ar: str = Field(min_length=2, max_length=150)
-    name_en: str = Field(min_length=2, max_length=150)
+    name: LocalizedText
 
 
 class BranchUpdateIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     version: int
-    name_ar: str | None = Field(default=None, min_length=2, max_length=150)
-    name_en: str | None = Field(default=None, min_length=2, max_length=150)
+    name: LocalizedText | None = None
     is_active: bool | None = None
+    is_default: bool | None = None
 
 
 class BranchOut(BaseModel):
     id: int
     public_id: str
-    company_public_id: str
-    name_ar: str
-    name_en: str
+    name: dict[str, str]
+    is_default: bool
     is_active: bool
     version: int

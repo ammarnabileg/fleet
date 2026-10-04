@@ -21,7 +21,7 @@ def record(
     entity_id: Any = None,
     actor_user_id: int | None = None,
     actor_type: str | None = None,
-    branch_id: int | None = None,
+    company_id: int | None = None,
     before: Any = None,
     after: Any = None,
 ) -> None:
@@ -33,7 +33,7 @@ def record(
             action=action,
             entity_type=entity_type,
             entity_id=None if entity_id is None else str(entity_id),
-            branch_id=branch_id,
+            company_id=company_id,
             before=_jsonable(before),
             after=_jsonable(after),
             ip=context.client_ip.get(),
@@ -45,8 +45,8 @@ def record(
 def list_events(
     db: Session,
     *,
-    all_branches: bool,
-    branch_ids: Iterable[int],
+    all_companies: bool,
+    company_ids: Iterable[int],
     entity_type: str | None = None,
     entity_id: str | None = None,
     action: str | None = None,
@@ -54,8 +54,8 @@ def list_events(
     limit: int = 50,
 ) -> list[AuditEvent]:
     q = select(AuditEvent).order_by(AuditEvent.id.desc()).limit(min(limit, 200))
-    if not all_branches:  # branch-scoped users see only their branches' events
-        q = q.where(AuditEvent.branch_id.in_(list(branch_ids)))
+    if not all_companies:  # company-limited users see only their companies' events
+        q = q.where(AuditEvent.company_id.in_(list(company_ids)))
     if entity_type:
         q = q.where(AuditEvent.entity_type == entity_type)
     if entity_id:

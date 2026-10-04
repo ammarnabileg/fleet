@@ -10,9 +10,9 @@ PROBLEM = "application/problem+json"
 class AppError(Exception):
     """An expected failure with a stable `code` the clients can rely on."""
 
-    def __init__(self, status: int, code: str, detail: str | None = None):
-        super().__init__(code)
-        self.status, self.code, self.detail = status, code, detail
+    def __init__(self, status: int, error_code: str, detail: str | None = None, /, **params):
+        super().__init__(error_code)
+        self.status, self.code, self.detail, self.params = status, error_code, detail, params
 
 
 def problem(status: int, code: str, detail: str | None = None, **extra) -> JSONResponse:
@@ -26,7 +26,8 @@ def problem(status: int, code: str, detail: str | None = None, **extra) -> JSONR
 def install(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(_: Request, exc: AppError):
-        return problem(exc.status, exc.code, exc.detail)
+        # `params` fill the placeholders of the translated message (namespace "errors", key = code)
+        return problem(exc.status, exc.code, exc.detail, **({"params": exc.params} if exc.params else {}))
 
     @app.exception_handler(RequestValidationError)
     async def _validation(_: Request, exc: RequestValidationError):

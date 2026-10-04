@@ -85,7 +85,7 @@ def test_password_change_signs_out_other_sessions(client, new_client, superuser,
 
 
 def test_deactivating_a_user_ends_their_sessions(admin_client, new_client):
-    user = make_user(admin_client, "clerk", all_branches=True)
+    user = make_user(admin_client, "clerk")
     c = new_client()
     login(c, "clerk")
     r = admin_client.patch(f"/api/v1/users/{user['public_id']}", json={"version": user["version"], "is_active": False})

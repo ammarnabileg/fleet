@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, Text, func, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -19,6 +19,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(Text)
     full_name: Mapped[str] = mapped_column(Text)
     phone: Mapped[str | None] = mapped_column(Text)
+    locale: Mapped[str | None] = mapped_column(Text)
     password_hash: Mapped[str] = mapped_column(Text)
     must_change_password: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     totp_secret_enc: Mapped[str | None] = mapped_column(Text)
@@ -26,7 +27,7 @@ class User(Base):
     totp_last_step: Mapped[int | None] = mapped_column(BigInteger)  # a TOTP code can be used once
     is_superuser: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
-    all_branches: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    all_companies: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     failed_logins: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -41,9 +42,9 @@ class Role(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(Text, unique=True)
-    name_ar: Mapped[str] = mapped_column(Text)
-    name_en: Mapped[str] = mapped_column(Text)
+    name: Mapped[dict] = mapped_column(JSONB)
     is_system: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    all_permissions: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
 
@@ -70,14 +71,14 @@ class UserRole(Base):
     )
 
 
-class UserBranch(Base):
-    __tablename__ = "user_branches"
+class UserCompany(Base):
+    __tablename__ = "user_companies"
     __table_args__ = SCHEMA
 
     user_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("identity.users.id", ondelete="CASCADE"), primary_key=True
     )
-    branch_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("org.branches.id"), primary_key=True)
+    company_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("org.companies.id"), primary_key=True)
 
 
 class Session(Base):
