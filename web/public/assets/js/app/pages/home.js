@@ -35,6 +35,13 @@
         ${BT.kpi({ label: 'تحت الإصلاح', value: fmt.int(mnt.under_repair), sub: fmt.int(mnt.referred) + ' محالة لم تصل المركز بعد', dot: 'p', href: '#/maintenance?status=at_center' })}
         ${BT.kpi({ label: 'جاهزة للاستلام', value: fmt.int(mnt.ready), sub: 'من مراكز الصيانة', dot: 'g', tone: mnt.ready ? 'success' : null, href: '#/maintenance?status=ready' })}
       </div>`);
+      var acc = d.accidents;
+      if (acc) rows.push(h`<div class="kpis">
+        ${BT.kpi({ label: 'حوادث مفتوحة', value: fmt.int(acc.open), sub: fmt.int(acc.this_month) + ' هذا الشهر', dot: 'r', href: '#/accidents' })}
+        ${BT.kpi({ label: 'بلا محضر شرطة', value: fmt.int(acc.no_police_report), sub: 'لا تُحدد المسؤولية قبله', dot: 'o', tone: acc.no_police_report ? 'warning' : null, href: '#/accidents?chip=police' })}
+        ${BT.kpi({ label: 'تقديرات بانتظار الاعتماد', value: fmt.int(acc.estimate_pending), sub: 'من مراكز الصيانة', dot: 'p', href: '#/accidents?chip=estimate' })}
+        ${BT.kpi({ label: 'بانتظار تحديد المسؤولية', value: fmt.int(acc.awaiting_outcome), sub: 'التقدير معتمد', dot: 'b', href: '#/accidents?chip=outcome' })}
+      </div>`);
 
       var a = d.alerts;
       var alertCard = h`<div class="card"><div class="card-h"><div class="card-t">تنبيهات مفتوحة</div><span class="flex gap-8">${a.critical ? BT.pill(a.critical + ' حرج', 'r') : ''}${a.warning ? BT.pill(a.warning + ' تحذير', 'o') : ''}${a.info ? BT.pill(a.info + ' معلومة', 'b') : ''}</span></div>

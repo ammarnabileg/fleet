@@ -24,7 +24,9 @@
       { key: 'odometer', icon: 'gauge', label: 'العداد', any: ['odometer.view'], count: 'odometer' },
       { key: 'daily', icon: 'clipboard-list', label: 'التقارير اليومية', any: ['daily_reports.view'], count: 'daily' },
       { key: 'maintenance', icon: 'wrench', label: 'الصيانة', any: ['maintenance.view', 'invoices.view'], count: 'maintenance' },
+      { key: 'accidents', icon: 'shield-alert', label: 'الحوادث', any: ['accidents.view'], count: 'accidents' },
       { key: 'cash', icon: 'wallet', label: 'الكاش والخزينة', any: ['cash.view', 'treasury.view'] },
+      { key: 'deductions', icon: 'minus-circle', label: 'الخصومات', any: ['deductions.view'] },
       { key: 'employees', icon: 'users', label: 'الموظفون والسائقون', any: ['employees.view'], count: 'onboarding' },
       { key: 'reports', icon: 'chart-column', label: 'التقارير', any: ['reports.view', 'cash.view'] }
     ] },
@@ -158,6 +160,7 @@
     }, function () {}));
     if (api.can('odometer.view')) jobs.push(api.get('/odometer/readings', { review_status: 'pending', limit: 200 }).then(function (r) { A.counts.odometer = r.length; }, function () {}));
     if (api.can('maintenance.approve')) jobs.push(api.get('/maintenance/requests', { status: 'requested,quote_pending', limit: 200 }).then(function (r) { A.counts.maintenance = r.length; }, function () {}));
+    if (api.can('accidents.view')) jobs.push(api.get('/accidents', { stage: api.can('accidents.approve') ? 'reported,estimate_pending,awaiting_outcome' : 'reported,estimate_pending', limit: 200 }).then(function (r) { A.counts.accidents = r.length; }, function () {}));
     if (api.can('employees.onboarding')) jobs.push(api.get('/onboarding', { status: 'submitted', limit: 200 }).then(function (r) { A.counts.onboarding = r.length; }, function () {}));
     return Promise.all(jobs).then(function () {
       A.renderNav((A.router && A.router.current || '').split('/')[0]);

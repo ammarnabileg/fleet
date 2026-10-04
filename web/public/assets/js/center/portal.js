@@ -41,20 +41,27 @@
   /* ---------- القائمة ---------- */
   var NAV = [
     { key: 'requests', icon: 'car', label: 'السيارات المحالة', count: 'active' },
+    { key: 'accidents', icon: 'shield-alert', label: 'أضرار الحوادث', count: 'acc', perm: 'portal.damage' },
     { key: 'history', icon: 'history', label: 'السجل' },
     { key: 'invoices', icon: 'receipt-text', label: 'الفواتير', perm: 'portal.invoices' }
   ];
   function renderNav(active) {
     BT.render(document.getElementById('nav'), h`${NAV.filter(function (n) { return !n.perm || api.can(n.perm); }).map(function (it) {
-      var c = it.count ? P.counts[it.count] : 0;
-      return h`<a class="nav-item${it.key === active ? ' active' : ''}" href="#/${it.key}">${icon(it.icon, 17)}<span>${it.label}</span>${c ? h`<span class="count${P.counts.fresh ? ' hot' : ''}">${c}</span>` : ''}</a>`;
+      var c = it.count ? P.counts[it.count] : 0, hot = it.count === 'acc' ? P.counts.accFresh : P.counts.fresh;
+      return h`<a class="nav-item${it.key === active ? ' active' : ''}" href="#/${it.key}">${icon(it.icon, 17)}<span>${it.label}</span>${c ? h`<span class="count${hot ? ' hot' : ''}">${c}</span>` : ''}</a>`;
     })}`);
   }
+  function navKey(route) { var k = (route || '').split('/')[0]; return k === 'r' ? 'requests' : k === 'a' ? 'accidents' : k || 'requests'; }
   function refreshCounts() {
-    return api.get('/portal/requests').then(function (rows) {
-      P.counts.active = rows.length;
-      P.counts.fresh = rows.filter(function (r) { return r.is_new; }).length;
-      renderNav((P.router && P.router.current || '').split('/')[0] || 'requests');
+    return Promise.all([
+      api.get('/portal/requests'),
+      api.can('portal.damage') ? api.get('/portal/accidents') : Promise.resolve([])
+    ]).then(function (res) {
+      P.counts.active = res[0].length;
+      P.counts.fresh = res[0].filter(function (r) { return r.is_new; }).length;
+      P.counts.acc = res[1].length;
+      P.counts.accFresh = res[1].filter(function (a) { return a.is_new; }).length;
+      renderNav(navKey(P.router && P.router.current));
     }, function () {});
   }
 
@@ -94,6 +101,85 @@
       BT.on(body, 'click', '[data-st]', function (e, b) { var s = b.getAttribute('data-st'); P.router.go('requests' + (stage === s ? '' : '?status=' + s)); });
     }, function (err) { if (document.contains(body)) BT.render(body, errorBox(err)); });
   };
+
+  /* ---------- أضرار الحوادث: التقدير المطلوب من المركز ---------- */
+  function accUrl(id) { return function (sha) { return api.url('/portal/accidents/' + id + '/files/' + sha); }; }
+  BT.pages['accidents'] = function (p, q) {
+    setTitle('أضرار الحوادث');
+    var hist = q.tab === 'history', v = view();
+    BT.render(v, h`${head('حوادث محالة لتقدير الأضرار', 'قدّروا الأضرار بنداً بنداً؛ يعتمد مدير الصيانة التقدير قبل أي إجراء')}
+      <div class="tabs mb-16"><a class="tab${hist ? '' : ' active'}" href="#/accidents">بانتظار التقدير أو الاعتماد</a><a class="tab${hist ? ' active' : ''}" href="#/accidents?tab=history">السجل</a></div>
+      <div class="card"><div data-table>${spinner()}</div></div>`);
+    api.get('/portal/accidents', { active: !hist }).then(function (rows) {
+      var el = v.querySelector('[data-table]');
+      if (!el) return;
+      BT.table(el, {
+        rows: rows,
+        search: { placeholder: 'اللوحة أو رقم الحادث…', text: function (a) { return a.vehicle.plate_number + ' ' + a.number; } },
+        columns: [
+          { key: 'vehicle', label: 'السيارة', render: function (a) { return h`${M.vehicle(a.vehicle)}${a.is_new ? h` ${BT.pill('جديد', 'b')}` : ''}`; } },
+          { key: 'number', label: 'الحادث', render: function (a) { return h`<span class="num">#${a.number}</span><span class="sub">${fmt.dt(a.occurred_at)}</span>`; } },
+          { key: 'estimate_status', label: 'التقدير', render: function (a) { return BT.acc.estimate(a.estimate_status); } },
+          { key: 'estimate_total', label: 'القيمة', num: true, render: function (a) { return a.estimate_total != null ? BT.amt(Number(a.estimate_total)) : '—'; } },
+          { key: 'referred_at', label: 'الإحالة', render: function (a) { return fmt.since(a.referred_at); } }
+        ],
+        rowClick: function (a) { P.router.go('a/' + a.id); },
+        empty: { icon: 'shield-alert', title: hist ? 'لا يوجد سجل بعد' : 'لا توجد حوادث بانتظار تقديركم' }
+      });
+    }, function (err) { var el = v.querySelector('[data-table]'); if (el) BT.render(el, errorBox(err)); });
+  };
+
+  BT.pages['a/:id'] = function (p) {
+    setTitle('حادث', [['أضرار الحوادث', 'accidents'], ['الحادث']]);
+    var v = view();
+    BT.render(v, spinner());
+    api.get('/portal/accidents/' + p.id).then(function (a) {
+      if (!document.contains(v)) return;
+      refreshCounts();
+      setTitle('حادث #' + a.number + ' · ' + a.vehicle.plate_number, [['أضرار الحوادث', 'accidents'], ['#' + a.number]]);
+      var canEstimate = ['none', 'rejected'].indexOf(a.estimate_status) > -1 && api.can('portal.damage');
+      var banner = {
+        none: ['info', 'info', 'افحصوا السيارة والصور ثم أرسلوا تقدير الأضرار بالبنود.'],
+        pending: ['warn', 'clock', 'أُرسل التقدير: بانتظار اعتماد مدير الصيانة.'],
+        approved: ['success', 'circle-check', 'اعتُمد التقدير. إن أُرسلت السيارة لكم للإصلاح ستظهر في «السيارات المحالة».'],
+        rejected: ['danger', 'circle-x', 'رُفض التقدير: راجعوا السبب وأرسلوا تقديراً جديداً.']
+      }[a.estimate_status];
+      BT.render(v, h`${head(h`${M.vehicleLine(a.vehicle)} · حادث <span class="num">#${a.number}</span>`, h`${BT.acc.estimate(a.estimate_status)} · ${fmt.dt(a.occurred_at)}`,
+          canEstimate ? h`<button type="button" class="btn btn-primary" data-est>${icon('file-plus', 15)}${a.estimate_status === 'rejected' ? 'تقدير جديد' : 'إرسال تقدير الأضرار'}</button>` : '')}
+        <div class="banner ${banner[0]} mb-16">${icon(banner[1], 16)}<div>${banner[2]}${a.estimate_reason ? h`<br><b>سبب الرفض:</b> ${a.estimate_reason}` : ''}</div></div>
+        <div class="grid-2 mb-16">
+          <div class="card"><div class="card-h"><div class="card-t">الحادث</div></div>${BT.kv([
+            ['السيارة', M.vehicleLine(a.vehicle)],
+            ['الوقت', fmt.dt(a.occurred_at)],
+            ['الوصف', h`<span style="white-space:normal">${a.description}</span>`],
+            ['الإحالة', fmt.dt(a.referred_at)]
+          ])}</div>
+          <div class="card"><div class="card-h"><div class="card-t">الصور</div></div>${BT.acc.photos(a.photos, accUrl(a.id))}</div>
+        </div>
+        ${BT.acc.estimateCard(a, null)}`);
+      var b = v.querySelector('[data-est]');
+      if (b) b.onclick = function () { estimateForm(a); };
+    }, function (err) { if (document.contains(v)) BT.render(v, errorBox(err)); });
+  };
+
+  function estimateForm(a) {
+    var ed;
+    form({
+      title: 'تقدير أضرار الحادث', subtitle: a.vehicle.plate_number + ' · حادث #' + a.number, icon: 'file-plus', size: 'lg',
+      body: h`${M.itemsHtml}<div class="form mt-16">${BT.f.textarea({ name: 'notes', label: 'ملاحظات (المدة المتوقعة للإصلاح مثلاً)', optional: true, rows: 2 })}
+        ${BT.f.upload({ name: 'file', label: 'ملف التقدير', optional: true, accept: 'image/*,application/pdf' })}
+        ${BT.f.upload({ name: 'ph', label: 'صور الأضرار من المركز', optional: true, multiple: true, accept: 'image/*', accept_label: 'صور فقط · حتى 12 صورة' })}</div>
+        <div class="muted fs-sm mt-8">يعتمد مدير الصيانة التقدير قبل استخدامه؛ لا يمكن تعديله بعد الإرسال إلا إذا رُفض.</div>`,
+      onOpen: function (dlg) { ed = M.itemsEditor(dlg.body); },
+      submitText: 'إرسال التقدير', submitIcon: 'send', done: 'أُرسل التقدير', doneSub: function () { return 'بانتظار اعتماد مدير الصيانة'; },
+      submit: function (f) {
+        if (!ed.valid() || ed.total() <= 0) { BT.toast('أكمل البنود: الوصف والسعر لكل بند', { type: 'error' }); return false; }
+        return Promise.all([f.file && f.file[0] ? upload(f.file[0]) : Promise.resolve(null), uploadAll(f.ph)]).then(function (up) {
+          return api.post('/portal/accidents/' + a.id + '/estimate', { total: ed.total().toFixed(3), items: ed.read(), notes: f.notes || null, file_sha256: up[0], photos: up[1] });
+        });
+      }
+    });
+  }
 
   /* ---------- السجل ---------- */
   BT.pages['history'] = function () {
@@ -339,7 +425,7 @@
           BT.closeAll(); BT.closeMenu();
           var old = view(), fresh = old.cloneNode(false); old.replaceWith(fresh);
           document.getElementById('app').classList.remove('nav-open');
-          renderNav(r.current.split('/')[0] === 'r' ? 'requests' : r.current.split('/')[0]);
+          renderNav(navKey(r.current));
           window.scrollTo(0, 0);
         }
       });

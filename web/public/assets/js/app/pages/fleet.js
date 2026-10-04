@@ -108,9 +108,11 @@
         </div>
         ${readings ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('gauge', 16)} قراءات العداد</div><a class="link-row" href="#/odometer">صفحة العداد ${icon('arrow-left', 14)}</a></div><div id="veh-readings"></div></div>` : ''}
         ${api.can('maintenance.view') ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('wrench', 16)} الصيانة</div><a class="link-row" href="#/maintenance">صفحة الصيانة ${icon('arrow-left', 14)}</a></div><div id="veh-mnt"></div></div>` : ''}
+        ${api.can('accidents.view') ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('shield-alert', 16)} الحوادث</div><a class="link-row" href="#/accidents">صفحة الحوادث ${icon('arrow-left', 14)}</a></div><div id="veh-acc"></div></div>` : ''}
         ${docs ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('file-badge', 16)} مستندات السيارة</div></div><div id="veh-docs">${vehDocs(docs)}</div></div>` : ''}`;
       function wire(x) {
         if (document.getElementById('veh-mnt') && A.vehicleMaintenance) A.vehicleMaintenance(document.getElementById('veh-mnt'), x);
+        if (document.getElementById('veh-acc') && A.vehicleAccidents) A.vehicleAccidents(document.getElementById('veh-acc'), x);
         if (readings && document.getElementById('veh-readings')) BT.table(document.getElementById('veh-readings'), { rows: readings, pageSize: 0, columns: readingColumns(false), rowClick: function (rd) { A.reading(rd); } });
         var on = function (sel, fn) { var b = document.getElementById(sel); if (b) b.onclick = fn; };
         on('veh-edit', function () { A.vehicleForm(x, function () { A.router.refresh(); }); });
