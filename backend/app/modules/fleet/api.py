@@ -2,7 +2,6 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
-from fastapi.responses import FileResponse
 from pydantic import AwareDatetime
 from sqlalchemy.orm import Session
 
@@ -169,11 +168,7 @@ def custody_photo(
     db: Session = Depends(get_session),
 ):
     info = service.custody_photo(db, public_id, sha256, **principal.scope)
-    return FileResponse(
-        files.path_of(info.sha256),
-        media_type=info.content_type,
-        headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"},
-    )
+    return files.response(db, info)
 
 
 @router.post("/custodies/{public_id}/review", response_model=schemas.CustodyOut)
@@ -227,11 +222,7 @@ def reading_photo(
     db: Session = Depends(get_session),
 ):
     info = service.reading_photo(db, public_id, **principal.scope)
-    return FileResponse(
-        files.path_of(info.sha256),
-        media_type=info.content_type,
-        headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"},
-    )
+    return files.response(db, info)
 
 
 # ---- driver app

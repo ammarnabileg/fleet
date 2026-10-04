@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, Integer, Text, func
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, Index, Integer, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -15,6 +15,8 @@ class StoredFile(Base):
         CheckConstraint("size_bytes > 0", name="size_bytes"),
         CheckConstraint("content_type IN ('image/jpeg', 'image/png', 'application/pdf')", name="content_type"),
         CheckConstraint("source IN ('camera', 'upload')", name="source"),
+        CheckConstraint("storage IN ('local', 'r2')", name="storage"),
+        Index("files_storage_idx", "storage"),
         {"schema": "files"},
     )
 
@@ -25,3 +27,4 @@ class StoredFile(Base):
     uploaded_by_user: Mapped[int | None] = mapped_column(BigInteger)
     uploaded_by_device: Mapped[int | None] = mapped_column(BigInteger)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    storage: Mapped[str] = mapped_column(Text, server_default=text("'local'"))  # where the bytes are

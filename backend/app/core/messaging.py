@@ -1,6 +1,7 @@
 """Messages to a driver's phone (the sign-in code), behind one small interface chosen by configuration.
 
 - "whatsapp": WhatsApp through an Evolution API instance.
+- "panel": set up from the control panel (integrations); until it is switched on there, nothing can be sent.
 - "log": development and tests only. It refuses production, so codes never end up in production logs.
 
 Delivery failures raise DeliveryError. The caller still answers the driver the same way (otherwise a failure
@@ -79,11 +80,25 @@ class EvolutionProvider:
         return str((body.get("instance") or {}).get("state") or body.get("state") or "unknown")
 
 
+class PanelProvider:
+    """WhatsApp is set up from the control panel and is not switched on yet."""
+
+    def send(self, to: str, text: str) -> None:
+        raise DeliveryError("WhatsApp is not set up in the control panel")
+
+    def connection_state(self) -> str:
+        return "unconfigured"
+
+
 @lru_cache
-def provider() -> LogProvider | EvolutionProvider:
+def provider() -> LogProvider | EvolutionProvider | PanelProvider:
+    """The server's own configuration. Callers use integrations.service.messenger(db): the control panel's
+    settings, when WhatsApp is switched on there, come first."""
     settings = get_settings()
     if settings.messaging_provider == "log":
         return LogProvider()
+    if settings.messaging_provider == "panel":
+        return PanelProvider()
     if settings.messaging_provider == "whatsapp":
         missing = [
             n for n in ("evolution_api_url", "evolution_api_key", "evolution_instance") if not getattr(settings, n)

@@ -10,6 +10,7 @@ celery = Celery(
     broker=settings.celery_broker_url,
     include=[
         "app.modules.integrations.tasks",
+        "app.modules.files.tasks",
         "app.modules.identity.tasks",
         "app.modules.tracking.tasks",
         "app.modules.documents.tasks",
@@ -42,4 +43,5 @@ celery.conf.beat_schedule = {
     "daily-report-overdue": {"task": "daily_ops.scan_overdue", "schedule": crontab(minute=5)},
     "ledger-invariants": {"task": "cash.check_invariants", "schedule": crontab(hour=2, minute=0)},
     "police-reports": {"task": "accidents.scan_police_reports", "schedule": crontab(hour=9, minute=15)},
+    "files-to-r2": {"task": "files.copy_to_r2", "schedule": 600.0},  # does nothing until R2 is switched on
 }

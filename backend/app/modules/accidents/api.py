@@ -2,7 +2,6 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.db import get_session
@@ -14,14 +13,6 @@ router = APIRouter(prefix="/api/v1", tags=["accidents"])
 
 Limit = Annotated[int, Query(ge=1, le=500)]
 Offset = Annotated[int, Query(ge=0)]
-
-
-def _file(info: files.FileInfo) -> FileResponse:
-    return FileResponse(
-        files.path_of(info.sha256),
-        media_type=info.content_type,
-        headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"},
-    )
 
 
 # ------------------------------------------------------------------ the office
@@ -180,7 +171,7 @@ def accident_file(
     principal: Principal = Depends(require_permission("accidents.view")),
     db: Session = Depends(get_session),
 ):
-    return _file(service.accident_file(db, public_id, sha256, **principal.scope))
+    return files.response(db, service.accident_file(db, public_id, sha256, **principal.scope))
 
 
 # ------------------------------------------------------------------ the center's portal
@@ -221,7 +212,7 @@ def portal_file(
     principal: Principal = Depends(require_permission("portal.damage")),
     db: Session = Depends(get_session),
 ):
-    return _file(service.portal_file(db, public_id, sha256, user_id=principal.user_id))
+    return files.response(db, service.portal_file(db, public_id, sha256, user_id=principal.user_id))
 
 
 # ------------------------------------------------------------------ the driver app

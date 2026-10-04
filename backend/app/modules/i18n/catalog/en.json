@@ -317,7 +317,14 @@
     "fine_has_no_driver": "Nobody held the vehicle at the time of the fine: there is no driver to charge",
     "fine_charged": "The fine is charged to the driver: cancel the deduction first, from the deductions page",
     "fine_paid": "The fine's payment is already recorded",
-    "range_too_long_days": "The period is longer than {days} days"
+    "range_too_long_days": "The period is longer than {days} days",
+    "unknown_connection": "Unknown service: {kind}",
+    "invalid_connection": "Invalid settings: {detail}",
+    "connection_incomplete": "Cannot switch on before filling in: {fields}",
+    "connection_check_failed": "The service did not answer as expected, nothing was saved: {error}",
+    "storage_in_use": "{count} files are in the bucket: it cannot be changed nor its key removed, or they could no longer be read (the key may be replaced with a new key for the same bucket)",
+    "storage_unavailable": "File storage is unavailable right now, try again shortly",
+    "storage_not_r2": "File storage is not set to R2"
   },
   "settings": {
     "branding": "Branding",

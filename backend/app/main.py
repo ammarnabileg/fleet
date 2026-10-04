@@ -18,6 +18,7 @@ from app.modules.fleet.api import router as fleet_router
 from app.modules.i18n.api import router as i18n_router
 from app.modules.identity.api import router as identity_router
 from app.modules.imports.api import router as imports_router
+from app.modules.integrations.api import router as integrations_router
 from app.modules.maintenance.api import router as maintenance_router
 from app.modules.notifications.api import router as notifications_router
 from app.modules.onboarding.api import router as onboarding_router
@@ -72,6 +73,7 @@ def create_app() -> FastAPI:
         notifications_router,
         onboarding_router,
         imports_router,
+        integrations_router,
         maintenance_router,
         accidents_router,
         fines_router,

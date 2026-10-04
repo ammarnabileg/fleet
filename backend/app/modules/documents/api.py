@@ -2,7 +2,6 @@ import uuid
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.db import get_session
@@ -100,8 +99,4 @@ def document_file(
     db: Session = Depends(get_session),
 ):
     info = service.get_file(db, public_id, side=side, **principal.scope)
-    return FileResponse(
-        files.path_of(info.sha256),
-        media_type=info.content_type,
-        headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"},
-    )
+    return files.response(db, info)

@@ -34,6 +34,7 @@ from app.core.events import emit
 from app.modules.audit import service as audit
 from app.modules.i18n import service as i18n
 from app.modules.identity.models import ActivationLink, Device, DeviceStatus, DeviceToken, OtpChallenge
+from app.modules.integrations import service as integrations
 from app.modules.notifications import service as notifications
 from app.modules.people import service as people
 
@@ -98,7 +99,7 @@ def request_otp(db: Session, *, phone: str, device_uid: str, ip: str | None) -> 
     if code:
         text = i18n.for_drivers(db, "messages.otp", code=code, minutes=OTP_TTL.seconds // 60)
         try:
-            messaging.provider().send(phone, text)
+            integrations.messenger(db).send(phone, text)
         except messaging.DeliveryError as exc:  # same answer to the phone; the supervisors are told instead
             log.warning("sign-in code not delivered: %s", exc)
             notifications.raise_alert(
@@ -314,7 +315,7 @@ def create_activation_link(
             hours=int(ACTIVATION_TTL.total_seconds() // 3600),
         )
         try:
-            messaging.provider().send(driver.phone, text)
+            integrations.messenger(db).send(driver.phone, text)
         except messaging.NotOnWhatsApp:
             db.rollback()
             raise AppError(422, "phone_not_on_whatsapp", phone=driver.phone) from None
@@ -550,7 +551,7 @@ def check_messaging_channel(db: Session) -> str:
     """Every few minutes: a WhatsApp session that dropped (it needs its QR code scanned again) or an unreachable
     Evolution API stops every new phone binding, so it alerts at once and closes itself when the channel is back."""
     try:
-        state = messaging.provider().connection_state()
+        state = integrations.messenger(db).connection_state()
     except messaging.DeliveryError:
         state = "unreachable"
     if state == "open":

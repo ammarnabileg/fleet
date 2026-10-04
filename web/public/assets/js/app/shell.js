@@ -34,6 +34,7 @@
     { sec: 'الإدارة', items: [
       { key: 'import', icon: 'file-spreadsheet', label: 'استيراد البيانات', all: IMPORT_PERMS },
       { key: 'settings', icon: 'settings', label: 'الإعدادات والصلاحيات', any: ['settings.view', 'users.view', 'roles.view', 'companies.view', 'branches.manage', 'i18n.manage'] },
+      { key: 'integrations', icon: 'puzzle', label: 'التكاملات', any: ['integrations.manage'] },
       { key: 'audit', icon: 'shield-check', label: 'سجل التدقيق', any: ['audit.view'] }
     ] }
   ];

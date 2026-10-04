@@ -3,7 +3,6 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.db import get_session
@@ -56,11 +55,7 @@ def report_screenshot(
     db: Session = Depends(get_session),
 ):
     info = service.screenshot(db, public_id, **principal.scope)
-    return FileResponse(
-        files.path_of(info.sha256),
-        media_type=info.content_type,
-        headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"},
-    )
+    return files.response(db, info)
 
 
 @router.post("/daily-reports/{public_id}/approve", response_model=schemas.ReportOut)

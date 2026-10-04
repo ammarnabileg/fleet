@@ -24,6 +24,7 @@ from app.modules.documents import service as documents
 from app.modules.files import service as files
 from app.modules.fleet import service as fleet
 from app.modules.i18n import service as i18n
+from app.modules.integrations import service as integrations
 from app.modules.notifications import service as notifications
 from app.modules.onboarding.models import Submission
 from app.modules.org import service as org
@@ -241,7 +242,7 @@ def file(db: Session, public_id, sha256: str, **scope) -> files.FileInfo:
 def _notify(db: Session, driver: people.EmployeeRef, key: str, **params) -> None:
     """Best effort: the decision stands even if WhatsApp is down (the app shows it too)."""
     try:
-        messaging.provider().send(driver.phone, i18n.for_drivers(db, key, name=driver.name, **params))
+        integrations.messenger(db).send(driver.phone, i18n.for_drivers(db, key, name=driver.name, **params))
     except messaging.DeliveryError as exc:
         log.warning("registration decision not delivered: %s", exc)
 

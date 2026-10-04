@@ -2,7 +2,6 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.db import get_session
@@ -14,14 +13,6 @@ router = APIRouter(prefix="/api/v1", tags=["maintenance"])
 
 Limit = Annotated[int, Query(ge=1, le=500)]
 Offset = Annotated[int, Query(ge=0)]
-
-
-def _file(info: files.FileInfo) -> FileResponse:
-    return FileResponse(
-        files.path_of(info.sha256),
-        media_type=info.content_type,
-        headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"},
-    )
 
 
 # ------------------------------------------------------------------ centers (office)
@@ -140,7 +131,7 @@ def request_file(
     principal: Principal = Depends(require_permission("maintenance.view")),
     db: Session = Depends(get_session),
 ):
-    return _file(service.request_file(db, public_id, sha256, **principal.scope))
+    return files.response(db, service.request_file(db, public_id, sha256, **principal.scope))
 
 
 @router.post("/maintenance/requests/{public_id}/approve", response_model=schemas.RequestDetailOut)
@@ -271,7 +262,7 @@ def invoice_file(
     principal: Principal = Depends(require_permission("invoices.view")),
     db: Session = Depends(get_session),
 ):
-    return _file(service.invoice_file(db, public_id, **principal.scope))
+    return files.response(db, service.invoice_file(db, public_id, **principal.scope))
 
 
 @router.post("/maintenance/invoices/{public_id}/approve", response_model=schemas.InvoiceOut)
@@ -345,7 +336,7 @@ def portal_file(
     principal: Principal = Depends(require_permission("portal.vehicles")),
     db: Session = Depends(get_session),
 ):
-    return _file(service.portal_file(db, public_id, sha256, user_id=principal.user_id))
+    return files.response(db, service.portal_file(db, public_id, sha256, user_id=principal.user_id))
 
 
 @router.post("/portal/requests/{public_id}/receive", response_model=schemas.RequestDetailOut)
@@ -429,7 +420,7 @@ def portal_invoice_file(
     principal: Principal = Depends(require_permission("portal.invoices")),
     db: Session = Depends(get_session),
 ):
-    return _file(service.portal_invoice_file(db, public_id, user_id=principal.user_id))
+    return files.response(db, service.portal_invoice_file(db, public_id, user_id=principal.user_id))
 
 
 # ------------------------------------------------------------------ the driver app

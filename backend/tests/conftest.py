@@ -82,6 +82,7 @@ def fresh_database(database_url, admin_engine):
     from app.core import messaging
     from app.core.db import get_engine
     from app.modules.i18n import service as i18n
+    from app.modules.integrations import service as integrations
     from app.modules.org import service as org
     from app.modules.tracking import service as tracking
 
@@ -90,6 +91,8 @@ def fresh_database(database_url, admin_engine):
         c.execute(text(f'DROP DATABASE IF EXISTS "{database_url["live"]}" WITH (FORCE)'))
         c.execute(text(f'CREATE DATABASE "{database_url["live"]}" TEMPLATE "{database_url["template"]}"'))
     org._cache.clear()
+    integrations._cache.clear()
+    integrations._built.clear()
     i18n._effective_cache.clear()
     tracking._partitions.clear()
     messaging.provider().sent.clear()
