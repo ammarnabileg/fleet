@@ -188,7 +188,7 @@ def _flush_unique(db: Session) -> None:
     try:
         db.flush()
     except IntegrityError as exc:
-        db.rollback()
+        # no rollback here: the caller's transaction (or savepoint) decides
         code = UNIQUE_ERRORS.get(violated_constraint(exc))
         if code is None:
             raise
@@ -241,7 +241,9 @@ def get_employee(db: Session, public_id, *, show_salary: bool, **scope) -> dict:
     return _out(e, db.get(EmploymentStatus, e.status_code), show_salary)
 
 
-def create_employee(db: Session, data: dict, *, can_set_salary: bool, actor_user_id: int, **scope) -> dict:
+def create_employee(
+    db: Session, data: dict, *, can_set_salary: bool, actor_user_id: int, commit: bool = True, **scope
+) -> dict:
     if not can_set_salary and any(data.get(f) is not None for f in SALARY_FIELDS):
         raise AppError(403, "permission_denied", permission="employees.view_salary")
     _check_company(db, data["company_id"], **scope)
@@ -271,12 +273,21 @@ def create_employee(db: Session, data: dict, *, can_set_salary: bool, actor_user
         employee.public_id,
         {"employee_id": str(employee.public_id), "company_id": employee.company_id},
     )
-    db.commit()
+    if commit:
+        db.commit()
     return _out(employee, status, can_set_salary)
 
 
 def update_employee(
-    db: Session, public_id, *, version: int, changes: dict, can_set_salary: bool, actor_user_id: int, **scope
+    db: Session,
+    public_id,
+    *,
+    version: int,
+    changes: dict,
+    can_set_salary: bool,
+    actor_user_id: int,
+    commit: bool = True,
+    **scope,
 ) -> dict:
     employee = _get(db, public_id, lock=True, **scope)
     if employee.version != version:
@@ -321,12 +332,13 @@ def update_employee(
         employee.public_id,
         {"employee_id": str(employee.public_id), "company_id": employee.company_id},
     )
-    db.commit()
+    if commit:
+        db.commit()
     return _out(employee, db.get(EmploymentStatus, employee.status_code), can_set_salary)
 
 
 def change_status(
-    db: Session, public_id, *, status_code: str, note: str | None, actor_user_id: int, **scope
+    db: Session, public_id, *, status_code: str, note: str | None, actor_user_id: int, commit: bool = True, **scope
 ) -> tuple[EmployeeRef, bool]:
     """Returns the employee and whether the employment just ended (terminal status)."""
     employee = _get(db, public_id, lock=True, **scope)
@@ -361,11 +373,12 @@ def change_status(
             "terminal": status.is_terminal,
         },
     )
-    db.commit()
+    if commit:
+        db.commit()
     return _ref(employee, status), ended
 
 
-def set_app_access(db: Session, public_id, *, value: str, actor_user_id: int, **scope) -> dict:
+def set_app_access(db: Session, public_id, *, value: str, actor_user_id: int, commit: bool = True, **scope) -> dict:
     """Suspend or (re)activate the driver app. "disabled" comes only from a terminal status."""
     employee = _get(db, public_id, lock=True, **scope)
     status = db.get(EmploymentStatus, employee.status_code)
@@ -386,7 +399,8 @@ def set_app_access(db: Session, public_id, *, value: str, actor_user_id: int, **
         before={"app_access": before},
         after={"app_access": value},
     )
-    db.commit()
+    if commit:
+        db.commit()
     return _out(employee, status, False)
 
 
@@ -489,6 +503,39 @@ def driver_by_phone(db: Session, phone: str) -> EmployeeRef | None:
         .where(Employee.phone == phone, Employee.is_driver.is_(True))
     ).first()
     return None if row is None else _ref(*row)
+
+
+def find(db: Session, *, civil_id: str | None, phone: str | None) -> EmployeeRef | None:
+    """The existing employee for an imported row: by civil ID, or by phone when there is none."""
+    for column, value in ((Employee.civil_id, civil_id), (Employee.phone, phone)):
+        if value:
+            row = db.execute(
+                select(Employee, EmploymentStatus)
+                .join(EmploymentStatus, EmploymentStatus.code == Employee.status_code)
+                .where(column == value)
+            ).first()
+            if row:
+                return _ref(*row)
+    return None
+
+
+def next_employee_number(db: Session) -> int:
+    """For imported employees without a number: E00001, E00002..."""
+    numbers = db.scalars(select(Employee.employee_number).where(Employee.employee_number.op("~")(r"^E[0-9]+$")))
+    return max((int(n[1:]) for n in numbers), default=0) + 1
+
+
+def status_by_name(db: Session, label: str) -> str | None:
+    """An active status matched by its name in any language (imported files carry names, not codes)."""
+    label = " ".join(label.split())
+    for s in db.scalars(select(EmploymentStatus).where(EmploymentStatus.is_active.is_(True))):
+        if label in {" ".join(v.split()) for v in s.name.values()} or label == s.code:
+            return s.code
+    return None
+
+
+def get_version(db: Session, employee_id: int) -> int:
+    return db.scalar(select(Employee.version).where(Employee.id == employee_id))
 
 
 def names(db: Session, ids: Iterable[int]) -> dict[int, dict]:

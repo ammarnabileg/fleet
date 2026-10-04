@@ -142,7 +142,7 @@ def _flush_vehicle(db: Session) -> None:
     try:
         db.flush()
     except IntegrityError as exc:
-        db.rollback()
+        # no rollback here: the caller's transaction (or savepoint) decides
         code = UNIQUE_ERRORS.get(violated_constraint(exc))
         if code is None:
             raise
@@ -183,7 +183,7 @@ def get_vehicle(db: Session, public_id, **scope) -> dict:
     return _vehicles_out(db, [_get_vehicle(db, public_id, **scope)])[0]
 
 
-def create_vehicle(db: Session, data: dict, *, actor_user_id: int, **scope) -> dict:
+def create_vehicle(db: Session, data: dict, *, actor_user_id: int, commit: bool = True, **scope) -> dict:
     _check_company(db, data["company_id"], **scope)
     data = {**data, "plate_number": normalize_plate(data["plate_number"])}
     data["branch_id"] = data.get("branch_id") or org.default_branch_id(db)
@@ -207,11 +207,14 @@ def create_vehicle(db: Session, data: dict, *, actor_user_id: int, **scope) -> d
         vehicle.public_id,
         {"vehicle_id": str(vehicle.public_id), "company_id": vehicle.company_id},
     )
-    db.commit()
+    if commit:
+        db.commit()
     return _vehicles_out(db, [vehicle])[0]
 
 
-def update_vehicle(db: Session, public_id, *, version: int, changes: dict, actor_user_id: int, **scope) -> dict:
+def update_vehicle(
+    db: Session, public_id, *, version: int, changes: dict, actor_user_id: int, commit: bool = True, **scope
+) -> dict:
     vehicle = _get_vehicle(db, public_id, lock=True, **scope)
     if vehicle.version != version:
         raise AppError(409, "version_conflict")
@@ -254,7 +257,8 @@ def update_vehicle(db: Session, public_id, *, version: int, changes: dict, actor
         vehicle.public_id,
         {"vehicle_id": str(vehicle.public_id), "company_id": vehicle.company_id},
     )
-    db.commit()
+    if commit:
+        db.commit()
     return _vehicles_out(db, [vehicle])[0]
 
 
@@ -866,6 +870,15 @@ def vehicle_by_plate(db: Session, plate: str) -> VehicleRef | None:
         select(Vehicle).where(func.upper(func.regexp_replace(Vehicle.plate_number, r"\s", "", "g")) == key)
     )
     return None if vehicle is None else _vref(vehicle)
+
+
+def vehicle_by_vin(db: Session, vin: str) -> VehicleRef | None:
+    vehicle = db.scalar(select(Vehicle).where(Vehicle.vin == vin.strip().upper()))
+    return None if vehicle is None else _vref(vehicle)
+
+
+def vehicle_version(db: Session, vehicle_id: int) -> int:
+    return db.scalar(select(Vehicle.version).where(Vehicle.id == vehicle_id))
 
 
 def holder(db: Session, vehicle_id: int) -> int | None:

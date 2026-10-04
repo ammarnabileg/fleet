@@ -13,6 +13,7 @@ from app.modules.files.api import router as files_router
 from app.modules.fleet.api import router as fleet_router
 from app.modules.i18n.api import router as i18n_router
 from app.modules.identity.api import router as identity_router
+from app.modules.imports.api import router as imports_router
 from app.modules.notifications.api import router as notifications_router
 from app.modules.onboarding.api import router as onboarding_router
 from app.modules.org.api import router as org_router
@@ -63,6 +64,7 @@ def create_app() -> FastAPI:
         tracking_router,
         notifications_router,
         onboarding_router,
+        imports_router,
     ):
         app.include_router(router)
     return app

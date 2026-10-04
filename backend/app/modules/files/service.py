@@ -36,6 +36,15 @@ class FileInfo:
     uploaded_by_device: int | None
 
 
+def read_upload(file) -> bytes:
+    """An uploaded file (FastAPI UploadFile), refused beyond the size limit without reading all of it."""
+    limit = get_settings().max_upload_mb * 1024 * 1024
+    data = file.file.read(limit + 1)
+    if len(data) > limit:
+        raise AppError(413, "file_too_large", max_mb=get_settings().max_upload_mb)
+    return data
+
+
 def sniff(data: bytes) -> str | None:
     return next((ctype for magic, ctype in SIGNATURES if data.startswith(magic)), None)
 

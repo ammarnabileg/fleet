@@ -218,6 +218,23 @@ def list_branches(db: Session) -> list[dict]:
     return [_branch_out(b) for b in db.scalars(select(Branch).order_by(Branch.is_default.desc(), Branch.id))]
 
 
+def _same(label: str, names: dict | None) -> bool:
+    label = " ".join(label.split()).casefold()
+    return bool(names) and label in {" ".join(v.split()).casefold() for v in names.values()}
+
+
+def company_id_by_name(db: Session, label: str) -> int | None:
+    """Imported files carry names: matched against the name and trade name in any language, or the CR number."""
+    for c in db.scalars(select(Company)):
+        if _same(label, c.name) or _same(label, c.trade_name) or (c.cr_number and label.strip() == c.cr_number):
+            return c.id
+    return None
+
+
+def branch_id_by_name(db: Session, label: str) -> int | None:
+    return next((b.id for b in db.scalars(select(Branch)) if _same(label, b.name)), None)
+
+
 def default_branch_id(db: Session) -> int:
     return db.scalar(select(Branch.id).where(Branch.is_default.is_(True)))
 

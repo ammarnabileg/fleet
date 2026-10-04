@@ -34,6 +34,8 @@ def test_every_permission_and_module_has_a_label():
 def test_every_error_code_in_the_code_has_a_message():
     source = "\n".join(p.read_text(encoding="utf-8") for p in (BACKEND / "app").rglob("*.py"))
     codes = set(re.findall(r'AppError\(\s*\d{3},\s*"([a-z_]+)"', source)) | {"validation_error"}
+    codes |= set(re.findall(r'_RowError\(\s*"([a-z_]+)"', source))  # import row errors
+    codes |= set(re.findall(r'Issue\(\s*[\w.]+,\s*[\w.]+,\s*"([a-z_]+)"', source))  # import warnings
     for lang, catalog in LANGS.items():
         missing = sorted(codes - catalog["errors"].keys())
         assert not missing, f"{lang}: {missing}"
