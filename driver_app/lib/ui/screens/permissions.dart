@@ -131,7 +131,10 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
             l.permNotificationsWhy,
             _notifications,
             ask: () async {
-              await Permission.notification.request();
+              // refused for good: Android shows no dialog any more, only the app settings can allow it
+              if (await Permission.notification.request() == PermissionStatus.permanentlyDenied) {
+                await openAppSettings();
+              }
               await _check();
             },
           ),

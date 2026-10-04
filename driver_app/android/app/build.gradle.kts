@@ -8,7 +8,9 @@ plugins {
 
 android {
     namespace = "com.brillianttech.fleet.driver"
-    compileSdk = flutter.compileSdkVersion
+    // permission_handler_android 14 is compiled against Android 37 and requires the app to be too
+    // (compileSdk only; targetSdk, the runtime behaviour, stays Flutter's)
+    compileSdk = maxOf(flutter.compileSdkVersion, 37)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
