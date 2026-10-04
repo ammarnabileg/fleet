@@ -1,4 +1,7 @@
-from pydantic import BaseModel, ConfigDict, Field
+from datetime import datetime
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.core.types import LangCode, LocalizedText
 
@@ -127,3 +130,53 @@ class PermissionGroupOut(BaseModel):
     module: str
     label: str
     permissions: list[PermissionOut]
+
+
+# ---- driver devices
+
+Phone = Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\+[1-9][0-9]{7,14}$")]
+DeviceUid = Annotated[str, StringConstraints(strip_whitespace=True, min_length=8, max_length=128)]
+Meta = Annotated[str, StringConstraints(strip_whitespace=True, max_length=60)]
+
+
+class OtpRequestIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    phone: Phone
+    device_uid: DeviceUid
+
+
+class OtpVerifyIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    phone: Phone
+    device_uid: DeviceUid
+    code: Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^[0-9]{6}$")]
+    platform: Meta | None = None
+    model: Meta | None = None
+    app_version: Meta | None = None
+
+
+class RefreshIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    refresh_token: Annotated[str, StringConstraints(min_length=20, max_length=200)]
+
+
+class TokensOut(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str
+    expires_in: int
+    device_id: str | None = None
+
+
+class DeviceOut(BaseModel):
+    id: str
+    platform: str | None
+    model: str | None
+    app_version: str | None
+    bound_at: datetime
+    last_seen_at: datetime | None
+    revoked_at: datetime | None
+    revoked_reason: str | None

@@ -1,5 +1,5 @@
-"""Identity: authentication, sessions, authorization and user/role administration.
-Other modules use only `Principal`, `get_principal` and `require_permission` from here."""
+"""Identity: authentication, sessions, authorization, user/role administration and driver devices.
+Other modules use `Principal`, `get_principal`, `require_permission` and, for the driver app, `require_device`."""
 
 from __future__ import annotations
 
@@ -18,6 +18,19 @@ from app.core.errors import AppError
 from app.modules.audit import service as audit
 from app.modules.i18n import service as i18n
 from app.modules.identity import security
+from app.modules.identity.devices import (  # noqa: F401  (driver devices, used by other modules from here)
+    DevicePrincipal,
+    device_status,
+    list_devices,
+    logout_device,
+    record_device_status,
+    refresh_tokens,
+    request_otp,
+    require_device,
+    revoke_device,
+    revoke_employee_devices,
+    verify_otp,
+)
 from app.modules.identity.models import Role, RolePermission, User, UserCompany, UserRole
 from app.modules.identity.models import Session as UserSession
 from app.modules.org import service as org

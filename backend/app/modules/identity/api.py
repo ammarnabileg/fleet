@@ -8,6 +8,7 @@ from app.core.db import get_session
 from app.modules.i18n import service as i18n
 from app.modules.identity import schemas, service
 from app.modules.identity.service import Principal, get_principal, require_permission
+from app.modules.people import service as people
 
 router = APIRouter(prefix="/api/v1", tags=["identity"])
 
@@ -162,3 +163,60 @@ def list_permissions(
 ):
     code = lang or i18n.negotiate(db, principal.locale, request.headers.get("accept-language"))
     return service.permission_groups(db, code)
+
+
+# ---- driver app: binding by phone + OTP, then rotating bearer tokens (no cookies, so no CSRF)
+
+
+@router.post("/driver/auth/otp", status_code=202)
+def request_otp(body: schemas.OtpRequestIn, request: Request, db: Session = Depends(get_session)):
+    """Same answer whether or not the phone belongs to a driver."""
+    service.request_otp(db, phone=body.phone, device_uid=body.device_uid, ip=_client(request)["ip"])
+    return {"status": "sent"}
+
+
+@router.post("/driver/auth/verify", response_model=schemas.TokensOut)
+def verify_otp(body: schemas.OtpVerifyIn, db: Session = Depends(get_session)):
+    return service.verify_otp(
+        db,
+        phone=body.phone,
+        device_uid=body.device_uid,
+        code=body.code,
+        platform=body.platform,
+        model=body.model,
+        app_version=body.app_version,
+    )
+
+
+@router.post("/driver/auth/refresh", response_model=schemas.TokensOut)
+def refresh(body: schemas.RefreshIn, db: Session = Depends(get_session)):
+    return service.refresh_tokens(db, body.refresh_token)
+
+
+@router.post("/driver/auth/logout", status_code=204)
+def driver_logout(
+    device: service.DevicePrincipal = Depends(service.require_device), db: Session = Depends(get_session)
+):
+    service.logout_device(db, device)
+
+
+# ---- driver devices administration
+
+
+@router.get("/employees/{public_id}/devices", response_model=list[schemas.DeviceOut])
+def list_devices(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("devices.manage")),
+    db: Session = Depends(get_session),
+):
+    return service.list_devices(db, people.ref_by_public_id(db, public_id, **principal.scope))
+
+
+@router.post("/devices/{public_id}/revoke", status_code=204)
+def revoke_device(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("devices.manage")),
+    db: Session = Depends(get_session),
+):
+    """Unbind: the driver must verify the phone again (OTP) to use the app."""
+    service.revoke_device(db, public_id, actor_user_id=principal.user_id, **principal.scope)

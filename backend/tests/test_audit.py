@@ -6,12 +6,12 @@ from sqlalchemy.exc import DBAPIError
 from tests.conftest import APP_ROLE_PASSWORD, login, make_user
 
 
-def test_audit_trail_is_append_only(admin_client, db):
-    assert db.execute(text("SELECT count(*) FROM audit.events")).scalar() > 0
-    for sql in ("UPDATE audit.events SET action = 'x'", "DELETE FROM audit.events"):
+def test_audit_trail_is_append_only(admin_client, owner_db):
+    assert owner_db.execute(text("SELECT count(*) FROM audit.events")).scalar() > 0
+    for sql in ("UPDATE audit.events SET action = 'x'", "DELETE FROM audit.events"):  # even for the owner
         with pytest.raises(DBAPIError, match="append-only"):
-            db.execute(text(sql))
-        db.rollback()
+            owner_db.execute(text(sql))
+        owner_db.rollback()
 
 
 def test_audit_view_is_company_scoped(admin_client, new_client, companies):

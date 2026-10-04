@@ -1,7 +1,19 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, Text, func, text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    SmallInteger,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -95,3 +107,77 @@ class Session(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# ---------------------------------------------------------------- driver devices (M1)
+
+
+class Device(Base):
+    __tablename__ = "devices"
+    __table_args__ = (
+        Index("devices_employee_id_idx", "employee_id", unique=True, postgresql_where=text("revoked_at IS NULL")),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    device_uid: Mapped[str] = mapped_column(Text)
+    platform: Mapped[str | None] = mapped_column(Text)
+    model: Mapped[str | None] = mapped_column(Text)
+    app_version: Mapped[str | None] = mapped_column(Text)
+    bound_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_reason: Mapped[str | None] = mapped_column(Text)
+
+
+class DeviceToken(Base):
+    __tablename__ = "device_tokens"
+    __table_args__ = (
+        CheckConstraint("kind IN ('access', 'refresh')", name="kind"),
+        Index("device_tokens_family_idx", "family"),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    device_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("identity.devices.id"))
+    token_hash: Mapped[str] = mapped_column(Text, unique=True)
+    kind: Mapped[str] = mapped_column(Text)
+    family: Mapped[uuid.UUID] = mapped_column(UUID)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class OtpChallenge(Base):
+    __tablename__ = "otp_challenges"
+    __table_args__ = (Index("otp_challenges_phone_idx", "phone", "created_at"), SCHEMA)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    phone: Mapped[str] = mapped_column(Text)
+    employee_id: Mapped[int | None] = mapped_column(BigInteger)
+    device_uid: Mapped[str] = mapped_column(Text)
+    code_hash: Mapped[str | None] = mapped_column(Text)
+    attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ip: Mapped[str | None] = mapped_column(Text)
+
+
+class DeviceStatus(Base):
+    __tablename__ = "device_status"
+    __table_args__ = SCHEMA
+
+    device_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("identity.devices.id"), primary_key=True)
+    reported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    location_permission: Mapped[str | None] = mapped_column(Text)
+    gps_enabled: Mapped[bool | None] = mapped_column(Boolean)
+    battery_optimization_ignored: Mapped[bool | None] = mapped_column(Boolean)
+    tracking_service_running: Mapped[bool | None] = mapped_column(Boolean)
+    battery_level: Mapped[int | None] = mapped_column(SmallInteger)
+    queue_size: Mapped[int | None] = mapped_column(Integer)
+    last_upload_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    app_version: Mapped[str | None] = mapped_column(Text)
+    payload: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'"))

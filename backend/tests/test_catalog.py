@@ -62,3 +62,32 @@ def test_code_only_requires_catalog_permissions():
     source = "\n".join(p.read_text(encoding="utf-8") for p in (BACKEND / "app").rglob("*.py"))
     used = set(re.findall(r'require_permission\("([a-z_.]+)"\)', source))
     assert used and used <= permissions.CATALOG.keys(), used - permissions.CATALOG.keys()
+
+
+def test_error_codes_mapped_from_constraints_have_a_message():
+    source = "\n".join(p.read_text(encoding="utf-8") for p in (BACKEND / "app").rglob("*.py"))
+    codes = set()
+    for block in re.findall(r"[A-Z_]+_ERRORS = \{(.*?)\}", source, re.S):
+        codes |= set(re.findall(r':\s*"([a-z_]+)"', block))
+    assert codes
+    for lang, catalog in LANGS.items():
+        assert not codes - catalog["errors"].keys(), f"{lang}: {sorted(codes - catalog['errors'].keys())}"
+
+
+def test_every_alert_kind_has_a_text_using_only_its_params():
+    from app.modules.notifications.service import KINDS
+
+    for lang, catalog in LANGS.items():
+        assert catalog["alerts"].keys() == KINDS.keys(), lang
+        for kind, spec in KINDS.items():
+            used = set(PLACEHOLDER.findall(catalog["alerts"][kind]))
+            assert used <= set(spec.params), f"{lang}: alerts.{kind} uses {used - set(spec.params)}"
+            assert permissions.exists(spec.permission), kind
+
+
+def test_statuses_and_flags_have_labels():
+    from app.modules.fleet.service import MANUAL_STATUSES
+
+    for lang, catalog in LANGS.items():
+        assert set(MANUAL_STATUSES) | {"assigned"} == catalog["vehicle_status"].keys(), lang
+        assert {"lower_than_previous", "daily_limit", "off_duty_km", "photo_reused"} == catalog["odometer_flags"].keys()

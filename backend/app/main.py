@@ -8,9 +8,15 @@ from app.core import errors, middleware
 from app.core.config import get_settings
 from app.core.db import new_session
 from app.modules.audit.api import router as audit_router
+from app.modules.documents.api import router as documents_router
+from app.modules.files.api import router as files_router
+from app.modules.fleet.api import router as fleet_router
 from app.modules.i18n.api import router as i18n_router
 from app.modules.identity.api import router as identity_router
+from app.modules.notifications.api import router as notifications_router
 from app.modules.org.api import router as org_router
+from app.modules.people.api import router as people_router
+from app.modules.tracking.api import router as tracking_router
 
 VERSION = "0.1.0"
 
@@ -42,6 +48,17 @@ def create_app() -> FastAPI:
             return JSONResponse({"status": "database_unavailable"}, status_code=503)
         return {"status": "ready"}
 
-    for router in (identity_router, org_router, i18n_router, audit_router):
+    for router in (
+        identity_router,
+        org_router,
+        i18n_router,
+        audit_router,
+        files_router,
+        people_router,
+        documents_router,
+        fleet_router,
+        tracking_router,
+        notifications_router,
+    ):
         app.include_router(router)
     return app

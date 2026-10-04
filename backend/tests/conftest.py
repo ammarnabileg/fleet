@@ -1,5 +1,6 @@
 """Tests run against a real PostgreSQL. The migrations run once into a template database; every test then gets
-a fresh copy of it, seed data included (languages, role templates, main branch).
+a fresh copy of it, seed data included (languages, role templates, main branch). The application connects as the
+least-privilege fleet_app role, as in production, so a missing grant fails the tests.
 
 TEST_ADMIN_DATABASE_URL points at a server where the user may CREATE DATABASE, e.g.
 postgresql+psycopg://postgres:postgres@localhost:5432/postgres (CI) or a local socket.
@@ -7,6 +8,7 @@ postgresql+psycopg://postgres:postgres@localhost:5432/postgres (CI) or a local s
 
 import os
 import pathlib
+import re
 import time
 import uuid
 
@@ -24,8 +26,11 @@ PASSWORD = "correct-horse-battery"
 APP_ROLE_PASSWORD = "fleet-app-test-only"
 
 
-def _url(name: str) -> str:
-    return make_url(ADMIN_URL).set(database=name).render_as_string(hide_password=False)
+def _url(name: str, *, app_role: bool = False) -> str:
+    url = make_url(ADMIN_URL).set(database=name)
+    if app_role:
+        url = url.set(username="fleet_app", password=APP_ROLE_PASSWORD)
+    return url.render_as_string(hide_password=False)
 
 
 @pytest.fixture(scope="session")
@@ -36,7 +41,7 @@ def admin_engine():
 
 
 @pytest.fixture(scope="session")
-def database_url(admin_engine):
+def database_url(admin_engine, tmp_path_factory):
     suffix = uuid.uuid4().hex[:10]
     template, live = f"fleet_tpl_{suffix}", f"fleet_test_{suffix}"
     with admin_engine.connect() as c:
@@ -54,14 +59,18 @@ def database_url(admin_engine):
     command.upgrade(cfg, "head")
 
     os.environ.update(
-        DATABASE_URL=_url(live), SECRET_KEY="test-secret-key-not-for-production", COOKIE_SECURE="false", APP_ENV="test"
+        DATABASE_URL=_url(live, app_role=True),
+        SECRET_KEY="test-secret-key-not-for-production",
+        COOKIE_SECURE="false",
+        APP_ENV="test",
+        FILES_DIR=str(tmp_path_factory.mktemp("files")),
     )
     from app.core import config, db
 
     config.get_settings.cache_clear()
     db.get_engine.cache_clear()
     db._session_factory.cache_clear()
-    yield {"url": _url(live), "template": template, "live": live}
+    yield {"url": _url(live), "app_url": _url(live, app_role=True), "template": template, "live": live}
     db.get_engine().dispose()
     with admin_engine.connect() as c:
         for name in (live, template):
@@ -70,9 +79,11 @@ def database_url(admin_engine):
 
 @pytest.fixture(autouse=True)
 def fresh_database(database_url, admin_engine):
+    from app.core import sms
     from app.core.db import get_engine
     from app.modules.i18n import service as i18n
     from app.modules.org import service as org
+    from app.modules.tracking import service as tracking
 
     get_engine().dispose()
     with admin_engine.connect() as c:
@@ -80,15 +91,27 @@ def fresh_database(database_url, admin_engine):
         c.execute(text(f'CREATE DATABASE "{database_url["live"]}" TEMPLATE "{database_url["template"]}"'))
     org._cache.clear()
     i18n._effective_cache.clear()
+    tracking._partitions.clear()
+    sms.provider().sent.clear()
     yield
 
 
 @pytest.fixture
 def db(database_url):
+    """A session as the application role."""
     from app.core.db import new_session
 
     with new_session() as session:
         yield session
+
+
+@pytest.fixture
+def owner_db(database_url):
+    """A session as the schema owner, for checks the application role may not do."""
+    engine = create_engine(database_url["url"])
+    with engine.connect() as c:
+        yield c
+    engine.dispose()
 
 
 @pytest.fixture
@@ -168,3 +191,94 @@ def make_user(admin_client, username, *, permissions=(), company_ids=None, role=
     )
     assert r.status_code == 201, r.text
     return r.json()
+
+
+# ------------------------------------------------------------------ M1 helpers
+
+
+def jpeg() -> bytes:
+    """A distinct image every call: a reused photo is flagged."""
+    return b"\xff\xd8\xff\xe0" + os.urandom(64)
+
+
+def upload(client, data: bytes | None = None, *, path="/api/v1/files", name="photo.jpg") -> str:
+    r = client.post(path, files={"file": (name, data or jpeg(), "application/octet-stream")})
+    assert r.status_code == 201, r.text
+    return r.json()["sha256"]
+
+
+_counter = iter(range(10_000, 99_999))
+
+
+def make_employee(admin_client, company_id, *, driver=False, phone=None, **extra) -> dict:
+    n = next(_counter)
+    body = {
+        "employee_number": f"E{n}",
+        "name": name(f"موظف {n}", f"Employee {n}"),
+        "company_id": company_id,
+        "is_driver": driver,
+        "phone": phone or (f"+9655{n:07d}" if driver else None),
+        **extra,
+    }
+    r = admin_client.post("/api/v1/employees", json=body)
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def make_driver(admin_client, company_id, *, app=True, **extra) -> dict:
+    driver = make_employee(admin_client, company_id, driver=True, **extra)
+    if app:
+        r = admin_client.put(f"/api/v1/employees/{driver['id']}/app-access", json={"app_access": "active"})
+        assert r.status_code == 200, r.text
+        driver = r.json()
+    return driver
+
+
+def make_vehicle(admin_client, company_id, *, km=10_000, **extra) -> dict:
+    n = next(_counter)
+    r = admin_client.post(
+        "/api/v1/vehicles", json={"plate_number": f"{n}", "company_id": company_id, "last_odometer_km": km, **extra}
+    )
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def hand_over(admin_client, vehicle, driver, *, km=None, **extra) -> dict:
+    body = {
+        "vehicle_id": vehicle["id"],
+        "driver_id": driver["id"],
+        "odometer_km": km if km is not None else vehicle["last_odometer_km"] or 0,
+        "photo_sha256": upload(admin_client),
+        **extra,
+    }
+    r = admin_client.post("/api/v1/custodies", json=body)
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def otp_code(phone: str) -> str:
+    from app.core import sms
+
+    text_ = next(m.text for m in reversed(sms.provider().sent) if m.to == phone)
+    return re.search(r"\b(\d{6})\b", text_).group(1)
+
+
+def bind_device(client, phone: str, device_uid: str | None = None, model="Pixel 8") -> dict:
+    device_uid = device_uid or uuid.uuid4().hex
+    r = client.post("/api/v1/driver/auth/otp", json={"phone": phone, "device_uid": device_uid})
+    assert r.status_code == 202, r.text
+    r = client.post(
+        "/api/v1/driver/auth/verify",
+        json={"phone": phone, "device_uid": device_uid, "code": otp_code(phone), "platform": "android", "model": model},
+    )
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def bearer(tokens: dict) -> dict:
+    return {"Authorization": f"Bearer {tokens['access_token']}"}
+
+
+@pytest.fixture
+def company(companies):
+    return companies["a"]

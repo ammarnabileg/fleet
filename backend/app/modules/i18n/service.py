@@ -218,7 +218,7 @@ def catalog_for(db: Session, code: str, namespaces: list[str] | None) -> dict[st
     return {ns: catalog.get(ns, {}) for ns in namespaces} if namespaces else catalog
 
 
-def t(db: Session, code: str, key: str, **params) -> str:
+def t(db: Session, code: str, key: str, /, **params) -> str:
     """Server-side text (notifications, reports): key is "namespace.key"; unknown params stay as {name}."""
     ns, _, k = key.partition(".")
     text = effective_catalog(db, code).get(ns, {}).get(k, key)

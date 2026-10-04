@@ -1,3 +1,4 @@
+import re
 from collections.abc import Iterator
 from functools import lru_cache
 
@@ -16,12 +17,29 @@ NAMING = {
 }
 
 
-MIGRATED_SCHEMAS = {"org", "identity", "audit", "integrations", "i18n"}
+MIGRATED_SCHEMAS = {
+    "org",
+    "identity",
+    "audit",
+    "integrations",
+    "i18n",
+    "files",
+    "people",
+    "documents",
+    "fleet",
+    "tracking",
+    "notifications",
+}
+PARTITION = re.compile(r"^positions_\d{4}_\d{2}$")  # monthly partitions of tracking.positions, made at runtime
 
 
 def include_name(name, type_, parent_names) -> bool:
     """Alembic filter: only our schemas are compared and migrated."""
-    return name in MIGRATED_SCHEMAS if type_ == "schema" else True
+    if type_ == "schema":
+        return name in MIGRATED_SCHEMAS
+    if type_ == "table":
+        return not (parent_names.get("schema_name") == "tracking" and PARTITION.match(name))
+    return True
 
 
 class Base(DeclarativeBase):
@@ -48,3 +66,12 @@ def get_session() -> Iterator[Session]:
         yield session
     finally:
         session.close()
+
+
+def violated_constraint(exc: Exception) -> str | None:
+    """Name of the constraint behind an IntegrityError, to turn it into a precise error code."""
+    return getattr(getattr(getattr(exc, "orig", None), "diag", None), "constraint_name", None)
+
+
+def like_pattern(q: str) -> str:
+    return "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
