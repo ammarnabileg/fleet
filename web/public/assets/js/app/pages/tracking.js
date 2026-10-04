@@ -1,24 +1,12 @@
 /* =====================================================================
    app/pages/tracking.js — التتبع الحي (خريطة + بث مباشر SSE)، مسار سيارة، التنبيهات
-   الخريطة Leaflet من خوادمنا (assets/vendor)، والبلاطات من BT.config.mapTiles.
+   الخريطة من app/map.js (MapLibre + ملف الكويت على خادمنا).
    ===================================================================== */
 (function () {
   'use strict';
   var BT = window.BT, h = BT.h, raw = BT.raw, icon = BT.icon, fmt = BT.fmt, api = BT.api, A = BT.A;
 
-  function leaflet() {
-    A.loadCss('assets/vendor/leaflet/leaflet.css');
-    return A.loadScript('assets/vendor/leaflet/leaflet.js').then(function () { return window.L; });
-  }
-  function baseMap(L, el) {
-    var map = L.map(el, { zoomControl: true, attributionControl: true }).setView(BT.config.mapCenter, BT.config.mapZoom);
-    L.tileLayer(BT.config.mapTiles, { maxZoom: 19, attribution: BT.config.mapAttribution }).addTo(map);
-    A.onLeave(function () { map.remove(); });
-    return map;
-  }
-  function carIcon(L, tone, selected) {
-    return L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, 15], html: '<div class="veh-mark ' + tone + (selected ? ' sel' : '') + '">' + icon('car', 15) + '</div>' });
-  }
+  function mapFailed(el) { BT.render(el, BT.empty('map', 'تعذر تحميل الخريطة', 'حدّث الصفحة. إن تكرر: المتصفح لا يدعم WebGL أو ملفات الخريطة غير منشورة على الخادم')); }
 
   BT.pages['tracking'] = function (p, q) {
     if (q.route) return routeView(q.route, q);
@@ -32,7 +20,7 @@
       </div>`);
     var state = { rows: [], filter: '', q: '', selected: null, markers: {} };
     var listEl = v.querySelector('[data-list]'), chipsEl = v.querySelector('[data-chips]'), liveEl = v.querySelector('[data-live-state]');
-    var map, L;
+    var map;
     function tone(r) { return !r.position ? 'n' : r.signal_lost ? 'r' : 'g'; }
     function visible() {
       var nq = BT.norm(state.q);
@@ -55,34 +43,35 @@
       return String(h`<div dir="rtl" style="min-width:180px;font-family:inherit"><b class="plate">${r.vehicle.plate_number}</b><div class="mt-4"><bdi>${api.name(r.driver && r.driver.name)}</bdi></div><div class="muted fs-sm mt-4">${r.position ? fmt.dt(r.position.recorded_at) + (r.position.speed_kmh != null ? ' · ' + Math.round(r.position.speed_kmh) + ' كم/س' : '') : ''}</div><div class="mt-8 flex gap-8">${api.can('vehicles.view') ? h`<a href="#/vehicles/${r.vehicle.id}">ملف السيارة</a>` : ''}${api.can('tracking.history') ? h`<a href="#/tracking?route=${r.vehicle.id}">المسار</a>` : ''}</div></div>`);
     }
     function drawMarkers(fit) {
+      if (!map) return; // الخريطة لم تُحمّل (أو تعذرت): القائمة تعمل وحدها
       var bounds = [];
       state.rows.forEach(function (r) {
         var m = state.markers[r.vehicle.id];
         if (!r.position) { if (m) { m.remove(); delete state.markers[r.vehicle.id]; } return; }
-        var ll = [r.position.lat, r.position.lng];
+        var ll = [r.position.lat, r.position.lng], html = BT.map.carHtml(tone(r), state.selected === r.vehicle.id);
         bounds.push(ll);
-        if (!m) { m = state.markers[r.vehicle.id] = L.marker(ll, { icon: carIcon(L, tone(r), state.selected === r.vehicle.id), title: r.vehicle.plate_number }).addTo(map); m.on('click', function () { select(r.vehicle.id, false); }); }
-        else { m.setLatLng(ll); m.setIcon(carIcon(L, tone(r), state.selected === r.vehicle.id)); }
-        m.bindPopup(popup(r));
+        if (!m) m = state.markers[r.vehicle.id] = map.marker(ll, html, { title: r.vehicle.plate_number, onClick: function () { select(r.vehicle.id, false); } });
+        else { m.move(ll); m.html(html); }
+        m.popup(popup(r));
       });
-      if (fit && bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+      if (fit) map.fit(bounds, 13);
     }
     function select(id, pan) {
       state.selected = id;
       var r = state.rows.find(function (x) { return x.vehicle.id === id; });
       drawList(); drawMarkers(false);
       var m = state.markers[id];
-      if (m && pan) { map.setView(m.getLatLng(), Math.max(map.getZoom(), 14)); }
-      if (m) m.openPopup();
+      // من القائمة: تحريك الخريطة وفتح النافذة. من العلامة نفسها: الخريطة تفتحها
+      if (m && pan) { map.view(m.pos(), Math.max(map.zoom(), 13)); m.open(); }
       if (r && !r.position) BT.toast('لا يوجد موقع لهذه السيارة خلال العهدة', { type: 'info' });
     }
     function refresh(fit) {
-      return api.get('/tracking/live').then(function (rows) { state.rows = rows; drawList(); if (map) drawMarkers(fit); }, function (err) { BT.render(listEl, A.errorBox(err)); });
+      return api.get('/tracking/live').then(function (rows) { state.rows = rows; drawList(); drawMarkers(fit); }, function (err) { BT.render(listEl, A.errorBox(err)); });
     }
-    leaflet().then(function (lib) {
-      L = lib;
-      if (!document.contains(v)) return;
-      map = baseMap(L, v.querySelector('[data-map]'));
+    var mapEl = v.querySelector('[data-map]');
+    BT.map(mapEl).then(function (m) {
+      if (!m) return;
+      map = m;
       refresh(true);
       // البث المباشر: موقع جديد ← تحريك العلامة فوراً
       var es = new EventSource(api.url('/tracking/live/stream'));
@@ -97,7 +86,7 @@
       });
       var timer = setInterval(function () { if (!document.hidden) refresh(false); }, 60000); // حالة الانقطاع من الخادم
       A.onLeave(function () { es.close(); clearInterval(timer); });
-    }, function () { BT.render(v.querySelector('[data-map]'), BT.empty('map', 'تعذر تحميل الخريطة', '')); });
+    }, function (err) { if (window.console) console.error(err); mapFailed(mapEl); refresh(false); });
     BT.on(v, 'click', '[data-veh]', function (e, b) { select(b.getAttribute('data-veh'), true); });
     BT.on(chipsEl, 'click', '[data-chip]', function (e, b) { state.filter = b.getAttribute('data-chip'); drawList(); });
     v.querySelector('[data-q]').addEventListener('input', BT.debounce(function (e) { state.q = e.target.value; drawList(); }, 150));
@@ -111,29 +100,29 @@
     BT.render(v, h`${A.head('مسار السيارة', 'النقاط كما وصلت من هاتف السائق خلال العهدة', '')}
       <div class="card mb-16"><form class="toolbar" data-range style="margin:0">${BT.f.input({ name: 'start', label: 'من', type: 'datetime-local', value: start, required: true })}${BT.f.input({ name: 'end', label: 'إلى', type: 'datetime-local', value: end, required: true })}<button type="submit" class="btn btn-primary" style="align-self:flex-end">${icon('route', 15)} عرض</button><div data-sum class="ms-auto"></div></form></div>
       <div class="live-map" data-map dir="ltr"></div>`);
-    var map, L, layer;
+    var map, ends = [];
     function load(s, e) {
       var sum = v.querySelector('[data-sum]');
       BT.render(sum, A.spinner(''));
       api.get('/tracking/route', { vehicle_id: vehicleId, start: A.kwIso(s), end: A.kwIso(e) }).then(function (r) {
         A.setTitle('مسار ' + r.vehicle.plate_number, [['التتبع الحي', 'tracking'], [r.vehicle.plate_number]]);
         BT.render(sum, h`<span class="plate">${r.vehicle.plate_number}</span> · <b class="num">${fmt.int(r.points.length)}</b> نقطة · <b class="num">${r.distance_km}</b> كم${r.drivers.length ? h` · ${r.drivers.map(function (d) { return api.name(d.name); }).join('، ')}` : ''}${r.truncated ? h` ${BT.pill('مقتطع: قلّل الفترة', 'o')}` : ''}`);
-        if (layer) layer.remove();
-        layer = L.layerGroup().addTo(map);
-        if (!r.points.length) { BT.toast('لا توجد نقاط في هذه الفترة', { type: 'info' }); return; }
+        if (!map) return;
+        ends.splice(0).forEach(function (m) { m.remove(); });
         var ll = r.points.map(function (x) { return [x.lat, x.lng]; });
-        L.polyline(ll, { color: '#0A6CFF', weight: 4, opacity: .85 }).addTo(layer);
-        L.circleMarker(ll[0], { radius: 7, color: '#fff', weight: 2, fillColor: '#16a34a', fillOpacity: 1 }).bindTooltip('البداية ' + fmt.dt(r.points[0].t)).addTo(layer);
-        L.circleMarker(ll[ll.length - 1], { radius: 7, color: '#fff', weight: 2, fillColor: '#dc2626', fillOpacity: 1 }).bindTooltip('النهاية ' + fmt.dt(r.points[r.points.length - 1].t)).addTo(layer);
-        map.fitBounds(ll, { padding: [40, 40], maxZoom: 16 });
+        map.line(ll);
+        if (!ll.length) { BT.toast('لا توجد نقاط في هذه الفترة', { type: 'info' }); return; }
+        ends.push(map.marker(ll[0], '<div class="route-end start"></div>', { title: 'البداية ' + fmt.dt(r.points[0].t) }));
+        ends.push(map.marker(ll[ll.length - 1], '<div class="route-end end"></div>', { title: 'النهاية ' + fmt.dt(r.points[r.points.length - 1].t) }));
+        map.fit(ll, 15);
       }, function (err) { BT.render(sum, h`<span class="t-danger fs-sm">${api.message(err)}</span>`); });
     }
-    leaflet().then(function (lib) {
-      L = lib;
-      if (!document.contains(v)) return;
-      map = baseMap(L, v.querySelector('[data-map]'));
+    var mapEl = v.querySelector('[data-map]');
+    BT.map(mapEl).then(function (m) {
+      if (!m) return;
+      map = m;
       load(start, end);
-    });
+    }, function (err) { if (window.console) console.error(err); mapFailed(mapEl); load(start, end); });
     v.querySelector('[data-range]').addEventListener('submit', function (e) { e.preventDefault(); var x = BT.form.values(e.target); load(x.start, x.end); });
   }
 

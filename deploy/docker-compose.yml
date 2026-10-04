@@ -29,6 +29,8 @@ services:
     restart: unless-stopped
     logging: *logging
     expose: ["80"]
+    volumes:
+      - ${MAPS_DIR:-./maps}:/srv/maps:ro   # the Kuwait map file (maps/update-map.sh)
     depends_on:
       api:
         condition: service_healthy

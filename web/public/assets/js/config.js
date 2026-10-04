@@ -5,11 +5,13 @@
    ===================================================================== */
 window.BT = window.BT || {};
 BT.config = Object.assign(BT.config || {}, {
-  /* خرائط التتبع الحي. خوادم OpenStreetMap العامة للتجربة والاستخدام الخفيف فقط (سياسة الاستخدام:
-     https://operations.osmfoundation.org/policies/tiles/). في الإنتاج: مزوّد خرائط بعقد أو خادم خرائط ذاتي. */
-  mapTiles: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-  mapAttribution: '&copy; OpenStreetMap contributors',
+  /* الخريطة: ملف واحد للكويت على خادمنا (Protomaps PMTiles من بيانات OpenStreetMap)، ينزّله ويحدّثه
+     deploy/maps/update-map.sh. مجاني، بلا حدود استخدام، ولا يرى طرف ثالث مواقع السيارات. */
+  mapPmtiles: 'maps/kuwait.pmtiles',
+  /* فقط إن لم يوجد الملف على الخادم، مع ملاحظة ظاهرة على الخريطة. خوادم OpenStreetMap العامة للاستخدام الخفيف فقط
+     (https://operations.osmfoundation.org/policies/tiles/) وتكشف لهم المنطقة المعروضة. '' = لا طرف ثالث أبداً. */
+  mapFallbackTiles: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
   mapCenter: [29.31, 47.98],
-  mapZoom: 11,
+  mapZoom: 10,
   refreshCountsSec: 60
 });
