@@ -8,6 +8,8 @@ from app.core import errors, messaging, middleware
 from app.core.config import get_settings
 from app.core.db import new_session
 from app.modules.audit.api import router as audit_router
+from app.modules.cash.api import router as cash_router
+from app.modules.daily_ops.api import router as daily_ops_router
 from app.modules.documents.api import router as documents_router
 from app.modules.files.api import router as files_router
 from app.modules.fleet.api import router as fleet_router
@@ -65,6 +67,8 @@ def create_app() -> FastAPI:
         notifications_router,
         onboarding_router,
         imports_router,
+        daily_ops_router,
+        cash_router,
     ):
         app.include_router(router)
     return app

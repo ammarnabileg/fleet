@@ -13,6 +13,8 @@ celery = Celery(
         "app.modules.identity.tasks",
         "app.modules.tracking.tasks",
         "app.modules.documents.tasks",
+        "app.modules.daily_ops.tasks",
+        "app.modules.cash.tasks",
     ],
 )
 
@@ -36,4 +38,6 @@ celery.conf.beat_schedule = {
     "link-queue": {"task": "identity.send_queued_link", "schedule": 20.0},  # the pace itself is in the settings
     "position-partitions": {"task": "tracking.maintain_partitions", "schedule": crontab(hour=2, minute=10)},
     "document-expiry": {"task": "documents.scan_expiring", "schedule": crontab(hour=7, minute=0)},
+    "daily-report-overdue": {"task": "daily_ops.scan_overdue", "schedule": crontab(minute=5)},
+    "ledger-invariants": {"task": "cash.check_invariants", "schedule": crontab(hour=2, minute=0)},
 }

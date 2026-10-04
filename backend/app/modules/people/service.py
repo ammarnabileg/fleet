@@ -56,6 +56,7 @@ class EmployeeRef:
     is_working: bool
     is_terminal: bool
     app_access: str
+    branch_id: int = 0
 
     @property
     def can_use_app(self) -> bool:
@@ -479,6 +480,7 @@ def _ref(e: Employee, s: EmploymentStatus) -> EmployeeRef:
         s.is_working,
         s.is_terminal,
         e.app_access,
+        e.branch_id,
     )
 
 
@@ -512,6 +514,18 @@ def app_drivers(db: Session, *, all_companies: bool, company_ids: Iterable[int])
         .join(EmploymentStatus, EmploymentStatus.code == Employee.status_code)
         .where(Employee.is_driver.is_(True), Employee.app_access == "active", EmploymentStatus.is_terminal.is_(False))
         .order_by(Employee.employee_number),
+        all_companies,
+        company_ids,
+    )
+    return [_ref(e, s) for e, s in db.execute(q)]
+
+
+def departed_drivers(db: Session, *, all_companies: bool, company_ids: Iterable[int]) -> list[EmployeeRef]:
+    """Drivers whose employment ended, in scope (their cash still has to be settled)."""
+    q = _scoped(
+        select(Employee, EmploymentStatus)
+        .join(EmploymentStatus, EmploymentStatus.code == Employee.status_code)
+        .where(Employee.is_driver.is_(True), EmploymentStatus.is_terminal.is_(True)),
         all_companies,
         company_ids,
     )

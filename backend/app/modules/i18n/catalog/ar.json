@@ -129,6 +129,8 @@
     "activation_link_invalid": "رابط التفعيل غير صالح أو مستخدم أو منتهي، اطلب رابطاً جديداً من المشرف",
     "activation_rate_limited": "تم إرسال {count} روابط لهذا السائق اليوم، حاول غداً",
     "alert_not_found": "التنبيه غير موجود",
+    "amount_must_be_positive": "المبلغ يجب أن يكون أكبر من صفر",
+    "amount_must_not_be_zero": "المبلغ لا يمكن أن يكون صفراً",
     "branch_not_found": "الفرع غير موجود",
     "cannot_deactivate_default": "لا يمكن تعطيل اللغة الافتراضية",
     "cannot_grant_permissions": "لا يمكنك منح صلاحيات لا تملكها",
@@ -169,6 +171,7 @@
     "import_bad_template": "الورقة «{sheet}» غير موجودة أو تغيّرت أعمدتها: استخدم القالب كما هو",
     "import_not_xlsx": "الملف ليس ملف Excel صالحاً (xlsx)",
     "internal_server_error": "حدث خطأ غير متوقع",
+    "invalid_business_date": "تاريخ التقرير غير مقبول (اليوم أو اليومان السابقان فقط)",
     "invalid_civil_id": "رقم مدني غير صحيح: {value} (12 رقماً)",
     "invalid_code": "الرمز غير صحيح",
     "invalid_credentials": "اسم المستخدم أو كلمة المرور غير صحيحة",
@@ -179,6 +182,9 @@
     "invalid_range": "الفترة غير صحيحة",
     "invalid_recorded_at": "وقت القراءة غير مقبول",
     "invalid_settings": "قيم الإعدادات غير صالحة",
+    "journal_exists": "هذه الحركة مسجلة بالفعل",
+    "journal_not_found": "الحركة غير موجودة",
+    "journal_not_reversible": "لا يمكن عكس هذه الحركة",
     "language_exists": "اللغة موجودة بالفعل",
     "message_not_delivered": "تعذّر الإرسال عبر واتساب الآن: استخدم الرابط اليدوي أو حاول لاحقاً",
     "method_not_allowed": "إجراء غير مسموح",
@@ -212,6 +218,10 @@
     "reading_exists": "تم تسجيل هذه القراءة اليوم بالفعل",
     "reading_not_found": "القراءة غير موجودة",
     "reason_required": "السبب مطلوب",
+    "receipt_not_found": "الإيصال غير موجود",
+    "report_exists": "تقرير هذا اليوم مُرسل بالفعل",
+    "report_not_found": "التقرير غير موجود",
+    "report_not_submitted": "هذا التقرير ليس بانتظار المراجعة",
     "role_exists": "يوجد دور بهذا الرمز",
     "role_not_found": "الدور غير موجود",
     "salary_skipped": "لم يُستورد الراتب: يحتاج صلاحية رؤية الرواتب",
@@ -223,6 +233,7 @@
     "time_in_future": "الوقت في المستقبل",
     "time_too_old": "الوقت أقدم من المسموح",
     "token_reused": "تم إيقاف الجلسة لأسباب أمنية، سجّل الدخول من جديد",
+    "treasury_insufficient": "رصيد الخزينة أقل من المبلغ",
     "unknown_company": "شركة غير موجودة",
     "unknown_language": "لغة غير معروفة أو غير مفعّلة: {code}",
     "unknown_permission": "صلاحية غير معروفة: {codes}",
@@ -302,12 +313,15 @@
     "yes": "نعم"
   },
   "alerts": {
+    "cash_balance_high": "رصيد كاش {driver} بلغ {balance} د.ك، أعلى من الحد {limit}",
+    "daily_report_overdue": "تقرير {driver} ليوم {date} ينتظر المراجعة أكثر من {hours} ساعة",
     "device_replaced": "تم ربط جهاز جديد ({model}) للسائق {driver} وإلغاء الجهاز السابق",
     "document_expired": "{document} لـ {owner} انتهى في {date}",
     "document_expiring": "{document} لـ {owner} ينتهي في {date} (بعد {days} يوم)",
     "driver_left_with_vehicle": "انتهت خدمة {driver} والسيارة {plate} ما زالت في عهدته",
     "emergency_custody": "تسليم طارئ لـ {plate} إلى {driver}: {reason}",
     "gps_off": "الـ GPS مغلق عند {driver} ({plate})",
+    "ledger_invariant": "خلل في دفتر الكاش: {problem}",
     "location_permission_off": "صلاحية الموقع غير مفعّلة دائمًا عند {driver} ({plate})",
     "messaging_down": "قناة واتساب لرموز الدخول غير متصلة ({state}): لا يستطيع أي سائق ربط هاتف جديد حتى تعود",
     "mock_location": "موقع وهمي من جهاز السائق {driver}",
@@ -382,5 +396,25 @@
     "failed": "فشل",
     "cancelled": "أُلغي",
     "already_queued": "في الانتظار بالفعل"
+  },
+  "journal_kind": {
+    "collection": "تحصيل",
+    "adjustment": "تسوية",
+    "deposit": "إيداع بإيصال",
+    "bank_deposit": "إيداع بنكي",
+    "settlement": "تسوية نهاية خدمة",
+    "writeoff": "إعدام",
+    "reversal": "عكس",
+    "opening": "رصيد افتتاحي"
+  },
+  "journal_status": {
+    "pending": "غير معتمد",
+    "posted": "معتمد",
+    "rejected": "مرفوض"
+  },
+  "report_status": {
+    "submitted": "بانتظار المراجعة",
+    "approved": "معتمد",
+    "rejected": "مرفوض"
   }
 }

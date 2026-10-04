@@ -40,6 +40,9 @@ KINDS: dict[str, Kind] = {
     "document_expiring": Kind("warning", "documents.view", ("document", "owner", "date", "days")),
     "document_expired": Kind("critical", "documents.view", ("document", "owner", "date")),
     "onboarding_submitted": Kind("info", "employees.onboarding", ("driver",)),
+    "cash_balance_high": Kind("warning", "cash.view", ("driver", "balance", "limit")),
+    "daily_report_overdue": Kind("warning", "daily_reports.review", ("driver", "date", "hours")),
+    "ledger_invariant": Kind("critical", "cash.view", ("problem",)),
 }
 
 
@@ -53,9 +56,11 @@ def raise_alert(
     params: dict | None = None,
     dedupe_key: str | None = None,
     once: bool = False,
+    refresh: bool = False,
 ) -> bool:
     """Adds the alert to the caller's transaction. With a dedupe_key, at most one alert per situation stays open;
-    with once=True, a situation alerts only once even after someone acknowledged it."""
+    with once=True, a situation alerts only once even after someone acknowledged it; with refresh=True, the open
+    alert takes the new params (a balance that keeps rising shows its current value)."""
     spec = KINDS[kind]
     missing = set(spec.params) - set(params or {})
     if missing:
@@ -72,7 +77,13 @@ def raise_alert(
         params=params or {},
         dedupe_key=dedupe_key,
     )
-    if dedupe_key:
+    if dedupe_key and refresh:
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["dedupe_key"],
+            index_where=Alert.acknowledged_at.is_(None),
+            set_={"params": stmt.excluded.params},
+        )
+    elif dedupe_key:
         stmt = stmt.on_conflict_do_nothing(index_elements=["dedupe_key"], index_where=Alert.acknowledged_at.is_(None))
     return db.execute(stmt.returning(Alert.id)).first() is not None
 

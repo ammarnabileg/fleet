@@ -129,6 +129,8 @@
     "activation_link_invalid": "The activation link is invalid, used or expired: ask your supervisor for a new one",
     "activation_rate_limited": "{count} links were already sent to this driver today, try tomorrow",
     "alert_not_found": "Alert not found",
+    "amount_must_be_positive": "The amount must be greater than zero",
+    "amount_must_not_be_zero": "The amount cannot be zero",
     "branch_not_found": "Branch not found",
     "cannot_deactivate_default": "The default language cannot be turned off",
     "cannot_grant_permissions": "You cannot grant permissions you do not hold",
@@ -169,6 +171,7 @@
     "import_bad_template": "Sheet \"{sheet}\" is missing or its columns changed: use the template as it is",
     "import_not_xlsx": "The file is not a valid Excel workbook (xlsx)",
     "internal_server_error": "Something went wrong",
+    "invalid_business_date": "Report date not accepted (today or the two days before only)",
     "invalid_civil_id": "Invalid civil ID: {value} (12 digits)",
     "invalid_code": "The code is not correct",
     "invalid_credentials": "Wrong username or password",
@@ -179,6 +182,9 @@
     "invalid_range": "Invalid period",
     "invalid_recorded_at": "The reading time is not accepted",
     "invalid_settings": "Invalid settings values",
+    "journal_exists": "This entry is already recorded",
+    "journal_not_found": "Entry not found",
+    "journal_not_reversible": "This entry cannot be reversed",
     "language_exists": "The language already exists",
     "message_not_delivered": "WhatsApp could not deliver the message now: use the manual link or try later",
     "method_not_allowed": "Method not allowed",
@@ -212,6 +218,10 @@
     "reading_exists": "This reading was already recorded today",
     "reading_not_found": "Reading not found",
     "reason_required": "A reason is required",
+    "receipt_not_found": "Receipt not found",
+    "report_exists": "The report for this day was already sent",
+    "report_not_found": "Report not found",
+    "report_not_submitted": "This report is not waiting for review",
     "role_exists": "A role with this code already exists",
     "role_not_found": "Role not found",
     "salary_skipped": "Salary not imported: it needs the salary permission",
@@ -223,6 +233,7 @@
     "time_in_future": "The time is in the future",
     "time_too_old": "The time is too far in the past",
     "token_reused": "The session was stopped for security reasons, sign in again",
+    "treasury_insufficient": "The treasury holds less than this amount",
     "unknown_company": "Unknown company",
     "unknown_language": "Unknown or inactive language: {code}",
     "unknown_permission": "Unknown permission: {codes}",
@@ -302,12 +313,15 @@
     "yes": "Yes"
   },
   "alerts": {
+    "cash_balance_high": "{driver}'s cash balance is {balance} KWD, above the limit of {limit}",
+    "daily_report_overdue": "{driver}'s report for {date} has waited for review more than {hours} hours",
     "device_replaced": "{driver} signed in on a new device ({model}); the previous device was disconnected",
     "document_expired": "{document} of {owner} expired on {date}",
     "document_expiring": "{document} of {owner} expires on {date} (in {days} days)",
     "driver_left_with_vehicle": "{driver}'s service ended while still holding {plate}",
     "emergency_custody": "Emergency handover of {plate} to {driver}: {reason}",
     "gps_off": "GPS is off for {driver} ({plate})",
+    "ledger_invariant": "Cash ledger check failed: {problem}",
     "location_permission_off": "Location permission is not set to always for {driver} ({plate})",
     "messaging_down": "The WhatsApp channel for sign-in codes is down ({state}): no driver can bind a new phone until it is back",
     "mock_location": "Fake location from {driver}'s phone",
@@ -382,5 +396,25 @@
     "failed": "Failed",
     "cancelled": "Cancelled",
     "already_queued": "Already waiting"
+  },
+  "journal_kind": {
+    "collection": "Collection",
+    "adjustment": "Adjustment",
+    "deposit": "Receipt deposit",
+    "bank_deposit": "Bank deposit",
+    "settlement": "Final settlement",
+    "writeoff": "Write-off",
+    "reversal": "Reversal",
+    "opening": "Opening balance"
+  },
+  "journal_status": {
+    "pending": "Unapproved",
+    "posted": "Approved",
+    "rejected": "Rejected"
+  },
+  "report_status": {
+    "submitted": "Waiting for review",
+    "approved": "Approved",
+    "rejected": "Rejected"
   }
 }
