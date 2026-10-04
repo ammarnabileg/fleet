@@ -5,8 +5,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.db import get_session
+from app.core.errors import AppError
 from app.modules.i18n import service as i18n
-from app.modules.identity import schemas, service
+from app.modules.identity import link_queue, schemas, service
 from app.modules.identity.service import Principal, get_principal, require_permission
 from app.modules.onboarding import service as onboarding
 from app.modules.people import service as people
@@ -241,6 +242,44 @@ def create_activation_link(
     return service.create_activation_link(
         db, driver, channel=body.channel, actor_user_id=principal.user_id, onboarding=with_onboarding
     )
+
+
+@router.post("/activation-links/bulk", response_model=schemas.BulkLinksOut, status_code=202)
+def bulk_links(
+    body: schemas.BulkLinksIn,
+    principal: Principal = Depends(require_permission("devices.manage")),
+    db: Session = Depends(get_session),
+):
+    """Queued, then sent one by one over WhatsApp at the pace set in the settings (never all at once)."""
+    if body.all_unbound:
+        drivers = link_queue.unbound_drivers(db, **principal.scope)
+    else:
+        ids = []
+        for raw in body.employee_ids:
+            try:
+                ids.append(uuid.UUID(raw))
+            except ValueError:
+                raise AppError(404, "employee_not_found") from None
+        drivers = [people.ref_by_public_id(db, i, **principal.scope) for i in ids]
+    onboarding_for = {d.id for d in drivers if d.can_use_app and onboarding.needed(db, d.id)}
+    for d in drivers:
+        if d.id in onboarding_for:
+            onboarding.start(db, d)
+    return link_queue.queue(db, drivers, onboarding_for=onboarding_for, actor_user_id=principal.user_id)
+
+
+@router.get("/activation-links/queue", response_model=schemas.QueueOut)
+def link_queue_status(
+    principal: Principal = Depends(require_permission("devices.manage")), db: Session = Depends(get_session)
+):
+    return link_queue.summary(db, **principal.scope)
+
+
+@router.post("/activation-links/queue/cancel")
+def cancel_link_queue(
+    principal: Principal = Depends(require_permission("devices.manage")), db: Session = Depends(get_session)
+):
+    return {"cancelled": link_queue.cancel_waiting(db, actor_user_id=principal.user_id, **principal.scope)}
 
 
 @router.post("/devices/{public_id}/revoke", status_code=204)

@@ -505,6 +505,19 @@ def driver_by_phone(db: Session, phone: str) -> EmployeeRef | None:
     return None if row is None else _ref(*row)
 
 
+def app_drivers(db: Session, *, all_companies: bool, company_ids: Iterable[int]) -> list[EmployeeRef]:
+    """Drivers whose app access is active, in scope."""
+    q = _scoped(
+        select(Employee, EmploymentStatus)
+        .join(EmploymentStatus, EmploymentStatus.code == Employee.status_code)
+        .where(Employee.is_driver.is_(True), Employee.app_access == "active", EmploymentStatus.is_terminal.is_(False))
+        .order_by(Employee.employee_number),
+        all_companies,
+        company_ids,
+    )
+    return [_ref(e, s) for e, s in db.execute(q)]
+
+
 def find(db: Session, *, civil_id: str | None, phone: str | None) -> EmployeeRef | None:
     """The existing employee for an imported row: by civil ID, or by phone when there is none."""
     for column, value in ((Employee.civil_id, civil_id), (Employee.phone, phone)):

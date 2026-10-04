@@ -203,3 +203,28 @@ class ActivationLink(Base):
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     used_device_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("identity.devices.id"))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class LinkQueueItem(Base):
+    """An activation link waiting to be sent over WhatsApp (bulk sending, spaced out)."""
+
+    __tablename__ = "link_queue"
+    __table_args__ = (
+        CheckConstraint("status IN ('queued', 'sent', 'failed', 'cancelled')", name="status"),
+        Index("link_queue_employee_id_idx", "employee_id", unique=True, postgresql_where=text("status = 'queued'")),
+        Index("link_queue_status_idx", "status", "id"),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    company_id: Mapped[int] = mapped_column(BigInteger)
+    onboarding: Mapped[bool] = mapped_column(Boolean)
+    requested_by: Mapped[int] = mapped_column(BigInteger)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    status: Mapped[str] = mapped_column(Text, server_default=text("'queued'"))
+    attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)

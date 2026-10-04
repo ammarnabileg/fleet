@@ -268,7 +268,12 @@
     "tracking.signal_loss_minutes": "تنبيه انقطاع الإشارة بعد (دقيقة)",
     "onboarding": "التسجيل الذاتي للسائق",
     "onboarding.required_documents": "المستندات المطلوبة من السائق",
-    "onboarding.vehicle_photos": "صور السيارة المطلوبة"
+    "onboarding.vehicle_photos": "صور السيارة المطلوبة",
+    "messaging": "إرسال واتساب الجماعي",
+    "messaging.bulk_interval_seconds": "الثواني بين رسالة وأخرى",
+    "messaging.bulk_daily_limit": "أقصى عدد رسائل في اليوم",
+    "messaging.send_from_hour": "الإرسال من الساعة",
+    "messaging.send_until_hour": "الإرسال حتى الساعة"
   },
   "common": {
     "active": "نشط",
@@ -370,5 +375,12 @@
     "submitted": "بانتظار المراجعة",
     "approved": "معتمد",
     "rejected": "يحتاج تصحيحاً"
+  },
+  "link_status": {
+    "queued": "في الانتظار",
+    "sent": "أُرسل",
+    "failed": "فشل",
+    "cancelled": "أُلغي",
+    "already_queued": "في الانتظار بالفعل"
   }
 }

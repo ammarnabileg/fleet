@@ -51,6 +51,15 @@ class OnboardingSettings(_Section):
     )
 
 
+class MessagingSettings(_Section):
+    """Bulk WhatsApp sending (activation links): spaced out and within the day, so the number is not flagged as spam."""
+
+    bulk_interval_seconds: int = Field(60, ge=10, le=3600)
+    bulk_daily_limit: int = Field(100, ge=1, le=1000)
+    send_from_hour: int = Field(8, ge=0, le=23)  # Kuwait time
+    send_until_hour: int = Field(22, ge=1, le=24)
+
+
 class MaintenanceSettings(_Section):
     approval_limit: Decimal = Field(Decimal("100.000"), ge=0, max_digits=12, decimal_places=3)
 
@@ -79,6 +88,7 @@ SECTIONS: dict[str, type[_Section]] = {
     "odometer": OdometerSettings,
     "documents": DocumentSettings,
     "onboarding": OnboardingSettings,
+    "messaging": MessagingSettings,
     "maintenance": MaintenanceSettings,
     "payroll": PayrollSettings,
     "daily_report": DailyReportSettings,

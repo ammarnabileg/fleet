@@ -268,7 +268,12 @@
     "tracking.signal_loss_minutes": "Signal loss alert after (minutes)",
     "onboarding": "Driver self-registration",
     "onboarding.required_documents": "Documents the driver must send",
-    "onboarding.vehicle_photos": "Required vehicle photos"
+    "onboarding.vehicle_photos": "Required vehicle photos",
+    "messaging": "Bulk WhatsApp sending",
+    "messaging.bulk_interval_seconds": "Seconds between messages",
+    "messaging.bulk_daily_limit": "Maximum messages a day",
+    "messaging.send_from_hour": "Send from hour",
+    "messaging.send_until_hour": "Send until hour"
   },
   "common": {
     "active": "Active",
@@ -370,5 +375,12 @@
     "submitted": "Waiting for review",
     "approved": "Approved",
     "rejected": "Needs correction"
+  },
+  "link_status": {
+    "queued": "Waiting",
+    "sent": "Sent",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+    "already_queued": "Already waiting"
   }
 }

@@ -206,3 +206,39 @@ class ActivateIn(BaseModel):
     platform: Meta | None = None
     model: Meta | None = None
     app_version: Meta | None = None
+
+
+class BulkLinksIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    employee_ids: list[str] = Field(default_factory=list, max_length=1000)
+    all_unbound: bool = False  # every driver with app access and no phone bound yet
+
+
+class SkippedOut(BaseModel):
+    id: str
+    reason: str
+
+
+class BulkLinksOut(BaseModel):
+    queued: int
+    skipped: list[SkippedOut]
+
+
+class QueueItemOut(BaseModel):
+    id: str
+    driver: dict | None
+    status: str
+    onboarding: bool
+    requested_at: datetime
+    sent_at: datetime | None
+    error: str | None
+    attempts: int
+
+
+class QueueOut(BaseModel):
+    waiting: int
+    sent_today: int
+    daily_limit: int
+    estimated_days: int
+    items: list[QueueItemOut]

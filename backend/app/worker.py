@@ -33,6 +33,7 @@ celery.conf.beat_schedule = {
     "outbox-relay": {"task": "integrations.relay_outbox", "schedule": 5.0},
     "signal-loss": {"task": "tracking.scan_signal_loss", "schedule": 60.0},
     "messaging-channel": {"task": "identity.check_messaging_channel", "schedule": 300.0},
+    "link-queue": {"task": "identity.send_queued_link", "schedule": 20.0},  # the pace itself is in the settings
     "position-partitions": {"task": "tracking.maintain_partitions", "schedule": crontab(hour=2, minute=10)},
     "document-expiry": {"task": "documents.scan_expiring", "schedule": crontab(hour=7, minute=0)},
 }
