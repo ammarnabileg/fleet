@@ -62,10 +62,10 @@
         ${api.companies.length > 1 ? h`<select class="select" data-f="company" aria-label="الشركة"><option value="">كل الشركات</option>${api.companyOptions().map(function (c) { return h`<option value="${c.v}">${c.t}</option>`; })}</select>` : ''}`;
       var t = BT.table(el, {
         fetch: function (s) {
-          return api.get('/employees', { q: s.q, is_driver: s.chip === '' ? null : s.chip, status_code: filters.status, company_id: filters.company, limit: s.limit, offset: s.offset });
+          return api.get('/employees', { q: s.q, is_driver: { 'true': true, 'false': false, no_phone: true }[s.chip], no_phone: s.chip === 'no_phone' || null, status_code: filters.status, company_id: filters.company, limit: s.limit, offset: s.offset });
         },
-        search: { placeholder: 'الاسم أو الرقم الوظيفي أو الجوال…' },
-        chips: { options: [{ v: 'true', t: 'السائقون' }, { v: 'false', t: 'الإداريون' }] },
+        search: { placeholder: 'الاسم أو الرقم الوظيفي أو الجوال أو رقم المنصة…' },
+        chips: { options: [{ v: 'true', t: 'السائقون' }, { v: 'false', t: 'الإداريون' }, { v: 'no_phone', t: 'سائقون بلا هاتف' }] },
         tools: tools,
         selectable: api.can('devices.manage'),
         bulk: [{ label: 'إرسال رابط التفعيل على واتساب', icon: 'send', cls: 'btn-primary', run: function (rows, clear) { A.bulkLinks(rows.filter(function (r) { return r.is_driver; }), clear); } }],
@@ -122,7 +122,8 @@
     jobs.push(api.can('documents.view') ? api.get('/documents', { owner_type: 'employee', owner_id: id }) : Promise.resolve(null));
     jobs.push(api.can('devices.manage') ? api.get('/employees/' + id + '/devices') : Promise.resolve(null));
     jobs.push(api.can('custody.view') ? api.get('/custodies', { driver_id: id, limit: 10 }) : Promise.resolve(null));
-    Promise.all(jobs).then(function (r) {
+    Promise.all(jobs.concat([A.platforms ? A.platforms().catch(function () { return []; }) : []])).then(function (r) {
+      r = r.slice(0, 7);
       // كشف الكاش للسائقين فقط
       return r[0].is_driver && api.can('cash.view') ? api.get('/cash/drivers/' + id + '/statement').then(function (c) { return r.concat([c]); }, function () { return r.concat([null]); }) : r.concat([null]);
     }).then(function (r) {
@@ -148,6 +149,8 @@
             ['سائق', e.is_driver ? 'نعم' : 'لا'],
             ['الراتب الأساسي', e.basic_salary != null ? BT.amt(Number(e.basic_salary)) : raw('<span class="muted">محجوب (صلاحية الرواتب)</span>')],
             ['IBAN', e.iban ? h`<span class="num ltr">${e.iban}</span>` : '—'],
+            e.bank_name || e.payment_method ? ['البنك / طريقة الدفع', [e.bank_name, e.payment_method ? api.t('payment_method', e.payment_method) : null].filter(Boolean).join(' · ')] : null,
+            e.platform_id ? ['المنصة', h`${A.platformName(A._platList, e.platform_id)}${e.platform_driver_id ? h` · <span class="num ltr">${e.platform_driver_id}</span>` : ''}`] : null,
             cash ? ['رصيد الكاش', h`${BT.amt(Number(cash.total))}${Number(cash.pending) ? h` <span class="muted fs-sm">(منه غير معتمد ${fmt.money(cash.pending)})</span>` : ''}`] : null
           ].filter(Boolean))}</div>
           ${docs ? h`<div data-panel="docs" data-group="empd" class="${active === 'docs' ? 'active' : ''}">${docsList(docs, 'employee', e.id)}</div>` : ''}
@@ -314,8 +317,9 @@
   /* ================= إضافة / تعديل موظف ================= */
   BT.actions['employee-new'] = function () { A.employeeForm(null, function (e) { if (A.refreshEmployees) A.refreshEmployees(); A.employee(e.id); }); };
   A.employeeForm = function (e, after) {
-    var salary = api.can('employees.view_salary');
-    loadStatuses().then(function () {
+    var salary = api.can('employees.view_salary'), plats = [];
+    Promise.all([loadStatuses(), A.platforms ? A.platforms().catch(function () { return []; }) : []]).then(function (r) {
+      plats = r[1] || [];
       var editing = !!e;
       e = e || { name: {}, is_driver: true, company_id: (api.companyOptions()[0] || {}).v, branch_id: api.defaultBranch() };
       var dlg = A.formModal({
@@ -326,7 +330,7 @@
           ${BT.f.switch({ name: 'is_driver', label: 'سائق (يستخدم تطبيق السائق)', checked: e.is_driver })}
           ${BT.f.input({ name: 'name_ar', label: 'الاسم بالعربية', required: true, value: e.name.ar })}
           ${BT.f.input({ name: 'name_en', label: 'الاسم بالإنجليزية (كما في الجواز)', required: true, value: e.name.en })}
-          ${BT.f.input({ name: 'phone', label: 'الجوال', optional: true, value: e.phone, validate: 'phone', placeholder: '9xxxxxxx', hint: 'مطلوب للسائق: عليه يصل رابط التفعيل ورموز الدخول' })}
+          ${BT.f.input({ name: 'phone', label: 'الجوال', optional: true, value: e.phone, validate: 'phone', placeholder: '9xxxxxxx', hint: 'للسائق: عليه يصل رابط التفعيل ورموز الدخول، ولا تطبيق بدونه' })}
           ${BT.f.input({ name: 'civil_id', label: 'الرقم المدني', optional: true, value: e.civil_id, validate: 'civilId', maxlength: 12 })}
           ${BT.f.select({ name: 'company_id', label: 'الشركة (على أوراقها)', required: true, value: e.company_id, options: api.companyOptions(), placeholder: false })}
           ${BT.f.select({ name: 'branch_id', label: 'الفرع', required: true, value: e.branch_id, options: api.branchOptions(), placeholder: false })}
@@ -335,17 +339,19 @@
           ${BT.f.input({ name: 'department', label: 'القسم', optional: true, value: e.department })}
           ${BT.f.input({ name: 'job_title', label: 'الوظيفة', optional: true, value: e.job_title })}
           ${editing ? '' : BT.f.select({ name: 'status_code', label: 'الحالة', required: true, value: 'active', placeholder: false, options: statuses.filter(function (s) { return s.is_active && !s.is_terminal; }).map(function (s) { return { v: s.code, t: api.name(s.name) }; }) })}
-          ${salary ? h`${BT.f.money({ name: 'basic_salary', label: 'الراتب الأساسي', optional: true, value: e.basic_salary })}${BT.f.input({ name: 'iban', label: 'IBAN', optional: true, value: e.iban, placeholder: 'KW..' })}` : ''}
+          ${BT.f.select({ name: 'platform_id', label: 'منصة التوصيل', optional: true, value: e.platform_id || '', placeholder: '— لا يوجد —', options: plats.filter(function (x) { return x.is_active || x.id === e.platform_id; }).map(function (x) { return { v: x.id, t: api.name(x.name) }; }) })}
+          ${BT.f.input({ name: 'platform_driver_id', label: 'رقمه في المنصة (driver id)', optional: true, value: e.platform_driver_id })}
+          ${salary ? h`${BT.f.money({ name: 'basic_salary', label: 'الراتب الأساسي', optional: true, value: e.basic_salary })}${BT.f.input({ name: 'iban', label: 'IBAN', optional: true, value: e.iban, placeholder: 'KW..' })}${BT.f.input({ name: 'bank_name', label: 'البنك', optional: true, value: e.bank_name })}${BT.f.select({ name: 'payment_method', label: 'طريقة الدفع', optional: true, value: e.payment_method || '', placeholder: '—', options: [{ v: 'bank', t: api.t('payment_method', 'bank') }, { v: 'cash', t: api.t('payment_method', 'cash') }] })}` : ''}
         </div>`,
         submit: function (v) {
-          if (v.is_driver && !v.phone) { BT.toast('السائق يحتاج رقم جوال', { type: 'error' }); return Promise.reject(new Error('phone')); }
           var body = {
             employee_number: v.employee_number.trim(), name: Object.assign({}, e.name, { ar: v.name_ar.trim(), en: v.name_en.trim() }),
             is_driver: !!v.is_driver, phone: A.phoneE164(v.phone), civil_id: v.civil_id || null,
             company_id: +v.company_id, branch_id: +v.branch_id, nationality: v.nationality || null, hire_date: v.hire_date || null,
-            department: v.department || null, job_title: v.job_title || null
+            department: v.department || null, job_title: v.job_title || null,
+            platform_id: v.platform_id ? +v.platform_id : null, platform_driver_id: v.platform_driver_id ? v.platform_driver_id.trim() : null
           };
-          if (salary) { body.basic_salary = v.basic_salary === '' ? null : String(v.basic_salary); body.iban = v.iban ? v.iban.replace(/\s/g, '').toUpperCase() : null; }
+          if (salary) { body.basic_salary = v.basic_salary === '' ? null : String(v.basic_salary); body.iban = v.iban ? v.iban.replace(/\s/g, '').toUpperCase() : null; body.bank_name = v.bank_name || null; body.payment_method = v.payment_method || null; }
           if (!editing) { body.status_code = v.status_code; return api.post('/employees', body); }
           var changes = { version: e.version };
           Object.keys(body).forEach(function (k) { if (JSON.stringify(body[k]) !== JSON.stringify(k === 'basic_salary' && e[k] != null ? String(Number(e[k])) : e[k] == null ? null : e[k])) changes[k] = body[k]; });

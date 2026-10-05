@@ -705,4 +705,91 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get fineStatus_company => 'Borne by the company';
+
+  @override
+  String get monthlyStatement => 'Monthly platform statement';
+
+  @override
+  String get payslips => 'Payslips';
+
+  @override
+  String get statementTitle => 'Monthly platform statement';
+
+  @override
+  String statementIntro(String platform) {
+    return 'At the start of each month, send screenshots of the month\'s summary from the $platform app and type the figures as they show. The office checks them against the screenshots before the payroll.';
+  }
+
+  @override
+  String get statementNoPlatform => 'Your platform is not set yet. Contact the office.';
+
+  @override
+  String get statementNoMonth => 'You sent every open month. Wait for the office\'s review.';
+
+  @override
+  String get statementMonth => 'Month';
+
+  @override
+  String get statementShots => 'Screenshots from the platform app (up to 6)';
+
+  @override
+  String get statementShotRequired => 'Add at least one screenshot';
+
+  @override
+  String get statementHistory => 'What you sent';
+
+  @override
+  String statementSentDays(String days) {
+    return 'Sent: $days valid days';
+  }
+
+  @override
+  String statementApprovedDays(String days) {
+    return 'Approved: $days valid days';
+  }
+
+  @override
+  String get statementStatus_submitted => 'Waiting for review';
+
+  @override
+  String get statementStatus_approved => 'Approved';
+
+  @override
+  String get statementStatus_rejected => 'Rejected: send it again';
+
+  @override
+  String get addShot => 'Add a screenshot';
+
+  @override
+  String get validDays => 'Valid days';
+
+  @override
+  String get ordersTotal => 'Total orders';
+
+  @override
+  String get hoursTotal => 'Total hours';
+
+  @override
+  String get payslipsTitle => 'Payslips';
+
+  @override
+  String get payslipsNone => 'No approved payslip yet';
+
+  @override
+  String get payslipNet => 'Net salary';
+
+  @override
+  String get payslipStatus_approved => 'Approved';
+
+  @override
+  String get payslipStatus_paid => 'Paid';
+
+  @override
+  String get iban => 'IBAN';
+
+  @override
+  String get ibanHint => 'Your salary is paid to it: copy it from your bank\'s app';
+
+  @override
+  String get bankName => 'Bank name';
 }

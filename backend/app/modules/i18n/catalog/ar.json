@@ -331,7 +331,28 @@
     "driver_without_phone": "سائق بلا رقم هاتف: يُسجَّل، ولا يحصل على التطبيق ورابط التفعيل حتى يُضاف رقمه",
     "invalid_iban": "رقم آيبان غير صحيح: {value} (أرقام التحقق لا تطابق)",
     "import_sheet_missing": "الورقة «{sheet}» غير موجودة في الملف",
-    "import_bad_mapping": "أعمدة الورقة «{sheet}» غير مكتملة أو غير صحيحة: {fields}"
+    "import_bad_mapping": "أعمدة الورقة «{sheet}» غير مكتملة أو غير صحيحة: {fields}",
+    "platform_not_found": "المنصة غير موجودة",
+    "platform_required": "رقم السائق في المنصة يحتاج اختيار المنصة",
+    "platform_driver_id_taken": "رقم السائق هذا مسجّل لسائق آخر في المنصة نفسها",
+    "platform_code_taken": "رمز المنصة مستخدم",
+    "unknown_column": "أعمدة غير معروفة في كشف الراتب: {codes}",
+    "no_platform": "لم تُحدَّد منصتك بعد: تواصل مع المكتب",
+    "statement_month_invalid": "لا يمكن إرسال كشف لهذا الشهر",
+    "payroll_locked": "رواتب هذا الشهر معتمدة: لا تتغير بياناته إلا بإعادة فتحها",
+    "statement_exists": "يوجد كشف لهذا الشهر بالفعل",
+    "statement_not_found": "الكشف غير موجود",
+    "statement_rejected": "الكشف مرفوض: ينتظر إرسالاً جديداً من السائق",
+    "statement_not_submitted": "لا يُرفض إلا كشف بانتظار المراجعة",
+    "run_not_found": "كشف الرواتب غير موجود",
+    "run_month_in_future": "لا يُحضَّر كشف رواتب لشهر لم يبدأ",
+    "payroll_cap_not_set": "حدد أولاً الحد الأقصى للخصم الشهري في الإعدادات (قرار العميل بعد الرأي القانوني)",
+    "run_exists": "يوجد كشف رواتب لهذه الشركة وهذا الشهر",
+    "run_not_draft": "الكشف معتمد: أعد فتحه أولاً",
+    "earlier_run_draft": "اعتمد أولاً كشف شهر {month} لهذه الشركة",
+    "later_run_approved": "يوجد كشف لاحق معتمد لهذه الشركة: الأشهر تُعتمد وتُفتح بالترتيب",
+    "run_has_blocking": "{count} سطر لا يمكن اعتماده بعد: كشف منصة ناقص أو بانتظار المراجعة، أو صافٍ سالب",
+    "run_not_approved": "الكشف غير معتمد"
   },
   "settings": {
     "branding": "الهوية",
@@ -370,7 +391,9 @@
     "maintenance.close_requires_invoice": "لا يُغلق طلب الصيانة إلا بعد اعتماد فاتورته",
     "accidents": "الحوادث",
     "accidents.min_photos": "أقل عدد صور يلتقطها السائق للحادث",
-    "accidents.police_report_alert_days": "تنبيه إذا لم يُرفق محضر الشرطة بعد (أيام)"
+    "accidents.police_report_alert_days": "تنبيه إذا لم يُرفق محضر الشرطة بعد (أيام)",
+    "payroll.deduction_cap_base": "الحد يُحسب من",
+    "onboarding.require_bank": "الآيبان واسم البنك مطلوبان في التسجيل الذاتي"
   },
   "common": {
     "active": "نشط",
@@ -396,7 +419,8 @@
     "two_step_code": "رمز التحقق",
     "username": "اسم المستخدم",
     "welcome": "مرحباً {name}",
-    "yes": "نعم"
+    "yes": "نعم",
+    "no_platform": "بدون منصة"
   },
   "alerts": {
     "cash_balance_high": "رصيد كاش {driver} بلغ {balance} د.ك، أعلى من الحد {limit}",
@@ -583,7 +607,9 @@
   "deduction_source": {
     "accident": "حادث",
     "fine": "مخالفة",
-    "other": "أخرى"
+    "other": "أخرى",
+    "advance": "سلفة",
+    "sim": "شريحة هاتف"
   },
   "deduction_status": {
     "approved": "معتمد",
@@ -610,5 +636,68 @@
     "phone": "الهاتف",
     "nationality": "الجنسية",
     "iban": "الآيبان"
+  },
+  "payroll_column": {
+    "platform_driver_id": "driver id",
+    "name": "اسم السائق",
+    "job_title": "المهنة",
+    "civil_id": "الرقم المدني",
+    "iban": "رقم الآيبان",
+    "bank_name": "البنك",
+    "payment_method": "طريقة الدفع",
+    "basic": "الراتب الأساسي",
+    "hours": "إجمالي الساعات",
+    "orders": "إجمالي الطلبات",
+    "working_days": "عدد أيام الدوام",
+    "valid_days": "عدد الأيام الصالحة",
+    "bonus": "البونص",
+    "tips": "البقشيش",
+    "gross": "إجمالي المستحق",
+    "invalid_days_deduction": "خصم الأيام غير الصالحة",
+    "car_repair": "خصم تصليح السيارة",
+    "traffic_fines": "خصم مخالفات المرور",
+    "cancelled_orders": "خصومات الطلبات الملغاة",
+    "platform_deductions": "خصومات المنصة",
+    "sim": "خصم شريحة الهاتف",
+    "advance": "خصم السلفة",
+    "cash_shortage": "خصم الكاش",
+    "late": "خصم التأخير",
+    "other_deductions": "خصومات أخرى",
+    "carried": "مُرحَّل للشهر القادم",
+    "net": "صافي الراتب",
+    "blank": "(عمود فارغ)"
+  },
+  "payment_method": {
+    "bank": "تحويل بنكي",
+    "cash": "نقداً"
+  },
+  "statement_status": {
+    "submitted": "بانتظار المراجعة",
+    "approved": "معتمد",
+    "rejected": "مرفوض"
+  },
+  "run_status": {
+    "draft": "مسودة",
+    "approved": "معتمد",
+    "paid": "مدفوع"
+  },
+  "line_flag": {
+    "statement_missing": "لا يوجد كشف منصة للشهر",
+    "statement_pending": "كشف المنصة بانتظار المراجعة",
+    "net_negative": "خصومات الشهر أكبر من المستحق: الصافي سالب",
+    "no_basic_salary": "لا يوجد راتب أساسي",
+    "no_iban": "لا يوجد آيبان",
+    "no_platform": "سائق بلا منصة",
+    "carried": "جزء من الأقساط رُحّل للشهر القادم"
+  },
+  "driver_field": {
+    "valid_days": "الأيام الصالحة",
+    "orders": "عدد الطلبات",
+    "hours": "الساعات"
+  },
+  "invalid_days_rule": {
+    "none": "لا تُخصم",
+    "daily_wage": "أجر اليوم (الأساسي ÷ القاسم)",
+    "fixed": "مبلغ ثابت لليوم"
   }
 }

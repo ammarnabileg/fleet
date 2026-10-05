@@ -248,3 +248,20 @@ def scan_overdue(db: Session) -> int:
         )
     db.commit()
     return raised
+
+
+def month_activity(db: Session, employee_ids: Iterable[int], first, last) -> dict[int, dict]:
+    """For payroll, per driver: the days he sent a daily report (not rejected) and the orders in his approved
+    reports, first to last inclusive."""
+    ids = list(employee_ids)
+    out = {i: {"days": set(), "orders": 0} for i in ids}
+    if not ids:
+        return out
+    q = select(Report.employee_id, Report.business_date, Report.orders_count, Report.status).where(
+        Report.employee_id.in_(ids), Report.business_date.between(first, last), Report.status != "rejected"
+    )
+    for employee_id, day, orders, status in db.execute(q):
+        out[employee_id]["days"].add(day)
+        if status == "approved":
+            out[employee_id]["orders"] += orders or 0
+    return out

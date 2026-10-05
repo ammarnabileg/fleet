@@ -264,8 +264,10 @@
     A.setTitle('الخصومات', [['الحوادث', 'accidents'], ['الخصومات']]);
     var v = A.view();
     if (!api.can('deductions.view')) { BT.render(v, A.forbidden()); return; }
-    BT.render(v, h`${A.head('الخصومات المعتمدة', 'ما يخصمه الراتب من كل موظف: الإجمالي على أقساط شهرية متساوية، والباقي على القسط الأخير')}
+    BT.render(v, h`${A.head('الخصومات المعتمدة', 'ما يخصمه الراتب من كل موظف: الإجمالي على أقساط شهرية متساوية، والباقي على القسط الأخير. الشهر الذي يصل حد الخصم يُرحّل باقيه للشهر التالي.', api.can('deductions.manage') && A.manualDeduction ? A.btn('خصم جديد (سلفة، شريحة…)', { icon: 'plus', cls: 'btn-primary', id: 'ded-new' }) : '')}
       <div class="card"><div data-t></div></div>`);
+    var add = v.querySelector('#ded-new');
+    if (add) add.onclick = function () { A.manualDeduction(function () { t.refresh(); }); };
     var t = BT.table(v.querySelector('[data-t]'), {
       fetch: function (s) { return api.get('/deductions', { status: s.chip === 'cancelled' ? 'cancelled' : 'approved', month: s.chip === 'month' ? BT.config.today : null, limit: s.limit, offset: s.offset }); },
       chips: { value: q.chip || 'month', all: false, options: [{ v: 'month', t: 'هذا الشهر' }, { v: 'approved', t: 'كل المعتمدة' }, { v: 'cancelled', t: 'الملغاة' }] },

@@ -24,7 +24,7 @@ class OutboxItem {
   );
 
   final int id;
-  final String kind; // odometer | report | maintenance | accident | police_report
+  final String kind; // odometer | report | maintenance | accident | police_report | statement
   final Map<String, dynamic> payload;
   final Map<String, String> files; // payload field -> local file still to upload
   final DateTime createdAt;
@@ -50,6 +50,8 @@ class Outbox {
     'accident': ('/driver/accidents', 'camera', {'accident_exists'}),
     // the office may have attached a report meanwhile: the accident has one, nothing more to send
     'police_report': ('/driver/accidents/{accident_id}/police-report', 'camera', {'police_report_exists'}),
+    // the month's screenshots from the platform's app (from the gallery)
+    'statement': ('/driver/statements', 'upload', {'statement_exists'}),
   };
   static const _claimTimeout = Duration(minutes: 2);
 

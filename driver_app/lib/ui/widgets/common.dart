@@ -219,3 +219,18 @@ class SectionTitle extends StatelessWidget {
 
 /// Amounts and numbers are written left to right with Latin digits, as on the receipts.
 String money(String amount, String currency) => '\u2066$amount\u2069 $currency';
+
+/// The ISO 13616 check digits (mod 97), as the server checks them: a mistyped IBAN is caught before it is sent.
+bool ibanOk(String value) {
+  final v = value.replaceAll(' ', '').toUpperCase();
+  if (!RegExp(r'^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$').hasMatch(v)) return false;
+  final digits = (v.substring(4) + v.substring(0, 4)).split('').map((c) {
+    final code = c.codeUnitAt(0);
+    return code >= 65 ? '${code - 55}' : c;
+  }).join();
+  var rest = 0;
+  for (final ch in digits.split('')) {
+    rest = (rest * 10 + int.parse(ch)) % 97;
+  }
+  return rest == 1;
+}

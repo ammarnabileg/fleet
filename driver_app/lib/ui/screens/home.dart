@@ -12,6 +12,7 @@ import 'fines.dart';
 import 'maintenance.dart';
 import 'odometer.dart';
 import 'report.dart';
+import 'statement.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.state});
@@ -220,6 +221,22 @@ class HomeTab extends StatelessWidget {
             icon: const Icon(Icons.receipt_long_outlined),
             label: Text(l.fines),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => FinesScreen(state: state))),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            key: const Key('statement'),
+            icon: const Icon(Icons.fact_check_outlined),
+            label: Text(l.monthlyStatement),
+            onPressed: () =>
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatementScreen(state: state))),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            key: const Key('payslips'),
+            icon: const Icon(Icons.payments_outlined),
+            label: Text(l.payslips),
+            onPressed: () =>
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => PayslipsScreen(state: state))),
           ),
           if (state.queued.isNotEmpty) ...[
             SectionTitle(l.outboxTitle),

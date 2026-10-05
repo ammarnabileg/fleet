@@ -26,6 +26,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int step = 0;
   final _civil = TextEditingController();
   final _nat = TextEditingController();
+  final _iban = TextEditingController();
+  final _bank = TextEditingController();
   final _plate = TextEditingController();
   final _km = TextEditingController();
   final _numbers = <String, TextEditingController>{};
@@ -40,6 +42,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     draft = {
       'civil_id': d['civil_id'],
       'nationality': d['nationality'],
+      'iban': d['iban'],
+      'bank_name': d['bank_name'],
       'documents': [
         for (final code in ob.requiredDocuments)
           Map<String, dynamic>.from(
@@ -55,6 +59,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     (draft['vehicle'] as Map)['photos'] ??= [];
     _civil.text = draft['civil_id'] ?? '';
     _nat.text = draft['nationality'] ?? '';
+    _iban.text = draft['iban'] ?? '';
+    _bank.text = draft['bank_name'] ?? '';
     _plate.text = (draft['vehicle'] as Map)['plate_number'] ?? '';
     _km.text = '${(draft['vehicle'] as Map)['odometer_km'] ?? ''}';
     for (final doc in docs) {
@@ -68,6 +74,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _collect() {
     draft['civil_id'] = _civil.text.trim().isEmpty ? null : _civil.text.trim();
     draft['nationality'] = _nat.text.trim().isEmpty ? null : _nat.text.trim();
+    final iban = _iban.text.replaceAll(' ', '').toUpperCase();
+    draft['iban'] = iban.isEmpty ? null : iban;
+    draft['bank_name'] = _bank.text.trim().isEmpty ? null : _bank.text.trim();
     vehicle['plate_number'] = _plate.text.trim().isEmpty ? null : _plate.text.trim();
     vehicle['odometer_km'] = int.tryParse(_km.text.trim());
     for (final doc in docs) {
@@ -81,6 +90,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return {
       'civil_id': draft['civil_id'],
       'nationality': draft['nationality'],
+      'iban': draft['iban'] != null && ibanOk(draft['iban'] as String) ? draft['iban'] : null,
+      'bank_name': draft['bank_name'],
       'documents': docs,
       'no_vehicle': draft['no_vehicle'],
       'vehicle': draft['no_vehicle'] == true ? null : vehicle,
@@ -141,6 +152,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final out = <String>[];
     if (!RegExp(r'^\d{12}$').hasMatch(draft['civil_id'] ?? '')) out.add(l.civilId);
     if ((draft['nationality'] ?? '').isEmpty) out.add(l.nationality);
+    final iban = draft['iban'] as String?;
+    if ((ob.requireBank && iban == null) || (iban != null && !ibanOk(iban))) out.add(l.iban);
+    if (ob.requireBank && (draft['bank_name'] ?? '').isEmpty) out.add(l.bankName);
     for (final doc in docs) {
       final t = ob.documentTypes.where((x) => x.code == doc['type_code']).firstOrNull;
       final name = t?.label(state.lang) ?? doc['type_code'] as String;
@@ -270,6 +284,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         key: const Key('nationality'),
         controller: _nat,
         decoration: InputDecoration(labelText: l.nationality),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        key: const Key('iban'),
+        controller: _iban,
+        textDirection: TextDirection.ltr,
+        textCapitalization: TextCapitalization.characters,
+        inputFormatters: [LengthLimitingTextInputFormatter(42)], // banks show it in groups of 4
+        decoration: InputDecoration(
+          labelText: l.iban,
+          hintText: 'KW00XXXX0000000000000000000000',
+          helperText: l.ibanHint,
+        ),
+      ),
+      TextField(
+        key: const Key('bank'),
+        controller: _bank,
+        decoration: InputDecoration(labelText: l.bankName),
       ),
     ];
   }
@@ -436,6 +468,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           children: [
             ListTile(title: Text(l.civilId), trailing: Text('\u2066${draft['civil_id'] ?? '—'}\u2069')),
             ListTile(title: Text(l.nationality), trailing: Text(draft['nationality'] ?? '—')),
+            ListTile(title: Text(l.iban), trailing: Text('\u2066${draft['iban'] ?? '—'}\u2069')),
+            ListTile(title: Text(l.bankName), trailing: Text(draft['bank_name'] ?? '—')),
             for (final doc in docs)
               ListTile(
                 title: Text(

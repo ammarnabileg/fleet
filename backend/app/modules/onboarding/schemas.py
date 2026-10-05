@@ -3,6 +3,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from app.core.types import Iban
+
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 Code = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{1,30}$")]
 Short = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
@@ -43,6 +45,8 @@ class Draft(BaseModel):
 
     civil_id: CivilId | None = None
     nationality: Short | None = None
+    iban: Iban | None = None  # where his salary goes (the payroll sheet needs it)
+    bank_name: Short | None = None
     documents: list[DocumentEntry] = Field(default_factory=list, max_length=10)
     vehicle: VehicleEntry | None = None
     no_vehicle: bool = False  # the driver does not hold a vehicle yet
@@ -60,6 +64,7 @@ class DriverView(BaseModel):
     data: dict
     review_note: str | None
     required_documents: list[str]
+    require_bank: bool  # the IBAN and bank name are required to submit
     vehicle_photos: list[str]
     document_types: list[DocumentTypeOut]
 

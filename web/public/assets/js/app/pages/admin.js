@@ -342,6 +342,7 @@
   }
 
   /* ---------- إعدادات النظام: كل قسم نموذج من قيمه الحالية ---------- */
+  var ENUMS = { 'payroll.deduction_cap_base': [{ v: 'gross', t: 'الراتب المستحق في الشهر' }, { v: 'basic', t: 'الراتب الأساسي' }] };
   function systemPanel(el) {
     A.load(el, Promise.all([api.get('/settings'), A.docTypes()]).then(function (r) { return r[0]; }), function (sections) {
       var canEdit = api.can('settings.update');
@@ -370,6 +371,7 @@
           var val = s.value[k], label = api.t('settings', name + '.' + k);
           if (Array.isArray(val)) return BT.f.input({ name: k, label: label, value: val.join(', '), readonly: !canEdit, hint: 'قيم مفصولة بفواصل: ' + val.map(function (x) { return api.t('photo_position', x, null, '') || A.docTypeName(x); }).join('، ') });
           if (typeof val === 'boolean') return BT.f.switch({ name: k, label: label, checked: val });
+          if (ENUMS[name + '.' + k]) return BT.f.select({ name: k, label: label, value: val, placeholder: false, options: ENUMS[name + '.' + k] });
           if (typeof val === 'number') return BT.f.input({ name: k, label: label, value: val, num: true, readonly: !canEdit });
           return BT.f.input({ name: k, label: label, value: val == null ? '' : val, readonly: !canEdit, num: /^\d+\.\d{3}$/.test(String(val)) });
         })}${canEdit ? h`<div><button type="submit" class="btn btn-sm btn-primary">${icon('check', 14)} حفظ</button></div>` : ''}</div></form>`;

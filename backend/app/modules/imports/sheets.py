@@ -11,15 +11,10 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 
 from app.core.errors import AppError
+from app.core.text import norm
 from app.modules.imports.workbook import _text, parse_phone
 
 SAMPLES = 5
-_ARABIC = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ة": "ه", "ى": "ي", "ـ": ""})
-
-
-def norm(value) -> str:
-    """For comparing headers: case, spaces, the asterisk of required columns and Arabic letter variants ignored."""
-    return " ".join(_text(value).lower().translate(_ARABIC).replace("*", " ").split())
 
 
 @dataclass(frozen=True)

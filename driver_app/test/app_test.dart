@@ -347,6 +347,7 @@ void main() {
           'status': 'rejected',
           'data': {},
           'review_note': 'صورة الإقامة غير واضحة',
+          'require_bank': true,
           'required_documents': ['residence'],
           'vehicle_photos': ['front', 'back'],
           'document_types': [
@@ -378,6 +379,7 @@ void main() {
           'status': 'draft',
           'data': saved,
           'review_note': null,
+          'require_bank': true,
           'required_documents': ['residence'],
           'vehicle_photos': ['front', 'back'],
           'document_types': [
@@ -394,6 +396,8 @@ void main() {
     expect(find.textContaining('صورة الإقامة غير واضحة'), findsOneWidget);
     await tester.enterText(find.byKey(const Key('civil')), '290010112345');
     await tester.enterText(find.byKey(const Key('nationality')), 'India');
+    await tester.enterText(find.byKey(const Key('iban')), 'kw81 cbku 0000 0000 0000 1234 5601 01');
+    await tester.enterText(find.byKey(const Key('bank')), 'بنك الكويت الوطني');
     await shot(tester, '09-onboarding-data');
     Future<void> next() async {
       await tester.tap(find.byKey(const Key('ob-next')));
@@ -425,6 +429,7 @@ void main() {
     await next();
     await shot(tester, '12-onboarding-review');
     expect(saved!['civil_id'], '290010112345');
+    expect((saved!['iban'], saved!['bank_name']), ('KW81CBKU0000000000001234560101', 'بنك الكويت الوطني'));
     final docs = saved!['documents'] as List;
     expect((docs.single['front_sha256'] as String).length, 64);
     final vehicle = saved!['vehicle'] as Map;
@@ -723,5 +728,123 @@ void main() {
     expect(find.textContaining('\u206615.000'), findsNWidgets(2));
     expect(find.byKey(const Key('fine-deduction-8')), findsNothing);
     await shot(tester, '17-fines');
+  });
+
+  testWidgets('monthly statement: valid days and screenshots from the platform app go out for review', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final img = await tester.runAsync(testImage);
+    Photos.gallery = () async => TakenPhoto(img!, DateTime.now());
+    Map<String, dynamic> view(List<Map<String, dynamic>> statements) => {
+      'platform': {
+        'id': 1,
+        'code': 'by_days',
+        'name': {'ar': 'المنصة أ', 'en': 'Platform A'},
+      },
+      'driver_fields': ['valid_days'],
+      'months': ['2026-09-01', '2026-10-01'],
+      'statements': statements,
+    };
+    final rejected = {
+      'id': 's0',
+      'month': '2026-09-01',
+      'status': 'rejected',
+      'declared': {'valid_days': 30},
+      'valid_days': 30,
+      'orders': null,
+      'hours': null,
+      'review_note': 'اللقطة لشهر آخر',
+      'submitted_at': '2026-10-01T08:00:00Z',
+    };
+    var n = 0;
+    w.server.on('GET', '/api/v1/driver/statements', (r) => (200, view([rejected])));
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': '${n++}'.padLeft(64, 'a'), 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('POST', '/api/v1/driver/statements', (r) => (201, view([rejected])));
+    await pumpApp(tester, w);
+    await tester.dragUntilVisible(
+      find.byKey(const Key('statement')),
+      find.byType(ListView).first,
+      const Offset(0, -200),
+    );
+    await tester.tap(find.byKey(const Key('statement')));
+    await idle(tester);
+    expect(find.textContaining('المنصة أ'), findsOneWidget);
+    await tester.dragUntilVisible(
+      find.textContaining('اللقطة لشهر آخر'),
+      find.byType(ListView).first,
+      const Offset(0, -200),
+    );
+    expect(find.textContaining('اللقطة لشهر آخر'), findsOneWidget);
+    await tester.dragUntilVisible(
+      find.byKey(const Key('send-statement')),
+      find.byType(ListView).first,
+      const Offset(0, 200),
+    );
+    await tester.tap(find.byKey(const Key('send-statement')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/statements', method: 'POST'), isEmpty, reason: 'valid days are required');
+    await tester.enterText(find.byKey(const Key('statement-valid_days')), '22');
+    await tester.tap(find.byKey(const Key('send-statement')));
+    await idle(tester);
+    expect(find.text('أضف لقطة شاشة واحدة على الأقل'), findsOneWidget);
+    for (var i = 0; i < 2; i++) {
+      await tester.tap(find.byKey(const Key('statement-shot')));
+      await idle(tester);
+    }
+    await shot(tester, '18-statement');
+    await tester.ensureVisible(find.byKey(const Key('send-statement')));
+    await tester.tap(find.byKey(const Key('send-statement')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/files').map((c) => c.url.queryParameters['source']).toSet(), {'upload'});
+    final body = jsonDecode(w.server.calls('/api/v1/driver/statements', method: 'POST').single.body) as Map;
+    expect((body['month'], body['valid_days']), ('2026-10-01', 22));
+    expect(body['screenshots'], ['0'.padLeft(64, 'a'), '1'.padLeft(64, 'a')]);
+  });
+
+  testWidgets('payslips: each month in the rows of the platform sheet, with the net', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/payslips',
+      (r) => (
+        200,
+        [
+          {
+            'month': '2026-09-01',
+            'status': 'paid',
+            'platform': {
+              'id': 1,
+              'code': 'by_days',
+              'name': {'ar': 'المنصة أ'},
+            },
+            'rows': [
+              {'code': 'valid_days', 'header': 'عدد الأيام الصالحة', 'value': 22},
+              {'code': 'invalid_days_deduction', 'header': 'خصم الأيام الغير صالحة', 'value': '40.000'},
+              {'code': 'net', 'header': 'صافي الراتب', 'value': '130.000'},
+            ],
+            'gross': '320.000',
+            'deductions': '190.000',
+            'net': '130.000',
+          },
+        ],
+      ),
+    );
+    await pumpApp(tester, w);
+    await tester.dragUntilVisible(
+      find.byKey(const Key('payslips')),
+      find.byType(ListView).first,
+      const Offset(0, -200),
+    );
+    await tester.tap(find.byKey(const Key('payslips')));
+    await idle(tester);
+    expect(find.text('عدد الأيام الصالحة'), findsOneWidget);
+    expect(find.textContaining('40.000'), findsOneWidget);
+    expect(find.text('مدفوع'), findsOneWidget);
+    final net = tester.widget<Text>(find.byKey(const Key('payslip-net')));
+    expect(net.data, contains('130.000'));
+    await shot(tester, '19-payslips');
   });
 }

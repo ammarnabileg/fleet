@@ -1104,3 +1104,19 @@ def driver_today(db: Session, employee_id: int) -> dict:
         },
         "start_day_done": done is not None,
     }
+
+
+def start_days(db: Session, employee_ids: Iterable[int], first, last) -> dict[int, set]:
+    """The days each driver started in the app (a start-of-day odometer reading), first to last inclusive."""
+    ids = list(employee_ids)
+    out: dict[int, set] = {i: set() for i in ids}
+    if not ids:
+        return out
+    q = select(OdometerReading.driver_id, OdometerReading.business_date).where(
+        OdometerReading.kind == "start_day",
+        OdometerReading.driver_id.in_(ids),
+        OdometerReading.business_date.between(first, last),
+    )
+    for driver_id, day in db.execute(q):
+        out[driver_id].add(day)
+    return out

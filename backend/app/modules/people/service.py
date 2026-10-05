@@ -32,13 +32,20 @@ FIELDS = (
     "is_driver",
     "phone",
     "hire_date",
+    "platform_id",
+    "platform_driver_id",
 )
-SALARY_FIELDS = ("basic_salary", "iban")
+SALARY_FIELDS = ("basic_salary", "iban", "bank_name", "payment_method")
 REQUIRED = ("employee_number", "name", "company_id", "branch_id", "is_driver")
 UNIQUE_ERRORS = {
     "employees_employee_number_key": "employee_number_taken",
     "employees_civil_id_key": "civil_id_taken",
     "employees_phone_idx": "phone_taken",
+    "employees_platform_driver_id_idx": "platform_driver_id_taken",
+}
+INVALID = {  # a reference or a rule the database refused: the request is wrong, not in conflict
+    "employees_platform_id_fkey": "platform_not_found",
+    "employees_platform_driver_check": "platform_required",
 }
 
 
@@ -190,7 +197,10 @@ def _flush_unique(db: Session) -> None:
         db.flush()
     except IntegrityError as exc:
         # no rollback here: the caller's transaction (or savepoint) decides
-        code = UNIQUE_ERRORS.get(violated_constraint(exc))
+        constraint = violated_constraint(exc)
+        if constraint in INVALID:
+            raise AppError(422, INVALID[constraint]) from None
+        code = UNIQUE_ERRORS.get(constraint)
         if code is None:
             raise
         raise AppError(409, code) from None
@@ -205,6 +215,8 @@ def list_employees(
     company_id: int | None = None,
     status_code: str | None = None,
     is_driver: bool | None = None,
+    platform_id: int | None = None,
+    no_phone: bool = False,
     q: str | None = None,
     limit: int = 50,
     offset: int = 0,
@@ -224,6 +236,10 @@ def list_employees(
         query = query.where(Employee.status_code == status_code)
     if is_driver is not None:
         query = query.where(Employee.is_driver.is_(is_driver))
+    if platform_id is not None:
+        query = query.where(Employee.platform_id == platform_id)
+    if no_phone:  # imported drivers still waiting for a phone (no app, no activation link)
+        query = query.where(Employee.phone.is_(None))
     if q:
         pattern = like_pattern(q.strip())
         query = query.where(
@@ -231,6 +247,7 @@ def list_employees(
                 Employee.employee_number.ilike(pattern),
                 Employee.civil_id.ilike(pattern),
                 Employee.phone.ilike(pattern),
+                Employee.platform_driver_id.ilike(pattern),
                 cast(Employee.name, Text).ilike(pattern),
             )
         )
@@ -406,12 +423,15 @@ def set_app_access(db: Session, public_id, *, value: str, actor_user_id: int, co
 
 
 def apply_self_registration(db: Session, employee_id: int, changes: dict, *, actor_user_id: int) -> None:
-    """Civil ID and nationality from an approved self-registration, in the caller's transaction."""
+    """Civil ID, nationality and bank details from an approved self-registration, in the caller's transaction (the
+    audit log records that the bank details changed, never their value)."""
     employee = db.scalar(select(Employee).where(Employee.id == employee_id).with_for_update())
     before = _snapshot(employee)
-    for field in ("civil_id", "nationality"):
+    for field in ("civil_id", "nationality", "iban", "bank_name"):
         if changes.get(field):
             setattr(employee, field, changes[field])
+    if changes.get("iban"):
+        employee.payment_method = employee.payment_method or "bank"
     employee.version += 1
     employee.updated_at = func.now()
     _flush_unique(db)
@@ -423,7 +443,7 @@ def apply_self_registration(db: Session, employee_id: int, changes: dict, *, act
         actor_user_id=actor_user_id,
         company_id=employee.company_id,
         before=before,
-        after=_snapshot(employee),
+        after={**_snapshot(employee), "bank_details_set": bool(changes.get("iban"))},
     )
 
 
@@ -573,3 +593,55 @@ def names(db: Session, ids: Iterable[int]) -> dict[int, dict]:
         i: {"id": str(p), "name": n}
         for i, p, n in db.execute(select(Employee.id, Employee.public_id, Employee.name).where(Employee.id.in_(ids)))
     }
+
+
+# ------------------------------------------------------------------ for payroll
+
+
+def _profile(e: Employee, s: EmploymentStatus) -> dict:
+    return {
+        "id": e.id,
+        "public_id": str(e.public_id),
+        "employee_number": e.employee_number,
+        "name": e.name,
+        "civil_id": e.civil_id,
+        "job_title": e.job_title,
+        "is_driver": e.is_driver,
+        "company_id": e.company_id,
+        "basic_salary": e.basic_salary,
+        "iban": e.iban,
+        "bank_name": e.bank_name,
+        "payment_method": e.payment_method,
+        "platform_id": e.platform_id,
+        "platform_driver_id": e.platform_driver_id,
+        "is_working": s.is_working,
+        "is_terminal": s.is_terminal,
+    }
+
+
+def payroll_profiles(db: Session, *, company_id: int, employee_ids: Iterable[int] = ()) -> list[dict]:
+    """Who a company's payroll covers (employees at work now) plus the given ones, with what a salary line needs."""
+    extra = list(employee_ids)
+    q = (
+        select(Employee, EmploymentStatus)
+        .join(EmploymentStatus, EmploymentStatus.code == Employee.status_code)
+        .where(Employee.company_id == company_id)
+        .where(or_(EmploymentStatus.is_working.is_(True), Employee.id.in_(extra)))
+        .order_by(Employee.employee_number)
+    )
+    return [_profile(e, s) for e, s in db.execute(q)]
+
+
+def payroll_profile(db: Session, employee_id: int) -> dict:
+    row = db.execute(
+        select(Employee, EmploymentStatus)
+        .join(EmploymentStatus, EmploymentStatus.code == Employee.status_code)
+        .where(Employee.id == employee_id)
+    ).one()
+    return _profile(*row)
+
+
+def platform_counts(db: Session) -> dict[int, int]:
+    """How many employees each platform has now."""
+    q = select(Employee.platform_id, func.count()).where(Employee.platform_id.is_not(None))
+    return dict(db.execute(q.group_by(Employee.platform_id)).all())

@@ -44,6 +44,15 @@ class Employee(Base):
         CheckConstraint("phone ~ '^\\+[1-9][0-9]{7,14}$'", name="phone"),
         CheckConstraint("basic_salary >= 0", name="basic_salary"),
         CheckConstraint("app_access IN ('none', 'active', 'suspended', 'disabled')", name="app_access"),
+        CheckConstraint("payment_method IN ('bank', 'cash')", name="payment_method"),
+        CheckConstraint("platform_driver_id IS NULL OR platform_id IS NOT NULL", name="platform_driver"),
+        Index(
+            "employees_platform_driver_id_idx",
+            "platform_id",
+            func.lower(text("platform_driver_id")),
+            unique=True,
+            postgresql_where=text("platform_driver_id IS NOT NULL"),
+        ),
         CheckConstraint("NOT is_driver OR phone IS NOT NULL OR app_access = 'none'", name="driver_phone"),
         Index("employees_phone_idx", "phone", unique=True, postgresql_where=text("phone IS NOT NULL")),
         Index("employees_company_id_idx", "company_id"),
@@ -65,6 +74,10 @@ class Employee(Base):
     hire_date: Mapped[date | None] = mapped_column(Date)
     basic_salary: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
     iban: Mapped[str | None] = mapped_column(Text)
+    bank_name: Mapped[str | None] = mapped_column(Text)
+    payment_method: Mapped[str | None] = mapped_column(Text)  # bank | cash
+    platform_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.platforms.id"))
+    platform_driver_id: Mapped[str | None] = mapped_column(Text)  # the driver's ID on his platform
     status_code: Mapped[str] = mapped_column(Text, ForeignKey("people.employment_statuses.code"))
     app_access: Mapped[str] = mapped_column(Text, server_default=text("'none'"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

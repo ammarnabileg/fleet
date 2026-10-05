@@ -49,6 +49,7 @@ class OnboardingSettings(_Section):
     vehicle_photos: list[Literal["front", "back", "left", "right", "interior"]] = Field(
         default_factory=lambda: ["front", "back", "left", "right"], max_length=5
     )
+    require_bank: bool = True  # the IBAN and the bank name (salaries are paid by transfer)
 
 
 class MessagingSettings(_Section):
@@ -74,6 +75,9 @@ class PayrollSettings(_Section):
     # the share of a month's salary payroll may deduct; the rest moves to the next month (FR-PAY-03). Set by the client
     # after legal advice (BR-16): no default, and payroll will not run without it
     max_deduction_percent: Decimal | None = Field(None, gt=0, le=100, max_digits=5, decimal_places=2)
+    # what the share is taken of: the basic salary, or the salary earned that month (after days the platform did
+    # not count). Also the client's decision (BR-16)
+    deduction_cap_base: Literal["basic", "gross"] = "gross"
 
 
 class DailyReportSettings(_Section):

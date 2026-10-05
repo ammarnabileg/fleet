@@ -65,6 +65,8 @@ class AppState extends ChangeNotifier {
   List<MaintenanceRequest> maintenance = [];
   List<Accident> accidents = [];
   List<Fine> fines = [];
+  PlatformStatus? statements;
+  List<Payslip> payslips = [];
   List<OutboxItem> queued = [];
   Map<String, dynamic> tracking = {};
   Object? lastError;
@@ -162,6 +164,8 @@ class AppState extends ChangeNotifier {
     maintenance = [];
     accidents = [];
     fines = [];
+    statements = null;
+    payslips = [];
   }
 
   // ---------------------------------------------------------------- data
@@ -209,6 +213,13 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadFines() async =>
       fines = [for (final f in await api.get('/driver/fines') as List) Fine.fromJson(f as Map<String, dynamic>)];
+
+  Future<void> loadStatements() async =>
+      statements = PlatformStatus.fromJson(await api.get('/driver/statements') as Map<String, dynamic>);
+
+  Future<void> loadPayslips() async => payslips = [
+    for (final p in await api.get('/driver/payslips') as List) Payslip.fromJson(p as Map<String, dynamic>),
+  ];
 
   /// Something the home screen can live without (the maintenance list): a failure does not hold the rest.
   Future<void> _quietly(Future<void> Function() load) async {
@@ -330,6 +341,22 @@ class AppState extends ChangeNotifier {
       {'file_sha256': photoPath},
     );
     return _sendNow(id, after: loadAccidents);
+  }
+
+  /// The month's statement: screenshots of the platform's monthly summary and the figures read on them.
+  Future<SendResult> sendStatement({
+    required String month,
+    int? validDays,
+    int? orders,
+    String? hours,
+    required List<String> screenshotPaths,
+  }) async {
+    final id = await outbox.add(
+      'statement',
+      {'month': month, 'valid_days': validDays, 'orders': orders, 'hours': hours},
+      {for (var i = 0; i < screenshotPaths.length; i++) 'screenshots.$i': screenshotPaths[i]},
+    );
+    return _sendNow(id, after: loadStatements);
   }
 
   Future<SendResult> _sendNow(int id, {required Future<void> Function() after}) async {

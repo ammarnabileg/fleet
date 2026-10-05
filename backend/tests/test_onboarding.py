@@ -43,6 +43,8 @@ def full_draft(client, h, plate, *, km=40_000, positions=("front", "back", "left
     return {
         "civil_id": "290010112399",
         "nationality": "India",
+        "iban": "KW81CBKU0000000000001234560101",
+        "bank_name": "بنك الكويت الوطني",
         "documents": [
             {
                 "type_code": t,
@@ -107,6 +109,11 @@ def test_the_whole_registration_from_link_to_approval(admin_client, client, setu
     assert r.status_code == 200 and r.json()["status"] == "approved"
     emp = admin_client.get(f"/api/v1/employees/{d['id']}").json()
     assert (emp["civil_id"], emp["nationality"]) == ("290010112399", "India")
+    assert (emp["iban"], emp["bank_name"], emp["payment_method"]) == (
+        "KW81CBKU0000000000001234560101",
+        "بنك الكويت الوطني",
+        "bank",
+    )
     docs = admin_client.get("/api/v1/documents", params={"owner_type": "employee", "owner_id": d["id"]}).json()
     assert sorted(x["type_code"] for x in docs) == ["driving_license", "passport", "residence"]
     assert all(x["has_file"] and x["has_back_file"] for x in docs)
@@ -132,13 +139,16 @@ def test_submit_lists_what_is_missing(client, setup):
     draft = full_draft(client, h, "45678", positions=("front", "back"))
     draft["documents"] = draft["documents"][:2]  # no passport
     draft["documents"][0]["expiry_date"] = None
+    del draft["iban"]
     save(client, h, draft)
     r = client.post("/api/v1/driver/onboarding/submit", headers=h)
     assert r.status_code == 422 and r.json()["code"] == "onboarding_incomplete"
     assert (
         r.json()["params"]["missing"]
-        == "document.passport, document.residence, vehicle.photo.left, vehicle.photo.right"
+        == "document.passport, document.residence, iban, vehicle.photo.left, vehicle.photo.right"
     )
+    bad = full_draft(client, h, "45678") | {"iban": "KW81CBKU0000000000001234560102"}  # a check digit off
+    assert client.put("/api/v1/driver/onboarding", json=bad, headers=h).status_code == 422
 
 
 def test_files_must_come_from_this_phone_and_vehicle_photos_from_its_camera(admin_client, client, setup, company):

@@ -359,6 +359,7 @@ void main() {
       final draft = {
         'civil_id': '2900101${n.toString().padLeft(5, '0').substring(0, 5)}',
         'nationality': 'India',
+        if (ob.requireBank) ...{'iban': 'KW81CBKU0000000000001234560101', 'bank_name': 'NBK'},
         'documents': [
           for (final code in ob.requiredDocuments)
             {
@@ -388,6 +389,90 @@ void main() {
       expect(mine['plate_number'], '88/$n');
       final detail = await admin.call('GET', '/onboarding/${mine['id']}');
       expect((detail['vehicle']['found'], detail['vehicle']['id']), (true, vehicle['id']));
+    },
+    skip: backend == null ? 'set BACKEND_URL to run against a real backend' : null,
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test(
+    'monthly statement from the app, reviewed, then the payroll and the payslip in the platform order',
+    () async {
+      final admin = await signedInAdmin();
+      final n = DateTime.now().millisecondsSinceEpoch % 10000000;
+      final platform = await admin.call('POST', '/payroll/platforms', {
+        'code': 'c$n',
+        'name': {'ar': 'منصة العقد', 'en': 'Contract platform'},
+        'driver_fields': ['valid_days'],
+        'invalid_days': 'daily_wage',
+        'columns': [
+          {'code': 'platform_driver_id', 'header': 'driver id'},
+          {'code': 'valid_days', 'header': 'عدد الأيام الصالحة'},
+          {'code': 'invalid_days_deduction', 'header': 'خصم الأيام الغير صالحة'},
+          {'code': 'net', 'header': 'صافي الراتب'},
+        ],
+      });
+      // a company of its own, so the month's payroll is this test's alone
+      final own = await admin.call('POST', '/companies', {
+        'name': {'ar': 'شركة $n', 'en': 'Company $n'},
+      });
+      final driver = await admin.call('POST', '/employees', {
+        'employee_number': 'P$n',
+        'name': {'ar': 'سائق الرواتب', 'en': 'Payroll Driver'},
+        'company_id': own['id'],
+        'is_driver': true,
+        'phone': '+9655${n.toString().padLeft(7, '0')}',
+        'basic_salary': '300.000',
+        'iban': 'KW81CBKU0000000000001234560101',
+        'payment_method': 'bank',
+        'platform_id': platform['id'],
+        'platform_driver_id': 'K-$n',
+      });
+      await admin.call('PUT', '/employees/${driver['id']}/app-access', {'app_access': 'active'});
+      final link = await admin.call('POST', '/employees/${driver['id']}/activation-link', {
+        'channel': 'manual',
+        'onboarding': false,
+      });
+      final db = await testDb();
+      final state = appAgainstBackend(db);
+      await state.activate(AppState.activationToken(Uri.parse(link['url'] as String))!);
+
+      // ---- the app: what the platform asks for, then the month with two screenshots from the gallery
+      await state.loadStatements();
+      expect(state.statements!.driverFields, ['valid_days']);
+      expect(state.statements!.platformName('ar'), 'منصة العقد');
+      final month = state.statements!.months.last;
+      final r = await state.sendStatement(
+        month: month,
+        validDays: 22,
+        screenshotPaths: [(await jpeg('s1')).path, (await jpeg('s2')).path],
+      );
+      expect(r, SendResult.sent);
+      expect(state.statements!.statements.single.status, 'submitted');
+      expect(state.statements!.statements.single.declared['valid_days'], 22);
+
+      // ---- the office reviews it against the screenshots, then the payroll of that company and month
+      final sent = (await admin.call('GET', '/payroll/statements?status=submitted&limit=500') as List).firstWhere(
+        (s) => s['employee']['id'] == driver['id'],
+      );
+      expect((sent['screenshots'] as List).length, 2);
+      await admin.call('POST', '/payroll/statements/${sent['id']}/approve', {'working_days': 25, 'valid_days': 22});
+      final settings = await admin.call('GET', '/settings');
+      await admin.call('PUT', '/settings/payroll', {
+        'version': settings['payroll']['version'],
+        'value': {'max_deduction_percent': '50.00', 'deduction_cap_base': 'gross'},
+      });
+      final run = await admin.call('POST', '/payroll/runs', {'company_id': own['id'], 'month': month});
+      await admin.call('POST', '/payroll/runs/${run['id']}/approve');
+
+      // ---- the payslip in the app: 300 less 3 days x 10 = 270, in the platform's rows without the driver id
+      await state.loadPayslips();
+      final slip = state.payslips.single;
+      expect((slip.month, slip.status, slip.net), (month, 'approved', '270.000'));
+      expect(
+        [for (final row in slip.rows) row.header],
+        ['عدد الأيام الصالحة', 'خصم الأيام الغير صالحة', 'صافي الراتب'],
+      );
+      expect([for (final row in slip.rows) row.value], ['22', '30.000', '270.000']);
     },
     skip: backend == null ? 'set BACKEND_URL to run against a real backend' : null,
     timeout: const Timeout(Duration(minutes: 2)),

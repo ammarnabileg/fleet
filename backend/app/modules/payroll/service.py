@@ -242,3 +242,24 @@ def cancel(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
     emit(db, "payroll.deduction.cancelled", d.public_id, {"deduction_id": str(d.public_id), "reason": reason})
     db.commit()
     return _out([d], db)[0]
+
+
+def create_manual(db: Session, data: dict, *, actor_user_id: int, **scope) -> dict:
+    """An advance, a SIM card or another deduction the office enters itself (deductions.manage). It starts next
+    month unless a start month is given; a month whose payroll is already approved moves it on by itself."""
+    employee = people.ref_by_public_id(db, data["employee_id"], **scope)
+    start = data.get("start_month") or add_months(month_start(today()), 1)
+    deduction_id = create_deduction(
+        db,
+        employee_id=employee.id,
+        company_id=employee.company_id,
+        source_type=data["source_type"],
+        source_id=None,
+        reason=data["reason"],
+        total=data["total"],
+        installments=data["installments"],
+        start_month=start,
+        actor_user_id=actor_user_id,
+    )
+    db.commit()
+    return deduction(db, deduction_id)

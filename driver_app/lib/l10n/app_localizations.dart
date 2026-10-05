@@ -1369,6 +1369,168 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'على الشركة'**
   String get fineStatus_company;
+
+  /// No description provided for @monthlyStatement.
+  ///
+  /// In ar, this message translates to:
+  /// **'كشف المنصة الشهري'**
+  String get monthlyStatement;
+
+  /// No description provided for @payslips.
+  ///
+  /// In ar, this message translates to:
+  /// **'كشوف الراتب'**
+  String get payslips;
+
+  /// No description provided for @statementTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'كشف المنصة الشهري'**
+  String get statementTitle;
+
+  /// No description provided for @statementIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'في بداية كل شهر أرسل لقطات شاشة ملخص الشهر من تطبيق {platform} واكتب الأرقام كما تظهر فيها. يراجعها المكتب مع اللقطات قبل احتساب الراتب.'**
+  String statementIntro(String platform);
+
+  /// No description provided for @statementNoPlatform.
+  ///
+  /// In ar, this message translates to:
+  /// **'لم تُحدَّد منصتك بعد. تواصل مع المكتب.'**
+  String get statementNoPlatform;
+
+  /// No description provided for @statementNoMonth.
+  ///
+  /// In ar, this message translates to:
+  /// **'أرسلت كشف كل الأشهر المفتوحة. انتظر مراجعة المكتب.'**
+  String get statementNoMonth;
+
+  /// No description provided for @statementMonth.
+  ///
+  /// In ar, this message translates to:
+  /// **'الشهر'**
+  String get statementMonth;
+
+  /// No description provided for @statementShots.
+  ///
+  /// In ar, this message translates to:
+  /// **'لقطات الشاشة من تطبيق المنصة (حتى 6)'**
+  String get statementShots;
+
+  /// No description provided for @statementShotRequired.
+  ///
+  /// In ar, this message translates to:
+  /// **'أضف لقطة شاشة واحدة على الأقل'**
+  String get statementShotRequired;
+
+  /// No description provided for @statementHistory.
+  ///
+  /// In ar, this message translates to:
+  /// **'ما أرسلته'**
+  String get statementHistory;
+
+  /// No description provided for @statementSentDays.
+  ///
+  /// In ar, this message translates to:
+  /// **'أرسلت: {days} يوم صالح'**
+  String statementSentDays(String days);
+
+  /// No description provided for @statementApprovedDays.
+  ///
+  /// In ar, this message translates to:
+  /// **'المعتمد: {days} يوم صالح'**
+  String statementApprovedDays(String days);
+
+  /// No description provided for @statementStatus_submitted.
+  ///
+  /// In ar, this message translates to:
+  /// **'بانتظار المراجعة'**
+  String get statementStatus_submitted;
+
+  /// No description provided for @statementStatus_approved.
+  ///
+  /// In ar, this message translates to:
+  /// **'معتمد'**
+  String get statementStatus_approved;
+
+  /// No description provided for @statementStatus_rejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'مرفوض: أرسله من جديد'**
+  String get statementStatus_rejected;
+
+  /// No description provided for @addShot.
+  ///
+  /// In ar, this message translates to:
+  /// **'إضافة لقطة'**
+  String get addShot;
+
+  /// No description provided for @validDays.
+  ///
+  /// In ar, this message translates to:
+  /// **'عدد الأيام الصالحة'**
+  String get validDays;
+
+  /// No description provided for @ordersTotal.
+  ///
+  /// In ar, this message translates to:
+  /// **'إجمالي الطلبات'**
+  String get ordersTotal;
+
+  /// No description provided for @hoursTotal.
+  ///
+  /// In ar, this message translates to:
+  /// **'إجمالي الساعات'**
+  String get hoursTotal;
+
+  /// No description provided for @payslipsTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'كشوف الراتب'**
+  String get payslipsTitle;
+
+  /// No description provided for @payslipsNone.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا يوجد كشف راتب معتمد بعد'**
+  String get payslipsNone;
+
+  /// No description provided for @payslipNet.
+  ///
+  /// In ar, this message translates to:
+  /// **'صافي الراتب'**
+  String get payslipNet;
+
+  /// No description provided for @payslipStatus_approved.
+  ///
+  /// In ar, this message translates to:
+  /// **'معتمد'**
+  String get payslipStatus_approved;
+
+  /// No description provided for @payslipStatus_paid.
+  ///
+  /// In ar, this message translates to:
+  /// **'مدفوع'**
+  String get payslipStatus_paid;
+
+  /// No description provided for @iban.
+  ///
+  /// In ar, this message translates to:
+  /// **'رقم الآيبان (IBAN)'**
+  String get iban;
+
+  /// No description provided for @ibanHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'يُحوَّل عليه راتبك: انسخه من تطبيق البنك'**
+  String get ibanHint;
+
+  /// No description provided for @bankName.
+  ///
+  /// In ar, this message translates to:
+  /// **'اسم البنك'**
+  String get bankName;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

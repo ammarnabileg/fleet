@@ -127,6 +127,7 @@ class Onboarding {
     required this.requiredDocuments,
     required this.vehiclePhotos,
     required this.documentTypes,
+    this.requireBank = false,
   });
 
   factory Onboarding.fromJson(Map<String, dynamic> j) => Onboarding(
@@ -137,6 +138,7 @@ class Onboarding {
     requiredDocuments: List<String>.from(j['required_documents'] as List),
     vehiclePhotos: List<String>.from(j['vehicle_photos'] as List),
     documentTypes: [for (final t in j['document_types'] as List) DocType.fromJson(t as Map<String, dynamic>)],
+    requireBank: j['require_bank'] as bool? ?? false,
   );
 
   final bool required;
@@ -146,6 +148,7 @@ class Onboarding {
   final List<String> requiredDocuments;
   final List<String> vehiclePhotos;
   final List<DocType> documentTypes;
+  final bool requireBank; // the IBAN and the bank name (salaries are paid by transfer)
 
   /// The server says "required" only while the driver may still edit (draft, or sent back with a reason).
   bool get mustFill => required;
@@ -301,4 +304,91 @@ class Fine {
   final String status; // open | charged | company
   final String? location;
   final Deduction? deduction;
+}
+
+/// One month the driver sent from the platform's app (screenshots and the figures read on them), and its review.
+class PlatformStatement {
+  PlatformStatement({
+    required this.id,
+    required this.month,
+    required this.status,
+    required this.declared,
+    this.validDays,
+    this.orders,
+    this.hours,
+    this.reviewNote,
+  });
+
+  factory PlatformStatement.fromJson(Map<String, dynamic> j) => PlatformStatement(
+    id: j['id'] as String,
+    month: j['month'] as String,
+    status: j['status'] as String,
+    declared: Map<String, dynamic>.from(j['declared'] as Map? ?? {}),
+    validDays: (j['valid_days'] as num?)?.toInt(),
+    orders: (j['orders'] as num?)?.toInt(),
+    hours: j['hours'] as String?,
+    reviewNote: j['review_note'] as String?,
+  );
+
+  final String id;
+  final String month; // yyyy-mm-01
+  final String status; // submitted | approved | rejected
+  final Map<String, dynamic> declared; // what the driver sent
+  final int? validDays; // what was approved (the reviewer may have corrected it)
+  final int? orders;
+  final String? hours;
+  final String? reviewNote;
+}
+
+/// The driver's platform, what it asks for each month, the months open now and what he sent.
+class PlatformStatus {
+  PlatformStatus({required this.platform, required this.driverFields, required this.months, required this.statements});
+
+  factory PlatformStatus.fromJson(Map<String, dynamic> j) => PlatformStatus(
+    platform: j['platform'] == null ? null : Map<String, dynamic>.from(j['platform'] as Map),
+    driverFields: List<String>.from(j['driver_fields'] as List),
+    months: List<String>.from(j['months'] as List),
+    statements: [for (final s in j['statements'] as List) PlatformStatement.fromJson(s as Map<String, dynamic>)],
+  );
+
+  final Map<String, dynamic>? platform; // {id, code, name: {ar, en}}
+  final List<String> driverFields; // valid_days | orders | hours
+  final List<String> months; // yyyy-mm-01
+  final List<PlatformStatement> statements;
+
+  String platformName(String lang) {
+    final n = Map<String, dynamic>.from(platform?['name'] as Map? ?? {});
+    return (n[lang] ?? n['ar'] ?? n.values.firstOrNull ?? '') as String;
+  }
+}
+
+/// An approved month's salary, in the rows of the driver's platform sheet.
+class Payslip {
+  Payslip({
+    required this.month,
+    required this.status,
+    required this.rows,
+    required this.gross,
+    required this.deductions,
+    required this.net,
+  });
+
+  factory Payslip.fromJson(Map<String, dynamic> j) => Payslip(
+    month: j['month'] as String,
+    status: j['status'] as String,
+    rows: [
+      for (final r in j['rows'] as List)
+        (header: (r as Map)['header'] as String, code: r['code'] as String, value: r['value']?.toString()),
+    ],
+    gross: j['gross'] as String,
+    deductions: j['deductions'] as String,
+    net: j['net'] as String,
+  );
+
+  final String month;
+  final String status; // approved | paid
+  final List<({String header, String code, String? value})> rows;
+  final String gross;
+  final String deductions;
+  final String net;
 }

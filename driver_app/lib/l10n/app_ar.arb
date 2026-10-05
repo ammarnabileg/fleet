@@ -396,5 +396,53 @@
   "finesNone": "لا توجد مخالفات",
   "fineStatus_open": "قيد المراجعة",
   "fineStatus_charged": "تُخصم من راتبك",
-  "fineStatus_company": "على الشركة"
+  "fineStatus_company": "على الشركة",
+  "monthlyStatement": "كشف المنصة الشهري",
+  "payslips": "كشوف الراتب",
+  "statementTitle": "كشف المنصة الشهري",
+  "statementIntro": "في بداية كل شهر أرسل لقطات شاشة ملخص الشهر من تطبيق {platform} واكتب الأرقام كما تظهر فيها. يراجعها المكتب مع اللقطات قبل احتساب الراتب.",
+  "@statementIntro": {
+    "placeholders": {
+      "platform": {
+        "type": "String"
+      }
+    }
+  },
+  "statementNoPlatform": "لم تُحدَّد منصتك بعد. تواصل مع المكتب.",
+  "statementNoMonth": "أرسلت كشف كل الأشهر المفتوحة. انتظر مراجعة المكتب.",
+  "statementMonth": "الشهر",
+  "statementShots": "لقطات الشاشة من تطبيق المنصة (حتى 6)",
+  "statementShotRequired": "أضف لقطة شاشة واحدة على الأقل",
+  "statementHistory": "ما أرسلته",
+  "statementSentDays": "أرسلت: {days} يوم صالح",
+  "@statementSentDays": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "statementApprovedDays": "المعتمد: {days} يوم صالح",
+  "@statementApprovedDays": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "statementStatus_submitted": "بانتظار المراجعة",
+  "statementStatus_approved": "معتمد",
+  "statementStatus_rejected": "مرفوض: أرسله من جديد",
+  "addShot": "إضافة لقطة",
+  "validDays": "عدد الأيام الصالحة",
+  "ordersTotal": "إجمالي الطلبات",
+  "hoursTotal": "إجمالي الساعات",
+  "payslipsTitle": "كشوف الراتب",
+  "payslipsNone": "لا يوجد كشف راتب معتمد بعد",
+  "payslipNet": "صافي الراتب",
+  "payslipStatus_approved": "معتمد",
+  "payslipStatus_paid": "مدفوع",
+  "iban": "رقم الآيبان (IBAN)",
+  "ibanHint": "يُحوَّل عليه راتبك: انسخه من تطبيق البنك",
+  "bankName": "اسم البنك"
 }

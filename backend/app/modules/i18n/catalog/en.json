@@ -331,7 +331,28 @@
     "driver_without_phone": "A driver without a phone: recorded, but no app or activation link until a phone is added",
     "invalid_iban": "Invalid IBAN: {value} (the check digits do not match)",
     "import_sheet_missing": "Sheet “{sheet}” is not in the file",
-    "import_bad_mapping": "The columns of sheet “{sheet}” are incomplete or wrong: {fields}"
+    "import_bad_mapping": "The columns of sheet “{sheet}” are incomplete or wrong: {fields}",
+    "platform_not_found": "Platform not found",
+    "platform_required": "A platform ID needs the platform",
+    "platform_driver_id_taken": "This platform ID belongs to another driver on the same platform",
+    "platform_code_taken": "This platform code is taken",
+    "unknown_column": "Unknown salary sheet columns: {codes}",
+    "no_platform": "Your platform is not set yet: contact the office",
+    "statement_month_invalid": "A statement cannot be sent for this month",
+    "payroll_locked": "This month's payroll is approved: its data changes only if it is reopened",
+    "statement_exists": "A statement for this month already exists",
+    "statement_not_found": "Statement not found",
+    "statement_rejected": "The statement was rejected: a new one is awaited from the driver",
+    "statement_not_submitted": "Only a statement waiting for review can be rejected",
+    "run_not_found": "Payroll not found",
+    "run_month_in_future": "Payroll cannot be prepared for a month that has not started",
+    "payroll_cap_not_set": "Set the monthly deduction cap in the settings first (the client's decision after legal advice)",
+    "run_exists": "A payroll for this company and month already exists",
+    "run_not_draft": "The payroll is approved: reopen it first",
+    "earlier_run_draft": "Approve this company's {month} payroll first",
+    "later_run_approved": "A later payroll of this company is approved: months are approved and reopened in order",
+    "run_has_blocking": "{count} lines cannot be approved yet: a platform statement missing or waiting for review, or a negative net",
+    "run_not_approved": "The payroll is not approved"
   },
   "settings": {
     "branding": "Branding",
@@ -370,7 +391,9 @@
     "maintenance.close_requires_invoice": "Close a maintenance request only once its invoice is approved",
     "accidents": "Accidents",
     "accidents.min_photos": "Minimum photos a driver takes of an accident",
-    "accidents.police_report_alert_days": "Alert when the police report is still missing after (days)"
+    "accidents.police_report_alert_days": "Alert when the police report is still missing after (days)",
+    "payroll.deduction_cap_base": "The cap is a share of",
+    "onboarding.require_bank": "IBAN and bank name required in self-registration"
   },
   "common": {
     "active": "Active",
@@ -396,7 +419,8 @@
     "two_step_code": "Verification code",
     "username": "Username",
     "welcome": "Welcome, {name}",
-    "yes": "Yes"
+    "yes": "Yes",
+    "no_platform": "No platform"
   },
   "alerts": {
     "cash_balance_high": "{driver}'s cash balance is {balance} KWD, above the limit of {limit}",
@@ -583,7 +607,9 @@
   "deduction_source": {
     "accident": "Accident",
     "fine": "Fine",
-    "other": "Other"
+    "other": "Other",
+    "advance": "Advance",
+    "sim": "SIM card"
   },
   "deduction_status": {
     "approved": "Approved",
@@ -610,5 +636,68 @@
     "phone": "Phone",
     "nationality": "Nationality",
     "iban": "IBAN"
+  },
+  "payroll_column": {
+    "platform_driver_id": "Driver ID",
+    "name": "Driver name",
+    "job_title": "Profession",
+    "civil_id": "Civil ID",
+    "iban": "IBAN",
+    "bank_name": "Bank",
+    "payment_method": "Payment method",
+    "basic": "Basic salary",
+    "hours": "Total hours",
+    "orders": "Total orders",
+    "working_days": "Working days",
+    "valid_days": "Valid days",
+    "bonus": "Bonus",
+    "tips": "Tips",
+    "gross": "Gross",
+    "invalid_days_deduction": "Invalid days deduction",
+    "car_repair": "Car repair deduction",
+    "traffic_fines": "Traffic fines deduction",
+    "cancelled_orders": "Cancelled orders deductions",
+    "platform_deductions": "Platform deductions",
+    "sim": "SIM card deduction",
+    "advance": "Advance deduction",
+    "cash_shortage": "Cash shortage deduction",
+    "late": "Late deduction",
+    "other_deductions": "Other deductions",
+    "carried": "Carried to next month",
+    "net": "Net salary",
+    "blank": "(empty column)"
+  },
+  "payment_method": {
+    "bank": "Bank transfer",
+    "cash": "Cash"
+  },
+  "statement_status": {
+    "submitted": "Waiting for review",
+    "approved": "Approved",
+    "rejected": "Rejected"
+  },
+  "run_status": {
+    "draft": "Draft",
+    "approved": "Approved",
+    "paid": "Paid"
+  },
+  "line_flag": {
+    "statement_missing": "No platform statement for the month",
+    "statement_pending": "Platform statement waiting for review",
+    "net_negative": "The month's deductions exceed the salary: negative net",
+    "no_basic_salary": "No basic salary",
+    "no_iban": "No IBAN",
+    "no_platform": "Driver without a platform",
+    "carried": "Part of the installments moved to next month"
+  },
+  "driver_field": {
+    "valid_days": "Valid days",
+    "orders": "Orders",
+    "hours": "Hours"
+  },
+  "invalid_days_rule": {
+    "none": "Not deducted",
+    "daily_wage": "A day's wage (basic ÷ divisor)",
+    "fixed": "A fixed amount per day"
   }
 }

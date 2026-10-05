@@ -59,6 +59,10 @@ class EmployeeIn(BaseModel):
     status_code: Code | None = None  # "active" when omitted
     basic_salary: Salary | None = None
     iban: Iban | None = None
+    bank_name: Short | None = None
+    payment_method: Literal["bank", "cash"] | None = None
+    platform_id: int | None = None  # the delivery platform he works on (payroll)
+    platform_driver_id: Short | None = None  # his ID on that platform
 
 
 class EmployeeUpdateIn(BaseModel):
@@ -78,6 +82,10 @@ class EmployeeUpdateIn(BaseModel):
     hire_date: date | None = None
     basic_salary: Salary | None = None
     iban: Iban | None = None
+    bank_name: Short | None = None
+    payment_method: Literal["bank", "cash"] | None = None
+    platform_id: int | None = None
+    platform_driver_id: Short | None = None
 
 
 class EmployeeOut(BaseModel):
@@ -97,8 +105,12 @@ class EmployeeOut(BaseModel):
     status_name: dict[str, str]
     is_terminal: bool
     app_access: str
-    basic_salary: Decimal | None  # null without employees.view_salary
+    basic_salary: Decimal | None  # null without employees.view_salary, like the bank details
     iban: str | None
+    bank_name: str | None
+    payment_method: str | None
+    platform_id: int | None
+    platform_driver_id: str | None
     version: int
 
 

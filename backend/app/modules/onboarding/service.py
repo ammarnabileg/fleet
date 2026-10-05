@@ -65,6 +65,7 @@ def for_driver(db: Session, employee_id: int) -> dict:
         "data": submission.data if submission else {},
         "review_note": submission.review_note if submission else None,
         "required_documents": [c for c in settings.required_documents if c in types],
+        "require_bank": settings.require_bank,
         "vehicle_photos": list(settings.vehicle_photos),
         "document_types": [
             {"code": t["code"], "name": t["name"], "requires_expiry": t["requires_expiry"]} for t in types.values()
@@ -118,6 +119,8 @@ def _missing(db: Session, data: dict) -> list[str]:
         if not doc.get("front_sha256") or (types[code] and not doc.get("expiry_date")):
             missing.append(f"document.{code}")
     missing += [f"document.{code}" for code in settings.required_documents if code in types and code not in docs]
+    if settings.require_bank:
+        missing += [f for f in ("iban", "bank_name") if not data.get(f)]
     if not data.get("no_vehicle"):
         vehicle = data.get("vehicle") or {}
         missing += [f"vehicle.{f}" for f in ("plate_number", "odometer_km", "odometer_photo") if vehicle.get(f) is None]

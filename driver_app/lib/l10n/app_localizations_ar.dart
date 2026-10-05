@@ -700,4 +700,91 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get fineStatus_company => 'على الشركة';
+
+  @override
+  String get monthlyStatement => 'كشف المنصة الشهري';
+
+  @override
+  String get payslips => 'كشوف الراتب';
+
+  @override
+  String get statementTitle => 'كشف المنصة الشهري';
+
+  @override
+  String statementIntro(String platform) {
+    return 'في بداية كل شهر أرسل لقطات شاشة ملخص الشهر من تطبيق $platform واكتب الأرقام كما تظهر فيها. يراجعها المكتب مع اللقطات قبل احتساب الراتب.';
+  }
+
+  @override
+  String get statementNoPlatform => 'لم تُحدَّد منصتك بعد. تواصل مع المكتب.';
+
+  @override
+  String get statementNoMonth => 'أرسلت كشف كل الأشهر المفتوحة. انتظر مراجعة المكتب.';
+
+  @override
+  String get statementMonth => 'الشهر';
+
+  @override
+  String get statementShots => 'لقطات الشاشة من تطبيق المنصة (حتى 6)';
+
+  @override
+  String get statementShotRequired => 'أضف لقطة شاشة واحدة على الأقل';
+
+  @override
+  String get statementHistory => 'ما أرسلته';
+
+  @override
+  String statementSentDays(String days) {
+    return 'أرسلت: $days يوم صالح';
+  }
+
+  @override
+  String statementApprovedDays(String days) {
+    return 'المعتمد: $days يوم صالح';
+  }
+
+  @override
+  String get statementStatus_submitted => 'بانتظار المراجعة';
+
+  @override
+  String get statementStatus_approved => 'معتمد';
+
+  @override
+  String get statementStatus_rejected => 'مرفوض: أرسله من جديد';
+
+  @override
+  String get addShot => 'إضافة لقطة';
+
+  @override
+  String get validDays => 'عدد الأيام الصالحة';
+
+  @override
+  String get ordersTotal => 'إجمالي الطلبات';
+
+  @override
+  String get hoursTotal => 'إجمالي الساعات';
+
+  @override
+  String get payslipsTitle => 'كشوف الراتب';
+
+  @override
+  String get payslipsNone => 'لا يوجد كشف راتب معتمد بعد';
+
+  @override
+  String get payslipNet => 'صافي الراتب';
+
+  @override
+  String get payslipStatus_approved => 'معتمد';
+
+  @override
+  String get payslipStatus_paid => 'مدفوع';
+
+  @override
+  String get iban => 'رقم الآيبان (IBAN)';
+
+  @override
+  String get ibanHint => 'يُحوَّل عليه راتبك: انسخه من تطبيق البنك';
+
+  @override
+  String get bankName => 'اسم البنك';
 }
