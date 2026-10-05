@@ -239,5 +239,10 @@
   "payslipStatus_paid": "Paid",
   "iban": "IBAN",
   "ibanHint": "Your salary is paid to it: copy it from your bank's app",
-  "bankName": "Bank name"
+  "bankName": "Bank name",
+  "civilSignIn": "Sign in with civil ID",
+  "civilSignInHint": "If the company has no phone number for you: sign in with your civil ID and the initial password the office gave you, then register your phone. The password works once.",
+  "initialPassword": "Initial password",
+  "claimContinue": "Continue",
+  "claimWelcome": "Welcome {name}. Enter your phone number that has WhatsApp: the code goes to it, and you sign in with it from now on."
 }

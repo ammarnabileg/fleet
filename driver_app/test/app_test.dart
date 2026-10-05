@@ -847,4 +847,54 @@ void main() {
     expect(net.data, contains('130.000'));
     await shot(tester, '19-payslips');
   });
+
+  testWidgets('no phone on file: civil ID and the initial password, then the phone and its WhatsApp code', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world(signedIn: false)))!;
+    w.server.on('POST', '/api/v1/driver/auth/claim', (r) {
+      final b = jsonDecode(r.body) as Map;
+      if (b['password'] != '12345678') return (401, {'code': 'claim_invalid', 'status': 401});
+      return (
+        200,
+        {
+          'claim_token': 'c' * 43,
+          'name': {'ar': 'الفاتح مختار', 'en': 'Alfatih'},
+          'expires_in': 900,
+        },
+      );
+    });
+    w.server.on(
+      'POST',
+      '/api/v1/driver/auth/claim/phone',
+      (r) => (200, {'sent_to': '+965••••1111', 'expires_in': 300}),
+    );
+    w.server.on('POST', '/api/v1/driver/auth/claim/verify', (r) => (200, tokensJson('7')));
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('civil-sign-in')));
+    await settle(tester);
+    await tester.enterText(find.byKey(const Key('claim-civil')), '286092015272');
+    await tester.enterText(find.byKey(const Key('claim-password')), 'wrong-one');
+    await tester.tap(find.byKey(const Key('claim-start')));
+    await idle(tester);
+    expect(find.byKey(const Key('claim-phone')), findsNothing, reason: 'a wrong password stays on the first step');
+    await tester.enterText(find.byKey(const Key('claim-password')), '12345678');
+    await tester.tap(find.byKey(const Key('claim-start')));
+    await idle(tester);
+    expect(find.textContaining('الفاتح مختار'), findsOneWidget);
+    await shot(tester, '20-claim-phone');
+    await tester.enterText(find.byKey(const Key('claim-phone')), '5000 1111');
+    await tester.tap(find.byKey(const Key('claim-send')));
+    await idle(tester);
+    final phone = jsonDecode(w.server.calls('/api/v1/driver/auth/claim/phone').single.body) as Map;
+    expect((phone['claim_token'], phone['phone']), ('c' * 43, '+96550001111'));
+    await tester.enterText(find.byKey(const Key('claim-code')), '123456');
+    await tester.tap(find.byKey(const Key('claim-verify')));
+    await idle(tester);
+    final verify = jsonDecode(w.server.calls('/api/v1/driver/auth/claim/verify').single.body) as Map;
+    expect((verify['code'], verify['model']), ('123456', 'Test phone'));
+    final start = jsonDecode(w.server.calls('/api/v1/driver/auth/claim').last.body) as Map;
+    expect(verify['device_uid'], start['device_uid'], reason: 'the same phone all along');
+    expect(find.textContaining('18/23456'), findsOneWidget, reason: 'signed in: today with the vehicle in custody');
+  });
 }

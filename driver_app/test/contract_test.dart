@@ -477,4 +477,43 @@ void main() {
     skip: backend == null ? 'set BACKEND_URL to run against a real backend' : null,
     timeout: const Timeout(Duration(minutes: 2)),
   );
+
+  test(
+    'civil ID and the initial password from the office, the phone, the code step',
+    () async {
+      final admin = await signedInAdmin();
+      final n = DateTime.now().millisecondsSinceEpoch % 10000000;
+      final company = await companyId(admin);
+      final civil = '29$n'.padRight(12, '1').substring(0, 12);
+      final driver = await admin.call('POST', '/employees', {
+        'employee_number': 'Q$n',
+        'name': {'ar': 'سائق بلا هاتف', 'en': 'No Phone Driver'},
+        'company_id': company,
+        'is_driver': true,
+        'civil_id': civil,
+      });
+      final set = await admin.call('POST', '/driver-claims', {
+        'employee_ids': [driver['id']],
+        'password': '12345678',
+        'days': 7,
+      });
+      expect(set['set'], 1);
+
+      final db = await testDb();
+      final state = appAgainstBackend(db);
+      final claim = await state.claimStart(civil, '12345678');
+      expect(claim.name['ar'], 'سائق بلا هاتف');
+      final sentTo = await state.claimPhone(claim.token, '+9654${n.toString().padLeft(7, '0')}');
+      expect(sentTo, endsWith(n.toString().padLeft(7, '0').substring(3)));
+      Object? refused;
+      try {
+        await state.claimVerify(claim.token, '000000');
+      } catch (e) {
+        refused = e;
+      }
+      expect('$refused', contains('otp_invalid'), reason: 'the code from WhatsApp is what proves the phone');
+    },
+    skip: backend == null ? 'set BACKEND_URL to run against a real backend' : null,
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 }

@@ -787,4 +787,22 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get bankName => 'اسم البنك';
+
+  @override
+  String get civilSignIn => 'الدخول بالرقم المدني';
+
+  @override
+  String get civilSignInHint =>
+      'إن لم يكن رقم هاتفك مسجلاً لدى الشركة: ادخل برقمك المدني وكلمة المرور المبدئية التي أعطاك إياها المكتب، ثم سجّل هاتفك. كلمة المرور تعمل مرة واحدة.';
+
+  @override
+  String get initialPassword => 'كلمة المرور المبدئية';
+
+  @override
+  String get claimContinue => 'متابعة';
+
+  @override
+  String claimWelcome(String name) {
+    return 'أهلاً $name. اكتب رقم هاتفك الذي عليه واتساب: يصلك عليه رمز التحقق، وبه تدخل التطبيق بعد ذلك.';
+  }
 }

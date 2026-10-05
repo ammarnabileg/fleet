@@ -59,6 +59,8 @@ def import_sheets(
         parsed = schemas.MappedPlan.model_validate_json(plan)
     except ValidationError as exc:
         raise AppError(422, "import_bad_mapping", sheet="-", fields=exc.errors()[0]["loc"][0]) from None
+    if parsed.claim_password and not principal.has("devices.manage"):
+        raise AppError(403, "permission_denied", permission="devices.manage")
     return service.run_mapped(
         db,
         files.read_upload(file),

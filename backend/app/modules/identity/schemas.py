@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
@@ -242,3 +243,75 @@ class QueueOut(BaseModel):
     daily_limit: int
     estimated_days: int
     items: list[QueueItemOut]
+
+
+# ---- signing in once with the civil ID (drivers imported without a phone)
+
+InitialPassword = Annotated[str, StringConstraints(min_length=8, max_length=64)]
+
+
+class ClaimStartIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    civil_id: Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^[0-9]{12}$")]
+    password: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    device_uid: DeviceUid
+
+
+class ClaimStartOut(BaseModel):
+    claim_token: str
+    name: dict[str, str]  # "Welcome, ..." before he goes on
+    expires_in: int
+
+
+class ClaimPhoneIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    claim_token: Annotated[str, StringConstraints(strip_whitespace=True, min_length=20, max_length=100)]
+    device_uid: DeviceUid
+    phone: Phone
+
+
+class ClaimPhoneOut(BaseModel):
+    sent_to: str
+    expires_in: int
+
+
+class ClaimVerifyIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    claim_token: Annotated[str, StringConstraints(strip_whitespace=True, min_length=20, max_length=100)]
+    device_uid: DeviceUid
+    code: Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^[0-9]{6}$")]
+    platform: Meta | None = None
+    model: Meta | None = None
+    app_version: Meta | None = None
+
+
+class ClaimsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    employee_ids: list[uuid.UUID] = Field(min_length=1, max_length=1000)
+    password: InitialPassword
+    days: int = Field(14, ge=1, le=60)
+
+
+class ClaimSkipped(BaseModel):
+    employee: dict
+    code: str
+
+
+class ClaimsOut(BaseModel):
+    set: int
+    skipped: list[ClaimSkipped]
+    expires_at: datetime
+
+
+class ClaimStatusOut(BaseModel):
+    open: bool
+    expires_at: datetime
+    created_at: datetime
+    locked: bool
+    failures: int
+    used_at: datetime | None
+    used_phone: str | None

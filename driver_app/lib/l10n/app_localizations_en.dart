@@ -792,4 +792,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bankName => 'Bank name';
+
+  @override
+  String get civilSignIn => 'Sign in with civil ID';
+
+  @override
+  String get civilSignInHint =>
+      'If the company has no phone number for you: sign in with your civil ID and the initial password the office gave you, then register your phone. The password works once.';
+
+  @override
+  String get initialPassword => 'Initial password';
+
+  @override
+  String get claimContinue => 'Continue';
+
+  @override
+  String claimWelcome(String name) {
+    return 'Welcome $name. Enter your phone number that has WhatsApp: the code goes to it, and you sign in with it from now on.';
+  }
 }

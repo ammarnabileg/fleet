@@ -352,7 +352,12 @@
     "earlier_run_draft": "Approve this company's {month} payroll first",
     "later_run_approved": "A later payroll of this company is approved: months are approved and reopened in order",
     "run_has_blocking": "{count} lines cannot be approved yet: a platform statement missing or waiting for review, or a negative net",
-    "run_not_approved": "The payroll is not approved"
+    "run_not_approved": "The payroll is not approved",
+    "claim_invalid": "Wrong civil ID or password, or it expired or was already used: contact the office",
+    "claim_rate_limited": "Too many attempts from this connection: try again in {minutes} minutes",
+    "claim_session_invalid": "The sign-in timed out: start again with your civil ID",
+    "claim_not_found": "This driver has no open initial password",
+    "device_already_bound": "Already has a bound phone: signs in with the WhatsApp code"
   },
   "settings": {
     "branding": "Branding",

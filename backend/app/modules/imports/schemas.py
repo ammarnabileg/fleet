@@ -21,6 +21,7 @@ class ImportResult(BaseModel):
     people: Counts
     documents: int
     opening_balances: int
+    claims: int = 0  # drivers without a phone who may now sign in once with their civil ID
     errors: list[IssueOut]
     warnings: list[IssueOut]
 
@@ -46,6 +47,9 @@ class MappedPlan(BaseModel):
         Field(default_factory=lambda: ["سائق", "driver"], max_length=10)
     )
     sheets: list[SheetPlan] = Field(min_length=1, max_length=20)
+    # drivers without a phone may sign in once with their civil ID and this password (then register their phone)
+    claim_password: Annotated[str, StringConstraints(min_length=8, max_length=64)] | None = None
+    claim_days: int = Field(14, ge=1, le=60)
 
 
 class ColumnOut(BaseModel):

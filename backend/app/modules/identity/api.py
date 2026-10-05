@@ -7,7 +7,7 @@ from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.errors import AppError
 from app.modules.i18n import service as i18n
-from app.modules.identity import link_queue, schemas, service
+from app.modules.identity import claims, link_queue, schemas, service
 from app.modules.identity.service import Principal, get_principal, require_permission
 from app.modules.onboarding import service as onboarding
 from app.modules.people import service as people
@@ -203,6 +203,35 @@ def activate(body: schemas.ActivateIn, db: Session = Depends(get_session)):
     )
 
 
+@router.post("/driver/auth/claim", response_model=schemas.ClaimStartOut)
+def claim_start(body: schemas.ClaimStartIn, request: Request, db: Session = Depends(get_session)):
+    """A driver the office has no phone for: his civil ID and the initial password the office gave him (once)."""
+    return claims.start(
+        db, civil_id=body.civil_id, password=body.password, device_uid=body.device_uid, ip=_client(request)["ip"]
+    )
+
+
+@router.post("/driver/auth/claim/phone", response_model=schemas.ClaimPhoneOut)
+def claim_phone(body: schemas.ClaimPhoneIn, db: Session = Depends(get_session)):
+    """His phone: a WhatsApp code goes to it. Only a verified phone becomes his."""
+    return claims.send_code(db, token=body.claim_token, device_uid=body.device_uid, phone=body.phone)
+
+
+@router.post("/driver/auth/claim/verify", response_model=schemas.TokensOut)
+def claim_verify(body: schemas.ClaimVerifyIn, db: Session = Depends(get_session)):
+    """The code: the phone is his, this phone is bound, and the self-registration (documents, IBAN) follows."""
+    return claims.verify(
+        db,
+        token=body.claim_token,
+        device_uid=body.device_uid,
+        code=body.code,
+        platform=body.platform,
+        model=body.model,
+        app_version=body.app_version,
+        on_claimed=lambda driver: onboarding.start(db, driver),
+    )
+
+
 @router.post("/driver/auth/refresh", response_model=schemas.TokensOut)
 def refresh(body: schemas.RefreshIn, db: Session = Depends(get_session)):
     return service.refresh_tokens(db, body.refresh_token)
@@ -242,6 +271,37 @@ def create_activation_link(
     return service.create_activation_link(
         db, driver, channel=body.channel, actor_user_id=principal.user_id, onboarding=with_onboarding
     )
+
+
+@router.post("/driver-claims", response_model=schemas.ClaimsOut)
+def set_claims(
+    body: schemas.ClaimsIn,
+    principal: Principal = Depends(require_permission("devices.manage")),
+    db: Session = Depends(get_session),
+):
+    """Lets these drivers sign in once with their civil ID and this password (drivers without a bound phone)."""
+    drivers = [people.ref_by_public_id(db, i, **principal.scope) for i in dict.fromkeys(body.employee_ids)]
+    out = claims.set_claims(db, drivers, password=body.password, days=body.days, actor_user_id=principal.user_id)
+    db.commit()
+    return out
+
+
+@router.get("/employees/{public_id}/claim", response_model=schemas.ClaimStatusOut | None)
+def claim_status(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("devices.manage")),
+    db: Session = Depends(get_session),
+):
+    return claims.status(db, people.ref_by_public_id(db, public_id, **principal.scope).id)
+
+
+@router.delete("/employees/{public_id}/claim", status_code=204)
+def revoke_claim(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("devices.manage")),
+    db: Session = Depends(get_session),
+):
+    claims.revoke(db, people.ref_by_public_id(db, public_id, **principal.scope), actor_user_id=principal.user_id)
 
 
 @router.post("/activation-links/bulk", response_model=schemas.BulkLinksOut, status_code=202)

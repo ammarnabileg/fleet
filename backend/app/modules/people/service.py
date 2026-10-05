@@ -645,3 +645,26 @@ def platform_counts(db: Session) -> dict[int, int]:
     """How many employees each platform has now."""
     q = select(Employee.platform_id, func.count()).where(Employee.platform_id.is_not(None))
     return dict(db.execute(q.group_by(Employee.platform_id)).all())
+
+
+def claim_phone(db: Session, employee_id: int, phone: str) -> None:
+    """The phone a driver verified when he first signed in with his civil ID (identity checked the code): it becomes
+    his sign-in phone and gives him the app. In the caller's transaction; another employee's phone is refused."""
+    employee = db.scalar(select(Employee).where(Employee.id == employee_id).with_for_update())
+    before = {"phone": employee.phone, "app_access": employee.app_access}
+    employee.phone = phone
+    if employee.app_access == "none":
+        employee.app_access = "active"
+    employee.version += 1
+    employee.updated_at = func.now()
+    _flush_unique(db)
+    audit.record(
+        db,
+        action="employee.phone_claimed",
+        entity_type="employee",
+        entity_id=employee.public_id,
+        actor_type="device",
+        company_id=employee.company_id,
+        before=before,
+        after={"phone": employee.phone, "app_access": employee.app_access},
+    )

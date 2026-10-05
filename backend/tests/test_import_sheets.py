@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import openpyxl
 import pytest
 
+from app.modules.imports.api import NEEDED
 from tests.conftest import login, make_user
 
 P = "/api/v1/imports/sheets"
@@ -226,3 +227,31 @@ def test_an_iban_is_checked_and_needs_the_salary_permission(admin_client, new_cl
     c2 = new_client()
     login(c2, "viewer")
     assert c2.post(f"{P}/preview", files={"file": ("x.xlsx", good, "x")}).status_code == 403
+
+
+def test_drivers_without_a_phone_get_the_initial_password(admin_client, client, new_client, company, owner_db):
+    from sqlalchemy import text
+
+    data = client_workbook()
+    plan = plan_from(preview(admin_client, data), company["id"]) | {"claim_password": "12345678", "claim_days": 7}
+    out = run(admin_client, data, plan).json()
+    assert out["claims"] == 3 and out["applied"] is False  # the three drivers, not the office manager
+    assert owner_db.execute(text("SELECT count(*) FROM identity.driver_claims")).scalar() == 0  # a check keeps nothing
+    out = run(admin_client, data, plan, apply=True).json()
+    assert out["claims"] == 3 and out["applied"]
+    r = client.post(
+        "/api/v1/driver/auth/claim", json={"civil_id": ALI, "password": "12345678", "device_uid": "phone-ali-01"}
+    )
+    assert r.status_code == 200 and r.json()["name"]["ar"] == "علي حسن", r.text
+    r = client.post(
+        "/api/v1/driver/auth/claim", json={"civil_id": SARA, "password": "12345678", "device_uid": "phone-sara-1"}
+    )
+    assert r.status_code == 401  # not a driver: no initial password
+
+    # passwords for drivers are given by whoever manages their phones, not by anyone allowed to import
+    make_user(admin_client, "importer", permissions=list(NEEDED))
+    c = new_client()
+    login(c, "importer")
+    r = run(c, data, plan)
+    assert r.status_code == 403 and r.json()["params"]["permission"] == "devices.manage", r.text
+    assert run(c, data, {k: v for k, v in plan.items() if k != "claim_password"}).status_code == 200

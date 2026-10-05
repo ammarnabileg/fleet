@@ -1531,6 +1531,36 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'اسم البنك'**
   String get bankName;
+
+  /// No description provided for @civilSignIn.
+  ///
+  /// In ar, this message translates to:
+  /// **'الدخول بالرقم المدني'**
+  String get civilSignIn;
+
+  /// No description provided for @civilSignInHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'إن لم يكن رقم هاتفك مسجلاً لدى الشركة: ادخل برقمك المدني وكلمة المرور المبدئية التي أعطاك إياها المكتب، ثم سجّل هاتفك. كلمة المرور تعمل مرة واحدة.'**
+  String get civilSignInHint;
+
+  /// No description provided for @initialPassword.
+  ///
+  /// In ar, this message translates to:
+  /// **'كلمة المرور المبدئية'**
+  String get initialPassword;
+
+  /// No description provided for @claimContinue.
+  ///
+  /// In ar, this message translates to:
+  /// **'متابعة'**
+  String get claimContinue;
+
+  /// No description provided for @claimWelcome.
+  ///
+  /// In ar, this message translates to:
+  /// **'أهلاً {name}. اكتب رقم هاتفك الذي عليه واتساب: يصلك عليه رمز التحقق، وبه تدخل التطبيق بعد ذلك.'**
+  String claimWelcome(String name);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

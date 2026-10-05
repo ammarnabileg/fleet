@@ -228,3 +228,47 @@ class LinkQueueItem(Base):
     last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(Text)
+
+
+class DriverClaim(Base):
+    """A one-time sign-in by civil ID and an initial password, for a driver the office has no phone for."""
+
+    __tablename__ = "driver_claims"
+    __table_args__ = (
+        Index(
+            "driver_claims_session_hash_idx",
+            "session_hash",
+            unique=True,
+            postgresql_where=text("session_hash IS NOT NULL"),
+        ),
+        SCHEMA,
+    )
+
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"), primary_key=True)
+    password_hash: Mapped[str] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    failures: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    session_hash: Mapped[str | None] = mapped_column(Text)
+    session_device_uid: Mapped[str | None] = mapped_column(Text)
+    session_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    phone: Mapped[str | None] = mapped_column(Text)
+    otp_hash: Mapped[str | None] = mapped_column(Text)
+    otp_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    otp_sent: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
+    otp_attempts: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    used_phone: Mapped[str | None] = mapped_column(Text)
+    used_device_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("identity.devices.id"))
+
+
+class ClaimAttempt(Base):
+    __tablename__ = "claim_attempts"
+    __table_args__ = (Index("claim_attempts_ip_idx", "ip", "at"), SCHEMA)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    ip: Mapped[str | None] = mapped_column(Text)
+    ok: Mapped[bool] = mapped_column(Boolean)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

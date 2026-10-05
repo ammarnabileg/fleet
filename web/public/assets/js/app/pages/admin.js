@@ -87,6 +87,10 @@
       return h`<div class="form-grid mt-12">${BT.f.select({ name: 'company_id', label: 'الشركة', required: true, value: active.length === 1 ? active[0].id : '', options: active.map(function (c) { return { v: c.id, t: api.name(c.name) }; }) })}
           ${BT.f.select({ name: 'branch_id', label: 'الفرع', value: '', placeholder: 'الفرع الرئيسي', options: branches.filter(function (b) { return b.is_active; }).map(function (b) { return { v: b.id, t: api.name(b.name) }; }) })}
           ${BT.f.input({ name: 'driver_keywords', label: 'يُعدّ الموظف سائقاً إذا احتوت مهنته على', value: 'سائق، driver', hint: 'كلمات مفصولة بفواصل' })}</div>
+        ${api.can('devices.manage') ? h`<div class="card mt-12"><div class="card-b form">
+          ${BT.f.check({ name: 'claim_on', label: 'السائقون بلا هاتف يدخلون مرة واحدة برقمهم المدني وكلمة مرور مبدئية، ثم يسجلون هواتفهم برمز واتساب' })}
+          <div class="form-grid">${BT.f.input({ name: 'claim_password', label: 'كلمة المرور المبدئية', pattern: '.{8,64}', msg: '8 أحرف على الأقل', hint: 'تُبلَّغ للسائقين، وتعمل مرة واحدة لكل سائق' })}${BT.f.input({ name: 'claim_days', label: 'صالحة لمدة (يوم)', value: 14, num: true })}</div>
+          <div class="muted fs-sm">ما يحمي الحساب: رمز واتساب على هاتف السائق، ومرة واحدة، والمدة، ومراجعة تسجيله الذاتي (ومنه الآيبان) قبل الاعتماد.</div></div></div>` : ''}
         ${pv.sheets.map(function (sh, i) { return sh.rows ? sheetCard(sh, i) : ''; })}
         ${pv.sheets.some(function (sh) { return !sh.rows; }) ? h`<div class="muted fs-sm mt-8">أوراق بلا بيانات لم تُعرض: ${pv.sheets.filter(function (sh) { return !sh.rows; }).map(function (sh) { return sh.name; }).join('، ')}</div>` : ''}
         <div class="flex gap-8 mt-12"><button type="button" class="btn btn-primary" data-check>${icon('list-checks', 15)} فحص دون حفظ</button><button type="button" class="btn btn-success hidden" data-apply>${icon('check', 15)} تنفيذ الاستيراد</button></div>`;
@@ -94,6 +98,7 @@
     function plan() {
       var vals = BT.form.values(planBox);
       var out = { company_id: Number(vals.company_id), branch_id: vals.branch_id ? Number(vals.branch_id) : null, driver_keywords: String(vals.driver_keywords || '').split(/[,،]/).map(function (x) { return x.trim(); }).filter(Boolean), sheets: [] };
+      if (vals.claim_on) { out.claim_password = vals.claim_password || ''; out.claim_days = Math.round(Number(vals.claim_days || 14)); }
       BT.$$('[data-sheet]', planBox).forEach(function (card) {
         var sheet = pv.sheets[+card.getAttribute('data-sheet')], kind = card.querySelector('[name=kind]').value;
         if (!kind) return;
@@ -117,6 +122,7 @@
         var pl = plan();
         if (!pl.company_id) { BT.toast('اختر الشركة', { type: 'error' }); return; }
         if (!pl.sheets.length) { BT.toast('لم تُختر أي ورقة للاستيراد', { type: 'error' }); return; }
+        if (pl.claim_password !== undefined && pl.claim_password.length < 8) { BT.toast('كلمة المرور المبدئية 8 أحرف على الأقل', { type: 'error' }); return; }
         var fd = new FormData();
         fd.append('file', file, file.name || 'file');
         fd.append('plan', JSON.stringify(pl));
@@ -143,7 +149,7 @@
   function result(r, template) {
     var c = function (o) { return fmt.int(o.created) + ' جديد · ' + fmt.int(o.updated) + ' تحديث'; };
     return h`<div class="${r.errors.length ? 'banner danger' : r.applied ? 'banner success' : 'banner info'}">${icon(r.errors.length ? 'circle-x' : 'circle-check', 16)}<div>${r.errors.length ? h`<b>${fmt.int(r.errors.length)} خطأ</b>: صحّح الملف وافحصه من جديد` : r.applied ? 'تم الاستيراد' : 'الملف سليم وجاهز للتنفيذ'}</div></div>
-      <div class="kpis mt-12">${BT.kpi({ label: 'السيارات', value: c(r.vehicles), dot: 'b' })}${BT.kpi({ label: 'الموظفون والسائقون', value: c(r.people), dot: 'g' })}${BT.kpi({ label: 'المستندات', value: fmt.int(r.documents), dot: 'p' })}${template ? BT.kpi({ label: 'الأرصدة الافتتاحية', value: fmt.int(r.opening_balances), dot: 'o' }) : ''}</div>
+      <div class="kpis mt-12">${BT.kpi({ label: 'السيارات', value: c(r.vehicles), dot: 'b' })}${BT.kpi({ label: 'الموظفون والسائقون', value: c(r.people), dot: 'g' })}${BT.kpi({ label: 'المستندات', value: fmt.int(r.documents), dot: 'p' })}${template ? BT.kpi({ label: 'الأرصدة الافتتاحية', value: fmt.int(r.opening_balances), dot: 'o' }) : r.claims ? BT.kpi({ label: 'يدخلون بالرقم المدني', value: fmt.int(r.claims), dot: 'o' }) : ''}</div>
       ${r.errors.length ? h`<div class="section-t mt-12">الأخطاء</div><div class="table-wrap"><table class="t compact"><thead><tr><th>الورقة</th><th class="num">الصف</th><th>المشكلة</th></tr></thead><tbody>${r.errors.map(issue)}</tbody></table></div>` : ''}
       ${r.warnings.length ? h`<div class="section-t mt-12">تنبيهات (لا تمنع الاستيراد)</div><div class="table-wrap"><table class="t compact"><thead><tr><th>الورقة</th><th class="num">الصف</th><th>الملاحظة</th></tr></thead><tbody>${r.warnings.map(issue)}</tbody></table></div>` : ''}`;
   }

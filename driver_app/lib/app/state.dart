@@ -132,6 +132,42 @@ class AppState extends ChangeNotifier {
     await _signedIn(t as Map<String, dynamic>);
   }
 
+  /// A driver the office has no phone for signs in once with his civil ID and the initial password it gave him.
+  /// Returns the short-lived claim and his name.
+  Future<({String token, Map<String, dynamic> name})> claimStart(String civilId, String password) async {
+    final r = await api.post(
+      '/driver/auth/claim',
+      body: {'civil_id': civilId, 'password': password, 'device_uid': await DeviceIdentity.uid(db)},
+      auth: false,
+    ) as Map<String, dynamic>;
+    return (token: r['claim_token'] as String, name: Map<String, dynamic>.from(r['name'] as Map));
+  }
+
+  /// His phone: a WhatsApp code goes to it. Returns the masked number it went to.
+  Future<String> claimPhone(String token, String phone) async {
+    final r = await api.post(
+      '/driver/auth/claim/phone',
+      body: {'claim_token': token, 'device_uid': await DeviceIdentity.uid(db), 'phone': phone},
+      auth: false,
+    ) as Map<String, dynamic>;
+    return r['sent_to'] as String;
+  }
+
+  /// The code: the phone becomes his, this phone is bound, and the self-registration follows.
+  Future<void> claimVerify(String token, String code) async {
+    final t = await api.post(
+      '/driver/auth/claim/verify',
+      body: {
+        'claim_token': token,
+        'device_uid': await DeviceIdentity.uid(db),
+        'code': code,
+        ...await platform.deviceMeta(),
+      },
+      auth: false,
+    );
+    await _signedIn(t as Map<String, dynamic>);
+  }
+
   Future<void> _signedIn(Map<String, dynamic> t) async {
     await tokens.save(t);
     await refresh();

@@ -19,6 +19,7 @@ from app.modules.cash import service as cash
 from app.modules.documents import service as documents
 from app.modules.fleet import service as fleet
 from app.modules.i18n import service as i18n
+from app.modules.identity import service as identity
 from app.modules.imports import sheets
 from app.modules.imports import workbook as wb
 from app.modules.imports.workbook import OPENING, PEOPLE, VEHICLES, Issue, Row
@@ -451,6 +452,7 @@ def _mapped_person(db: Session, sheet: str, number: int, row: dict, ctx: dict) -
     employee = people.find(db, civil_id=civil_id, phone=None)
     if employee.is_driver and not employee.phone:
         ctx["warnings"].append(Issue(sheet, number, "driver_without_phone"))
+        ctx["no_phone"].append(employee)
     elif employee.is_driver and not employee.is_terminal and employee.app_access == "none":
         people.set_app_access(db, employee.public_id, value="active", actor_user_id=actor, commit=False, **scope)
     return action, 0
@@ -488,6 +490,7 @@ def run_mapped(
         "actor_user_id": actor_user_id,
         "scope": scope,
         "warnings": warnings,
+        "no_phone": [],
     }
     for sp in plan["sheets"]:
         sheet = found.get(sp["name"])
@@ -516,6 +519,11 @@ def run_mapped(
                 counts["documents"] += docs
             except (_RowError, AppError) as exc:
                 errors.append(Issue(sheet.name, number, exc.code, exc.params))
+    claims = 0
+    if plan.get("claim_password") and ctx["no_phone"] and not errors:
+        claims = identity.set_claims(
+            db, ctx["no_phone"], password=plan["claim_password"], days=plan["claim_days"], actor_user_id=actor_user_id
+        )["set"]
     applied = apply and not errors
     if applied:
         audit.record(
@@ -527,6 +535,7 @@ def run_mapped(
                 "vehicles": dict(counts["vehicles"]),
                 "people": dict(counts["people"]),
                 "documents": counts["documents"],
+                "claims": claims,
             },
         )
         db.commit()
@@ -538,6 +547,7 @@ def run_mapped(
         "people": {"created": counts["people"]["created"], "updated": counts["people"]["updated"]},
         "documents": counts["documents"],
         "opening_balances": 0,
+        "claims": claims,
         "errors": [vars(e) for e in errors],
         "warnings": [vars(w) for w in warnings],
     }
