@@ -61,6 +61,15 @@ class MessagingSettings(_Section):
     send_until_hour: int = Field(22, ge=1, le=24)
 
 
+class DriverSignInSettings(_Section):
+    """How a driver's phone is trusted. With phone codes on, a WhatsApp code to the phone binds it and a driver signs
+    in with his phone. Off, for a client whose drivers' numbers change hands (the office hands the SIMs out), the code
+    would prove nothing and would let next month's holder of a number in: a driver signs in with his civil ID and his
+    own password (the first time with the office's initial password), and the phone is contact data the office keeps."""
+
+    phone_codes: bool = True
+
+
 class MaintenanceSettings(_Section):
     approval_limit: Decimal = Field(Decimal("100.000"), ge=0, max_digits=12, decimal_places=3)  # quotes above it
     close_requires_invoice: bool = True  # a picked-up request closes once its invoice is approved
@@ -104,6 +113,7 @@ SECTIONS: dict[str, type[_Section]] = {
     "documents": DocumentSettings,
     "onboarding": OnboardingSettings,
     "messaging": MessagingSettings,
+    "driver_sign_in": DriverSignInSettings,
     "maintenance": MaintenanceSettings,
     "accidents": AccidentsSettings,
     "payroll": PayrollSettings,

@@ -231,10 +231,12 @@ class LinkQueueItem(Base):
 
 
 class DriverClaim(Base):
-    """A one-time sign-in by civil ID and an initial password, for a driver the office has no phone for."""
+    """A driver's sign-in by civil ID: the office's one-time initial password and, without phone codes, the password
+    he chose at his first sign-in. One lock covers both."""
 
     __tablename__ = "driver_claims"
     __table_args__ = (
+        CheckConstraint("(own_password_hash IS NULL) = (own_password_set_at IS NULL)", name="own_password"),
         Index(
             "driver_claims_session_hash_idx",
             "session_hash",
@@ -262,6 +264,8 @@ class DriverClaim(Base):
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     used_phone: Mapped[str | None] = mapped_column(Text)
     used_device_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("identity.devices.id"))
+    own_password_hash: Mapped[str | None] = mapped_column(Text)
+    own_password_set_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ClaimAttempt(Base):

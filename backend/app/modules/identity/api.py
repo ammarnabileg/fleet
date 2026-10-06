@@ -10,6 +10,7 @@ from app.modules.i18n import service as i18n
 from app.modules.identity import claims, link_queue, schemas, service
 from app.modules.identity.service import Principal, get_principal, require_permission
 from app.modules.onboarding import service as onboarding
+from app.modules.org import service as org
 from app.modules.people import service as people
 
 router = APIRouter(prefix="/api/v1", tags=["identity"])
@@ -203,11 +204,40 @@ def activate(body: schemas.ActivateIn, db: Session = Depends(get_session)):
     )
 
 
+@router.get("/driver/auth/methods", response_model=schemas.SignInMethodsOut)
+def sign_in_methods(db: Session = Depends(get_session)):
+    """What the sign-in screen shows: the phone and a WhatsApp code, or only the civil ID and a password."""
+    return {"phone_codes": org.phone_codes(db)}
+
+
 @router.post("/driver/auth/claim", response_model=schemas.ClaimStartOut)
 def claim_start(body: schemas.ClaimStartIn, request: Request, db: Session = Depends(get_session)):
-    """A driver the office has no phone for: his civil ID and the initial password the office gave him (once)."""
+    """His civil ID and the initial password the office gave him (once), or without phone codes his own password."""
     return claims.start(
-        db, civil_id=body.civil_id, password=body.password, device_uid=body.device_uid, ip=_client(request)["ip"]
+        db,
+        civil_id=body.civil_id,
+        password=body.password,
+        device_uid=body.device_uid,
+        ip=_client(request)["ip"],
+        platform=body.platform,
+        model=body.model,
+        app_version=body.app_version,
+    )
+
+
+@router.post("/driver/auth/claim/password", response_model=schemas.TokensOut)
+def claim_password(body: schemas.ClaimPasswordIn, db: Session = Depends(get_session)):
+    """Without phone codes: the password he chooses replaces the initial one; this phone is bound and the
+    self-registration follows."""
+    return claims.choose_password(
+        db,
+        token=body.claim_token,
+        device_uid=body.device_uid,
+        password=body.password,
+        platform=body.platform,
+        model=body.model,
+        app_version=body.app_version,
+        on_claimed=lambda driver: onboarding.start(db, driver),
     )
 
 

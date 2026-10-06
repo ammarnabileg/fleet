@@ -53,7 +53,6 @@ class Employee(Base):
             unique=True,
             postgresql_where=text("platform_driver_id IS NOT NULL"),
         ),
-        CheckConstraint("NOT is_driver OR phone IS NOT NULL OR app_access = 'none'", name="driver_phone"),
         Index("employees_phone_idx", "phone", unique=True, postgresql_where=text("phone IS NOT NULL")),
         Index("employees_company_id_idx", "company_id"),
         SCHEMA,

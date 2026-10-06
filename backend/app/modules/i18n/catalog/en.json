@@ -357,7 +357,10 @@
     "claim_rate_limited": "Too many attempts from this connection: try again in {minutes} minutes",
     "claim_session_invalid": "The sign-in timed out: start again with your civil ID",
     "claim_not_found": "This driver has no open initial password",
-    "device_already_bound": "Already has a bound phone: signs in with the WhatsApp code"
+    "device_already_bound": "Already has a bound phone: signs in with the WhatsApp code",
+    "sign_in_method_changed": "The company changed how drivers sign in. Start signing in again",
+    "phone_sign_in_off": "Signing in with a phone number is off: use your civil ID and password",
+    "password_not_allowed": "Choose a password other than the initial password and your civil ID"
   },
   "settings": {
     "branding": "Branding",
@@ -398,7 +401,9 @@
     "accidents.min_photos": "Minimum photos a driver takes of an accident",
     "accidents.police_report_alert_days": "Alert when the police report is still missing after (days)",
     "payroll.deduction_cap_base": "The cap is a share of",
-    "onboarding.require_bank": "IBAN and bank name required in self-registration"
+    "onboarding.require_bank": "IBAN and bank name required in self-registration",
+    "driver_sign_in": "Driver sign-in",
+    "driver_sign_in.phone_codes": "Verify the driver's phone with a WhatsApp code (off: civil ID and a password only)"
   },
   "common": {
     "active": "Active",

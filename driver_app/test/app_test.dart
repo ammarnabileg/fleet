@@ -858,6 +858,7 @@ void main() {
       return (
         200,
         {
+          'next': 'phone',
           'claim_token': 'c' * 43,
           'name': {'ar': 'الفاتح مختار', 'en': 'Alfatih'},
           'expires_in': 900,
@@ -896,5 +897,63 @@ void main() {
     final start = jsonDecode(w.server.calls('/api/v1/driver/auth/claim').last.body) as Map;
     expect(verify['device_uid'], start['device_uid'], reason: 'the same phone all along');
     expect(find.textContaining('18/23456'), findsOneWidget, reason: 'signed in: today with the vehicle in custody');
+  });
+
+  testWidgets('no phone codes: the civil ID is the sign-in, the initial password, then his own, then his own alone', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world(signedIn: false)))!;
+    w.server.on('GET', '/api/v1/driver/auth/methods', (r) => (200, {'phone_codes': false}));
+    final name = {'ar': 'الفاتح مختار', 'en': 'Alfatih'};
+    w.server.on('POST', '/api/v1/driver/auth/claim', (r) {
+      final b = jsonDecode(r.body) as Map;
+      return switch (b['password']) {
+        '12345678' => (200, {'next': 'password', 'claim_token': 'c' * 43, 'name': name, 'expires_in': 900}),
+        'own-pass-1' => (200, {'next': 'done', 'name': name, 'tokens': tokensJson('8')}),
+        _ => (401, {'code': 'claim_invalid', 'status': 401}),
+      };
+    });
+    w.server.on('POST', '/api/v1/driver/auth/claim/password', (r) => (200, tokensJson('7')));
+    await pumpApp(tester, w);
+    await idle(tester);
+    expect(find.byKey(const Key('phone')), findsNothing, reason: 'no sign-in by phone code for this company');
+    expect(find.byKey(const Key('claim-civil')), findsOneWidget);
+    expect(find.text('نسيت كلمة المرور؟ اطلب من المشرف كلمة مرور مبدئية جديدة.'), findsOneWidget);
+    await shot(tester, '21-civil-sign-in');
+    await tester.enterText(find.byKey(const Key('claim-civil')), '286092015272');
+    await tester.enterText(find.byKey(const Key('claim-password')), '12345678');
+    await tester.tap(find.byKey(const Key('claim-start')));
+    await idle(tester);
+    expect(find.textContaining('أهلاً الفاتح مختار. اختر كلمة مرورك'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('claim-new-password')), '286092015272');
+    await tester.tap(find.byKey(const Key('claim-save-password')));
+    await idle(tester);
+    expect(find.text('لا تستخدم رقمك المدني كلمة مرور'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('claim-new-password')), 'own-pass-1');
+    await tester.enterText(find.byKey(const Key('claim-confirm-password')), 'own-pass-2');
+    await tester.tap(find.byKey(const Key('claim-save-password')));
+    await idle(tester);
+    expect(find.text('كلمتا المرور غير متطابقتين'), findsOneWidget);
+    expect(w.server.calls('/api/v1/driver/auth/claim/password'), isEmpty);
+    await shot(tester, '22-choose-password');
+    await tester.enterText(find.byKey(const Key('claim-confirm-password')), 'own-pass-1');
+    await tester.tap(find.byKey(const Key('claim-save-password')));
+    await idle(tester);
+    final chosen = jsonDecode(w.server.calls('/api/v1/driver/auth/claim/password').single.body) as Map;
+    final start = jsonDecode(w.server.calls('/api/v1/driver/auth/claim').single.body) as Map;
+    expect((chosen['claim_token'], chosen['password'], chosen['model']), ('c' * 43, 'own-pass-1', 'Test phone'));
+    expect(chosen['device_uid'], start['device_uid']);
+    expect(find.textContaining('18/23456'), findsOneWidget, reason: 'signed in');
+
+    // signed out (another phone next month): his civil ID and his own password, nothing else
+    w.server.on('POST', '/api/v1/driver/auth/logout', (r) => (204, null));
+    await tester.runAsync(() => w.state.signOut());
+    await idle(tester);
+    await tester.enterText(find.byKey(const Key('claim-civil')), '286092015272');
+    await tester.enterText(find.byKey(const Key('claim-password')), 'own-pass-1');
+    await tester.tap(find.byKey(const Key('claim-start')));
+    await idle(tester);
+    expect(find.textContaining('18/23456'), findsOneWidget);
+    expect(w.server.calls('/api/v1/driver/auth/claim/password').length, 1);
   });
 }

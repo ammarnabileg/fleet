@@ -810,4 +810,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String claimWelcome(String name) {
     return 'Welcome $name. Enter your phone number that has WhatsApp: the code goes to it, and you sign in with it from now on.';
   }
+
+  @override
+  String get password => 'Password';
+
+  @override
+  String get civilSignInOnly =>
+      'Sign in with your civil ID and your password. The first time: the initial password the office gave you, then you choose your own.';
+
+  @override
+  String get forgotPassword => 'Forgot your password? Ask your supervisor for a new initial password.';
+
+  @override
+  String choosePassword(String name) {
+    return 'Welcome $name. Choose your password: with it and your civil ID you sign in from now on, on any phone. At least 8 characters, not the initial password or your civil ID, and tell no one.';
+  }
+
+  @override
+  String get newPassword => 'New password';
+
+  @override
+  String get confirmPassword => 'Type the password again';
+
+  @override
+  String get passwordTooShort => 'At least 8 characters';
+
+  @override
+  String get passwordsDiffer => 'The two passwords differ';
+
+  @override
+  String get passwordIsCivilId => 'Do not use your civil ID as a password';
+
+  @override
+  String get saveAndSignIn => 'Save and sign in';
 }

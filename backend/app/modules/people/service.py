@@ -64,6 +64,7 @@ class EmployeeRef:
     is_terminal: bool
     app_access: str
     branch_id: int = 0
+    civil_id: str | None = None
 
     @property
     def can_use_app(self) -> bool:
@@ -325,7 +326,8 @@ def update_employee(
         if field in changes:
             setattr(employee, field, changes[field])
     if employee.is_driver and not employee.phone and employee.app_access in ("active", "suspended"):
-        raise AppError(422, "driver_phone_required")  # the app signs a driver in by his phone
+        if org.phone_codes(db):
+            raise AppError(422, "driver_phone_required")  # the app signs a driver in by his phone
     if not employee.is_driver and employee.app_access in ("active", "suspended"):
         employee.app_access = "none"  # no longer a driver: no driver app
     employee.version += 1
@@ -402,8 +404,8 @@ def set_app_access(db: Session, public_id, *, value: str, actor_user_id: int, co
         raise AppError(422, "not_a_driver")
     if value == "active" and status.is_terminal:
         raise AppError(422, "employment_ended")
-    if value == "active" and not employee.phone:
-        raise AppError(422, "driver_phone_required")
+    if value == "active" and not employee.phone and org.phone_codes(db):
+        raise AppError(422, "driver_phone_required")  # without phone codes he signs in with his civil ID
     before = employee.app_access
     employee.app_access = value
     employee.version += 1
@@ -501,6 +503,7 @@ def _ref(e: Employee, s: EmploymentStatus) -> EmployeeRef:
         s.is_terminal,
         e.app_access,
         e.branch_id,
+        e.civil_id,
     )
 
 
@@ -647,12 +650,14 @@ def platform_counts(db: Session) -> dict[int, int]:
     return dict(db.execute(q.group_by(Employee.platform_id)).all())
 
 
-def claim_phone(db: Session, employee_id: int, phone: str) -> None:
-    """The phone a driver verified when he first signed in with his civil ID (identity checked the code): it becomes
-    his sign-in phone and gives him the app. In the caller's transaction; another employee's phone is refused."""
+def claim_app(db: Session, employee_id: int, *, phone: str | None) -> None:
+    """A driver's first sign-in with his civil ID gives him the app. With phone codes, the phone he verified (identity
+    checked the code) becomes his sign-in phone; without them (phone=None) his phone stays what the office recorded.
+    In the caller's transaction; another employee's phone is refused."""
     employee = db.scalar(select(Employee).where(Employee.id == employee_id).with_for_update())
     before = {"phone": employee.phone, "app_access": employee.app_access}
-    employee.phone = phone
+    if phone is not None:
+        employee.phone = phone
     if employee.app_access == "none":
         employee.app_access = "active"
     employee.version += 1
@@ -660,7 +665,7 @@ def claim_phone(db: Session, employee_id: int, phone: str) -> None:
     _flush_unique(db)
     audit.record(
         db,
-        action="employee.phone_claimed",
+        action="employee.app_claimed",
         entity_type="employee",
         entity_id=employee.public_id,
         actor_type="device",

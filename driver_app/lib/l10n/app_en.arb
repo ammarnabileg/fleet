@@ -244,5 +244,15 @@
   "civilSignInHint": "If the company has no phone number for you: sign in with your civil ID and the initial password the office gave you, then register your phone. The password works once.",
   "initialPassword": "Initial password",
   "claimContinue": "Continue",
-  "claimWelcome": "Welcome {name}. Enter your phone number that has WhatsApp: the code goes to it, and you sign in with it from now on."
+  "claimWelcome": "Welcome {name}. Enter your phone number that has WhatsApp: the code goes to it, and you sign in with it from now on.",
+  "password": "Password",
+  "civilSignInOnly": "Sign in with your civil ID and your password. The first time: the initial password the office gave you, then you choose your own.",
+  "forgotPassword": "Forgot your password? Ask your supervisor for a new initial password.",
+  "choosePassword": "Welcome {name}. Choose your password: with it and your civil ID you sign in from now on, on any phone. At least 8 characters, not the initial password or your civil ID, and tell no one.",
+  "newPassword": "New password",
+  "confirmPassword": "Type the password again",
+  "passwordTooShort": "At least 8 characters",
+  "passwordsDiffer": "The two passwords differ",
+  "passwordIsCivilId": "Do not use your civil ID as a password",
+  "saveAndSignIn": "Save and sign in"
 }

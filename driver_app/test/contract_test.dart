@@ -502,16 +502,64 @@ void main() {
       final db = await testDb();
       final state = appAgainstBackend(db);
       final claim = await state.claimStart(civil, '12345678');
-      expect(claim.name['ar'], 'سائق بلا هاتف');
-      final sentTo = await state.claimPhone(claim.token, '+9654${n.toString().padLeft(7, '0')}');
+      expect((claim.next, claim.name['ar']), ('phone', 'سائق بلا هاتف'));
+      final sentTo = await state.claimPhone(claim.token!, '+9654${n.toString().padLeft(7, '0')}');
       expect(sentTo, endsWith(n.toString().padLeft(7, '0').substring(3)));
       Object? refused;
       try {
-        await state.claimVerify(claim.token, '000000');
+        await state.claimVerify(claim.token!, '000000');
       } catch (e) {
         refused = e;
       }
       expect('$refused', contains('otp_invalid'), reason: 'the code from WhatsApp is what proves the phone');
+    },
+    skip: backend == null ? 'set BACKEND_URL to run against a real backend' : null,
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test(
+    'without phone codes: the initial password, his own password, then his own password on another phone',
+    () async {
+      final admin = await signedInAdmin();
+      Future<void> phoneCodes(bool on) async {
+        final settings = await admin.call('GET', '/settings') as Map;
+        await admin.call('PUT', '/settings/driver_sign_in', {
+          'version': (settings['driver_sign_in'] as Map)['version'],
+          'value': {'phone_codes': on},
+        });
+      }
+
+      await phoneCodes(false);
+      addTearDown(() => phoneCodes(true));
+      final n = DateTime.now().millisecondsSinceEpoch % 10000000;
+      final civil = '28$n'.padRight(12, '2').substring(0, 12);
+      final driver = await admin.call('POST', '/employees', {
+        'employee_number': 'P$n',
+        'name': {'ar': 'سائق بشريحة متغيرة', 'en': 'Rotating SIM Driver'},
+        'company_id': await companyId(admin),
+        'is_driver': true,
+        'civil_id': civil,
+      });
+      await admin.call('POST', '/driver-claims', {
+        'employee_ids': [driver['id']],
+        'password': '12345678',
+        'days': 7,
+      });
+
+      final first = appAgainstBackend(await testDb());
+      await first.loadSignInMethods();
+      expect(first.phoneCodes, isFalse, reason: 'the sign-in screen shows the civil ID and a password only');
+      final claim = await first.claimStart(civil, '12345678');
+      expect(claim.next, 'password');
+      await first.claimPassword(claim.token!, 'own-pass-$n');
+      expect(first.phase, Phase.onboarding, reason: 'signed in, the self-registration next');
+
+      final second = appAgainstBackend(await testDb());
+      final again = await second.claimStart(civil, 'own-pass-$n');
+      expect((again.next, again.token), ('done', null));
+      expect(second.phase, Phase.onboarding);
+      final devices = await admin.call('GET', '/employees/${driver['id']}/devices') as List;
+      expect(devices.where((d) => d['revoked_at'] == null).length, 1, reason: 'one phone at a time');
     },
     skip: backend == null ? 'set BACKEND_URL to run against a real backend' : null,
     timeout: const Timeout(Duration(minutes: 2)),

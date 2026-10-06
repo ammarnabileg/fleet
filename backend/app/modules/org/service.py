@@ -46,6 +46,11 @@ def get_section(db: Session, name: str) -> BaseModel:
     return value
 
 
+def phone_codes(db: Session) -> bool:
+    """Whether a WhatsApp code verifies a driver's phone (and a driver signs in with it): see DriverSignInSettings."""
+    return get_section(db, "driver_sign_in").phone_codes
+
+
 def all_sections(db: Session) -> dict[str, tuple[int, BaseModel]]:
     return {name: _load(db, name) for name in SECTIONS}
 

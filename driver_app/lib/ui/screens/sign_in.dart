@@ -6,7 +6,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 
 /// Phone number, then the 6-digit code that arrives on WhatsApp. The activation link (no code) is handled by the
-/// app as soon as it is opened.
+/// app as soon as it is opened. A company without phone codes signs drivers in with the civil ID and a password only.
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key, required this.state});
 
@@ -52,6 +52,7 @@ class _SignInScreenState extends State<SignInScreen> {
   @override
   Widget build(BuildContext context) {
     final l = context.l;
+    if (!widget.state.phoneCodes) return CivilIdSignInScreen(state: widget.state, primary: true);
     return Scaffold(
       body: SafeArea(
         child: Form(
@@ -60,18 +61,7 @@ class _SignInScreenState extends State<SignInScreen> {
             padding: const EdgeInsets.all(24),
             children: [
               const SizedBox(height: 32),
-              Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(14)),
-                    child: const Icon(Icons.local_shipping_outlined, color: Colors.white),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(l.appTitle, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-                ],
-              ),
+              const _Brand(),
               const SizedBox(height: 32),
               Text(
                 _sentTo == null ? l.signInTitle : l.otpTitle,
@@ -140,12 +130,34 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 }
 
-/// For a driver the office has no phone for: his civil ID and the initial password the office gave him, then his phone
-/// and the WhatsApp code sent to it. The self-registration (documents, IBAN) and its review follow.
+class _Brand extends StatelessWidget {
+  const _Brand();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(14)),
+        child: const Icon(Icons.local_shipping_outlined, color: Colors.white),
+      ),
+      const SizedBox(width: 12),
+      Text(context.l.appTitle, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+    ],
+  );
+}
+
+/// His civil ID and the initial password the office gave him, then (with phone codes) his phone and the WhatsApp code
+/// sent to it, or (without them) the password he chooses. The self-registration (documents, IBAN) and its review
+/// follow. Without phone codes this is the sign-in screen itself, and his own password signs him in at once.
 class CivilIdSignInScreen extends StatefulWidget {
-  const CivilIdSignInScreen({super.key, required this.state});
+  const CivilIdSignInScreen({super.key, required this.state, this.primary = false});
 
   final AppState state;
+
+  /// The sign-in screen itself (no phone codes), not a page opened from the phone sign-in.
+  final bool primary;
 
   @override
   State<CivilIdSignInScreen> createState() => _CivilIdSignInScreenState();
@@ -156,8 +168,11 @@ class _CivilIdSignInScreenState extends State<CivilIdSignInScreen> {
   final _password = TextEditingController();
   final _phone = TextEditingController();
   final _code = TextEditingController();
+  final _newPassword = TextEditingController();
+  final _confirm = TextEditingController();
   final _form = GlobalKey<FormState>();
   String? _token;
+  String _next = 'phone';
   String _name = '';
   String? _sentTo;
 
@@ -171,10 +186,21 @@ class _CivilIdSignInScreenState extends State<CivilIdSignInScreen> {
     }
   }
 
+  void _signedIn() {
+    if (mounted && !widget.primary) Navigator.of(context).popUntil((r) => r.isFirst);
+  }
+
   Future<void> _start() => _run(() async {
     final r = await widget.state.claimStart(_civil.text.trim(), _password.text);
+    if (r.next == 'done') return _signedIn();
     _token = r.token;
+    _next = r.next;
     _name = (r.name[widget.state.lang] ?? r.name['ar'] ?? r.name.values.first) as String;
+  });
+
+  Future<void> _choose() => _run(() async {
+    await widget.state.claimPassword(_token!, _newPassword.text);
+    _signedIn();
   });
 
   Future<void> _sendCode() =>
@@ -182,22 +208,33 @@ class _CivilIdSignInScreenState extends State<CivilIdSignInScreen> {
 
   Future<void> _verify() => _run(() async {
     await widget.state.claimVerify(_token!, _code.text.trim());
-    if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+    _signedIn();
   });
 
   @override
   Widget build(BuildContext context) {
     final l = context.l;
+    final codes = widget.state.phoneCodes;
     return Scaffold(
-      appBar: AppBar(title: Text(l.civilSignIn)),
+      appBar: widget.primary ? null : AppBar(title: Text(l.civilSignIn)),
       body: SafeArea(
         child: Form(
           key: _form,
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
+              if (widget.primary) ...[
+                const SizedBox(height: 32),
+                const _Brand(),
+                const SizedBox(height: 32),
+                Text(l.signInTitle, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+              ],
               if (_token == null) ...[
-                Text(l.civilSignInHint, style: const TextStyle(color: AppColors.muted, height: 1.6)),
+                Text(
+                  codes ? l.civilSignInHint : l.civilSignInOnly,
+                  style: const TextStyle(color: AppColors.muted, height: 1.6),
+                ),
                 const SizedBox(height: 20),
                 TextFormField(
                   key: const Key('claim-civil'),
@@ -214,11 +251,45 @@ class _CivilIdSignInScreenState extends State<CivilIdSignInScreen> {
                   controller: _password,
                   obscureText: true,
                   textDirection: TextDirection.ltr,
-                  decoration: InputDecoration(labelText: l.initialPassword, prefixIcon: const Icon(Icons.lock_outline)),
+                  decoration: InputDecoration(
+                    labelText: codes ? l.initialPassword : l.password,
+                    prefixIcon: const Icon(Icons.lock_outline),
+                  ),
                   validator: (v) => (v ?? '').isEmpty ? l.required : null,
                 ),
                 const SizedBox(height: 20),
                 BusyButton(key: const Key('claim-start'), label: l.claimContinue, onPressed: _start),
+                if (!codes) ...[
+                  const SizedBox(height: 16),
+                  Text(l.forgotPassword, style: const TextStyle(color: AppColors.muted, height: 1.6)),
+                ],
+                if (widget.primary) ...[const SizedBox(height: 12), Banner2(text: l.activationTip, icon: Icons.link)],
+              ] else if (_next == 'password') ...[
+                Text(l.choosePassword(_name), style: const TextStyle(height: 1.6)),
+                const SizedBox(height: 20),
+                TextFormField(
+                  key: const Key('claim-new-password'),
+                  controller: _newPassword,
+                  obscureText: true,
+                  textDirection: TextDirection.ltr,
+                  decoration: InputDecoration(labelText: l.newPassword, prefixIcon: const Icon(Icons.lock_outline)),
+                  validator: (v) {
+                    final t = v ?? '';
+                    if (t.length < 8) return l.passwordTooShort;
+                    if (t == _civil.text.trim()) return l.passwordIsCivilId;
+                    return null;
+                  },
+                ),
+                TextFormField(
+                  key: const Key('claim-confirm-password'),
+                  controller: _confirm,
+                  obscureText: true,
+                  textDirection: TextDirection.ltr,
+                  decoration: InputDecoration(labelText: l.confirmPassword, prefixIcon: const Icon(Icons.lock_outline)),
+                  validator: (v) => v == _newPassword.text ? null : l.passwordsDiffer,
+                ),
+                const SizedBox(height: 20),
+                BusyButton(key: const Key('claim-save-password'), label: l.saveAndSignIn, onPressed: _choose),
               ] else if (_sentTo == null) ...[
                 Text(l.claimWelcome(_name), style: const TextStyle(height: 1.6)),
                 const SizedBox(height: 20),

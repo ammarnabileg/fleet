@@ -73,13 +73,19 @@ class AppState extends ChangeNotifier {
   bool busy = false;
   Timer? _poll;
 
+  /// How this company signs drivers in: the phone and a WhatsApp code, or (false) the civil ID and a password only.
+  /// Kept from the last time the server answered, so the right screen shows offline.
+  bool phoneCodes = true;
+
   /// [deviceLang]: the phone's language at first launch; afterwards the driver's choice is kept.
   Future<void> boot({String deviceLang = 'ar'}) async {
     lang = await db.get('lang') ?? (deviceLang == 'ar' ? 'ar' : 'en');
     api.lang = lang;
     unawaited(catalog.load(api, lang));
+    phoneCodes = await db.get('phone_codes') != 'false';
     if (!await tokens.hasSession()) {
       _set(Phase.signedOut);
+      unawaited(loadSignInMethods());
       return;
     }
     await refresh();
@@ -99,6 +105,20 @@ class AppState extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------- sign in
+
+  Future<void> loadSignInMethods() async {
+    try {
+      final r = await api.get('/driver/auth/methods', auth: false) as Map<String, dynamic>;
+      final value = r['phone_codes'] != false;
+      await db.put('phone_codes', '$value');
+      if (value != phoneCodes) {
+        phoneCodes = value;
+        notifyListeners();
+      }
+    } catch (_) {
+      // offline or an older server: the last known answer stays
+    }
+  }
 
   Future<void> requestCode(String phone) async {
     await api.post('/driver/auth/otp', body: {'phone': phone, 'device_uid': await DeviceIdentity.uid(db)}, auth: false);
@@ -132,15 +152,38 @@ class AppState extends ChangeNotifier {
     await _signedIn(t as Map<String, dynamic>);
   }
 
-  /// A driver the office has no phone for signs in once with his civil ID and the initial password it gave him.
-  /// Returns the short-lived claim and his name.
-  Future<({String token, Map<String, dynamic> name})> claimStart(String civilId, String password) async {
+  /// His civil ID and the initial password the office gave him (once), or without phone codes his own password.
+  /// next: "phone" (register his phone by code), "password" (choose his own), or "done" (his own password: signed in).
+  Future<({String next, String? token, Map<String, dynamic> name})> claimStart(String civilId, String password) async {
     final r = await api.post(
       '/driver/auth/claim',
-      body: {'civil_id': civilId, 'password': password, 'device_uid': await DeviceIdentity.uid(db)},
+      body: {
+        'civil_id': civilId,
+        'password': password,
+        'device_uid': await DeviceIdentity.uid(db),
+        ...await platform.deviceMeta(),
+      },
       auth: false,
     ) as Map<String, dynamic>;
-    return (token: r['claim_token'] as String, name: Map<String, dynamic>.from(r['name'] as Map));
+    final next = r['next'] as String? ?? 'phone';
+    if (next == 'done') await _signedIn(Map<String, dynamic>.from(r['tokens'] as Map));
+    return (next: next, token: r['claim_token'] as String?, name: Map<String, dynamic>.from(r['name'] as Map));
+  }
+
+  /// Without phone codes: the password he signs in with from now on; this phone is bound and the self-registration
+  /// follows.
+  Future<void> claimPassword(String token, String password) async {
+    final t = await api.post(
+      '/driver/auth/claim/password',
+      body: {
+        'claim_token': token,
+        'device_uid': await DeviceIdentity.uid(db),
+        'password': password,
+        ...await platform.deviceMeta(),
+      },
+      auth: false,
+    );
+    await _signedIn(t as Map<String, dynamic>);
   }
 
   /// His phone: a WhatsApp code goes to it. Returns the masked number it went to.
@@ -184,12 +227,14 @@ class AppState extends ChangeNotifier {
     await tokens.clear();
     _reset();
     _set(Phase.signedOut);
+    unawaited(loadSignInMethods());
   }
 
   void _sessionEnded() {
     unawaited(platform.stopTracking());
     _reset();
     _set(Phase.signedOut);
+    unawaited(loadSignInMethods());
   }
 
   void _reset() {

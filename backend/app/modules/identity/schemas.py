@@ -256,12 +256,17 @@ class ClaimStartIn(BaseModel):
     civil_id: Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^[0-9]{12}$")]
     password: Annotated[str, StringConstraints(min_length=1, max_length=64)]
     device_uid: DeviceUid
+    platform: Meta | None = None  # bound at once when it is his own password (no phone codes)
+    model: Meta | None = None
+    app_version: Meta | None = None
 
 
 class ClaimStartOut(BaseModel):
-    claim_token: str
+    next: Literal["phone", "password", "done"]  # done: his own password, signed in (tokens)
     name: dict[str, str]  # "Welcome, ..." before he goes on
-    expires_in: int
+    claim_token: str | None = None
+    expires_in: int | None = None
+    tokens: TokensOut | None = None
 
 
 class ClaimPhoneIn(BaseModel):
@@ -286,6 +291,21 @@ class ClaimVerifyIn(BaseModel):
     platform: Meta | None = None
     model: Meta | None = None
     app_version: Meta | None = None
+
+
+class ClaimPasswordIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    claim_token: Annotated[str, StringConstraints(strip_whitespace=True, min_length=20, max_length=100)]
+    device_uid: DeviceUid
+    password: InitialPassword  # the same rule: 8 to 64 characters
+    platform: Meta | None = None
+    model: Meta | None = None
+    app_version: Meta | None = None
+
+
+class SignInMethodsOut(BaseModel):
+    phone_codes: bool  # false: civil ID and password only
 
 
 class ClaimsIn(BaseModel):
@@ -315,3 +335,4 @@ class ClaimStatusOut(BaseModel):
     failures: int
     used_at: datetime | None
     used_phone: str | None
+    own_password_set_at: datetime | None  # without phone codes: he chose his own password then

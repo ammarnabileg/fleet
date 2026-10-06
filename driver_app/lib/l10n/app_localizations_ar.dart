@@ -805,4 +805,37 @@ class AppLocalizationsAr extends AppLocalizations {
   String claimWelcome(String name) {
     return 'أهلاً $name. اكتب رقم هاتفك الذي عليه واتساب: يصلك عليه رمز التحقق، وبه تدخل التطبيق بعد ذلك.';
   }
+
+  @override
+  String get password => 'كلمة المرور';
+
+  @override
+  String get civilSignInOnly =>
+      'ادخل برقمك المدني وكلمة مرورك. أول مرة: كلمة المرور المبدئية التي أعطاك إياها المكتب، ثم تختار كلمة مرورك.';
+
+  @override
+  String get forgotPassword => 'نسيت كلمة المرور؟ اطلب من المشرف كلمة مرور مبدئية جديدة.';
+
+  @override
+  String choosePassword(String name) {
+    return 'أهلاً $name. اختر كلمة مرورك: بها وبرقمك المدني تدخل التطبيق بعد ذلك من أي هاتف. 8 أحرف على الأقل، غير كلمة المرور المبدئية ورقمك المدني، ولا تخبر بها أحداً.';
+  }
+
+  @override
+  String get newPassword => 'كلمة المرور الجديدة';
+
+  @override
+  String get confirmPassword => 'أعد كتابة كلمة المرور';
+
+  @override
+  String get passwordTooShort => '8 أحرف على الأقل';
+
+  @override
+  String get passwordsDiffer => 'كلمتا المرور غير متطابقتين';
+
+  @override
+  String get passwordIsCivilId => 'لا تستخدم رقمك المدني كلمة مرور';
+
+  @override
+  String get saveAndSignIn => 'حفظ والدخول';
 }

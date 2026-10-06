@@ -36,6 +36,7 @@ from app.modules.i18n import service as i18n
 from app.modules.identity.models import ActivationLink, Device, DeviceStatus, DeviceToken, OtpChallenge
 from app.modules.integrations import service as integrations
 from app.modules.notifications import service as notifications
+from app.modules.org import service as org
 from app.modules.people import service as people
 
 OTP_TTL = timedelta(minutes=5)
@@ -69,7 +70,14 @@ def _otp_hash(phone: str, code: str) -> str:
 # ------------------------------------------------------------------ OTP
 
 
+def _phone_sign_in(db: Session) -> None:
+    """Without phone codes a number may be next month's SIM of another driver: a code to it would let him in."""
+    if not org.phone_codes(db):
+        raise AppError(403, "phone_sign_in_off")
+
+
 def request_otp(db: Session, *, phone: str, device_uid: str, ip: str | None) -> None:
+    _phone_sign_in(db)
     now = utcnow()
 
     def requests_since(t: datetime) -> int:
@@ -164,6 +172,7 @@ def verify_otp(
     model: str | None,
     app_version: str | None,
 ) -> dict:
+    _phone_sign_in(db)
     now = utcnow()
     challenge = db.scalar(
         select(OtpChallenge)
@@ -277,6 +286,8 @@ def create_activation_link(
         raise AppError(422, "not_a_driver")
     if not driver.can_use_app:
         raise AppError(422, "driver_app_not_active")
+    if channel == "whatsapp" and not driver.phone:
+        raise AppError(422, "driver_phone_required")
     now = utcnow()
     recent = db.scalar(
         select(func.count())

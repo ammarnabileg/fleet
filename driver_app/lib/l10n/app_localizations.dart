@@ -1561,6 +1561,66 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'أهلاً {name}. اكتب رقم هاتفك الذي عليه واتساب: يصلك عليه رمز التحقق، وبه تدخل التطبيق بعد ذلك.'**
   String claimWelcome(String name);
+
+  /// No description provided for @password.
+  ///
+  /// In ar, this message translates to:
+  /// **'كلمة المرور'**
+  String get password;
+
+  /// No description provided for @civilSignInOnly.
+  ///
+  /// In ar, this message translates to:
+  /// **'ادخل برقمك المدني وكلمة مرورك. أول مرة: كلمة المرور المبدئية التي أعطاك إياها المكتب، ثم تختار كلمة مرورك.'**
+  String get civilSignInOnly;
+
+  /// No description provided for @forgotPassword.
+  ///
+  /// In ar, this message translates to:
+  /// **'نسيت كلمة المرور؟ اطلب من المشرف كلمة مرور مبدئية جديدة.'**
+  String get forgotPassword;
+
+  /// No description provided for @choosePassword.
+  ///
+  /// In ar, this message translates to:
+  /// **'أهلاً {name}. اختر كلمة مرورك: بها وبرقمك المدني تدخل التطبيق بعد ذلك من أي هاتف. 8 أحرف على الأقل، غير كلمة المرور المبدئية ورقمك المدني، ولا تخبر بها أحداً.'**
+  String choosePassword(String name);
+
+  /// No description provided for @newPassword.
+  ///
+  /// In ar, this message translates to:
+  /// **'كلمة المرور الجديدة'**
+  String get newPassword;
+
+  /// No description provided for @confirmPassword.
+  ///
+  /// In ar, this message translates to:
+  /// **'أعد كتابة كلمة المرور'**
+  String get confirmPassword;
+
+  /// No description provided for @passwordTooShort.
+  ///
+  /// In ar, this message translates to:
+  /// **'8 أحرف على الأقل'**
+  String get passwordTooShort;
+
+  /// No description provided for @passwordsDiffer.
+  ///
+  /// In ar, this message translates to:
+  /// **'كلمتا المرور غير متطابقتين'**
+  String get passwordsDiffer;
+
+  /// No description provided for @passwordIsCivilId.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا تستخدم رقمك المدني كلمة مرور'**
+  String get passwordIsCivilId;
+
+  /// No description provided for @saveAndSignIn.
+  ///
+  /// In ar, this message translates to:
+  /// **'حفظ والدخول'**
+  String get saveAndSignIn;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

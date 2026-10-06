@@ -26,7 +26,14 @@
   A.phoneShow = function (p) { return p ? h`<bdi dir="ltr" class="num">${p}</bdi>` : raw('<span class="muted">—</span>'); };
 
   /* ================= الصفحة ================= */
+  /* كيف يدخل السائقون: الهاتف ورمز واتساب، أو (false) الرقم المدني وكلمة مرور فقط (إعدادات: دخول السائق للتطبيق) */
+  A.phoneCodes = function () {
+    if (!A._codes) A._codes = api.get('/driver/auth/methods').then(function (r) { A.codes = r.phone_codes; return r.phone_codes; }, function () { A._codes = null; return true; });
+    return A._codes;
+  };
+
   BT.pages['employees'] = function (p, q) {
+    A.phoneCodes();
     A.setTitle('الموظفون والسائقون');
     var v = A.view(), tab = q.tab || 'list';
     var tabs = [['list', 'الموظفون']];
@@ -125,7 +132,7 @@
     jobs.push(api.can('documents.view') ? api.get('/documents', { owner_type: 'employee', owner_id: id }) : Promise.resolve(null));
     jobs.push(api.can('devices.manage') ? api.get('/employees/' + id + '/devices') : Promise.resolve(null));
     jobs.push(api.can('custody.view') ? api.get('/custodies', { driver_id: id, limit: 10 }) : Promise.resolve(null));
-    Promise.all(jobs.concat([A.platforms ? A.platforms().catch(function () { return []; }) : []])).then(function (r) {
+    Promise.all(jobs.concat([A.platforms ? A.platforms().catch(function () { return []; }) : [], A.phoneCodes()])).then(function (r) {
       r = r.slice(0, 7);
       // كشف الكاش للسائقين فقط
       return r[0].is_driver && api.can('cash.view') ? api.get('/cash/drivers/' + id + '/statement').then(function (c) { return r.concat([c]); }, function () { return r.concat([null]); }) : r.concat([null]);
@@ -216,33 +223,35 @@
   /* ---------- الهاتف والتطبيق ---------- */
   function devicePanel(e, devices) {
     var bound = (devices || []).filter(function (d) { return !d.revoked_at; });
-    var canManage = api.can('devices.manage');
+    var canManage = api.can('devices.manage'), codes = A.codes !== false;
     var accessBtns = canManage && !e.is_terminal ? h`<div class="flex gap-8 mt-12" style="flex-wrap:wrap">
-      ${e.app_access !== 'active' && e.phone ? h`<button type="button" class="btn btn-sm btn-soft" data-dev="active">${icon('check', 14)} تفعيل التطبيق</button>` : ''}
+      ${e.app_access !== 'active' && (e.phone || !codes) ? h`<button type="button" class="btn btn-sm btn-soft" data-dev="active">${icon('check', 14)} تفعيل التطبيق</button>` : ''}
       ${e.app_access === 'active' ? h`<button type="button" class="btn btn-sm btn-outline" data-dev="suspended">${icon('pause', 14)} إيقاف مؤقت</button>` : ''}
       ${e.app_access !== 'disabled' && e.app_access !== 'none' ? h`<button type="button" class="btn btn-sm btn-danger" data-dev="disabled">${icon('ban', 14)} إلغاء الوصول</button>` : ''}</div>` : '';
     return h`${BT.kv([['حساب التطبيق', A.pill('app_access', e.app_access)], ['الجوال المسجل', A.phoneShow(e.phone)]])}${accessBtns}
       <div class="section-t mt-16">الهواتف</div>
       ${devices == null ? raw('<div class="muted fs-sm">عرض الأجهزة يحتاج صلاحية أجهزة السائقين</div>') : devices.length ? h`<div class="list">${devices.map(function (d) {
         return h`<div class="li"><span class="li-ic">${icon('smartphone', 16)}</span><div class="li-main"><div class="li-t">${d.model || 'هاتف'} <span class="muted fs-sm">${d.platform || ''} ${d.app_version ? '· ' + d.app_version : ''}</span></div><div class="li-d">رُبط ${fmt.dt(d.bound_at)} · آخر ظهور ${d.last_seen_at ? fmt.since(d.last_seen_at) : '—'}${d.revoked_at ? h` · فُصل ${fmt.dt(d.revoked_at)}` : ''}</div></div>${d.revoked_at ? BT.pill('مفصول', 'n') : h`${BT.pill('مربوط', 'g')}${canManage ? h`<button type="button" class="btn btn-sm btn-ghost" data-dev="revoke" data-id="${d.id}">فصل</button>` : ''}`}</div>`;
-      })}</div>` : BT.empty('smartphone', 'لا يوجد هاتف مربوط', e.phone ? 'أرسل رابط التفعيل: يفتحه السائق فيرتبط هاتفه دون رمز' : 'لا يوجد رقم جوال في الملف: أضفه، أو أعطِ السائق كلمة مرور مبدئية يدخل بها برقمه المدني ويسجل هاتفه')}
+      })}</div>` : BT.empty('smartphone', 'لا يوجد هاتف مربوط', !codes ? 'يدخل السائق برقمه المدني وكلمة مروره من أي هاتف. أول مرة: كلمة مرور مبدئية من الأسفل' : e.phone ? 'أرسل رابط التفعيل: يفتحه السائق فيرتبط هاتفه دون رمز' : 'لا يوجد رقم جوال في الملف: أضفه، أو أعطِ السائق كلمة مرور مبدئية يدخل بها برقمه المدني ويسجل هاتفه')}
       ${canManage && e.app_access === 'active' ? h`<div class="mt-12"><button type="button" class="btn btn-sm btn-primary" data-dev="link">${icon('send', 14)} رابط التفعيل</button></div>
-        <div class="banner info mt-12 fs-sm">${icon('shield-check', 15)}<div>حساب السائق مربوط بهاتف واحد${bound.length ? '' : ''}. عند تغيير الهاتف: أرسل رابطاً جديداً (يُفصل القديم تلقائياً)، أو يدخل السائق برمز يصله على واتساب الرقم المسجل.</div></div>` : ''}
+        <div class="banner info mt-12 fs-sm">${icon('shield-check', 15)}<div>${codes ? 'حساب السائق مربوط بهاتف واحد. عند تغيير الهاتف: أرسل رابطاً جديداً (يُفصل القديم تلقائياً)، أو يدخل السائق برمز يصله على واتساب الرقم المسجل.' : 'حساب السائق مربوط بهاتف واحد. عند تغيير الهاتف يدخل برقمه المدني وكلمة مروره على الهاتف الجديد (يُفصل القديم تلقائياً). نسي كلمة المرور: أعطه كلمة مرور مبدئية جديدة من الأسفل.'}</div></div>` : ''}
       ${e.app_access !== 'active' && !e.is_terminal && e.phone ? h`<div class="banner warn mt-12 fs-sm">${icon('info', 15)}<div>فعّل حساب التطبيق أولاً ليستطيع السائق الدخول أو استلام رابط التفعيل.</div></div>` : ''}
-      ${canManage && !bound.length && !e.is_terminal ? h`<div data-claim="${e.id}"></div>` : ''}`;
+      ${canManage && (!bound.length || !codes) && !e.is_terminal ? h`<div data-claim="${e.id}"></div>` : ''}`;
   }
 
   /* الدخول مرة واحدة بالرقم المدني وكلمة مرور مبدئية، لسائق لا يُعرف هاتفه: يسجل هاتفه برمز واتساب ثم يكمل تسجيله */
   A.claimBox = function (box, e, after) {
     api.get('/employees/' + e.id + '/claim').then(function (c) {
       if (!document.contains(box)) return;
+      var own = A.codes === false && c && c.own_password_set_at;
       BT.render(box, h`<div class="section-t mt-16">الدخول بالرقم المدني</div>
         ${c ? BT.kv([
-          ['الحالة', c.used_at ? BT.pill('استُخدمت · ' + fmt.dt(c.used_at), 'g') : c.open ? (c.locked ? BT.pill('مقفلة مؤقتاً بعد محاولات خاطئة', 'r') : BT.pill('مفتوحة', 'o')) : BT.pill('انتهت', 'n')],
-          ['صالحة حتى', fmt.dt(c.expires_at)],
-          c.used_phone ? ['الهاتف الذي سجّله', h`<span class="ltr num">${c.used_phone}</span>`] : null
+          ['كلمة المرور المبدئية', c.used_at ? BT.pill('استُخدمت · ' + fmt.dt(c.used_at), 'g') : c.open ? (c.locked ? BT.pill('مقفلة مؤقتاً بعد محاولات خاطئة', 'r') : BT.pill('مفتوحة', 'o')) : BT.pill('انتهت', 'n')],
+          c.used_at ? null : ['صالحة حتى', fmt.dt(c.expires_at)],
+          c.used_phone ? ['الهاتف الذي سجّله', h`<span class="ltr num">${c.used_phone}</span>`] : null,
+          own ? ['كلمة مروره', h`${c.locked ? BT.pill('مقفلة مؤقتاً بعد محاولات خاطئة', 'r') : BT.pill('اختارها ' + fmt.dt(c.own_password_set_at), 'g')}`] : null
         ].filter(Boolean)) : raw('<div class="muted fs-sm">لا توجد كلمة مرور مبدئية</div>')}
-        <div class="flex gap-8 mt-8"><button type="button" class="btn btn-sm btn-outline" data-claim-set>${icon('key-round', 14)} ${c && c.open ? 'كلمة مرور جديدة' : 'كلمة مرور مبدئية'}</button>${c && c.open ? h`<button type="button" class="btn btn-sm btn-ghost" data-claim-revoke>إلغاؤها</button>` : ''}</div>`);
+        <div class="flex gap-8 mt-8"><button type="button" class="btn btn-sm btn-outline" data-claim-set>${icon('key-round', 14)} ${own ? 'إعادة تعيين كلمة المرور' : c && c.open ? 'كلمة مرور جديدة' : 'كلمة مرور مبدئية'}</button>${c && c.open ? h`<button type="button" class="btn btn-sm btn-ghost" data-claim-revoke>إلغاؤها</button>` : ''}</div>`);
       box.querySelector('[data-claim-set]').onclick = function () { A.claimForm([e], after); };
       var rv = box.querySelector('[data-claim-revoke]');
       if (rv) rv.onclick = function () { A.confirmRun({ title: 'إلغاء كلمة المرور المبدئية', message: 'لا يستطيع السائق الدخول بها بعد الآن.', confirmText: 'إلغاء', tone: 'danger', done: 'أُلغيت', after: after, run: function () { return api.del('/employees/' + e.id + '/claim'); } }); };
@@ -250,12 +259,13 @@
   };
   A.claimForm = function (rows, after) {
     if (!rows.length) { BT.toast('لا يوجد سائقون في التحديد', { type: 'info' }); return; }
+    var codes = A.codes !== false;
     A.formModal({
       title: 'الدخول بالرقم المدني', subtitle: rows.length === 1 ? api.name(rows[0].name) : rows.length + ' سائق', icon: 'key-round', submitText: 'حفظ', done: false,
       body: h`<div class="form">
-        ${BT.f.input({ name: 'password', label: 'كلمة المرور المبدئية', required: true, pattern: '.{8,64}', msg: '8 أحرف على الأقل', hint: 'يدخل بها السائق مرة واحدة مع رقمه المدني، ثم يسجل هاتفه برمز يصله على واتساب' })}
+        ${BT.f.input({ name: 'password', label: 'كلمة المرور المبدئية', required: true, pattern: '.{8,64}', msg: '8 أحرف على الأقل', hint: codes ? 'يدخل بها السائق مرة واحدة مع رقمه المدني، ثم يسجل هاتفه برمز يصله على واتساب' : 'يدخل بها السائق مرة واحدة مع رقمه المدني، ثم يختار كلمة مروره. لمن اختار كلمة مروره من قبل: تتوقف كلمته فوراً (نسيها)' })}
         ${BT.f.input({ name: 'days', label: 'صالحة لمدة (يوم)', value: 14, num: true, required: true })}
-        <div class="banner warn fs-sm">${icon('shield-alert', 15)}<div>كلمة مرور مشتركة يعرفها كل من أُبلغ بها، وزملاء السائق يعرفون رقمه المدني: ما يحمي الحساب هو رمز واتساب على هاتفه، والاستخدام مرة واحدة، والمدة القصيرة، ومراجعة التسجيل الذاتي قبل اعتماد بياناته (ومنها الآيبان). اجعل المدة قصيرة.</div></div></div>`,
+        <div class="banner warn fs-sm">${icon('shield-alert', 15)}<div>${codes ? 'كلمة مرور مشتركة يعرفها كل من أُبلغ بها، وزملاء السائق يعرفون رقمه المدني: ما يحمي الحساب هو رمز واتساب على هاتفه، والاستخدام مرة واحدة، والمدة القصيرة، ومراجعة التسجيل الذاتي قبل اعتماد بياناته (ومنها الآيبان). اجعل المدة قصيرة.' : 'كلمة مرور مشتركة يعرفها كل من أُبلغ بها، وزملاء السائق يعرفون رقمه المدني، ولا رمز واتساب يثبت الهاتف: من يسبق السائق يختار كلمة المرور ويدخل بحسابه. ما يحمي الحساب: الاستخدام مرة واحدة (السائق الحقيقي يُرفض فيبلغكم)، والمدة القصيرة، ومراجعة التسجيل الذاتي قبل اعتماد بياناته (ومنها الآيبان). اجعل المدة قصيرة وأبلغ كل سائق بنفسه.'}</div></div></div>`,
       submit: function (v) {
         return api.post('/driver-claims', { employee_ids: rows.map(function (r) { return r.id; }), password: v.password, days: Math.round(Number(v.days)) }).then(function (r) {
           BT.toast('كلمة المرور المبدئية جاهزة لـ ' + r.set + ' سائق', { sub: r.skipped.length ? r.skipped.length + ' تُخطّي: ' + r.skipped.map(function (x) { return api.name(x.employee.name) + ' (' + api.t('errors', x.code) + ')'; }).join('، ') : 'صالحة حتى ' + fmt.dt(r.expires_at), timeout: 8000 });
@@ -267,12 +277,12 @@
   };
 
   A.setAppAccess = function (e, value, after) {
-    var msg = { active: 'يستطيع السائق الدخول للتطبيق برابط التفعيل أو برمز على واتساب.', suspended: 'يتوقف دخول السائق مؤقتاً وتتوقف أجهزته حتى إعادة التفعيل.', disabled: 'يُلغى وصول السائق للتطبيق وتُفصل أجهزته.' }[value];
+    var msg = { active: A.codes === false ? 'يستطيع السائق الدخول برقمه المدني وكلمة مروره، أو برابط التفعيل.' : 'يستطيع السائق الدخول للتطبيق برابط التفعيل أو برمز على واتساب.', suspended: 'يتوقف دخول السائق مؤقتاً وتتوقف أجهزته حتى إعادة التفعيل.', disabled: 'يُلغى وصول السائق للتطبيق وتُفصل أجهزته.' }[value];
     A.confirmRun({ title: api.t('app_access', value), message: msg, confirmText: 'تأكيد', tone: value === 'active' ? 'primary' : 'danger', icon: 'smartphone', done: 'تم التحديث', after: after,
       run: function () { return api.put('/employees/' + e.id + '/app-access', { app_access: value }); } });
   };
   A.revokeDevice = function (deviceId, after) {
-    A.confirmRun({ title: 'فصل الهاتف', message: 'يُفصل الهاتف فوراً ويُطلب من السائق الدخول من جديد (رابط تفعيل أو رمز على واتساب).', confirmText: 'فصل', tone: 'danger', icon: 'smartphone', done: 'تم فصل الهاتف', after: after,
+    A.confirmRun({ title: 'فصل الهاتف', message: 'يُفصل الهاتف فوراً ويُطلب من السائق الدخول من جديد (' + (A.codes === false ? 'رقمه المدني وكلمة مروره، أو رابط تفعيل' : 'رابط تفعيل أو رمز على واتساب') + ').', confirmText: 'فصل', tone: 'danger', icon: 'smartphone', done: 'تم فصل الهاتف', after: after,
       run: function () { return api.post('/devices/' + deviceId + '/revoke'); } });
   };
 
@@ -280,11 +290,11 @@
   A.activationLink = function (e, after) {
     var d = BT.modal.open({
       title: 'رابط تفعيل التطبيق', subtitle: api.name(e.name), icon: 'send', size: 'sm', form: true,
-      body: h`<div class="form">${BT.kv([['يُرسل إلى', h`${A.phoneShow(e.phone)} <span class="muted fs-sm">(الرقم المسجل فقط)</span>`]])}
+      body: h`<div class="form">${BT.kv([['يُرسل إلى', e.phone ? h`${A.phoneShow(e.phone)} <span class="muted fs-sm">(الرقم المسجل فقط)</span>` : raw('<span class="muted fs-sm">لا يوجد رقم في الملف: يُعرض الرابط ورمز QR ليفتحه السائق في المكتب</span>')]])}
         ${BT.f.radios({ name: 'onboarding', label: 'إكمال البيانات من التطبيق', value: '', options: [{ v: '', t: 'تلقائي', d: 'يُطلب إن لم يكتمل تسجيله' }, { v: 'true', t: 'نعم', d: 'بياناته ومستنداته وسيارته' }, { v: 'false', t: 'لا', d: 'تفعيل الهاتف فقط' }] })}
         <div class="banner info fs-sm">${icon('shield-check', 15)}<div>يفتح السائق الرابط فيرتبط هاتفه مباشرة دون رمز. أي رابط سابق لم يُستخدم يُلغى.</div></div><div data-result></div></div>`,
-      buttons: [{ label: 'عرض الرابط يدوياً', cls: 'btn-ghost', icon: 'eye', close: false, onClick: function () { send('manual'); } }, { label: 'إرسال على واتساب', cls: 'btn-primary', icon: 'send', submit: true }],
-      onSubmit: function () { send('whatsapp'); return false; }
+      buttons: e.phone ? [{ label: 'عرض الرابط يدوياً', cls: 'btn-ghost', icon: 'eye', close: false, onClick: function () { send('manual'); } }, { label: 'إرسال على واتساب', cls: 'btn-primary', icon: 'send', submit: true }] : [{ label: 'عرض الرابط يدوياً', cls: 'btn-primary', icon: 'eye', submit: true }],
+      onSubmit: function () { send(e.phone ? 'whatsapp' : 'manual'); return false; }
     });
     var changed = false;
     d.promise.then(function () { if (changed && after) after(); });

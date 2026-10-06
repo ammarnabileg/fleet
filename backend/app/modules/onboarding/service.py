@@ -243,7 +243,9 @@ def file(db: Session, public_id, sha256: str, **scope) -> files.FileInfo:
 
 
 def _notify(db: Session, driver: people.EmployeeRef, key: str, **params) -> None:
-    """Best effort: the decision stands even if WhatsApp is down (the app shows it too)."""
+    """Best effort: the decision stands even if WhatsApp is down or he has no number on file (the app shows it too)."""
+    if not driver.phone:
+        return
     try:
         integrations.messenger(db).send(driver.phone, i18n.for_drivers(db, key, name=driver.name, **params))
     except messaging.DeliveryError as exc:

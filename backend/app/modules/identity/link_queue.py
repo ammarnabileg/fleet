@@ -39,6 +39,9 @@ def queue(db: Session, drivers: list[people.EmployeeRef], *, onboarding_for: set
         if not d.can_use_app:
             skipped.append({"id": str(d.public_id), "reason": "driver_app_not_active"})
             continue
+        if not d.phone:  # without phone codes a driver may have the app and no number on file
+            skipped.append({"id": str(d.public_id), "reason": "driver_phone_required"})
+            continue
         stmt = (
             insert(LinkQueueItem)
             .values(
@@ -58,8 +61,8 @@ def queue(db: Session, drivers: list[people.EmployeeRef], *, onboarding_for: set
 
 
 def unbound_drivers(db: Session, **scope) -> list[people.EmployeeRef]:
-    """Drivers with app access and no phone bound yet: the first wave of links."""
-    drivers = people.app_drivers(db, **scope)
+    """Drivers with app access and no phone bound yet (and a number to send to): the first wave of links."""
+    drivers = [d for d in people.app_drivers(db, **scope) if d.phone]
     bound = _bound(db, [d.id for d in drivers])
     return [d for d in drivers if d.id not in bound]
 

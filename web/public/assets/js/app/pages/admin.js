@@ -14,6 +14,7 @@
       <div data-panel="template" data-group="imp" class="${tab === 'template' ? 'active' : ''}"><div data-p="template"></div></div>
       <div data-panel="sheets" data-group="imp" class="${tab === 'sheets' ? 'active' : ''}"><div data-p="sheets"></div></div>`);
     templatePanel(v.querySelector('[data-p="template"]'));
+    if (A.phoneCodes) A.phoneCodes();
     sheetsPanel(v.querySelector('[data-p="sheets"]'));
     v.addEventListener('bt:tab', function (e) { history.replaceState(null, '', '#/import?tab=' + e.detail); });
   };
@@ -88,9 +89,9 @@
           ${BT.f.select({ name: 'branch_id', label: 'الفرع', value: '', placeholder: 'الفرع الرئيسي', options: branches.filter(function (b) { return b.is_active; }).map(function (b) { return { v: b.id, t: api.name(b.name) }; }) })}
           ${BT.f.input({ name: 'driver_keywords', label: 'يُعدّ الموظف سائقاً إذا احتوت مهنته على', value: 'سائق، driver', hint: 'كلمات مفصولة بفواصل' })}</div>
         ${api.can('devices.manage') ? h`<div class="card mt-12"><div class="card-b form">
-          ${BT.f.check({ name: 'claim_on', label: 'السائقون بلا هاتف يدخلون مرة واحدة برقمهم المدني وكلمة مرور مبدئية، ثم يسجلون هواتفهم برمز واتساب' })}
+          ${BT.f.check({ name: 'claim_on', label: A.codes === false ? 'السائقون بلا هاتف يدخلون برقمهم المدني وكلمة مرور مبدئية، ثم يختار كل منهم كلمة مروره' : 'السائقون بلا هاتف يدخلون مرة واحدة برقمهم المدني وكلمة مرور مبدئية، ثم يسجلون هواتفهم برمز واتساب' })}
           <div class="form-grid">${BT.f.input({ name: 'claim_password', label: 'كلمة المرور المبدئية', pattern: '.{8,64}', msg: '8 أحرف على الأقل', hint: 'تُبلَّغ للسائقين، وتعمل مرة واحدة لكل سائق' })}${BT.f.input({ name: 'claim_days', label: 'صالحة لمدة (يوم)', value: 14, num: true })}</div>
-          <div class="muted fs-sm">ما يحمي الحساب: رمز واتساب على هاتف السائق، ومرة واحدة، والمدة، ومراجعة تسجيله الذاتي (ومنه الآيبان) قبل الاعتماد.</div></div></div>` : ''}
+          <div class="muted fs-sm">${A.codes === false ? 'ما يحمي الحساب: مرة واحدة (السائق الحقيقي يُرفض إن سبقه أحد فيبلغكم)، والمدة، ومراجعة تسجيله الذاتي (ومنه الآيبان) قبل الاعتماد. لا رمز واتساب: اجعل المدة قصيرة.' : 'ما يحمي الحساب: رمز واتساب على هاتف السائق، ومرة واحدة، والمدة، ومراجعة تسجيله الذاتي (ومنه الآيبان) قبل الاعتماد.'}</div></div></div>` : ''}
         ${pv.sheets.map(function (sh, i) { return sh.rows ? sheetCard(sh, i) : ''; })}
         ${pv.sheets.some(function (sh) { return !sh.rows; }) ? h`<div class="muted fs-sm mt-8">أوراق بلا بيانات لم تُعرض: ${pv.sheets.filter(function (sh) { return !sh.rows; }).map(function (sh) { return sh.name; }).join('، ')}</div>` : ''}
         <div class="flex gap-8 mt-12"><button type="button" class="btn btn-primary" data-check>${icon('list-checks', 15)} فحص دون حفظ</button><button type="button" class="btn btn-success hidden" data-apply>${icon('check', 15)} تنفيذ الاستيراد</button></div>`;
@@ -367,7 +368,7 @@
               else value[k] = vals[k] === '' ? null : String(vals[k]);
             });
             var b = form.querySelector('[type=submit]'); b.classList.add('is-loading');
-            api.put('/settings/' + name, { version: cur.version, value: value }).then(function (r) { b.classList.remove('is-loading'); sections[name] = r; BT.toast('تم حفظ ' + api.t('settings', name)); if (name === 'branding') { A.brand = r.value.display_name; } }, function (err) { b.classList.remove('is-loading'); BT.toast(api.message(err), { type: 'error', timeout: 6000 }); });
+            api.put('/settings/' + name, { version: cur.version, value: value }).then(function (r) { b.classList.remove('is-loading'); sections[name] = r; BT.toast('تم حفظ ' + api.t('settings', name)); if (name === 'branding') { A.brand = r.value.display_name; } if (name === 'driver_sign_in') { A._codes = null; A.codes = r.value.phone_codes; } }, function (err) { b.classList.remove('is-loading'); BT.toast(api.message(err), { type: 'error', timeout: 6000 }); });
           });
         });
       });
