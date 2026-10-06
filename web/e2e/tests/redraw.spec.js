@@ -1,6 +1,6 @@
 // A panel that redraws itself after a save keeps one click handler: the next click opens one form and sends one
 // request (a handler added on every redraw opened two stacked forms, and a toggle sent two requests from stale rows).
-const { test, expect, uid, settled } = require('./fixtures');
+const { test, expect, uid, settled, clearToasts } = require('./fixtures');
 
 test('after a save, the next click opens one form', async ({ admin, api }) => {
   const n = uid();
@@ -35,6 +35,7 @@ test('a status toggled twice sends one request each time and ends where it start
   const active = async () => (await api.get('/employment-statuses')).find((s) => s.code === code).is_active;
   expect(await active()).toBe(true);
   for (const expected of [false, true]) {
+    await clearToasts(admin); // the first toggle's toast says the same
     await admin.locator(`[data-toggle="${code}"]`).click();
     await expect.poll(active).toBe(expected);
     await expect(admin.locator('.toast').last()).toContainText('تم التحديث');

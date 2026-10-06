@@ -82,6 +82,12 @@ async function settled(page) {
   await expect(page.locator('#view .spinner')).toHaveCount(0);
 }
 
+/** Removes the toasts on screen, before an action whose toast the test checks: a toast still showing from an earlier
+ * action (they stay up to 8 s) would otherwise answer for it, and the test would go on before the action finished. */
+async function clearToasts(page) {
+  await page.evaluate(() => document.querySelectorAll('.toast').forEach((t) => t.remove()));
+}
+
 /** Fails the test on any page error, console error or failed request the test did not allow (page.allow(regex)), and
  * prints what the browser did when the test fails (CI keeps no screenshots this session can open). */
 function track(page, who) {
@@ -94,6 +100,13 @@ function track(page, who) {
       window.cancelAnimationFrame = (id) => clearTimeout(id); // a removed map cancels its next frame
     }, slow);
   }
+  // SLOW_SAVES=800: every save (any API call but a GET) answers 800 ms late, as on a busy server, so a test that goes on
+  // before the save it made has finished fails here every time instead of once in a while in CI
+  const saves = Number(process.env.SLOW_SAVES || 0);
+  const ready = saves ? page.route('**/api/v1/**', async (r) => {
+    if (r.request().method() !== 'GET') await new Promise((ok) => setTimeout(ok, saves));
+    await r.continue();
+  }) : Promise.resolve();
   const errors = [];
   const allowed = [];
   const trail = [];
@@ -119,6 +132,7 @@ function track(page, who) {
   });
   page.allow = (pattern) => allowed.push(pattern);
   return {
+    ready,
     async finish(testInfo) {
       const unexpected = errors.filter((e) => !allowed.some((p) => p.test(e)));
       if (testInfo.status !== testInfo.expectedStatus || unexpected.length) {
@@ -143,6 +157,7 @@ const test = base.test.extend({
 
   admin: async ({ page }, use, testInfo) => {
     const t = track(page, 'admin');
+    await t.ready;
     await page.goto('/login.html');
     await page.fill('#u', ADMIN.username);
     await page.fill('#p', ADMIN.password);
@@ -158,6 +173,7 @@ const test = base.test.extend({
     const ctx = await browser.newContext({ baseURL, locale, timezoneId, viewport: { width: 1360, height: 900 } });
     const page = await ctx.newPage();
     const t = track(page, 'portal');
+    await t.ready;
     await use(page);
     await t.finish(testInfo);
     await ctx.close();
@@ -192,4 +208,4 @@ async function centerSignIn(portal, username) {
 /** A time as a datetime field shows it in Kuwait (UTC+3 all year, no daylight saving): "2026-10-05T13:00". */
 function kuwaitInput(ms) { return new Date(ms + 3 * 3600e3).toISOString().slice(0, 16); }
 
-module.exports = { test, expect, uid, phone, settled, jpeg, pdf, centerWithUser, centerSignIn, kuwaitInput };
+module.exports = { test, expect, uid, phone, settled, clearToasts, jpeg, pdf, centerWithUser, centerSignIn, kuwaitInput };

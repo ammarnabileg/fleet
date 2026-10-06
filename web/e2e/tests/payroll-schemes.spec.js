@@ -1,7 +1,7 @@
 // Pay schemes from end to end in the panel: a tiered scheme built in the form, drivers put on schemes from their file
 // and from the list, a driver's request from his phone approved in the queue, the month's figures his scheme needs,
 // and the payroll line, the approval and the payslip explaining the month.
-const { test, expect, uid, phone, settled } = require('./fixtures');
+const { test, expect, uid, phone, settled, clearToasts } = require('./fixtures');
 
 const MONTH = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 7); // Kuwait time
 const IBAN = 'KW81CBKU0000000000001234560101';
@@ -109,6 +109,7 @@ test('pay schemes: built, assigned, asked for, approved, and the month explained
   await admin.locator('#view tbody tr', { hasText: s.faisal.employee_number }).locator('input[type=checkbox]').check();
   await admin.getByRole('button', { name: 'نظام الدفع', exact: true }).click();
   await top().locator('[name=scheme]').selectOption(fixed.id);
+  await clearToasts(admin); // Bilal's toast, the same words, is still up
   await submit();
   await expect(admin.locator('.toast').last()).toContainText('نظام الدفع لـ 1 سائق');
   const faisalHistory = await api.get(`/employees/${s.faisal.id}/schemes`);

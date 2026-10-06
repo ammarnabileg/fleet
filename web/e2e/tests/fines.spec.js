@@ -2,7 +2,7 @@
 // computer's clock is set to; the fine charged to him in installments and paid to the traffic department, one at a time
 // nobody held the vehicle (alerted, borne by the company), one cancelled as a wrong entry; the vehicle's file and the
 // drivers' apps show the same.
-const { test, expect, uid, phone, settled, jpeg, pdf, kuwaitInput } = require('./fixtures');
+const { test, expect, uid, phone, settled, clearToasts, jpeg, pdf, kuwaitInput } = require('./fixtures');
 
 // an office computer not set to Kuwait time: a ticket at 13:00 is 13:00 Kuwait time, not 13:00 of the computer's zone
 test.use({ timezoneId: 'UTC' });
@@ -44,6 +44,7 @@ test('fines: the driver at the ticket time, charged, paid, nobody driving, cance
     await m.locator('[name=violation]').fill(violation);
     await m.locator('[name=ref]').fill(ref);
     if (file) await m.locator('[name=file]').setInputFiles(file);
+    await clearToasts(admin); // the previous fine's toast says the same
     await m.locator('button[type=submit]').click();
     await expect(admin.locator('.toast').last()).toContainText('سُجّلت المخالفة');
     const f = (await fines()).find((x) => x.reference_no === ref);

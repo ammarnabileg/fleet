@@ -2,7 +2,7 @@
 // police report, the center estimates in its portal (seeing the damage, not the other party), the manager approves the
 // estimate, the police report, the driver held liable in 3 installments, the repair; the deductions page and the
 // driver's app show the same schedule.
-const { test, expect, uid, phone, settled, jpeg, pdf, centerWithUser, centerSignIn, kuwaitInput } = require('./fixtures');
+const { test, expect, uid, phone, settled, clearToasts, jpeg, pdf, centerWithUser, centerSignIn, kuwaitInput } = require('./fixtures');
 
 // an office computer not set to Kuwait time: the accident time typed is still Kuwait's
 test.use({ timezoneId: 'UTC' });
@@ -49,6 +49,7 @@ test('an accident: report, estimate, police report, liability in installments, r
 
   // ---- no liability without the police report: refused in the screen, nothing sent
   await settled(admin);
+  await clearToasts(admin);
   await admin.click('[data-action="acc-outcome"]');
   await expect(admin.locator('.toast').last()).toContainText('محضر الشرطة');
   await expect(admin.locator('.overlay[data-open]')).toHaveCount(0);
