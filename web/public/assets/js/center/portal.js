@@ -247,7 +247,7 @@
           var at = dlg.form.querySelector('[name=at]').value;
           return Promise.all([upload(f.odo[0]), uploadAll(f.ph)]).then(function (up) {
             return api.post('/portal/requests/' + r.id + '/receive', {
-              received_at: at ? new Date(at).toISOString() : null, odometer_km: Math.round(f.km), odometer_photo: up[0], photos: up[1], condition_note: f.cond || null
+              received_at: fmt.kwIso(at), odometer_km: Math.round(f.km), odometer_photo: up[0], photos: up[1], condition_note: f.cond || null
             });
           });
         }

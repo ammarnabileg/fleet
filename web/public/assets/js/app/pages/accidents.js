@@ -64,7 +64,7 @@
         title: 'تسجيل حادث', subtitle: 'يُحدد السائق المسؤول تلقائياً من سجل التسليم في وقت الحادث', icon: 'shield-alert', size: 'lg',
         body: h`<div class="form-grid">
           <div class="full">${A.picker({ name: 'vehicle', label: 'السيارة', required: true, items: vehicles.map(function (x) { return { id: x.id, label: A.vehicleLabel(x) }; }), value: vehicle && vehicle.id })}</div>
-          ${BT.f.input({ name: 'at', label: 'وقت الحادث', type: 'datetime-local', optional: true, hint: 'اتركه فارغاً إن كان الآن' })}
+          ${BT.f.input({ name: 'at', label: 'وقت الحادث (بتوقيت الكويت)', type: 'datetime-local', optional: true, hint: 'اتركه فارغاً إن كان الآن' })}
           ${BT.f.input({ name: 'place', label: 'الموقع', optional: true })}
           ${BT.f.textarea({ name: 'desc', label: 'الوصف', required: true, full: true, rows: 3 })}
           ${BT.f.textarea({ name: 'other', label: 'الطرف الآخر (السيارة، السائق، التأمين)', optional: true, full: true, rows: 2 })}
@@ -80,7 +80,7 @@
           var injuries = dlg.form.querySelector('[name=injuries]').checked;
           return Promise.all([uploadAll(f.ph), f.police && f.police[0] ? upload(f.police[0]) : Promise.resolve(null)]).then(function (up) {
             return api.post('/accidents', {
-              vehicle_id: vid, occurred_at: at ? new Date(at).toISOString() : null, location_text: f.place || null, description: f.desc,
+              vehicle_id: vid, occurred_at: fmt.kwIso(at), location_text: f.place || null, description: f.desc,
               other_party: f.other || null, injuries: injuries, injuries_note: f.inj || null, photos: up[0], police_report: up[1], police_report_no: f.pno || null
             });
           });

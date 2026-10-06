@@ -12,7 +12,7 @@ test('daily report: corrected and approved, another refused, then the cash colle
     employee_number: 'D' + uid(), name: { ar: 'سائق اليوميات ' + n, en: 'Daily driver ' + n },
     company_id: company.id, is_driver: true, phone: phone(), platform_id: platform.id,
   });
-  const top = () => admin.locator('.overlay.show').last();
+  const top = () => admin.locator('.overlay[data-open]').last();
   const name = driver.name.ar;
 
   // ---- his phone: what his platform asks, then today's report and yesterday's

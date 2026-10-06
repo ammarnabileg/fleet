@@ -59,7 +59,7 @@
         title: 'تسجيل مخالفة مرورية', subtitle: 'الوقت كما في المخالفة: منه يُحدد السائق', icon: 'file-warning', size: 'lg',
         body: h`<div class="form-grid">
           <div class="full">${A.picker({ name: 'vehicle', label: 'السيارة', required: true, items: vehicles.map(function (x) { return { id: x.id, label: A.vehicleLabel(x) }; }), value: vehicle && vehicle.id })}</div>
-          ${BT.f.input({ name: 'at', label: 'تاريخ ووقت المخالفة', type: 'datetime-local', required: true })}
+          ${BT.f.input({ name: 'at', label: 'تاريخ ووقت المخالفة (بتوقيت الكويت)', type: 'datetime-local', required: true })}
           ${BT.f.money({ name: 'amount', label: 'المبلغ', required: true })}
           ${BT.f.input({ name: 'violation', label: 'المخالفة', required: true, full: true, placeholder: 'تجاوز السرعة 120 في 80' })}
           ${BT.f.input({ name: 'ref', label: 'رقم المخالفة', optional: true, hint: 'يُسجّل مرة واحدة فقط' })}
@@ -71,7 +71,7 @@
           var at = dlg.form.querySelector('[name=at]').value;
           return (f.file && f.file[0] ? upload(f.file[0]) : Promise.resolve(null)).then(function (sha) {
             return api.post('/fines', {
-              vehicle_id: A.picked('vehicle', f.vehicle), occurred_at: new Date(at).toISOString(), violation: f.violation,
+              vehicle_id: A.picked('vehicle', f.vehicle), occurred_at: fmt.kwIso(at), violation: f.violation,
               amount: String(f.amount), reference_no: f.ref || null, location_text: f.place || null, file_sha256: sha, notes: f.notes || null
             });
           });

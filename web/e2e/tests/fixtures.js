@@ -85,13 +85,25 @@ async function settled(page) {
 /** Fails the test on any page error, console error or failed request the test did not allow (page.allow(regex)), and
  * prints what the browser did when the test fails (CI keeps no screenshots this session can open). */
 function track(page, who) {
+  // SLOW_FRAMES=250: every animation frame comes 250 ms late, as on a busy CI machine or a slow phone, so a test that
+  // depends on the frame timing fails here every time instead of once in a while in CI
+  const slow = Number(process.env.SLOW_FRAMES || 0);
+  if (slow) {
+    page.addInitScript((ms) => {
+      window.requestAnimationFrame = (fn) => setTimeout(() => fn(performance.now()), ms);
+      window.cancelAnimationFrame = (id) => clearTimeout(id); // a removed map cancels its next frame
+    }, slow);
+  }
   const errors = [];
   const allowed = [];
   const trail = [];
   const t0 = Date.now();
   const note = (line) => trail.push(String(Date.now() - t0).padStart(6) + 'ms ' + line);
   const path = (url) => url.replace(/^https?:\/\/[^/]+/, '');
-  page.on('pageerror', (e) => { errors.push(who + ' page error: ' + e.message); note('PAGE ERROR ' + e.message); });
+  page.on('pageerror', (e) => {
+    errors.push(who + ' page error: ' + e.message);
+    note('PAGE ERROR ' + (e.stack || e.message).split('\n').slice(0, 6).join('\n           '));
+  });
   page.on('console', (m) => {
     note('console.' + m.type() + ' ' + m.text());
     // failed loads are reported by the response listener below, with their URL
@@ -108,12 +120,12 @@ function track(page, who) {
   page.allow = (pattern) => allowed.push(pattern);
   return {
     async finish(testInfo) {
-      if (testInfo.status !== testInfo.expectedStatus) {
+      const unexpected = errors.filter((e) => !allowed.some((p) => p.test(e)));
+      if (testInfo.status !== testInfo.expectedStatus || unexpected.length) {
         const dialogs = await page.evaluate(() => [...document.querySelectorAll('.overlay')].map((o) => o.className + ' | '
           + [...o.querySelectorAll('.field.invalid')].map((f) => f.innerText.replace(/\s+/g, ' ')).join(' / '))).catch(() => []);
-        console.log(`--- ${who} browser trail of "${testInfo.title}" ---\n${trail.slice(-150).join('\n')}\n--- dialogs: ${JSON.stringify(dialogs)}`);
+        console.log(`--- ${who} browser trail of "${testInfo.title}" ---\n${trail.slice(-250).join('\n')}\n--- dialogs: ${JSON.stringify(dialogs)}`);
       }
-      const unexpected = errors.filter((e) => !allowed.some((p) => p.test(e)));
       expect(unexpected, 'page, console or API errors').toEqual([]);
     },
   };
@@ -142,8 +154,8 @@ const test = base.test.extend({
   },
 
   /** A second browser, signed out, for the other side of a flow (a maintenance center's portal), watched the same way. */
-  portal: async ({ browser, baseURL }, use, testInfo) => {
-    const ctx = await browser.newContext({ baseURL, locale: 'ar-KW', timezoneId: 'Asia/Kuwait', viewport: { width: 1360, height: 900 } });
+  portal: async ({ browser, baseURL, locale, timezoneId }, use, testInfo) => {
+    const ctx = await browser.newContext({ baseURL, locale, timezoneId, viewport: { width: 1360, height: 900 } });
     const page = await ctx.newPage();
     const t = track(page, 'portal');
     await use(page);
@@ -152,4 +164,32 @@ const test = base.test.extend({
   },
 });
 
-module.exports = { test, expect, uid, phone, settled, jpeg, pdf };
+const CENTER_PASSWORD = 'temporary-pass-1', CENTER_NEW_PASSWORD = 'center-garage-2026-strong';
+
+/** A maintenance center with one portal user on a temporary password. */
+async function centerWithUser(api, n) {
+  const center = await api.post('/maintenance/centers', { name: 'مركز النور ' + n, specialty: 'ميكانيكا وسمكرة' });
+  const username = 'noor' + n;
+  await api.post(`/maintenance/centers/${center.id}/users`, { username, full_name: 'مسؤول النور', password: CENTER_PASSWORD });
+  return { center, username };
+}
+
+/** The center's first sign-in: the temporary password must be changed before anything else. */
+async function centerSignIn(portal, username) {
+  await portal.goto('/login.html');
+  await portal.fill('#u', username);
+  await portal.fill('#p', CENTER_PASSWORD);
+  await portal.click('#step1 [type=submit]');
+  await portal.waitForURL(/center\.html/);
+  const pw = portal.locator('.overlay[data-open]').last();
+  await pw.locator('[name=old]').fill(CENTER_PASSWORD);
+  await pw.locator('[name=pw]').fill(CENTER_NEW_PASSWORD);
+  await pw.locator('[name=pw2]').fill(CENTER_NEW_PASSWORD);
+  await pw.locator('button[type=submit]').click();
+  await expect(pw).toBeHidden();
+}
+
+/** A time as a datetime field shows it in Kuwait (UTC+3 all year, no daylight saving): "2026-10-05T13:00". */
+function kuwaitInput(ms) { return new Date(ms + 3 * 3600e3).toISOString().slice(0, 16); }
+
+module.exports = { test, expect, uid, phone, settled, jpeg, pdf, centerWithUser, centerSignIn, kuwaitInput };

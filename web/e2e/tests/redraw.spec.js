@@ -7,7 +7,7 @@ test('after a save, the next click opens one form', async ({ admin, api }) => {
   const platform = await api.post('/payroll/platforms', { code: 'r' + n, name: { ar: 'منصة ' + n, en: 'Platform ' + n } });
   await admin.goto('/admin.html#/payroll?tab=schemes');
   await settled(admin);
-  const open = admin.locator('.overlay.show');
+  const open = admin.locator('.overlay[data-open]');
   for (const code of ['first', 'second', 'third']) {
     await admin.click(`[data-new="${platform.id}"]`);
     await expect(open).toHaveCount(1);

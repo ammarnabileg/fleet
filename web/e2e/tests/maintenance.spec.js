@@ -1,10 +1,12 @@
 // Maintenance between the office and a center, each in its own browser: the driver's request from his phone, approved
 // and referred; the center receives the vehicle, quotes; the office approves the quote; the center repairs, marks it
 // ready and invoices; the driver sees it ready; the office records the pickup, approves and pays the invoice.
-const { test, expect, uid, phone, settled, jpeg, pdf } = require('./fixtures');
+const { test, expect, uid, phone, settled, jpeg, pdf, centerWithUser, centerSignIn, kuwaitInput } = require('./fixtures');
+
+// neither computer set to Kuwait time: the arrival time the center types is still Kuwait's
+test.use({ timezoneId: 'UTC' });
 
 const file = (name, mimeType, buffer) => ({ name, mimeType, buffer });
-const PASSWORD = 'temporary-pass-1', NEW_PASSWORD = 'center-garage-2026-strong';
 
 test('a repair from the driver\'s request to the paid invoice', async ({ admin, api, portal }) => {
   test.setTimeout(180_000);
@@ -18,10 +20,9 @@ test('a repair from the driver\'s request to the paid invoice', async ({ admin, 
   });
   await api.post('/custodies', {
     vehicle_id: vehicle.id, driver_id: driver.id, odometer_km: 48100, photo_sha256: await api.upload('odo.jpg', 'image/jpeg', jpeg()),
+    started_at: new Date(Date.now() - 2 * 3600e3).toISOString(),
   });
-  const center = await api.post('/maintenance/centers', { name: 'مركز النور ' + n, specialty: 'ميكانيكا' });
-  const username = 'noor' + n;
-  await api.post(`/maintenance/centers/${center.id}/users`, { username, full_name: 'مسؤول النور', password: PASSWORD });
+  const { center, username } = await centerWithUser(api, n);
 
   // ---- the driver asks from his phone, with a camera photo
   const app = await api.driverPhone(driver.id, 'e2e-' + n);
@@ -32,7 +33,7 @@ test('a repair from the driver\'s request to the paid invoice', async ({ admin, 
   expect(asked.status).toBe('requested');
 
   // ---- the office approves and refers it to the center
-  const top = (page) => page.locator('.overlay.show').last();
+  const top = (page) => page.locator('.overlay[data-open]').last();
   await admin.goto('/admin.html#/maintenance/' + asked.id);
   await settled(admin);
   await admin.click('[data-action="mnt-approve"]');
@@ -45,17 +46,7 @@ test('a repair from the driver\'s request to the paid invoice', async ({ admin, 
   await expect.poll(async () => (await api.get('/maintenance/requests/' + asked.id)).status).toBe('referred');
 
   // ---- the center: first sign-in changes the password, then the request
-  await portal.goto('/login.html');
-  await portal.fill('#u', username);
-  await portal.fill('#p', PASSWORD);
-  await portal.click('#step1 [type=submit]');
-  await portal.waitForURL(/center\.html/);
-  const pw = top(portal);
-  await pw.locator('[name=old]').fill(PASSWORD);
-  await pw.locator('[name=pw]').fill(NEW_PASSWORD);
-  await pw.locator('[name=pw2]').fill(NEW_PASSWORD);
-  await pw.locator('button[type=submit]').click();
-  await expect(pw).toBeHidden();
+  await centerSignIn(portal, username);
   await portal.goto('/center.html#/r/' + asked.id);
   await settled(portal);
   const step = async (act, fill) => {
@@ -65,12 +56,16 @@ test('a repair from the driver\'s request to the paid invoice', async ({ admin, 
     await m.locator('button[type=submit]').click();
     await expect(m).toBeHidden();
   };
+  const arrived = kuwaitInput(Date.now() - 60e3); // a minute ago, as the center types it
   await step('receive', async (m) => {
+    await m.locator('[name=at]').fill(arrived);
     await m.locator('[name=km]').fill('48210');
     await m.locator('[name=odo]').setInputFiles(file('odo.jpg', 'image/jpeg', jpeg()));
     await m.locator('[name=ph]').setInputFiles([file('front.jpg', 'image/jpeg', jpeg()), file('left.jpg', 'image/jpeg', jpeg())]);
     await m.locator('[name=cond]').fill('خدش بسيط في الباب الخلفي');
   });
+  const received = (await api.get('/maintenance/requests/' + asked.id)).received_at;
+  expect(new Date(received).toISOString()).toBe(new Date(arrived + ':00+03:00').toISOString()); // Kuwait time
   await step('inspection');
   await step('quote', async (m) => {
     await m.locator('[data-k=d]').fill('رولمان بلي أمامي');

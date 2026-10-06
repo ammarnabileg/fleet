@@ -216,6 +216,42 @@ def test_the_next_handover_compares_with_the_reading_after_the_repair(admin_clie
     assert handover["flags"] == []
 
 
+def test_photos_come_in_the_order_they_were_taken(admin_client, client, setup, db):
+    """The driver's, then the reception's, then after the repair: not by their hash. On a large table the database
+    reads them through the primary key (request, hash), which is to say in a random order; the photos are chosen so
+    that their hashes sort the other way round, and the read is made the way a large table is read."""
+    from hashlib import sha256
+
+    def photo(rank):  # rank 0: the highest hash of 50 candidates, rank 1: middling, rank 2: the lowest
+        options = sorted((jpeg() for _ in range(50)), key=lambda b: sha256(b).hexdigest(), reverse=True)
+        return options[[0, 25, 49][rank]]
+
+    s = setup
+    up = lambda c, data, path: c.post(path, files={"file": ("p.jpg", data, "image/jpeg")}).json()["sha256"]  # noqa: E731
+    shot = client.post(
+        "/api/v1/driver/files", headers=s["h"], files={"file": ("p.jpg", photo(0), "image/jpeg")}
+    ).json()["sha256"]
+    r = driver_request(client, s, photos=[shot])
+    rid = r.json()["id"]
+    assert admin_client.post(f"{M}/requests/{rid}/approve", json={}).status_code == 200
+    assert admin_client.post(f"{M}/requests/{rid}/refer", json={"center_id": s["center"]["id"]}).status_code == 200
+    portal = s["portal"]
+    body = {"odometer_km": 20_150, "odometer_photo": up(portal, photo(1), "/api/v1/files")}
+    assert portal.post(f"{P}/requests/{rid}/receive", json=body).status_code == 200
+    quote(s, rid, "20.000")
+    body = {"repair_details": "Bearing replaced", "final_odometer_km": 20_160, "final_odometer_photo": None}
+    body["final_odometer_photo"] = up(portal, photo(2), "/api/v1/files")
+    assert portal.post(f"{P}/requests/{rid}/complete", json=body).status_code == 200
+    stages = [p["stage"] for p in admin_client.get(f"{M}/requests/{rid}").json()["photos"]]
+    assert stages == ["request", "reception", "repair"]
+    from app.modules.maintenance import service
+
+    db.execute(text("SET LOCAL enable_seqscan = off"))  # as on a table with many requests: through the index
+    db.execute(text("SET LOCAL enable_bitmapscan = off"))
+    detail = service.get_request(db, uuid.UUID(rid), all_companies=True, company_ids=())
+    assert [p["stage"] for p in detail["photos"]] == ["request", "reception", "repair"]
+
+
 def test_uat21_a_center_sees_only_what_was_referred_to_it(admin_client, client, new_client, setup):
     s = setup
     rid = approved_and_referred(admin_client, client, s)

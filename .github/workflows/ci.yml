@@ -91,6 +91,15 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
           npx playwright test || (for f in test-results/*/error-context.md; do echo "== $f"; cat "$f"; done; tail -n 100 /tmp/api.log; exit 1)
+      # again with every animation frame 250 ms late, as on a slow phone: a test or a screen that depends on the frame
+      # timing fails here every time instead of once in a while
+      - name: browser tests, slow frames
+        working-directory: web/e2e
+        env:
+          BASE_URL: http://127.0.0.1:8000
+          ADMIN_PASSWORD: correct-horse-battery
+          SLOW_FRAMES: "250"
+        run: npx playwright test || (for f in test-results/*/error-context.md; do echo "== $f"; cat "$f"; done; tail -n 100 /tmp/api.log; exit 1)
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

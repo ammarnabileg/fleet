@@ -7,10 +7,6 @@
   var STATUSES = ['available', 'assigned', 'maintenance', 'accident', 'inactive'];
   var POSITIONS = ['front', 'back', 'left', 'right', 'interior'];
 
-  /* الكويت UTC+3 طوال السنة (بلا توقيت صيفي) */
-  A.kwIso = function (local) { return local ? local + (local.length === 16 ? ':00' : '') + '+03:00' : null; };
-  A.kwInput = function (iso) { var d = new Date(new Date(iso || Date.now()).getTime() + 3 * 3600 * 1000); return d.toISOString().slice(0, 16); };
-
   /* حقل اختيار بالبحث (datalist): يعيد المعرّف من النص المختار */
   A._pick = {};
   A.picker = function (o) { // {name, label, required, items:[{id, label}], value}
@@ -134,11 +130,11 @@
   A.whoDrove = function (x) {
     var d = BT.modal.open({
       title: 'من كان يقود؟', subtitle: x.plate_number, icon: 'search', size: 'sm', form: true,
-      body: h`<div class="form">${BT.f.input({ name: 'at', label: 'الوقت (بتوقيت الكويت)', type: 'datetime-local', required: true, value: A.kwInput() })}<div data-out></div><div class="hint">للمخالفات والحوادث والتلفيات: يُحدد السائق المسؤول من سجل العهد.</div></div>`,
+      body: h`<div class="form">${BT.f.input({ name: 'at', label: 'الوقت (بتوقيت الكويت)', type: 'datetime-local', required: true, value: fmt.kwInput() })}<div data-out></div><div class="hint">للمخالفات والحوادث والتلفيات: يُحدد السائق المسؤول من سجل العهد.</div></div>`,
       buttons: [{ label: 'إغلاق', cls: 'btn-ghost' }, { label: 'بحث', cls: 'btn-primary', submit: true }],
       onSubmit: function (v) {
         var out = d.el.querySelector('[data-out]');
-        return api.get('/vehicles/' + x.id + '/custody-at', { at: A.kwIso(v.at) }).then(function (c) {
+        return api.get('/vehicles/' + x.id + '/custody-at', { at: fmt.kwIso(v.at) }).then(function (c) {
           BT.render(out, h`<div class="banner success mt-8">${icon('user-round-check', 16)}<div>${A.person(c.driver)}<div class="fs-sm mt-4">العهدة من ${fmt.dt(c.started_at)} إلى ${c.ended_at ? fmt.dt(c.ended_at) : 'الآن'}</div></div></div>`);
           return false;
         }, function (err) { BT.render(out, h`<div class="banner warn mt-8">${icon('info', 16)}<div>${api.message(err)}</div></div>`); return false; });
@@ -226,7 +222,7 @@
         },
         submit: function (v) {
           return Promise.all([api.upload(v.odo_photo[0]), uploadPhotos(v, 'ph_', POSITIONS)]).then(function (up) {
-            return api.post('/custodies', { vehicle_id: A.picked('vehicle', v.vehicle), driver_id: A.picked('driver', v.driver), odometer_km: v.odometer_km, photo_sha256: up[0].sha256, photos: up[1], started_at: A.kwIso(v.started_at), kind: v.kind || 'normal', reason: v.reason || null });
+            return api.post('/custodies', { vehicle_id: A.picked('vehicle', v.vehicle), driver_id: A.picked('driver', v.driver), odometer_km: v.odometer_km, photo_sha256: up[0].sha256, photos: up[1], started_at: fmt.kwIso(v.started_at), kind: v.kind || 'normal', reason: v.reason || null });
           });
         },
         after: after
@@ -242,7 +238,7 @@
         <div class="full"><div class="label mb-8">صور الحالة</div>${photoFields('ph_', POSITIONS)}</div></div>`,
       submit: function (v) {
         return Promise.all([api.upload(v.odo_photo[0]), uploadPhotos(v, 'ph_', POSITIONS)]).then(function (up) {
-          return api.post('/custodies/' + custodyId + '/return', { odometer_km: v.odometer_km, photo_sha256: up[0].sha256, photos: up[1], ended_at: A.kwIso(v.ended_at) });
+          return api.post('/custodies/' + custodyId + '/return', { odometer_km: v.odometer_km, photo_sha256: up[0].sha256, photos: up[1], ended_at: fmt.kwIso(v.ended_at) });
         });
       },
       after: after

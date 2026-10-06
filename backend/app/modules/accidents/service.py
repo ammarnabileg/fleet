@@ -224,7 +224,13 @@ def _detail(db: Session, a: Accident) -> dict:
         "cost_difference": (actual - a.estimate_total) if actual is not None and a.estimate_total else None,
         "cancel_reason": a.cancel_reason,
         "closed_at": a.closed_at,
-        "photos": list(db.scalars(select(AccidentPhoto.file_sha256).where(AccidentPhoto.accident_id == a.id))),
+        "photos": list(
+            db.scalars(
+                select(AccidentPhoto.file_sha256)
+                .where(AccidentPhoto.accident_id == a.id)
+                .order_by(AccidentPhoto.file_sha256)  # stable from one view to the next
+            )
+        ),
         "events": [
             {
                 "kind": e.kind,
@@ -252,7 +258,13 @@ def _portal_out(db: Session, a: Accident) -> dict:
         "estimated_at": a.estimated_at,
         "referred_at": a.referred_at,
         "is_new": a.seen_at is None and a.estimate_status == "none",
-        "photos": list(db.scalars(select(AccidentPhoto.file_sha256).where(AccidentPhoto.accident_id == a.id))),
+        "photos": list(
+            db.scalars(
+                select(AccidentPhoto.file_sha256)
+                .where(AccidentPhoto.accident_id == a.id)
+                .order_by(AccidentPhoto.file_sha256)  # stable from one view to the next
+            )
+        ),
     }
 
 

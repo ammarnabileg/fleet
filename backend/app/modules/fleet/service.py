@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -55,6 +55,11 @@ class CustodyRef:
     started_at: datetime
     ended_at: datetime | None
     kind: str
+
+
+# photos in the order a reviewer reads them: the handover then the return, around the vehicle
+CUSTODY_STAGES = {"handover": 0, "return": 1}
+POSITIONS = {"front": 0, "back": 1, "left": 2, "right": 3, "interior": 4, "other": 5}
 
 
 def _vref(v: Vehicle) -> VehicleRef:
@@ -546,7 +551,15 @@ def _add_photos(db: Session, custody: Custody, stage: str, photos: list[dict] | 
 
 
 def _photos_out(db: Session, custody_id: int) -> list[dict]:
-    q = select(CustodyPhoto).where(CustodyPhoto.custody_id == custody_id)
+    q = (
+        select(CustodyPhoto)
+        .where(CustodyPhoto.custody_id == custody_id)
+        .order_by(
+            case(CUSTODY_STAGES, value=CustodyPhoto.stage),
+            case(POSITIONS, value=CustodyPhoto.position),
+            CustodyPhoto.file_sha256,
+        )
+    )
     return [{"stage": p.stage, "position": p.position, "sha256": p.file_sha256} for p in db.scalars(q)]
 
 

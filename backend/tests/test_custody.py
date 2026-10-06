@@ -43,6 +43,48 @@ def test_handover_and_return(admin_client, company, db):
     assert events.count("custody.started") == 1 and events.count("custody.ended") == 1
 
 
+def test_condition_photos_read_handover_then_return_around_the_vehicle(admin_client, company, db):
+    """Not by their hash: on a large table the database reads them through the primary key, in a random order. The
+    photos are chosen so that their hashes sort the other way round, and the read is made the way a large table is."""
+    from hashlib import sha256
+
+    from tests.conftest import jpeg
+
+    shots = sorted((jpeg() for _ in range(40)), key=lambda b: sha256(b).hexdigest(), reverse=True)
+    sha = lambda data: upload(admin_client, data)  # noqa: E731
+    vehicle = make_vehicle(admin_client, company["id"], km=1_000)
+    driver = make_driver(admin_client, company["id"])
+    c = hand_over(
+        admin_client,
+        vehicle,
+        driver,
+        km=1_000,
+        photos=[
+            {"position": "left", "sha256": sha(shots[20])},
+            {"position": "front", "sha256": sha(shots[0])},
+            {"position": "back", "sha256": sha(shots[10])},
+        ],
+    )
+    r = admin_client.post(
+        f"/api/v1/custodies/{c['id']}/return",
+        json={
+            "odometer_km": 1_050,
+            "photo_sha256": upload(admin_client),
+            "photos": [{"position": "front", "sha256": sha(shots[39])}],
+        },
+    )
+    assert r.status_code == 200, r.text
+    order = [("handover", "front"), ("handover", "back"), ("handover", "left"), ("return", "front")]
+    got = admin_client.get(f"/api/v1/custodies/{c['id']}").json()["photos"]
+    assert [(p["stage"], p["position"]) for p in got] == order
+    from app.modules.fleet import service
+
+    db.execute(text("SET LOCAL enable_seqscan = off"))  # as on a table with many custodies: through the index
+    db.execute(text("SET LOCAL enable_bitmapscan = off"))
+    custody_id = db.scalar(text("SELECT id FROM fleet.custodies WHERE public_id = :p"), {"p": c["id"]})
+    assert [(p["stage"], p["position"]) for p in service._photos_out(db, custody_id)] == order
+
+
 def test_uat11_custody_never_overlaps(admin_client, company):
     v1, v2 = make_vehicle(admin_client, company["id"]), make_vehicle(admin_client, company["id"])
     d1, d2 = make_driver(admin_client, company["id"]), make_driver(admin_client, company["id"])

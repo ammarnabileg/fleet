@@ -168,6 +168,10 @@
   BT.fmt.dt = function (iso) { if (!iso) return '—'; var p = parts(iso); return '⁦' + p.day + '-' + p.month + '-' + p.year + ' ' + p.hour + ':' + p.minute + '⁩'; };
   BT.fmt.time = function (iso) { if (!iso) return '—'; var p = parts(iso); return '⁦' + p.hour + ':' + p.minute + '⁩'; };
   BT.fmt.dayOf = function (iso) { var p = parts(iso); return p.year + '-' + p.month + '-' + p.day; };
+  /* حقل التاريخ والوقت يُقرأ ويُملأ بتوقيت الكويت (UTC+3 طوال السنة، بلا توقيت صيفي) أياً كانت منطقة جهاز المستخدم:
+     وقت المخالفة أو الحادث أو التسليم هو ما يحدد السائق المسؤول */
+  BT.fmt.kwIso = function (local) { return local ? local + (local.length === 16 ? ':00' : '') + '+03:00' : null; };
+  BT.fmt.kwInput = function (iso) { return new Date(new Date(iso || Date.now()).getTime() + 3 * 3600 * 1000).toISOString().slice(0, 16); };
   BT.fmt.since = function (iso) { return iso ? BT.fmt.ago(Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000))) : '—'; };
   BT.fmt.money = function (s) { return s == null || s === '' ? '—' : BT.fmt.kwd(Number(s)); };
   BT.config.today = BT.fmt.dayOf(new Date().toISOString());

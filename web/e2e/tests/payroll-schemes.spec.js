@@ -32,14 +32,14 @@ async function setup(api) {
 test('pay schemes: built, assigned, asked for, approved, and the month explained', async ({ admin, api }) => {
   const s = await setup(api);
   // the dialog in front; one closing behind it (a short animation) is no longer "open"
-  const top = () => admin.locator('.overlay.show').last();
+  const top = () => admin.locator('.overlay[data-open]').last();
   const submit = () => top().locator('button[type=submit]').click();
 
   // ---- the Keeta scheme from the form, every step from the steps editor
   await admin.goto('/admin.html#/payroll?tab=schemes');
   await settled(admin);
   await admin.click(`[data-new="${s.keeta.id}"]`);
-  await expect(admin.locator('.overlay.show')).toHaveCount(1); // one form, whatever happened before the click
+  await expect(admin.locator('.overlay[data-open]')).toHaveCount(1); // one form, whatever happened before the click
   const m = top();
   await m.locator('[name=code]').fill('base');
   await m.locator('[name=name_ar]').fill('كيتا الأساسي');

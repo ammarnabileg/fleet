@@ -96,7 +96,7 @@
   function routeView(vehicleId, q) {
     A.setTitle('مسار سيارة', [['التتبع الحي', 'tracking'], ['المسار']]);
     var v = A.view();
-    var end = q.end || A.kwInput(), start = q.start || A.kwInput(new Date(Date.now() - 8 * 3600 * 1000).toISOString());
+    var end = q.end || fmt.kwInput(), start = q.start || fmt.kwInput(new Date(Date.now() - 8 * 3600 * 1000).toISOString());
     BT.render(v, h`${A.head('مسار السيارة', 'النقاط كما وصلت من هاتف السائق خلال العهدة', '')}
       <div class="card mb-16"><form class="toolbar" data-range style="margin:0">${BT.f.input({ name: 'start', label: 'من', type: 'datetime-local', value: start, required: true })}${BT.f.input({ name: 'end', label: 'إلى', type: 'datetime-local', value: end, required: true })}<button type="submit" class="btn btn-primary" style="align-self:flex-end">${icon('route', 15)} عرض</button><div data-sum class="ms-auto"></div></form></div>
       <div class="live-map" data-map dir="ltr"></div>`);
@@ -104,7 +104,7 @@
     function load(s, e) {
       var sum = v.querySelector('[data-sum]');
       BT.render(sum, A.spinner(''));
-      api.get('/tracking/route', { vehicle_id: vehicleId, start: A.kwIso(s), end: A.kwIso(e) }).then(function (r) {
+      api.get('/tracking/route', { vehicle_id: vehicleId, start: fmt.kwIso(s), end: fmt.kwIso(e) }).then(function (r) {
         A.setTitle('مسار ' + r.vehicle.plate_number, [['التتبع الحي', 'tracking'], [r.vehicle.plate_number]]);
         BT.render(sum, h`<span class="plate">${r.vehicle.plate_number}</span> · <b class="num">${fmt.int(r.points.length)}</b> نقطة · <b class="num">${r.distance_km}</b> كم${r.drivers.length ? h` · ${r.drivers.map(function (d) { return api.name(d.name); }).join('، ')}` : ''}${r.truncated ? h` ${BT.pill('مقتطع: قلّل الفترة', 'o')}` : ''}`);
         if (!map) return;

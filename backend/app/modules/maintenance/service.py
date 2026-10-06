@@ -16,7 +16,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -52,6 +52,7 @@ PORTAL_MOVES = {"inspection": ("received",), "in_repair": ("waiting_parts",), "w
 HISTORY = ("picked_up", "closed", "cancelled")
 UNDER_REPAIR = ("received", "inspection", "in_repair", "waiting_parts", "completed")
 CENT = Decimal("0.001")
+PHOTO_STAGES = {"request": 0, "reception": 1, "repair": 2}  # the order a request's photos are shown in
 
 
 # ------------------------------------------------------------------ helpers
@@ -283,7 +284,12 @@ def _detail(db: Session, r: Request, *, for_center: bool = False) -> dict:
     invoices = list(db.scalars(select(Invoice).where(Invoice.request_id == r.id).order_by(Invoice.id)))
     users = identity.user_names(db, {e.by_user for e in events} | {q.decided_by for q in quotes})
     driver_label = "driver"  # an action from the driver's phone
-    photos = db.scalars(select(RequestPhoto).where(RequestPhoto.request_id == r.id))
+    photos = db.scalars(
+        select(RequestPhoto)
+        .where(RequestPhoto.request_id == r.id)
+        # in the order they were taken (the primary key would sort them by their hash, which is to say at random)
+        .order_by(case(PHOTO_STAGES, value=RequestPhoto.stage), RequestPhoto.file_sha256)
+    )
     return out | {
         "condition_note": r.condition_note,
         "repair_details": r.repair_details,

@@ -21,6 +21,8 @@
     opts = opts || {};
     var ov = document.createElement('div');
     ov.className = 'overlay ' + (ovClass || '');
+    // open from the moment it exists until close() (the "show" class follows a frame later, for the animation)
+    ov.setAttribute('data-open', '');
     ov.innerHTML = String(panelHtml);
     BT.hydrate(ov);
     var panel = ov.firstElementChild;
@@ -31,6 +33,7 @@
       promise: new Promise(function (r) { resolveFn = r; }),
       close: function (result) {
         if (closed) return; closed = true;
+        ov.removeAttribute('data-open');
         ov.classList.remove('show');
         var i = stack.indexOf(api); if (i > -1) stack.splice(i, 1);
         setTimeout(function () { ov.remove(); }, 230);

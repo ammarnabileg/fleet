@@ -25,16 +25,16 @@ test('the handover and receipt pickers list every driver, past the first 200', a
   await admin.goto('/admin.html#/custody');
   await settled(admin);
   await admin.getByRole('button', { name: 'تسليم سيارة لسائق' }).click();
-  await expect(admin.locator('.overlay.show [name=driver]')).toBeVisible();
-  const handover = await listed('.overlay.show [name=driver]');
+  await expect(admin.locator('.overlay[data-open] [name=driver]')).toBeVisible();
+  const handover = await listed('.overlay[data-open] [name=driver]');
   expect(names.filter((x) => !handover.includes(x))).toEqual([]);
   await admin.keyboard.press('Escape');
 
   await admin.goto('/admin.html#/cash');
   await settled(admin);
   await admin.getByRole('button', { name: 'استلام كاش بإيصال' }).click();
-  await expect(admin.locator('.overlay.show [name=drv]')).toBeVisible();
-  const receipt = await listed('.overlay.show [name=drv]');
+  await expect(admin.locator('.overlay[data-open] [name=drv]')).toBeVisible();
+  const receipt = await listed('.overlay[data-open] [name=drv]');
   expect(names.map((x) => x.split(' — ')[0]).filter((x) => !receipt.some((o) => o.startsWith(x + ' — ')))).toEqual([]);
 });
 
@@ -47,7 +47,7 @@ test('handover, start of day, a low reading corrected, then the return', async (
     employee_number: 'H' + n, name: { ar: 'سائق العهدة ' + n, en: 'Custody driver ' + n }, company_id: c.id, is_driver: true,
     phone: phone(),
   });
-  const top = () => admin.locator('.overlay.show').last();
+  const top = () => admin.locator('.overlay[data-open]').last();
 
   // ---- the handover from the vehicle's file: the driver picked, the reading and its photo
   await admin.goto('/admin.html#/vehicles/' + vehicle.id);
