@@ -74,6 +74,7 @@ class Platform(Base):
     __table_args__ = (
         CheckConstraint("code ~ '^[a-z][a-z0-9_]{1,30}$'", name="code"),
         CheckConstraint("driver_fields <@ ARRAY['valid_days', 'orders', 'hours']::text[]", name="driver_fields"),
+        CheckConstraint("daily_fields <@ ARRAY['orders', 'cash', 'valid_day']::text[]", name="daily_fields"),
         CheckConstraint("per_order >= 0", name="per_order"),
         CheckConstraint("per_hour >= 0", name="per_hour"),
         CheckConstraint("per_valid_day >= 0", name="per_valid_day"),
@@ -89,7 +90,8 @@ class Platform(Base):
     code: Mapped[str] = mapped_column(Text, unique=True)
     name: Mapped[dict] = mapped_column(JSONB)
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
-    driver_fields: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    driver_fields: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))  # monthly statement
+    daily_fields: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{orders,cash}'"))  # daily report
     pay_basic: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     per_order: Mapped[Decimal] = mapped_column(Numeric(12, 3), server_default=text("0"))
     per_hour: Mapped[Decimal] = mapped_column(Numeric(12, 3), server_default=text("0"))

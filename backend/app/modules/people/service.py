@@ -65,6 +65,7 @@ class EmployeeRef:
     app_access: str
     branch_id: int = 0
     civil_id: str | None = None
+    platform_id: int | None = None
 
     @property
     def can_use_app(self) -> bool:
@@ -504,6 +505,7 @@ def _ref(e: Employee, s: EmploymentStatus) -> EmployeeRef:
         e.app_access,
         e.branch_id,
         e.civil_id,
+        e.platform_id,
     )
 
 

@@ -1621,6 +1621,24 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'حفظ والدخول'**
   String get saveAndSignIn;
+
+  /// No description provided for @validDayQuestion.
+  ///
+  /// In ar, this message translates to:
+  /// **'هل احتسب تطبيق المنصة هذا اليوم يوماً صالحاً؟'**
+  String get validDayQuestion;
+
+  /// No description provided for @validDayYes.
+  ///
+  /// In ar, this message translates to:
+  /// **'يوم صالح'**
+  String get validDayYes;
+
+  /// No description provided for @validDayNo.
+  ///
+  /// In ar, this message translates to:
+  /// **'غير صالح'**
+  String get validDayNo;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

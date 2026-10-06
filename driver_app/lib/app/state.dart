@@ -86,11 +86,16 @@ class AppState extends ChangeNotifier {
 
   bool shows(String screen) => !hiddenScreens.contains(screen);
 
+  /// What the daily report asks, from the driver's platform: orders and cash for one, orders and whether the
+  /// platform counted the day for another. Kept for offline; until the server answers, orders and cash.
+  ({List<String> fields, bool screenshot}) reportForm = (fields: const ['orders', 'cash'], screenshot: true);
+
   /// [deviceLang]: the phone's language at first launch; afterwards the driver's choice is kept.
   Future<void> boot({String deviceLang = 'ar'}) async {
     lang = await db.get('lang') ?? (deviceLang == 'ar' ? 'ar' : 'en');
     api.lang = lang;
     _applyConfig(await db.get('app_config'));
+    _applyReportForm(await db.get('report_form'));
     await _showSplash();
     unawaited(catalog.load(api, lang));
     if (!await tokens.hasSession()) {
@@ -338,8 +343,22 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadCash() async => cash = Cash.fromJson(await api.get('/driver/cash') as Map<String, dynamic>);
 
-  Future<void> loadReports() async =>
-      reports = [for (final r in await api.get('/driver/reports') as List) Report.fromJson(r as Map<String, dynamic>)];
+  Future<void> loadReports() async {
+    reports = [for (final r in await api.get('/driver/reports') as List) Report.fromJson(r as Map<String, dynamic>)];
+    try {
+      final raw = jsonEncode(await api.get('/driver/reports/form'));
+      await db.put('report_form', raw);
+      _applyReportForm(raw);
+    } on ApiError {
+      // an older server: the last known form stays
+    }
+  }
+
+  void _applyReportForm(String? raw) {
+    if (raw == null) return;
+    final f = jsonDecode(raw) as Map<String, dynamic>;
+    reportForm = (fields: [for (final x in f['fields'] as List) x as String], screenshot: f['screenshot'] != false);
+  }
 
   Future<void> loadMaintenance() async => maintenance = [
     for (final r in await api.get('/driver/maintenance') as List)
@@ -405,14 +424,21 @@ class AppState extends ChangeNotifier {
 
   Future<SendResult> sendReport({
     required String businessDate,
-    required int orders,
-    required String cash,
+    int? orders,
+    String? cash,
+    bool? validDay,
     String? screenshotPath,
     String? notes,
   }) async {
     final id = await outbox.add(
       'report',
-      {'business_date': businessDate, 'orders_count': orders, 'cash_amount': cash, 'notes': notes},
+      {
+        'business_date': businessDate,
+        'orders_count': ?orders,
+        'cash_amount': ?cash,
+        'valid_day': ?validDay,
+        'notes': notes,
+      },
       {'screenshot_sha256': ?screenshotPath},
     );
     return _sendNow(

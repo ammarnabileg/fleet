@@ -254,5 +254,8 @@
   "passwordTooShort": "At least 8 characters",
   "passwordsDiffer": "The two passwords differ",
   "passwordIsCivilId": "Do not use your civil ID as a password",
-  "saveAndSignIn": "Save and sign in"
+  "saveAndSignIn": "Save and sign in",
+  "validDayQuestion": "Did the platform's app count this day as valid?",
+  "validDayYes": "Valid day",
+  "validDayNo": "Not valid"
 }

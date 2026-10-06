@@ -43,7 +43,7 @@ from app.modules.people import service as people
 
 FILS = Decimal("0.001")
 ZERO = Decimal(0)
-BLOCKING = ("statement_missing", "statement_pending", "net_negative")
+BLOCKING = ("statement_missing", "statement_pending", "daily_pending", "net_negative")
 # installment deductions by source -> the salary-sheet column they fill
 SOURCE_COLUMN = {
     "accident": "car_repair",
@@ -93,12 +93,17 @@ def compute(
     approved = statement if statement is not None and statement.status == "approved" else None
     basic = money(profile["basic_salary"])
     pay_basic = platform.pay_basic if platform else True
-    needs_statement = bool(platform and (platform.driver_fields or platform.invalid_days != "none"))
+    daily_valid = bool(platform and "valid_day" in platform.daily_fields)  # the driver sends it in each daily report
+    needs_statement = bool(
+        platform and (platform.driver_fields or (platform.invalid_days != "none" and not daily_valid))
+    )
 
     working_days = approved.working_days if approved and approved.working_days is not None else system["working_days"]
     orders = approved.orders if approved and approved.orders is not None else system["orders"]
     hours = approved.hours if approved else None
     valid_days = approved.valid_days if approved else None
+    if valid_days is None and daily_valid:
+        valid_days = system["valid_days"]
     items = {k: money(getattr(approved, k)) if approved else ZERO for k in ("bonus", "tips", *MONTH_ITEMS)}
 
     gross = basic if pay_basic else ZERO
@@ -133,6 +138,8 @@ def compute(
     net = gross - deductions
 
     flags = []
+    if system.get("pending_reports"):  # their orders, valid days and cash count only once reviewed
+        flags.append("daily_pending")
     if needs_statement and statement is None:
         flags.append("statement_missing")
     elif needs_statement and approved is None:

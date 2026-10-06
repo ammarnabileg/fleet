@@ -43,6 +43,7 @@ Money = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=3)]
 Code = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{1,30}$")]
 Header = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
 DriverField = Literal["valid_days", "orders", "hours"]
+DailyField = Literal["orders", "cash", "valid_day"]
 
 
 class SheetColumn(BaseModel):
@@ -58,6 +59,7 @@ class PlatformIn(BaseModel):
     code: Code
     name: LocalizedText
     driver_fields: list[DriverField] = Field(default_factory=list, max_length=3)
+    daily_fields: list[DailyField] = Field(default_factory=lambda: ["orders", "cash"], max_length=3)
     pay_basic: bool = True
     per_order: Money = Decimal(0)
     per_hour: Money = Decimal(0)
@@ -75,6 +77,7 @@ class PlatformUpdateIn(BaseModel):
     name: LocalizedText | None = None
     is_active: bool | None = None
     driver_fields: list[DriverField] | None = Field(None, max_length=3)
+    daily_fields: list[DailyField] | None = Field(None, max_length=3)
     pay_basic: bool | None = None
     per_order: Money | None = None
     per_hour: Money | None = None
@@ -92,6 +95,7 @@ class PlatformOut(BaseModel):
     name: dict[str, str]
     is_active: bool
     driver_fields: list[str]
+    daily_fields: list[str]
     pay_basic: bool
     per_order: Decimal
     per_hour: Decimal

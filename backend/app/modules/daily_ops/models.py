@@ -2,7 +2,19 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, Text, text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    Text,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,6 +49,7 @@ class Report(Base):
     business_date: Mapped[date] = mapped_column(Date)
     orders_count: Mapped[int | None] = mapped_column(Integer)
     cash_amount: Mapped[Decimal] = mapped_column(Numeric(12, 3), server_default=text("0"))
+    valid_day: Mapped[bool | None] = mapped_column(Boolean)  # the platform counted the day (its daily summary)
     screenshot_sha256: Mapped[str | None] = mapped_column(Text, ForeignKey("files.files.sha256"))
     notes: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, server_default=text("'submitted'"))

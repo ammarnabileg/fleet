@@ -324,6 +324,49 @@ void main() {
     expect(RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(body['business_date'] as String), isTrue);
   });
 
+  testWidgets('daily report on a platform that counts valid days: orders and the valid day, no cash', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final img = await tester.runAsync(testImage);
+    Photos.gallery = () async => TakenPhoto(img!, DateTime.now());
+    w.server.on(
+      'GET',
+      '/api/v1/driver/reports/form',
+      (r) => (
+        200,
+        {
+          'fields': ['orders', 'valid_day'],
+          'screenshot': true,
+        },
+      ),
+    );
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'e' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('POST', '/api/v1/driver/reports', (r) => (201, {'id': 'v'}));
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('daily-report')));
+    await settle(tester);
+    expect(find.byKey(const Key('cash')), findsNothing, reason: 'this platform does not ask for cash');
+    await tester.enterText(find.byKey(const Key('orders')), '31');
+    await tester.tap(find.byKey(const Key('screenshot')));
+    await idle(tester);
+    await tester.ensureVisible(find.byKey(const Key('send-report')));
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/reports', method: 'POST'), isEmpty, reason: 'the valid day is required');
+    await tester.ensureVisible(find.text('يوم صالح'));
+    await tester.tap(find.text('يوم صالح'));
+    await settle(tester);
+    await shot(tester, '25-report-valid-day');
+    await tester.ensureVisible(find.byKey(const Key('send-report')));
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/reports', method: 'POST').single.body) as Map;
+    expect((body['orders_count'], body['valid_day'], body.containsKey('cash_amount')), (31, true, false));
+  });
+
   testWidgets('cash: balance and a receipt to confirm', (tester) async {
     final w = (await tester.runAsync(() => world()))!;
     w.server.on('POST', '/api/v1/driver/cash/receipts/r1/confirm', (r) => (200, {'id': 'r1'}));

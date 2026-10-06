@@ -843,4 +843,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get saveAndSignIn => 'Save and sign in';
+
+  @override
+  String get validDayQuestion => 'Did the platform\'s app count this day as valid?';
+
+  @override
+  String get validDayYes => 'Valid day';
+
+  @override
+  String get validDayNo => 'Not valid';
 }

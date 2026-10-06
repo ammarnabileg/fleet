@@ -14,8 +14,14 @@ class ReportIn(BaseModel):
     business_date: date
     orders_count: int | None = Field(None, ge=0, le=500)
     cash_amount: Amount | None = None
+    valid_day: bool | None = None  # when the driver's platform asks: did the platform count the day
     screenshot_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")] | None = None
     notes: str | None = Field(None, max_length=500)
+
+
+class ReportFormOut(BaseModel):
+    fields: list[str]  # orders, cash, valid_day: what this driver's platform asks for
+    screenshot: bool
 
 
 class PersonRef(BaseModel):
@@ -32,6 +38,7 @@ class ReportOut(BaseModel):
     orders_count: int | None
     cash_amount: Decimal
     approved_cash: Decimal | None
+    valid_day: bool | None
     has_screenshot: bool
     notes: str | None
     status: str

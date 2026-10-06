@@ -7,7 +7,8 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import 'home.dart';
 
-/// The daily report: day (today or the two before), orders, cash, the delivery app's summary screenshot.
+/// The daily report: day (today or the two before), what the driver's platform asks (orders and cash for one, orders
+/// and whether the platform counted the day for another), the delivery app's day summary screenshot.
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key, required this.state, DateTime Function()? clock}) : clock = clock ?? DateTime.now;
 
@@ -25,6 +26,7 @@ class _ReportScreenState extends State<ReportScreen> {
   final _notes = TextEditingController();
   final _form = GlobalKey<FormState>();
   TakenPhoto? shot;
+  bool? validDay;
 
   /// Business days follow Kuwait time (UTC+3, no daylight saving), like the server.
   String _day(int back) {
@@ -36,11 +38,13 @@ class _ReportScreenState extends State<ReportScreen> {
 
   Future<void> _send() async {
     if (!_form.currentState!.validate()) return;
+    final asks = widget.state.reportForm.fields;
     try {
       final r = await widget.state.sendReport(
         businessDate: _day(daysBack),
-        orders: int.parse(_orders.text),
-        cash: double.parse(_cash.text).toStringAsFixed(3),
+        orders: asks.contains('orders') ? int.parse(_orders.text) : null,
+        cash: asks.contains('cash') ? double.parse(_cash.text).toStringAsFixed(3) : null,
+        validDay: asks.contains('valid_day') ? validDay : null,
         screenshotPath: shot?.path,
         notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
       );
@@ -54,6 +58,7 @@ class _ReportScreenState extends State<ReportScreen> {
   Widget build(BuildContext context) {
     final l = context.l;
     final reports = widget.state.reports;
+    final asks = widget.state.reportForm.fields;
     return Scaffold(
       appBar: AppBar(title: Text(l.reportTitle)),
       body: Form(
@@ -74,26 +79,61 @@ class _ReportScreenState extends State<ReportScreen> {
             ),
             const SizedBox(height: 6),
             Text('\u2066${_day(daysBack)}\u2069', style: const TextStyle(color: AppColors.muted)),
-            const SizedBox(height: 16),
-            TextFormField(
-              key: const Key('orders'),
-              controller: _orders,
-              keyboardType: TextInputType.number,
-              textDirection: TextDirection.ltr,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
-              decoration: InputDecoration(labelText: l.ordersCount),
-              validator: (v) => int.tryParse(v ?? '') == null ? l.required : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              key: const Key('cash'),
-              controller: _cash,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              textDirection: TextDirection.ltr,
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-              decoration: InputDecoration(labelText: l.cashAmount, suffixText: '  ${l.kwd}', hintText: '0.000'),
-              validator: (v) => _amount.hasMatch((v ?? '').trim()) ? null : l.cashInvalid,
-            ),
+            if (asks.contains('valid_day')) ...[
+              const SizedBox(height: 16),
+              Text(l.validDayQuestion, style: const TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              FormField<bool>(
+                key: const Key('valid-day'),
+                validator: (_) => validDay == null ? l.required : null,
+                builder: (field) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SegmentedButton<bool>(
+                      emptySelectionAllowed: true,
+                      segments: [
+                        ButtonSegment(value: true, label: Text(l.validDayYes), icon: const Icon(Icons.check)),
+                        ButtonSegment(value: false, label: Text(l.validDayNo), icon: const Icon(Icons.close)),
+                      ],
+                      selected: {?validDay},
+                      onSelectionChanged: (s) {
+                        setState(() => validDay = s.isEmpty ? null : s.first);
+                        field.didChange(validDay);
+                      },
+                    ),
+                    if (field.hasError)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(field.errorText!, style: const TextStyle(color: AppColors.danger, fontSize: 12)),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+            if (asks.contains('orders')) ...[
+              const SizedBox(height: 16),
+              TextFormField(
+                key: const Key('orders'),
+                controller: _orders,
+                keyboardType: TextInputType.number,
+                textDirection: TextDirection.ltr,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                decoration: InputDecoration(labelText: l.ordersCount),
+                validator: (v) => int.tryParse(v ?? '') == null ? l.required : null,
+              ),
+            ],
+            if (asks.contains('cash')) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const Key('cash'),
+                controller: _cash,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                textDirection: TextDirection.ltr,
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                decoration: InputDecoration(labelText: l.cashAmount, suffixText: '  ${l.kwd}', hintText: '0.000'),
+                validator: (v) => _amount.hasMatch((v ?? '').trim()) ? null : l.cashInvalid,
+              ),
+            ],
             const SizedBox(height: 16),
             Text(l.screenshot, style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
@@ -122,7 +162,14 @@ class _ReportScreenState extends State<ReportScreen> {
               for (final r in reports.take(10))
                 Card(
                   child: ListTile(
-                    title: Text('\u2066${r.businessDate}\u2069 · ${r.orders ?? '—'} · ${money(r.cash, l.kwd)}'),
+                    title: Text(
+                      [
+                        '\u2066${r.businessDate}\u2069',
+                        if (r.validDay != null) r.validDay! ? l.validDayYes : l.validDayNo,
+                        '${r.orders ?? '—'}',
+                        if (asks.contains('cash')) money(r.cash, l.kwd),
+                      ].join(' · '),
+                    ),
                     subtitle: r.reviewNote != null
                         ? Text(r.reviewNote!)
                         : (r.approvedCash != null && r.approvedCash != r.cash

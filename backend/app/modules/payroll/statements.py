@@ -70,13 +70,22 @@ def _check_open(db: Session, company_id: int, month: date) -> None:
 
 def system_counts(db: Session, employee_ids: Iterable[int], month: date) -> dict[int, dict]:
     """What the system itself saw in the month: the days a driver worked (a daily report or a start of day in the
-    app) and the orders in his approved daily reports. Shown next to the platform's figures, and used when the
-    statement leaves them out."""
+    app), and from his approved daily reports the orders and the days his platform counted (valid days); and the
+    reports still waiting for review. Shown next to the platform's figures, and used when the statement leaves them
+    out (all of them, for a platform whose drivers send the valid day daily)."""
     ids = list(employee_ids)
     first, last = month_start(month), month_end(month)
     activity = daily_ops.month_activity(db, ids, first, last)
     started = fleet.start_days(db, ids, first, last)
-    return {i: {"working_days": len(activity[i]["days"] | started[i]), "orders": activity[i]["orders"]} for i in ids}
+    return {
+        i: {
+            "working_days": len(activity[i]["days"] | started[i]),
+            "orders": activity[i]["orders"],
+            "valid_days": activity[i]["valid_days"],
+            "pending_reports": activity[i]["pending"],
+        }
+        for i in ids
+    }
 
 
 def _brief(p) -> dict | None:

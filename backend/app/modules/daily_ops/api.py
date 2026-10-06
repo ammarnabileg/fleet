@@ -15,6 +15,14 @@ from app.modules.people import service as people
 router = APIRouter(prefix="/api/v1", tags=["daily reports"])
 
 
+@router.get(
+    "/driver/reports/form", response_model=schemas.ReportFormOut, dependencies=[Depends(org.screen("daily_report"))]
+)
+def report_form(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
+    """What the app asks in the daily report: this driver's platform's fields."""
+    return service.form(db, people.ref(db, device.employee_id))
+
+
 @router.post(
     "/driver/reports",
     response_model=schemas.ReportOut,

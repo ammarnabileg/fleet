@@ -473,5 +473,8 @@
   "passwordTooShort": "8 أحرف على الأقل",
   "passwordsDiffer": "كلمتا المرور غير متطابقتين",
   "passwordIsCivilId": "لا تستخدم رقمك المدني كلمة مرور",
-  "saveAndSignIn": "حفظ والدخول"
+  "saveAndSignIn": "حفظ والدخول",
+  "validDayQuestion": "هل احتسب تطبيق المنصة هذا اليوم يوماً صالحاً؟",
+  "validDayYes": "يوم صالح",
+  "validDayNo": "غير صالح"
 }

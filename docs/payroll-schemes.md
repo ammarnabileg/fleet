@@ -173,10 +173,21 @@ ALTER TABLE payroll.lines
     ADD COLUMN breakdown  jsonb NOT NULL DEFAULT '[]'::jsonb;  -- the calculator's items: code, amount, why
 ```
 
-`orders` and `valid_days` are already on the statement. **The three new figures are entered by the reviewer, from the
-platforms' partner reports. The driver never declares them.** A driver who declares his own attendance marks will
-declare zero. The same is true of valid days today, which is why the reviewer compares them with what the system
-recorded.
+**The month's orders and valid days come from the driver's approved daily reports.** At the end of each day the
+driver sends a screenshot of his day from the platform's app, with what his platform asks for:
+- **Talabat:** orders, and cash if any.
+- **Keeta:** orders, and whether the day counted (valid day).
+
+This is built: `payroll.platforms.daily_fields` and `daily_ops.reports.valid_day`. The month sums the approved
+reports, and a report waiting for review blocks the line (`daily_pending`).
+
+The three new figures here are monthly facts the daily report does not carry:
+- the batch level;
+- the attendance marks;
+- a missed star day.
+
+The reviewer enters them from the platform's partner report. A driver who declares his own attendance marks will
+declare zero.
 
 ## 2. Calculators (the Strategy pattern)
 
@@ -401,7 +412,7 @@ Talabat:
 | 2 | Schemes in the dashboard: under each platform, the terms and the steps; "move drivers to a scheme from a month" | panel |
 | 3 | Assignment in the employee form and in self-registration | panel + app |
 | 4 | Requests: app screen (schemes, request, status), dashboard queue with approve and reject, notifications | app + panel |
-| 5 | Statement review: batch level, marks, star day entered by the reviewer; the export columns and the payslip lines | panel + app |
+| 5 | Month review: batch level, marks, star day entered by the reviewer (orders and valid days already come from the daily reports); the export columns and the payslip lines | panel + app |
 
 Steps 1 and 5 settle the money. Steps 2 to 4 settle who is on what. Nothing runs on real salaries until A to J are
 answered and one month is compared against the client's own sheet.

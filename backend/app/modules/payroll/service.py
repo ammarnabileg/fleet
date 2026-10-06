@@ -24,10 +24,16 @@ from app.core.errors import AppError
 from app.core.events import emit
 from app.modules.audit import service as audit
 from app.modules.identity import service as identity
-from app.modules.payroll.models import Deduction
+from app.modules.payroll.models import Deduction, Platform
 from app.modules.people import service as people
 
 CENT = Decimal("0.001")
+
+
+def daily_fields(db: Session, platform_id: int | None) -> list[str] | None:
+    """What a driver on this platform sends in his daily report (orders, cash, valid_day); None without a platform."""
+    p = db.get(Platform, platform_id) if platform_id else None
+    return list(p.daily_fields) if p else None
 
 
 def month_start(d: date) -> date:

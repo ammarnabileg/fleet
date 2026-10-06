@@ -15,6 +15,7 @@ from app.modules.people import service as people
 
 RULE = (
     "driver_fields",
+    "daily_fields",
     "pay_basic",
     "per_order",
     "per_hour",
@@ -33,6 +34,7 @@ def _out(p: Platform, counts: dict) -> dict:
         "name": p.name,
         "is_active": p.is_active,
         "driver_fields": list(p.driver_fields),
+        "daily_fields": list(p.daily_fields),
         "pay_basic": p.pay_basic,
         "per_order": p.per_order,
         "per_hour": p.per_hour,
@@ -44,6 +46,16 @@ def _out(p: Platform, counts: dict) -> dict:
         "drivers": counts.get(p.id, 0),
         "version": p.version,
     }
+
+
+DAILY = ("orders", "cash", "valid_day")
+
+
+def _tidy(data: dict) -> dict:
+    """Each daily field once, in the order the app asks for them."""
+    if data.get("daily_fields") is not None:
+        data["daily_fields"] = [f for f in DAILY if f in data["daily_fields"]]
+    return data
 
 
 def _check(data: dict) -> None:
@@ -68,7 +80,7 @@ def all_by_id(db: Session) -> dict[int, Platform]:
 
 
 def create(db: Session, data: dict, *, actor_user_id: int) -> dict:
-    _check(data)
+    _check(_tidy(data))
     data = {**data, "name": i18n.validate_localized(db, data["name"])}
     p = Platform(**data)
     db.add(p)
@@ -98,7 +110,7 @@ def update(db: Session, platform_id: int, *, version: int, changes: dict, actor_
         raise AppError(404, "platform_not_found")
     if p.version != version:
         raise AppError(409, "version_conflict")
-    merged = {k: getattr(p, k) for k in RULE} | changes
+    merged = {k: getattr(p, k) for k in RULE} | _tidy(changes)
     _check(merged)
     if "name" in changes:
         changes["name"] = i18n.validate_localized(db, changes["name"])

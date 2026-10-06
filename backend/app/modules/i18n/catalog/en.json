@@ -705,7 +705,8 @@
     "no_basic_salary": "No basic salary",
     "no_iban": "No IBAN",
     "no_platform": "Driver without a platform",
-    "carried": "Part of the installments moved to next month"
+    "carried": "Part of the installments moved to next month",
+    "daily_pending": "Daily reports waiting for review this month"
   },
   "driver_field": {
     "valid_days": "Valid days",
@@ -729,5 +730,10 @@
     "day": "Start and end of the day (odometer, custody, tracking)",
     "onboarding": "Self-registration (set in the self-registration settings)",
     "permissions": "Phone permissions (location, camera)"
+  },
+  "daily_field": {
+    "orders": "Orders",
+    "cash": "Cash collected",
+    "valid_day": "Valid day (per the platform's app)"
   }
 }

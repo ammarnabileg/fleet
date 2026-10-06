@@ -237,7 +237,8 @@
           return h`<div class="card"><div class="card-h"><div class="card-t">${api.name(p.name)}</div><span class="muted fs-sm ltr">${p.code}</span>${p.is_active ? '' : BT.pill('موقوفة', 'n')}${canEdit ? h`<button type="button" class="btn btn-sm btn-ghost ms-auto" data-edit="${p.id}">${icon('pencil', 14)} تعديل</button>` : ''}</div>
             <div class="card-b">${BT.kv([
               ['السائقون', fmt.int(p.drivers)],
-              ['يرسل السائق', p.driver_fields.length ? p.driver_fields.map(function (f) { return api.t('driver_field', f); }).join('، ') + ' مع لقطات الشاشة' : 'لا شيء (لا كشف من السائق)'],
+              ['التقرير اليومي', (p.daily_fields || []).length ? p.daily_fields.map(function (f) { return api.t('daily_field', f); }).join('، ') : 'لقطة الشاشة فقط'],
+              ['كشف الشهر من السائق', p.driver_fields.length ? p.driver_fields.map(function (f) { return api.t('driver_field', f); }).join('، ') + ' مع لقطات الشاشة' : 'لا يُطلب: الشهر من التقارير اليومية المعتمدة'],
               ['الراتب الأساسي', p.pay_basic ? 'يُدفع' : 'لا يُدفع'],
               ['الأسعار', 'طلب ' + fmt.money(p.per_order) + ' · ساعة ' + fmt.money(p.per_hour) + ' · يوم صالح ' + fmt.money(p.per_valid_day)],
               ['الأيام غير الصالحة', api.t('invalid_days_rule', p.invalid_days) + (p.invalid_days === 'daily_wage' ? ' (÷ ' + p.day_divisor + ')' : p.invalid_days === 'fixed' ? ' ' + fmt.money(p.invalid_day_amount) : '')],
@@ -263,7 +264,7 @@
   }
   function platformForm(p, sheet, done) {
     var editing = !!p;
-    p = p || { code: '', name: { ar: sheet.suggested_name, en: '' }, driver_fields: sheet.driver_fields, pay_basic: true, per_order: '0.000', per_hour: '0.000', per_valid_day: '0.000', invalid_days: sheet.invalid_days, invalid_day_amount: null, day_divisor: 30, columns: sheet.columns };
+    p = p || { code: '', name: { ar: sheet.suggested_name, en: '' }, driver_fields: sheet.driver_fields, daily_fields: ['orders', 'cash'], pay_basic: true, per_order: '0.000', per_hour: '0.000', per_valid_day: '0.000', invalid_days: sheet.invalid_days, invalid_day_amount: null, day_divisor: 30, columns: sheet.columns };
     var cols = p.columns.map(function (c) { return { code: c.code, header: c.header }; });
     var unknown = cols.filter(function (c) { return c.code === 'blank'; }).length;
     A.formModal({
@@ -274,7 +275,10 @@
           ${BT.f.input({ name: 'name_en', label: 'الاسم بالإنجليزية', required: true, value: p.name.en || '' })}
           ${editing ? BT.f.switch({ name: 'is_active', label: 'نشطة', checked: p.is_active }) : ''}
         </div>
-        <div class="section-t mt-12">ما يرسله السائق كل شهر مع لقطات الشاشة</div>
+        <div class="section-t mt-12">ما يرسله السائق في تقريره اليومي مع لقطة شاشة يومه من تطبيق المنصة</div>
+        <div class="flex gap-12 wrap">${['orders', 'cash', 'valid_day'].map(function (f) { return BT.f.check({ name: 'dy_' + f, label: api.t('daily_field', f), checked: (p.daily_fields || []).indexOf(f) >= 0 }); })}</div>
+        <div class="hint">الطلبات والأيام الصالحة في الشهر تُجمع من التقارير اليومية المعتمدة؛ وتقرير لم يُراجع يوقف رواتب صاحبه حتى يُراجع.</div>
+        <div class="section-t mt-12">ما يرسله السائق كل شهر مع لقطات الشاشة (اتركه فارغاً إن كان الشهر من التقارير اليومية)</div>
         <div class="flex gap-12 wrap">${['valid_days', 'orders', 'hours'].map(function (f) { return BT.f.check({ name: 'df_' + f, label: api.t('driver_field', f), checked: p.driver_fields.indexOf(f) >= 0 }); })}</div>
         <div class="section-t mt-12">قاعدة الدفع</div>
         <div class="banner note fs-sm mb-8">${icon('info', 15)}<div>نموذجكم لا يذكر كيف يُحسب المستحق، فاضبطوا القاعدة هنا. ${RULE_HINT}</div></div>
@@ -296,6 +300,7 @@
         var body = {
           name: Object.assign({}, p.name, { ar: v.name_ar, en: v.name_en }),
           driver_fields: ['valid_days', 'orders', 'hours'].filter(function (f) { return v['df_' + f]; }),
+          daily_fields: ['orders', 'cash', 'valid_day'].filter(function (f) { return v['dy_' + f]; }),
           pay_basic: !!v.pay_basic, per_order: Number(v.per_order || 0).toFixed(3), per_hour: Number(v.per_hour || 0).toFixed(3), per_valid_day: Number(v.per_valid_day || 0).toFixed(3),
           invalid_days: v.invalid_days, day_divisor: Math.round(Number(v.day_divisor || 30)), invalid_day_amount: v.invalid_day_amount === '' || v.invalid_day_amount == null ? null : Number(v.invalid_day_amount).toFixed(3),
           columns: columns

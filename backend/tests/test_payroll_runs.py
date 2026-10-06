@@ -214,7 +214,7 @@ def test_the_driver_sends_the_month_and_the_office_reviews_it(admin_client, clie
     sid = listed[0]["id"]
     detail = admin_client.get(f"{P}/statements/{sid}").json()
     assert detail["declared"] == {"valid_days": 24, "orders": 410} and detail["screenshots"] == [s1]
-    assert detail["system"] == {"working_days": 0, "orders": 0}  # no daily reports in this test
+    assert detail["system"] == {"working_days": 0, "orders": 0, "valid_days": 0, "pending_reports": 0}  # none sent
     assert admin_client.get(f"{P}/statements/{sid}/files/{s1}").status_code == 200
     assert admin_client.get(f"{P}/statements/{sid}/files/{foreign}").status_code == 404
     assert admin_client.get(f"{P}/statements/counts").json() == {"submitted": 1}
@@ -454,6 +454,7 @@ class _P:
     def __init__(self, **kw):
         self.pay_basic, self.per_order, self.per_hour, self.per_valid_day = True, Decimal(0), Decimal(0), Decimal(0)
         self.invalid_days, self.invalid_day_amount, self.day_divisor, self.driver_fields = "none", None, 30, []
+        self.daily_fields = ["orders", "cash"]
         self.__dict__.update(kw)
 
 

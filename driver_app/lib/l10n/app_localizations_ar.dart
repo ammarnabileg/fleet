@@ -838,4 +838,13 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get saveAndSignIn => 'حفظ والدخول';
+
+  @override
+  String get validDayQuestion => 'هل احتسب تطبيق المنصة هذا اليوم يوماً صالحاً؟';
+
+  @override
+  String get validDayYes => 'يوم صالح';
+
+  @override
+  String get validDayNo => 'غير صالح';
 }

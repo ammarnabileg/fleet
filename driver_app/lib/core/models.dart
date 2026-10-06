@@ -78,6 +78,7 @@ class Report {
     this.orders,
     required this.cash,
     this.approvedCash,
+    this.validDay,
     required this.status,
     this.reviewNote,
   });
@@ -88,6 +89,7 @@ class Report {
     orders: (j['orders_count'] as num?)?.toInt(),
     cash: j['cash_amount'] as String,
     approvedCash: j['approved_cash'] as String?,
+    validDay: j['valid_day'] as bool?,
     status: j['status'] as String,
     reviewNote: j['review_note'] as String?,
   );
@@ -97,6 +99,7 @@ class Report {
   final int? orders;
   final String cash;
   final String? approvedCash;
+  final bool? validDay;
   final String status;
   final String? reviewNote;
 }

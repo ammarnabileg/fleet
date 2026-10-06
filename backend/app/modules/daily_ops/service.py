@@ -23,6 +23,7 @@ from app.modules.files import service as files
 from app.modules.fleet import service as fleet
 from app.modules.notifications import service as notifications
 from app.modules.org import service as org
+from app.modules.payroll import service as payroll
 from app.modules.people import service as people
 
 MAX_DAYS_BACK = 2  # yesterday's report sent this morning is normal; older ones go through the office
@@ -38,6 +39,7 @@ def _out(r: Report, names: dict | None = None, plates: dict | None = None) -> di
         "orders_count": r.orders_count,
         "cash_amount": r.cash_amount,
         "approved_cash": r.approved_cash,
+        "valid_day": r.valid_day,
         "has_screenshot": r.screenshot_sha256 is not None,
         "notes": r.notes,
         "status": r.status,
@@ -53,18 +55,27 @@ def _many(db: Session, reports: list[Report]) -> list[dict]:
     return [_out(r, names, plates) for r in reports]
 
 
+FIELD = {"orders": "orders_count", "cash": "cash_amount", "valid_day": "valid_day"}
+
+
+def form(db: Session, driver: people.EmployeeRef) -> dict:
+    """What this driver sends: his platform's daily fields (orders and cash for one, orders and whether the platform
+    counted the day for another), or without a platform the settings; and whether the screenshot is required."""
+    rules = org.get_section(db, "daily_report")
+    fields = payroll.daily_fields(db, driver.platform_id)
+    if fields is None:
+        fields = [f for f, on in (("orders", rules.require_orders_count), ("cash", rules.require_cash)) if on]
+    return {"fields": fields, "screenshot": rules.require_screenshot}
+
+
 def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict:
     driver = people.ref(db, employee_id)
     day = data["business_date"]
     if not today() - timedelta(days=MAX_DAYS_BACK) <= day <= today():
         raise AppError(422, "invalid_business_date")
-    rules = org.get_section(db, "daily_report")
-    for field, needed in (
-        ("orders_count", rules.require_orders_count),
-        ("cash_amount", rules.require_cash),
-        ("screenshot_sha256", rules.require_screenshot),
-    ):
-        if needed and data.get(field) is None:
+    asked = form(db, driver)
+    for field in [FIELD[f] for f in asked["fields"]] + (["screenshot_sha256"] if asked["screenshot"] else []):
+        if data.get(field) is None:
             raise AppError(422, "field_required", field=field)
     if data.get("screenshot_sha256"):
         shot = files.get(db, data["screenshot_sha256"])
@@ -81,6 +92,7 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
         vehicle_id=custody.vehicle_id if custody else None,
         orders_count=data.get("orders_count"),
         cash_amount=amount,
+        valid_day=data.get("valid_day") if "valid_day" in asked["fields"] else None,
         screenshot_sha256=data.get("screenshot_sha256"),
         notes=data.get("notes"),
         submitted_by_device=device_id,
@@ -103,7 +115,7 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
         entity_id=report.public_id,
         actor_type="device",
         company_id=driver.company_id,
-        after={"date": day.isoformat(), "orders": report.orders_count, "cash": amount},
+        after={"date": day.isoformat(), "orders": report.orders_count, "cash": amount, "valid_day": report.valid_day},
     )
     db.commit()
     return _many(db, [report])[0]
@@ -251,17 +263,22 @@ def scan_overdue(db: Session) -> int:
 
 
 def month_activity(db: Session, employee_ids: Iterable[int], first, last) -> dict[int, dict]:
-    """For payroll, per driver: the days he sent a daily report (not rejected) and the orders in his approved
-    reports, first to last inclusive."""
+    """For payroll, per driver, first to last inclusive: the days he sent a daily report (not rejected), and in his
+    approved reports the orders and the days the platform counted (valid_day); and how many still wait for review
+    (their figures count only once approved)."""
     ids = list(employee_ids)
-    out = {i: {"days": set(), "orders": 0} for i in ids}
+    out = {i: {"days": set(), "orders": 0, "valid_days": 0, "pending": 0} for i in ids}
     if not ids:
         return out
-    q = select(Report.employee_id, Report.business_date, Report.orders_count, Report.status).where(
+    q = select(Report.employee_id, Report.business_date, Report.orders_count, Report.valid_day, Report.status).where(
         Report.employee_id.in_(ids), Report.business_date.between(first, last), Report.status != "rejected"
     )
-    for employee_id, day, orders, status in db.execute(q):
-        out[employee_id]["days"].add(day)
+    for employee_id, day, orders, valid, status in db.execute(q):
+        row = out[employee_id]
+        row["days"].add(day)
         if status == "approved":
-            out[employee_id]["orders"] += orders or 0
+            row["orders"] += orders or 0
+            row["valid_days"] += bool(valid)
+        else:
+            row["pending"] += 1
     return out
