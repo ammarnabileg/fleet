@@ -303,6 +303,43 @@ def test_the_run_pays_each_driver_on_his_scheme(admin_client, company, setup):
     assert Decimal(k1["cells"]["orders_pay"]) + Decimal(k1["cells"]["tier_bonus"]) == Decimal(k1["gross"])
 
 
+def test_the_payslip_explains_the_month_item_by_item(admin_client, client, company, setup):
+    version = admin_client.get("/api/v1/settings").json()["payroll"]["version"]
+    admin_client.put(
+        "/api/v1/settings/payroll",
+        json={"version": version, "value": {"max_deduction_percent": "50.00", "deduction_cap_base": "gross"}},
+    )
+    d = make_driver(admin_client, company["id"], platform_id=setup["keeta"]["id"], iban=IBAN, basic_salary="300.000")
+    h = bearer(bind_device(client, d["phone"]))
+    assign(admin_client, setup["schemes"]["keeta"], d)
+    r = admin_client.post(
+        f"{P}/statements",
+        json={
+            "employee_id": d["id"],
+            "month": str(MONTH),
+            "orders": 400,
+            "attendance_marks": 3,
+            "star_day_failed": False,
+        },
+    )
+    assert r.status_code == 201, r.text
+    run = admin_client.post(f"{P}/runs", json={"company_id": company["id"], "month": MONTH.isoformat()}).json()
+    assert client.get("/api/v1/driver/payslips", headers=h).json() == []  # a draft is not his yet
+    r = admin_client.post(f"{P}/runs/{run['id']}/approve")
+    assert r.status_code == 200, r.text
+
+    slip = client.get("/api/v1/driver/payslips", headers=h).json()[0]
+    assert slip["scheme"] == {"name": KEETA["name"]}
+    # 400 x 0.350 = 140, 20 short of 420 x 0.350 = 7, 3 marks = 10: no tier reached
+    assert [(b["code"], b["amount"]) for b in slip["breakdown"]] == [
+        ("orders_pay", "140.000"),
+        ("missing_target", "-7.000"),
+        ("marks_deduction", "-10.000"),
+    ]
+    assert slip["breakdown"][1]["why"] == {"target": 420, "missing": 20, "rate": "0.350"}
+    assert (slip["gross"], slip["net"]) == ("140.000", "123.000")
+
+
 def test_the_driver_chooses_his_scheme_in_self_registration(admin_client, client, company, setup):
     from tests.conftest import make_vehicle
     from tests.test_onboarding import activate, full_draft, save, submission_id

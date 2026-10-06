@@ -988,4 +988,58 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get schemeChooseHint =>
       'اختر النظام الذي تشتغل عليه. يراجعه المكتب مع تسجيلك، وتقدر تطلب تغييره لاحقاً من التطبيق.';
+
+  @override
+  String payslipScheme(String name) {
+    return 'كيف حسب نظامك الشهر: $name';
+  }
+
+  @override
+  String get payItem_orders_pay => 'قيمة الطلبات';
+
+  @override
+  String get payItem_tier_bonus => 'بونص الشريحة';
+
+  @override
+  String get payItem_missing_target => 'خصم نقص التارجت';
+
+  @override
+  String get payItem_marks_deduction => 'خصم علامات الحضور';
+
+  @override
+  String get payItem_uncovered_penalty => 'عقوبات لم تُخصم';
+
+  @override
+  String payWhyOrders(String orders, String rate) {
+    return '$orders طلب × $rate د.ك';
+  }
+
+  @override
+  String payWhyBatch(String level) {
+    return 'باتش $level';
+  }
+
+  @override
+  String get payWhyReducedStar => 'السعر المخفض: فوّت Star Day';
+
+  @override
+  String get payWhyReducedMarks => 'السعر المخفض: علامات الحضور';
+
+  @override
+  String payWhyTier(String orders, String from) {
+    return 'وصلت $orders طلب: شريحة $from';
+  }
+
+  @override
+  String payWhyMissing(String missing, String target, String rate) {
+    return '$missing طلب ناقص عن $target × $rate د.ك';
+  }
+
+  @override
+  String payWhyMarks(String marks) {
+    return '$marks علامات حضور';
+  }
+
+  @override
+  String get payWhyUncovered => 'العقوبات أكبر من المستحق، والشهر لا ينزل تحت الصفر: هذا الباقي لم يُخصم';
 }

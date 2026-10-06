@@ -39,7 +39,7 @@ from app.modules.org import service as org
 from app.modules.payroll import calculators, platforms, schemes, statements
 from app.modules.payroll.calculators import Month, Rules
 from app.modules.payroll.columns import BY_CODE, COLUMNS
-from app.modules.payroll.models import Deduction, Line, LineDeduction, Platform, Run, Statement
+from app.modules.payroll.models import Deduction, Line, LineDeduction, Platform, Run, Scheme, Statement
 from app.modules.payroll.service import month_cap, schedule
 from app.modules.people import service as people
 
@@ -560,6 +560,8 @@ def payslips(db: Session, employee_id: int) -> list[dict]:
         .limit(12)
     ).all()
     plats = platforms.all_by_id(db)
+    ids = {line.scheme_id for line, _ in rows if line.scheme_id}
+    names = dict(db.execute(select(Scheme.id, Scheme.name).where(Scheme.id.in_(ids))).all()) if ids else {}
     out = []
     for line, run in rows:
         platform = plats.get(line.platform_id)
@@ -570,6 +572,9 @@ def payslips(db: Session, employee_id: int) -> list[dict]:
                 "status": run.status,
                 "platform": {"id": platform.id, "code": platform.code, "name": platform.name} if platform else None,
                 "rows": [{"code": c["code"], "header": c["header"], "value": line.cells.get(c["code"])} for c in cols],
+                # how his scheme computed the month, item by item with its reason (none on the platform's own rule)
+                "scheme": {"name": names[line.scheme_id]} if line.scheme_id in names else None,
+                "breakdown": line.breakdown or [],
                 "gross": line.gross,
                 "deductions": line.deductions,
                 "net": line.net,

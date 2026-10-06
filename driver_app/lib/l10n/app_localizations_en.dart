@@ -993,4 +993,58 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get schemeChooseHint =>
       'Choose the scheme you work on. The office reviews it with your registration, and you can ask to change it later from the app.';
+
+  @override
+  String payslipScheme(String name) {
+    return 'How your scheme worked out the month: $name';
+  }
+
+  @override
+  String get payItem_orders_pay => 'Orders';
+
+  @override
+  String get payItem_tier_bonus => 'Tier bonus';
+
+  @override
+  String get payItem_missing_target => 'Short of the target';
+
+  @override
+  String get payItem_marks_deduction => 'Attendance marks';
+
+  @override
+  String get payItem_uncovered_penalty => 'Penalties not taken';
+
+  @override
+  String payWhyOrders(String orders, String rate) {
+    return '$orders orders × $rate KWD';
+  }
+
+  @override
+  String payWhyBatch(String level) {
+    return 'batch $level';
+  }
+
+  @override
+  String get payWhyReducedStar => 'reduced price: a missed Star Day';
+
+  @override
+  String get payWhyReducedMarks => 'reduced price: attendance marks';
+
+  @override
+  String payWhyTier(String orders, String from) {
+    return '$orders orders: the $from tier';
+  }
+
+  @override
+  String payWhyMissing(String missing, String target, String rate) {
+    return '$missing orders short of $target × $rate KWD';
+  }
+
+  @override
+  String payWhyMarks(String marks) {
+    return '$marks attendance marks';
+  }
+
+  @override
+  String get payWhyUncovered => 'Penalties above the month\'s pay are not taken: the month never goes below zero';
 }

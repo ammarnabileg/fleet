@@ -6,6 +6,7 @@ import 'package:fleet_driver/core/api.dart';
 import 'package:fleet_driver/core/tokens.dart';
 import 'package:fleet_driver/main.dart';
 import 'package:fleet_driver/ui/photos.dart';
+import 'package:fleet_driver/ui/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -948,6 +949,69 @@ void main() {
     final net = tester.widget<Text>(find.byKey(const Key('payslip-net')));
     expect(net.data, contains('130.000'));
     await shot(tester, '19-payslips');
+  });
+
+  testWidgets('payslip on a pay scheme: each item with its reason, penalties in red, what was not taken', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/payslips',
+      (r) => (
+        200,
+        [
+          {
+            'month': '2026-09-01',
+            'status': 'approved',
+            'platform': null,
+            'rows': [
+              {'code': 'net', 'header': 'صافي الراتب', 'value': '0.000'},
+            ],
+            'scheme': {
+              'name': {'ar': 'كيتا الأساسي', 'en': 'Keeta base'},
+            },
+            'breakdown': [
+              {
+                'code': 'orders_pay',
+                'amount': '20.000',
+                'why': {'orders': 100, 'rate': '0.200', 'reduced_by': 'star_day'},
+              },
+              {
+                'code': 'missing_target',
+                'amount': '-112.000',
+                'why': {'target': 420, 'missing': 320, 'rate': '0.350'},
+              },
+              {
+                'code': 'uncovered_penalty',
+                'amount': '92.000',
+                'why': {'uncovered': '92.000'},
+              },
+            ],
+            'gross': '20.000',
+            'deductions': '20.000',
+            'net': '0.000',
+          },
+        ],
+      ),
+    );
+    await pumpApp(tester, w);
+    await tester.dragUntilVisible(
+      find.byKey(const Key('payslips')),
+      find.byType(ListView).first,
+      const Offset(0, -200),
+    );
+    await tester.tap(find.byKey(const Key('payslips')));
+    await idle(tester);
+    expect(find.text('كيف حسب نظامك الشهر: كيتا الأساسي'), findsOneWidget);
+    expect(find.text('\u2066100\u2069 طلب × \u20660.200\u2069 د.ك · السعر المخفض: فوّت Star Day'), findsOneWidget);
+    expect(find.text('\u2066320\u2069 طلب ناقص عن \u2066420\u2069 × \u20660.350\u2069 د.ك'), findsOneWidget);
+    final penalty = tester.widget<Text>(
+      find.descendant(of: find.byKey(const Key('pay-item-missing_target')), matching: find.textContaining('112.000')),
+    );
+    expect(penalty.style!.color, AppColors.danger);
+    expect(find.text('عقوبات لم تُخصم'), findsOneWidget);
+    await shot(tester, '28-payslip-scheme');
   });
 
   testWidgets('no phone on file: civil ID and the initial password, then the phone and its WhatsApp code', (

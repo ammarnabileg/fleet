@@ -425,10 +425,15 @@ void main() {
           {'kind': 'marks_reduce', 'threshold': 5},
         ],
       });
+      // a company of its own, so the month's payroll is this test's alone
+      final own = await admin.call('POST', '/companies', {
+        'name': {'ar': 'شركة الأنظمة $n', 'en': 'Schemes Company $n'},
+      });
       final driver = await admin.call('POST', '/employees', {
         'employee_number': 'S$n',
         'name': {'ar': 'سائق الأنظمة', 'en': 'Schemes Driver'},
-        'company_id': await companyId(admin),
+        'company_id': own['id'],
+        'iban': 'KW81CBKU0000000000001234560101',
         'is_driver': true,
         'phone': '+9656${n.toString().padLeft(7, '0')}',
         'platform_id': platform['id'],
@@ -468,6 +473,26 @@ void main() {
       expect(state.schemes!.request!.status, 'approved');
       expect(state.schemes!.nextMonth!.code, 'tiers');
       expect(state.schemes!.current!.code, 'fixed', reason: 'this month stays as it was');
+
+      // ---- the month on the fixed price, approved: the payslip explains it in the app
+      await admin.call('POST', '/payroll/statements', {
+        'employee_id': driver['id'],
+        'month': '$month-01',
+        'orders': 300,
+      });
+      final settings = await admin.call('GET', '/settings');
+      await admin.call('PUT', '/settings/payroll', {
+        'version': settings['payroll']['version'],
+        'value': {'max_deduction_percent': '50.00', 'deduction_cap_base': 'gross'},
+      });
+      final run = await admin.call('POST', '/payroll/runs', {'company_id': own['id'], 'month': '$month-01'});
+      await admin.call('POST', '/payroll/runs/${run['id']}/approve');
+      await state.loadPayslips();
+      final slip = state.payslips.single;
+      expect(slip.scheme('ar'), 'سعر ثابت');
+      expect([for (final b in slip.breakdown) (b.code, b.amount)], [('orders_pay', '105.000')]); // 300 x 0.350
+      expect(slip.breakdown.single.why, {'orders': 300, 'rate': '0.350'});
+      expect(slip.net, '105.000');
     },
     skip: backend == null ? 'set BACKEND_URL to run against a real backend' : null,
     timeout: const Timeout(Duration(minutes: 2)),

@@ -638,5 +638,73 @@
   "expense_gas": "البنزين",
   "expense_sim": "الشريحة",
   "schemeChoose": "نظام الدفع",
-  "schemeChooseHint": "اختر النظام الذي تشتغل عليه. يراجعه المكتب مع تسجيلك، وتقدر تطلب تغييره لاحقاً من التطبيق."
+  "schemeChooseHint": "اختر النظام الذي تشتغل عليه. يراجعه المكتب مع تسجيلك، وتقدر تطلب تغييره لاحقاً من التطبيق.",
+  "payslipScheme": "كيف حسب نظامك الشهر: {name}",
+  "@payslipScheme": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "payItem_orders_pay": "قيمة الطلبات",
+  "payItem_tier_bonus": "بونص الشريحة",
+  "payItem_missing_target": "خصم نقص التارجت",
+  "payItem_marks_deduction": "خصم علامات الحضور",
+  "payItem_uncovered_penalty": "عقوبات لم تُخصم",
+  "payWhyOrders": "{orders} طلب × {rate} د.ك",
+  "@payWhyOrders": {
+    "placeholders": {
+      "orders": {
+        "type": "String"
+      },
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "payWhyBatch": "باتش {level}",
+  "@payWhyBatch": {
+    "placeholders": {
+      "level": {
+        "type": "String"
+      }
+    }
+  },
+  "payWhyReducedStar": "السعر المخفض: فوّت Star Day",
+  "payWhyReducedMarks": "السعر المخفض: علامات الحضور",
+  "payWhyTier": "وصلت {orders} طلب: شريحة {from}",
+  "@payWhyTier": {
+    "placeholders": {
+      "orders": {
+        "type": "String"
+      },
+      "from": {
+        "type": "String"
+      }
+    }
+  },
+  "payWhyMissing": "{missing} طلب ناقص عن {target} × {rate} د.ك",
+  "@payWhyMissing": {
+    "placeholders": {
+      "missing": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      },
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "payWhyMarks": "{marks} علامات حضور",
+  "@payWhyMarks": {
+    "placeholders": {
+      "marks": {
+        "type": "String"
+      }
+    }
+  },
+  "payWhyUncovered": "العقوبات أكبر من المستحق، والشهر لا ينزل تحت الصفر: هذا الباقي لم يُخصم"
 }

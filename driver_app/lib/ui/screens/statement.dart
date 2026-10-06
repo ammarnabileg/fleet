@@ -303,6 +303,15 @@ class PayslipCard extends StatelessWidget {
               ],
             ),
             const Divider(),
+            if (p.breakdown.isNotEmpty) ...[
+              Text(
+                l.payslipScheme(p.scheme(Localizations.localeOf(context).languageCode) ?? ''),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              for (final b in p.breakdown) PayItemRow(item: b),
+              if (p.rows.any((r) => r.code != 'net')) const Divider(),
+            ],
             for (final r in p.rows.where((r) => r.code != 'net'))
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),
@@ -330,6 +339,70 @@ class PayslipCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// One item of the scheme's month on the payslip: what it is, why (orders × rate, the tier reached, …), and the amount.
+class PayItemRow extends StatelessWidget {
+  const PayItemRow({super.key, required this.item});
+
+  final PayItem item;
+
+  static String _n(Object? v) => '\u2066${v ?? ''}\u2069';
+
+  static String why(AppLocalizations l, PayItem b) {
+    final w = b.why;
+    return switch (b.code) {
+      'orders_pay' => [
+        l.payWhyOrders(_n(w['orders']), _n(w['rate'])),
+        if (w['batch_level'] != null) l.payWhyBatch(_n(w['batch_level'])),
+        if (w['reduced_by'] == 'star_day') l.payWhyReducedStar,
+        if (w['reduced_by'] == 'marks') l.payWhyReducedMarks,
+      ].join(' · '),
+      'tier_bonus' => l.payWhyTier(_n(w['orders']), _n(w['from'])),
+      'missing_target' => l.payWhyMissing(_n(w['missing']), _n(w['target']), _n(w['rate'])),
+      'marks_deduction' => l.payWhyMarks(_n(w['marks'])),
+      'uncovered_penalty' => l.payWhyUncovered,
+      _ => '',
+    };
+  }
+
+  static String label(AppLocalizations l, String code) => switch (code) {
+    'orders_pay' => l.payItem_orders_pay,
+    'tier_bonus' => l.payItem_tier_bonus,
+    'missing_target' => l.payItem_missing_target,
+    'marks_deduction' => l.payItem_marks_deduction,
+    'uncovered_penalty' => l.payItem_uncovered_penalty,
+    _ => code,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    final info = item.code == 'uncovered_penalty'; // shown, not deducted
+    final negative = item.amount.startsWith('-');
+    return Padding(
+      key: Key('pay-item-${item.code}'),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label(l, item.code)),
+                Text(why(l, item), style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+              ],
+            ),
+          ),
+          Text(
+            money(item.amount, l.kwd),
+            style: TextStyle(color: info ? AppColors.muted : (negative ? AppColors.danger : null)),
+          ),
+        ],
       ),
     );
   }

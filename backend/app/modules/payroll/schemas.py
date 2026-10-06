@@ -303,6 +303,8 @@ class PayslipOut(BaseModel):
     status: str  # approved | paid
     platform: dict | None
     rows: list[dict]  # [{code, header, value}] in the platform's sheet order, the employee's identity left out
+    scheme: dict | None = None  # {name} of his pay scheme that month
+    breakdown: list[dict] = []  # [{code, amount, why}]: how the scheme computed the month
     gross: Decimal
     deductions: Decimal
     net: Decimal

@@ -380,6 +380,8 @@ class Payslip {
     required this.gross,
     required this.deductions,
     required this.net,
+    this.schemeName,
+    this.breakdown = const [],
   });
 
   factory Payslip.fromJson(Map<String, dynamic> j) => Payslip(
@@ -392,6 +394,17 @@ class Payslip {
     gross: j['gross'] as String,
     deductions: j['deductions'] as String,
     net: j['net'] as String,
+    schemeName: (j['scheme'] as Map?)?['name'] == null
+        ? null
+        : Map<String, String>.from((j['scheme'] as Map)['name'] as Map),
+    breakdown: [
+      for (final b in j['breakdown'] as List? ?? const [])
+        PayItem(
+          code: (b as Map)['code'] as String,
+          amount: b['amount'] as String,
+          why: Map<String, dynamic>.from(b['why'] as Map? ?? {}),
+        ),
+    ],
   );
 
   final String month;
@@ -400,6 +413,19 @@ class Payslip {
   final String gross;
   final String deductions;
   final String net;
+  final Map<String, String>? schemeName; // his pay scheme that month
+  final List<PayItem> breakdown; // how the scheme computed the month
+
+  String? scheme(String lang) => schemeName == null ? null : schemeName![lang] ?? schemeName!['ar'];
+}
+
+/// One item of a scheme's month: what it is (a salary-sheet column), the amount (penalties negative), and its reason.
+class PayItem {
+  const PayItem({required this.code, required this.amount, required this.why});
+
+  final String code; // orders_pay | tier_bonus | missing_target | marks_deduction | uncovered_penalty
+  final String amount;
+  final Map<String, dynamic> why;
 }
 
 /// One row of a scheme's table: a batch level's price, a tier's bonus, a marks deduction, or the marks from which every

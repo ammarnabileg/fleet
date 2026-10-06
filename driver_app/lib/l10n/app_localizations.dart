@@ -1861,6 +1861,90 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'اختر النظام الذي تشتغل عليه. يراجعه المكتب مع تسجيلك، وتقدر تطلب تغييره لاحقاً من التطبيق.'**
   String get schemeChooseHint;
+
+  /// No description provided for @payslipScheme.
+  ///
+  /// In ar, this message translates to:
+  /// **'كيف حسب نظامك الشهر: {name}'**
+  String payslipScheme(String name);
+
+  /// No description provided for @payItem_orders_pay.
+  ///
+  /// In ar, this message translates to:
+  /// **'قيمة الطلبات'**
+  String get payItem_orders_pay;
+
+  /// No description provided for @payItem_tier_bonus.
+  ///
+  /// In ar, this message translates to:
+  /// **'بونص الشريحة'**
+  String get payItem_tier_bonus;
+
+  /// No description provided for @payItem_missing_target.
+  ///
+  /// In ar, this message translates to:
+  /// **'خصم نقص التارجت'**
+  String get payItem_missing_target;
+
+  /// No description provided for @payItem_marks_deduction.
+  ///
+  /// In ar, this message translates to:
+  /// **'خصم علامات الحضور'**
+  String get payItem_marks_deduction;
+
+  /// No description provided for @payItem_uncovered_penalty.
+  ///
+  /// In ar, this message translates to:
+  /// **'عقوبات لم تُخصم'**
+  String get payItem_uncovered_penalty;
+
+  /// No description provided for @payWhyOrders.
+  ///
+  /// In ar, this message translates to:
+  /// **'{orders} طلب × {rate} د.ك'**
+  String payWhyOrders(String orders, String rate);
+
+  /// No description provided for @payWhyBatch.
+  ///
+  /// In ar, this message translates to:
+  /// **'باتش {level}'**
+  String payWhyBatch(String level);
+
+  /// No description provided for @payWhyReducedStar.
+  ///
+  /// In ar, this message translates to:
+  /// **'السعر المخفض: فوّت Star Day'**
+  String get payWhyReducedStar;
+
+  /// No description provided for @payWhyReducedMarks.
+  ///
+  /// In ar, this message translates to:
+  /// **'السعر المخفض: علامات الحضور'**
+  String get payWhyReducedMarks;
+
+  /// No description provided for @payWhyTier.
+  ///
+  /// In ar, this message translates to:
+  /// **'وصلت {orders} طلب: شريحة {from}'**
+  String payWhyTier(String orders, String from);
+
+  /// No description provided for @payWhyMissing.
+  ///
+  /// In ar, this message translates to:
+  /// **'{missing} طلب ناقص عن {target} × {rate} د.ك'**
+  String payWhyMissing(String missing, String target, String rate);
+
+  /// No description provided for @payWhyMarks.
+  ///
+  /// In ar, this message translates to:
+  /// **'{marks} علامات حضور'**
+  String payWhyMarks(String marks);
+
+  /// No description provided for @payWhyUncovered.
+  ///
+  /// In ar, this message translates to:
+  /// **'العقوبات أكبر من المستحق، والشهر لا ينزل تحت الصفر: هذا الباقي لم يُخصم'**
+  String get payWhyUncovered;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
