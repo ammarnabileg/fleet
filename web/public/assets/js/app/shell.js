@@ -28,7 +28,7 @@
       { key: 'fines', icon: 'file-warning', label: 'المخالفات المرورية', any: ['fines.view'], count: 'fines' },
       { key: 'cash', icon: 'wallet', label: 'الكاش والخزينة', any: ['cash.view', 'treasury.view'] },
       { key: 'deductions', icon: 'minus-circle', label: 'الخصومات', any: ['deductions.view'] },
-      { key: 'payroll', icon: 'banknote', label: 'الرواتب', any: ['payroll.view', 'settings.update'], count: 'statements' },
+      { key: 'payroll', icon: 'banknote', label: 'الرواتب', any: ['payroll.view', 'settings.update'], count: 'payroll' },
       { key: 'employees', icon: 'users', label: 'الموظفون والسائقون', any: ['employees.view'], count: 'onboarding' },
       { key: 'reports', icon: 'chart-column', label: 'التقارير', any: ['reports.view', 'cash.view'] }
     ] },
@@ -167,7 +167,9 @@
     if (api.can('accidents.view')) jobs.push(api.get('/accidents', { stage: api.can('accidents.approve') ? 'reported,estimate_pending,awaiting_outcome' : 'reported,estimate_pending', limit: 200 }).then(function (r) { A.counts.accidents = r.length; }, function () {}));
     if (api.can('employees.onboarding')) jobs.push(api.get('/onboarding', { status: 'submitted', limit: 200 }).then(function (r) { A.counts.onboarding = r.length; }, function () {}));
     if (api.can('payroll.prepare')) jobs.push(api.get('/payroll/statements/counts').then(function (r) { A.counts.statements = r.submitted; }, function () {}));
+    if (api.can('payroll.view')) jobs.push(api.get('/payroll/scheme-requests/counts').then(function (r) { A.counts.scheme_requests = r.pending; }, function () {}));
     return Promise.all(jobs).then(function () {
+      A.counts.payroll = (A.counts.statements || 0) + (A.counts.scheme_requests || 0);
       A.renderNav((A.router && A.router.current || '').split('/')[0]);
       A.updateBell();
     });

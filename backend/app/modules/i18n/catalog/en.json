@@ -88,7 +88,8 @@
     "vehicles.export": "Export vehicles",
     "vehicles.update": "Edit vehicles",
     "vehicles.view": "View vehicles",
-    "employees.onboarding": "Review and approve drivers' self-registration"
+    "employees.onboarding": "Review and approve drivers' self-registration",
+    "payroll.schemes": "Pay schemes and requests to change them"
   },
   "modules": {
     "accidents": "Accidents",
@@ -361,7 +362,17 @@
     "sign_in_method_changed": "The company changed how drivers sign in. Start signing in again",
     "phone_sign_in_off": "Signing in with a phone number is off: use your civil ID and password",
     "password_not_allowed": "Choose a password other than the initial password and your civil ID",
-    "screen_off": "This screen is turned off in your company's app"
+    "screen_off": "This screen is turned off in your company's app",
+    "scheme_not_found": "Scheme not found",
+    "scheme_code_taken": "This code is another scheme's on the same platform",
+    "scheme_in_use": "Drivers are on this scheme: its prices do not change. Create a new scheme and move the drivers from a month",
+    "scheme_step_invalid": "Invalid scheme step: {kind}",
+    "scheme_platform_mismatch": "The scheme is not on the driver's platform",
+    "scheme_not_available": "This scheme is not available",
+    "scheme_already_yours": "You are already on this scheme from next month",
+    "scheme_request_pending": "You already have a scheme change waiting for review",
+    "scheme_request_not_found": "Request not found",
+    "scheme_request_decided": "This request was already decided"
   },
   "settings": {
     "branding": "Branding",
@@ -480,7 +491,9 @@
     "activation": "Hello {name}, here is the link to activate the driver app on your phone:\n{url}\nIt works once and expires in {hours} hours. Do not share it.",
     "activation_onboarding": "Hello {name}, here is your driver app link:\n{url}\nOpen it on your phone and complete your details, document photos and vehicle photos. It works once and expires in {hours} hours. Do not share it.",
     "onboarding_approved": "{name}, your registration is approved. You can start working from the app.",
-    "onboarding_rejected": "{name}, your registration needs a correction: {reason}\nOpen the app, fix it and send it again."
+    "onboarding_rejected": "{name}, your registration needs a correction: {reason}\nOpen the app, fix it and send it again.",
+    "scheme_approved": "{name}, your request was approved: from {month} your scheme is {scheme}.",
+    "scheme_rejected": "{name}, your scheme change was not approved: {reason}"
   },
   "vehicle_status": {
     "available": "Available",
@@ -682,7 +695,15 @@
     "other_deductions": "Other deductions",
     "carried": "Carried to next month",
     "net": "Net salary",
-    "blank": "(empty column)"
+    "blank": "(empty column)",
+    "scheme": "Pay scheme",
+    "batch_level": "Batch level",
+    "attendance_marks": "Attendance marks",
+    "orders_pay": "Orders pay",
+    "tier_bonus": "Tier bonus",
+    "missing_target": "Missing target deduction",
+    "marks_deduction": "Marks deduction",
+    "uncovered_penalty": "Penalties not taken"
   },
   "payment_method": {
     "bank": "Bank transfer",
@@ -706,7 +727,9 @@
     "no_iban": "No IBAN",
     "no_platform": "Driver without a platform",
     "carried": "Part of the installments moved to next month",
-    "daily_pending": "Daily reports waiting for review this month"
+    "daily_pending": "Daily reports waiting for review this month",
+    "scheme_missing": "The driver has no pay scheme this month",
+    "figures_missing": "The month's figures his scheme needs are missing (batch level, marks or star day)"
   },
   "driver_field": {
     "valid_days": "Valid days",
@@ -729,11 +752,36 @@
     "sign_in": "Sign-in",
     "day": "Start and end of the day (odometer, custody, tracking)",
     "onboarding": "Self-registration (set in the self-registration settings)",
-    "permissions": "Phone permissions (location, camera)"
+    "permissions": "Phone permissions (location, camera)",
+    "schemes": "Pay schemes and change requests"
   },
   "daily_field": {
     "orders": "Orders",
     "cash": "Cash collected",
     "valid_day": "Valid day (per the platform's app)"
+  },
+  "scheme_calculator": {
+    "platform_rates": "The platform's rule (basic and rates)",
+    "per_order": "A fixed price per order",
+    "batch": "By batch level",
+    "tiered_target": "Base price, tiers and penalties"
+  },
+  "scheme_step": {
+    "batch_rate": "Price per order at a batch level",
+    "tier_bonus": "Bonus from a number of orders",
+    "marks_deduction": "Deduction from a number of marks",
+    "marks_reduce": "Reduced price from a number of marks"
+  },
+  "expense": {
+    "maintenance": "Maintenance",
+    "housing": "Housing",
+    "gas": "Fuel",
+    "sim": "SIM card"
+  },
+  "scheme_request_status": {
+    "pending": "Waiting for review",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "cancelled": "Cancelled by the driver"
   }
 }

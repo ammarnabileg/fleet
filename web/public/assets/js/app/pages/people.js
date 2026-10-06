@@ -74,11 +74,12 @@
         search: { placeholder: 'الاسم أو الرقم الوظيفي أو الجوال أو رقم المنصة…' },
         chips: { options: [{ v: 'true', t: 'السائقون' }, { v: 'false', t: 'الإداريون' }, { v: 'no_phone', t: 'سائقون بلا هاتف' }] },
         tools: tools,
-        selectable: api.can('devices.manage'),
+        selectable: api.can('devices.manage') || api.can('payroll.schemes'),
         bulk: [
-          { label: 'إرسال رابط التفعيل على واتساب', icon: 'send', cls: 'btn-primary', run: function (rows, clear) { A.bulkLinks(rows.filter(function (r) { return r.is_driver; }), clear); } },
-          { label: 'الدخول بالرقم المدني', icon: 'key-round', cls: 'btn-outline', run: function (rows, clear) { A.claimForm(rows.filter(function (r) { return r.is_driver; }), clear); } }
-        ],
+          api.can('devices.manage') ? { label: 'إرسال رابط التفعيل على واتساب', icon: 'send', cls: 'btn-primary', run: function (rows, clear) { A.bulkLinks(rows.filter(function (r) { return r.is_driver; }), clear); } } : null,
+          api.can('devices.manage') ? { label: 'الدخول بالرقم المدني', icon: 'key-round', cls: 'btn-outline', run: function (rows, clear) { A.claimForm(rows.filter(function (r) { return r.is_driver; }), clear); } } : null,
+          api.can('payroll.schemes') ? { label: 'نظام الدفع', icon: 'banknote', cls: 'btn-outline', run: function (rows, clear) { A.assignScheme(rows, clear); } } : null
+        ].filter(Boolean),
         columns: [
           { key: 'name', label: 'الموظف', render: function (e) { return BT.person(api.name(e.name), e.employee_number + (e.job_title ? ' · ' + e.job_title : '')); } },
           { key: 'company', label: 'الشركة / الفرع', render: function (e) { return h`${api.company(e.company_id)}<span class="sub">${api.branch(e.branch_id)}</span>`; } },
@@ -162,7 +163,7 @@
             e.bank_name || e.payment_method ? ['البنك / طريقة الدفع', [e.bank_name, e.payment_method ? api.t('payment_method', e.payment_method) : null].filter(Boolean).join(' · ')] : null,
             e.platform_id ? ['المنصة', h`${A.platformName(A._platList, e.platform_id)}${e.platform_driver_id ? h` · <span class="num ltr">${e.platform_driver_id}</span>` : ''}`] : null,
             cash ? ['رصيد الكاش', h`${BT.amt(Number(cash.total))}${Number(cash.pending) ? h` <span class="muted fs-sm">(منه غير معتمد ${fmt.money(cash.pending)})</span>` : ''}`] : null
-          ].filter(Boolean))}</div>
+          ].filter(Boolean))}${e.is_driver && api.can('payroll.view') ? h`<div data-scheme-box></div>` : ''}</div>
           ${docs ? h`<div data-panel="docs" data-group="empd" class="${active === 'docs' ? 'active' : ''}">${docsList(docs, 'employee', e.id)}</div>` : ''}
           ${e.is_driver ? h`<div data-panel="device" data-group="empd" class="${active === 'device' ? 'active' : ''}">${devicePanel(e, devices)}</div>` : ''}
           ${custodies && e.is_driver ? h`<div data-panel="custody" data-group="empd" class="${active === 'custody' ? 'active' : ''}">${custodies.length ? h`<div class="list">${custodies.map(function (c) { return h`<button type="button" class="li" data-custody="${c.id}" style="width:100%;text-align:start"><span class="li-ic">${icon('key-round', 16)}</span><div class="li-main"><div class="li-t"><span class="plate">${c.vehicle.plate_number}</span> ${c.kind === 'emergency' ? A.pill('custody_kind', 'emergency') : ''}</div><div class="li-d">${fmt.dt(c.started_at)} ← ${c.ended_at ? fmt.dt(c.ended_at) : 'مستمرة'}</div></div>${c.needs_review ? BT.pill('تحتاج مراجعة', 'o') : ''}</button>`; })}</div>` : BT.empty('key-round', 'لا توجد عُهد', '')}</div>` : ''}
@@ -173,6 +174,8 @@
       var reopen = function (t) { dlg.close(); A.employee(id, t); if (A.refreshEmployees) A.refreshEmployees(); };
       var claimBox = dlg.panel.querySelector('[data-claim]');
       if (claimBox) A.claimBox(claimBox, e, function () { reopen('device'); });
+      var schemeBox = dlg.panel.querySelector('[data-scheme-box]');
+      if (schemeBox && A.schemeBox) A.schemeBox(schemeBox, e, function () { reopen('info'); });
       BT.on(foot, 'click', '[data-x]', function (ev, b) {
         var x = b.getAttribute('data-x');
         if (x === 'edit') A.employeeForm(e, function () { reopen('info'); });

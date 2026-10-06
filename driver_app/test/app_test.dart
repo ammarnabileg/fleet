@@ -170,6 +170,65 @@ Future<World> world({
   return World(state, server);
 }
 
+Map<String, dynamic> scheme(
+  String code,
+  String name,
+  String calculator, {
+  String? perOrder,
+  String? reducedRate,
+  String? missingOrderRate,
+  List<String> covers = const [],
+  List<(String, String, String?)> steps = const [],
+}) => {
+  'id': 'id-$code',
+  'code': code,
+  'name': {'ar': name, 'en': code},
+  'description': null,
+  'calculator': calculator,
+  'per_order': perOrder,
+  'target_orders': 420,
+  'required_valid_days': 28,
+  'missing_order_rate': missingOrderRate,
+  'reduced_rate': reducedRate,
+  'bonus_when_reduced': false,
+  'marks_when_reduced': false,
+  'floor_at_zero': true,
+  'company_covers': covers,
+  'steps': [
+    for (final (kind, threshold, amount) in steps) {'kind': kind, 'threshold': threshold, 'amount': amount},
+  ],
+};
+
+final fixedScheme = scheme(
+  'fixed_350',
+  'سعر ثابت 0.350',
+  'per_order',
+  perOrder: '0.350',
+  covers: ['maintenance', 'housing', 'gas', 'sim'],
+);
+final batchScheme = scheme(
+  'batch',
+  'نظام الباتش',
+  'batch',
+  steps: [('batch_rate', '2.000', '0.675'), ('batch_rate', '1.000', '0.700')],
+);
+final keetaScheme = scheme(
+  'keeta_base',
+  'كيتا الأساسي',
+  'tiered_target',
+  perOrder: '0.350',
+  reducedRate: '0.200',
+  missingOrderRate: '0.350',
+  covers: ['maintenance'],
+  steps: [
+    ('tier_bonus', '450.000', '50.000'),
+    ('tier_bonus', '540.000', '90.000'),
+    ('marks_deduction', '3.000', '10.000'),
+    ('marks_deduction', '4.000', '30.000'),
+    ('marks_reduce', '5.000', null),
+  ],
+);
+
 Future<void> pumpApp(WidgetTester tester, World w) async {
   tester.view.physicalSize = const Size(1080, 2280);
   tester.view.devicePixelRatio = 2.75;
@@ -1013,14 +1072,14 @@ void main() {
       (r) => (200, {'phone_codes': true, 'hidden_screens': hidden, 'splash': null}),
     );
     await pumpApp(tester, w);
-    for (final k in ['daily-report', 'maintenance', 'accident', 'fines', 'statement', 'payslips']) {
+    for (final k in ['daily-report', 'maintenance', 'accident', 'fines', 'statement', 'payslips', 'schemes']) {
       expect(find.byKey(Key(k)), findsOneWidget, reason: k);
     }
     expect(find.text('الكاش'), findsWidgets);
-    hidden = ['cash', 'maintenance', 'fines', 'payslips'];
+    hidden = ['cash', 'maintenance', 'fines', 'payslips', 'schemes'];
     await tester.runAsync(() => w.state.refresh());
     await idle(tester);
-    for (final k in ['maintenance', 'fines', 'payslips']) {
+    for (final k in ['maintenance', 'fines', 'payslips', 'schemes']) {
       expect(find.byKey(Key(k)), findsNothing, reason: k);
     }
     for (final k in ['daily-report', 'accident', 'statement', 'start-day']) {
@@ -1031,6 +1090,147 @@ void main() {
     await tester.runAsync(() => w.state.refresh());
     expect(w.server.calls('/api/v1/driver/cash').length, cashCalls, reason: 'a hidden screen is not even loaded');
     await shot(tester, '23-hidden-screens');
+  });
+
+  testWidgets('pay scheme: his terms, another scheme asked for from next month, then the request cancelled', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    Map<String, dynamic> view(Map<String, dynamic>? request) => {
+      'current': fixedScheme,
+      'next_month': null,
+      'schemes': [fixedScheme, batchScheme],
+      'request': request,
+    };
+    final pending = {
+      'id': 'q1',
+      'employee': null,
+      'company_id': 1,
+      'current': {'id': 'id-fixed_350', 'code': 'fixed_350', 'name': fixedScheme['name']},
+      'requested': {'id': 'id-batch', 'code': 'batch', 'name': batchScheme['name']},
+      'effective_month': '2026-11-01',
+      'status': 'pending',
+      'driver_note': 'عاوز الباتش',
+      'admin_note': null,
+      'created_at': '2026-10-06T10:00:00Z',
+      'decided_at': null,
+      'version': 1,
+    };
+    w.server.on('GET', '/api/v1/driver/schemes', (r) => (200, view(null)));
+    w.server.on('POST', '/api/v1/driver/scheme-requests', (r) => (201, view(pending)));
+    w.server.on('DELETE', '/api/v1/driver/scheme-requests/q1', (r) => (200, view(null)));
+    await pumpApp(tester, w);
+    await tester.ensureVisible(find.byKey(const Key('schemes')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('schemes')));
+    await idle(tester);
+    final current = find.byKey(const Key('scheme-current'));
+    expect(find.descendant(of: current, matching: find.text('سعر الطلب: \u20660.350\u2069 د.ك')), findsOneWidget);
+    expect(
+      find.descendant(of: current, matching: find.text('على الشركة: الصيانة، السكن، البنزين، الشريحة')),
+      findsOneWidget,
+    );
+    expect(find.text('لا خصم على الطلبات الناقصة عن التارجت'), findsNWidgets(2));
+    expect(find.text('• باتش \u20661\u2069: \u20660.700\u2069 د.ك'), findsOneWidget, reason: 'levels in order');
+    expect(find.text('المصاريف عليك: الصيانة والسكن والبنزين والشريحة'), findsOneWidget);
+    expect(find.byKey(const Key('scheme-ask-fixed_350')), findsNothing, reason: 'not his own scheme');
+    await shot(tester, '25-schemes');
+    await tester.tap(find.byKey(const Key('scheme-ask-batch')));
+    await settle(tester);
+    await tester.enterText(find.byKey(const Key('scheme-note')), 'عاوز الباتش');
+    await tester.tap(find.byKey(const Key('scheme-send')));
+    await idle(tester);
+    final sent = jsonDecode(w.server.calls('/api/v1/driver/scheme-requests', method: 'POST').single.body);
+    expect(sent, {'scheme_id': 'id-batch', 'note': 'عاوز الباتش'});
+    expect(find.textContaining('بانتظار المكتب'), findsOneWidget);
+    expect(find.byKey(const Key('scheme-ask-batch')), findsNothing, reason: 'one request at a time');
+    await tester.tap(find.byKey(const Key('scheme-cancel')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/scheme-requests/q1', method: 'DELETE'), hasLength(1));
+    expect(find.byKey(const Key('scheme-ask-batch')), findsOneWidget);
+  });
+
+  testWidgets('pay scheme on tiers: the reduced price, the tiers and the marks, and a refusal with its reason', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/schemes',
+      (r) => (
+        200,
+        {
+          'current': keetaScheme,
+          'next_month': null,
+          'schemes': [keetaScheme],
+          'request': {
+            'id': 'q2',
+            'employee': null,
+            'company_id': 1,
+            'current': null,
+            'requested': {
+              'id': 'id-x',
+              'code': 'x',
+              'name': {'ar': 'نظام آخر', 'en': 'Other'},
+            },
+            'effective_month': '2026-11-01',
+            'status': 'rejected',
+            'driver_note': null,
+            'admin_note': 'غير متاح لمنصتك',
+            'created_at': '2026-10-06T10:00:00Z',
+            'decided_at': '2026-10-06T12:00:00Z',
+            'version': 2,
+          },
+        },
+      ),
+    );
+    await pumpApp(tester, w);
+    await tester.ensureVisible(find.byKey(const Key('schemes')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('schemes')));
+    await idle(tester);
+    expect(
+      find.text('ينخفض إلى \u20660.200\u2069 د.ك لكل طلبات الشهر لو فوّت Star Day أو وصلت علاماتك \u20665\u2069'),
+      findsOneWidget,
+    );
+    expect(find.text('في شهر السعر المخفض لا يُصرف البونص'), findsOneWidget);
+    expect(find.text('• \u2066450\u2069 طلب: \u206650.000\u2069 د.ك'), findsOneWidget);
+    expect(find.text('• \u20664\u2069 علامات: \u206630.000\u2069 د.ك'), findsOneWidget);
+    expect(find.text('كل طلب ناقص عن التارجت يُخصم \u20660.350\u2069 د.ك'), findsOneWidget);
+    expect(find.text('رفض المكتب طلبك «نظام آخر»: غير متاح لمنصتك'), findsOneWidget);
+    expect(find.byKey(const Key('scheme-cancel')), findsNothing);
+    await shot(tester, '26-scheme-tiers');
+  });
+
+  testWidgets('self-registration: the driver chooses one of his platform\'s pay schemes', (tester) async {
+    final ob = {
+      'required': true,
+      'status': 'draft',
+      'data': {},
+      'review_note': null,
+      'required_documents': [],
+      'vehicle_photos': [],
+      'document_types': [],
+      'schemes': [fixedScheme, batchScheme],
+      'scheme_required': true,
+    };
+    final w = (await tester.runAsync(() => world(onboarding: ob)))!;
+    Map<String, dynamic>? saved;
+    w.server.on('PUT', '/api/v1/driver/onboarding', (r) {
+      saved = jsonDecode(r.body) as Map<String, dynamic>;
+      return (200, {...ob, 'data': saved});
+    });
+    await pumpApp(tester, w);
+    await tester.ensureVisible(find.byKey(const Key('ob-scheme-batch')));
+    await settle(tester);
+    expect(find.byIcon(Icons.radio_button_checked), findsNothing);
+    await tester.tap(find.byKey(const Key('ob-scheme-batch')));
+    await settle(tester);
+    expect(find.byIcon(Icons.radio_button_checked), findsOneWidget);
+    await shot(tester, '27-onboarding-scheme');
+    await tester.tap(find.byKey(const Key('ob-next')));
+    await idle(tester);
+    expect(saved!['scheme_id'], 'id-batch');
   });
 
   testWidgets('the splash screen the office designed shows when the app opens, from the next launch', (tester) async {

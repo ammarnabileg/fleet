@@ -3,6 +3,16 @@
 Design for the next payroll step. It extends the payroll module that already exists (`backend/app/modules/payroll`,
 PostgreSQL schema `payroll`); it does not start a new system.
 
+**Status: built**, with the defaults of section 6 (A to J), as migration `0018_pay_schemes`:
+- `calculators.py` (the strategies) and `schemes.py` (schemes, assignment by month, requests);
+- the dashboard: Payroll → "أنظمة الدفع" and "طلبات تغيير النظام", the scheme in the employee's file and as a bulk
+  action on the employees list, the scheme's figures in the platform statement, and how the scheme computed each line;
+- the driver app: the "نظام الدفع" screen (terms, request, cancel) and the choice in self-registration.
+
+Two things differ from the text below: the office assigns the scheme from the employee's file (or many drivers at once
+from the list), not inside the employee form; and the driver's view carries the terms only, not how many drivers are on
+each scheme. The defaults are still the client's to confirm before the first real month.
+
 ## 0. Where this fits
 
 **Stack.** The request mentions Laravel or Node.js. The backend is FastAPI on PostgreSQL 16, and payroll already runs on it:
@@ -61,7 +71,7 @@ erDiagram
 **Configuration** (business rules, changed by the office, never by a payroll run):
 
 ```sql
--- migration 0017_pay_schemes (forward-only, ends with SELECT public.fleet_apply_grants();)
+-- migration 0018_pay_schemes (forward-only, ends with SELECT public.fleet_apply_grants();)
 
 CREATE TABLE payroll.schemes (
     id                    bigint GENERATED ALWAYS AS IDENTITY CONSTRAINT schemes_pkey PRIMARY KEY,
@@ -408,7 +418,7 @@ Talabat:
 
 | Step | What | Size |
 |---|---|---|
-| 1 | Migration 0017, models, the four calculators (`platform_rates` reproducing today exactly, so the existing payroll tests pass unchanged), the worked months as tests | backend |
+| 1 | Migration 0018, models, the four calculators (`platform_rates` reproducing today exactly, so the existing payroll tests pass unchanged), the worked months as tests | backend |
 | 2 | Schemes in the dashboard: under each platform, the terms and the steps; "move drivers to a scheme from a month" | panel |
 | 3 | Assignment in the employee form and in self-registration | panel + app |
 | 4 | Requests: app screen (schemes, request, status), dashboard queue with approve and reject, notifications | app + panel |

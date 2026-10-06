@@ -131,6 +131,8 @@ class Onboarding {
     required this.vehiclePhotos,
     required this.documentTypes,
     this.requireBank = false,
+    this.schemes = const [],
+    this.schemeRequired = false,
   });
 
   factory Onboarding.fromJson(Map<String, dynamic> j) => Onboarding(
@@ -142,6 +144,8 @@ class Onboarding {
     vehiclePhotos: List<String>.from(j['vehicle_photos'] as List),
     documentTypes: [for (final t in j['document_types'] as List) DocType.fromJson(t as Map<String, dynamic>)],
     requireBank: j['require_bank'] as bool? ?? false,
+    schemes: [for (final s in j['schemes'] as List? ?? const []) PayScheme.fromJson(s as Map<String, dynamic>)],
+    schemeRequired: j['scheme_required'] as bool? ?? false,
   );
 
   final bool required;
@@ -152,6 +156,8 @@ class Onboarding {
   final List<String> vehiclePhotos;
   final List<DocType> documentTypes;
   final bool requireBank; // the IBAN and the bank name (salaries are paid by transfer)
+  final List<PayScheme> schemes; // his platform's pay schemes, with their terms
+  final bool schemeRequired; // choose one to submit
 
   /// The server says "required" only while the driver may still edit (draft, or sent back with a reason).
   bool get mustFill => required;
@@ -394,4 +400,128 @@ class Payslip {
   final String gross;
   final String deductions;
   final String net;
+}
+
+/// One row of a scheme's table: a batch level's price, a tier's bonus, a marks deduction, or the marks from which every
+/// order is paid at the reduced price (no amount).
+class SchemeStep {
+  SchemeStep({required this.kind, required this.threshold, this.amount});
+
+  factory SchemeStep.fromJson(Map<String, dynamic> j) =>
+      SchemeStep(kind: j['kind'] as String, threshold: num.parse('${j['threshold']}'), amount: j['amount'] as String?);
+
+  final String kind; // batch_rate | tier_bonus | marks_deduction | marks_reduce
+  final num threshold;
+  final String? amount;
+}
+
+/// A pay scheme's terms as the driver reads them before choosing or asking for it.
+class PayScheme {
+  PayScheme({
+    required this.id,
+    required this.code,
+    required this.name,
+    this.description,
+    required this.calculator,
+    this.perOrder,
+    required this.targetOrders,
+    required this.requiredValidDays,
+    this.missingOrderRate,
+    this.reducedRate,
+    this.bonusWhenReduced = false,
+    this.marksWhenReduced = false,
+    required this.companyCovers,
+    required this.steps,
+  });
+
+  factory PayScheme.fromJson(Map<String, dynamic> j) => PayScheme(
+    id: j['id'] as String,
+    code: j['code'] as String,
+    name: Map<String, String>.from(j['name'] as Map),
+    description: j['description'] == null ? null : Map<String, String>.from(j['description'] as Map),
+    calculator: j['calculator'] as String,
+    perOrder: j['per_order'] as String?,
+    targetOrders: (j['target_orders'] as num).toInt(),
+    requiredValidDays: (j['required_valid_days'] as num).toInt(),
+    missingOrderRate: j['missing_order_rate'] as String?,
+    reducedRate: j['reduced_rate'] as String?,
+    bonusWhenReduced: j['bonus_when_reduced'] as bool? ?? false,
+    marksWhenReduced: j['marks_when_reduced'] as bool? ?? false,
+    companyCovers: List<String>.from(j['company_covers'] as List? ?? const []),
+    steps: [for (final s in j['steps'] as List? ?? const []) SchemeStep.fromJson(s as Map<String, dynamic>)],
+  );
+
+  final String id;
+  final String code;
+  final Map<String, String> name;
+  final Map<String, String>? description;
+  final String calculator; // per_order | batch | tiered_target | platform_rates
+  final String? perOrder;
+  final int targetOrders;
+  final int requiredValidDays;
+  final String? missingOrderRate;
+  final String? reducedRate;
+  final bool bonusWhenReduced;
+  final bool marksWhenReduced;
+  final List<String> companyCovers; // maintenance | housing | gas | sim
+  final List<SchemeStep> steps;
+
+  String label(String lang) => name[lang] ?? name['ar'] ?? name.values.first;
+  String? about(String lang) => description == null ? null : description![lang] ?? description!['ar'];
+  List<SchemeStep> stepsOf(String kind) => [
+    for (final s in steps)
+      if (s.kind == kind) s,
+  ]..sort((a, b) => a.threshold.compareTo(b.threshold));
+}
+
+/// The driver's request to move to another scheme, decided at the office.
+class SchemeRequest {
+  SchemeRequest({
+    required this.id,
+    required this.requested,
+    required this.effectiveMonth,
+    required this.status,
+    this.driverNote,
+    this.adminNote,
+  });
+
+  factory SchemeRequest.fromJson(Map<String, dynamic> j) {
+    final r = Map<String, dynamic>.from(j['requested'] as Map? ?? {});
+    return SchemeRequest(
+      id: j['id'] as String,
+      requested: Map<String, String>.from(r['name'] as Map? ?? {}),
+      effectiveMonth: DateTime.parse(j['effective_month'] as String),
+      status: j['status'] as String,
+      driverNote: j['driver_note'] as String?,
+      adminNote: j['admin_note'] as String?,
+    );
+  }
+
+  final String id;
+  final Map<String, String> requested; // the scheme's name
+  final DateTime effectiveMonth;
+  final String status; // pending | approved | rejected
+  final String? driverNote;
+  final String? adminNote;
+
+  bool get pending => status == 'pending';
+  String requestedLabel(String lang) => requested[lang] ?? requested['ar'] ?? requested.values.firstOrNull ?? '';
+}
+
+/// GET /driver/schemes: his scheme this month (and next month when it changes), what his platform offers, and his
+/// latest request.
+class DriverSchemes {
+  DriverSchemes({this.current, this.nextMonth, required this.offered, this.request});
+
+  factory DriverSchemes.fromJson(Map<String, dynamic> j) => DriverSchemes(
+    current: j['current'] == null ? null : PayScheme.fromJson(j['current'] as Map<String, dynamic>),
+    nextMonth: j['next_month'] == null ? null : PayScheme.fromJson(j['next_month'] as Map<String, dynamic>),
+    offered: [for (final s in j['schemes'] as List) PayScheme.fromJson(s as Map<String, dynamic>)],
+    request: j['request'] == null ? null : SchemeRequest.fromJson(j['request'] as Map<String, dynamic>),
+  );
+
+  final PayScheme? current;
+  final PayScheme? nextMonth;
+  final List<PayScheme> offered;
+  final SchemeRequest? request;
 }

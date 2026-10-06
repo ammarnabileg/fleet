@@ -67,6 +67,7 @@ class AppState extends ChangeNotifier {
   List<Fine> fines = [];
   PlatformStatus? statements;
   List<Payslip> payslips = [];
+  DriverSchemes? schemes;
   List<OutboxItem> queued = [];
   Map<String, dynamic> tracking = {};
   Object? lastError;
@@ -303,6 +304,7 @@ class AppState extends ChangeNotifier {
     fines = [];
     statements = null;
     payslips = [];
+    schemes = null;
   }
 
   // ---------------------------------------------------------------- data
@@ -378,6 +380,22 @@ class AppState extends ChangeNotifier {
   Future<void> loadPayslips() async => payslips = [
     for (final p in await api.get('/driver/payslips') as List) Payslip.fromJson(p as Map<String, dynamic>),
   ];
+
+  Future<void> loadSchemes() async =>
+      schemes = DriverSchemes.fromJson(await api.get('/driver/schemes') as Map<String, dynamic>);
+
+  /// Asks the office to move him to another scheme of his platform, from next month.
+  Future<void> requestScheme(String schemeId, {String? note}) async {
+    schemes = DriverSchemes.fromJson(
+      await api.post('/driver/scheme-requests', body: {'scheme_id': schemeId, 'note': ?note}) as Map<String, dynamic>,
+    );
+    notifyListeners();
+  }
+
+  Future<void> cancelSchemeRequest(String id) async {
+    schemes = DriverSchemes.fromJson(await api.delete('/driver/scheme-requests/$id') as Map<String, dynamic>);
+    notifyListeners();
+  }
 
   /// Something the home screen can live without (the maintenance list): a failure does not hold the rest.
   Future<void> _quietly(Future<void> Function() load) async {

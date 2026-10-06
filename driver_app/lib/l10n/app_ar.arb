@@ -476,5 +476,167 @@
   "saveAndSignIn": "حفظ والدخول",
   "validDayQuestion": "هل احتسب تطبيق المنصة هذا اليوم يوماً صالحاً؟",
   "validDayYes": "يوم صالح",
-  "validDayNo": "غير صالح"
+  "validDayNo": "غير صالح",
+  "paySchemes": "نظام الدفع",
+  "schemesIntro": "النظام يحدد كيف يُحسب راتبك من طلباتك. تقدر تطلب نظاماً آخر تعرضه منصتك، ويبدأ من أول الشهر التالي لو وافق المكتب.",
+  "schemeNow": "نظامك هذا الشهر",
+  "schemeNone": "لم يحدد المكتب نظامك بعد",
+  "schemeNextMonth": "من الشهر القادم: {name}",
+  "@schemeNextMonth": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeOthers": "الأنظمة الأخرى في منصتك",
+  "schemeAsk": "اطلب هذا النظام",
+  "schemeAskBody": "تطلب «{name}» من {month}. يراجعه المكتب ويصلك الرد هنا وعلى واتساب.",
+  "@schemeAskBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeNoteHint": "ملاحظة للمكتب (اختياري)",
+  "schemeSend": "إرسال الطلب",
+  "schemeSent": "أُرسل طلبك للمكتب",
+  "schemePending": "طلبك «{name}» من {month} بانتظار المكتب",
+  "@schemePending": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeApproved": "وافق المكتب: «{name}» من {month}",
+  "@schemeApproved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeRejected": "رفض المكتب طلبك «{name}»: {note}",
+  "@schemeRejected": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "note": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeCancel": "إلغاء الطلب",
+  "schemePerOrder": "سعر الطلب: {rate} د.ك",
+  "@schemePerOrder": {
+    "placeholders": {
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeBatchRates": "سعر الطلب حسب مستوى الباتش في الشهر:",
+  "schemeBatchRow": "باتش {level}: {rate} د.ك",
+  "@schemeBatchRow": {
+    "placeholders": {
+      "level": {
+        "type": "String"
+      },
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeReduced": "ينخفض إلى {rate} د.ك لكل طلبات الشهر لو فوّت Star Day أو وصلت علاماتك {marks}",
+  "@schemeReduced": {
+    "placeholders": {
+      "rate": {
+        "type": "String"
+      },
+      "marks": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeReducedStar": "ينخفض إلى {rate} د.ك لكل طلبات الشهر لو فوّت Star Day",
+  "@schemeReducedStar": {
+    "placeholders": {
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeReducedLoses": "في شهر السعر المخفض لا يُصرف البونص",
+  "schemeTiers": "بونص الشرائح (أعلى شريحة تصلها فقط):",
+  "schemeTierRow": "{orders} طلب: {amount} د.ك",
+  "@schemeTierRow": {
+    "placeholders": {
+      "orders": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeMarks": "خصم علامات الحضور:",
+  "schemeMarkRow": "{marks} علامات: {amount} د.ك",
+  "@schemeMarkRow": {
+    "placeholders": {
+      "marks": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeTarget": "التارجت: {orders} طلب و{days} يوم صالح في الشهر",
+  "@schemeTarget": {
+    "placeholders": {
+      "orders": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeMissing": "كل طلب ناقص عن التارجت يُخصم {rate} د.ك",
+  "@schemeMissing": {
+    "placeholders": {
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeNoMissing": "لا خصم على الطلبات الناقصة عن التارجت",
+  "schemeCovers": "على الشركة: {items}",
+  "@schemeCovers": {
+    "placeholders": {
+      "items": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeCoversNone": "المصاريف عليك: الصيانة والسكن والبنزين والشريحة",
+  "schemePlatformRates": "حسب قاعدة المنصة: راتب أساسي وأسعار الشركة",
+  "expense_maintenance": "الصيانة",
+  "expense_housing": "السكن",
+  "expense_gas": "البنزين",
+  "expense_sim": "الشريحة",
+  "schemeChoose": "نظام الدفع",
+  "schemeChooseHint": "اختر النظام الذي تشتغل عليه. يراجعه المكتب مع تسجيلك، وتقدر تطلب تغييره لاحقاً من التطبيق."
 }

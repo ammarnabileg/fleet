@@ -852,4 +852,145 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get validDayNo => 'Not valid';
+
+  @override
+  String get paySchemes => 'Pay scheme';
+
+  @override
+  String get schemesIntro =>
+      'Your scheme decides how your salary is worked out from your orders. You can ask for another scheme your platform offers; it starts on the first of next month if the office agrees.';
+
+  @override
+  String get schemeNow => 'Your scheme this month';
+
+  @override
+  String get schemeNone => 'The office has not set your scheme yet';
+
+  @override
+  String schemeNextMonth(String name) {
+    return 'From next month: $name';
+  }
+
+  @override
+  String get schemeOthers => 'Other schemes on your platform';
+
+  @override
+  String get schemeAsk => 'Ask for this scheme';
+
+  @override
+  String schemeAskBody(String name, String month) {
+    return 'You are asking for “$name” from $month. The office reviews it and you get the answer here and on WhatsApp.';
+  }
+
+  @override
+  String get schemeNoteHint => 'A note for the office (optional)';
+
+  @override
+  String get schemeSend => 'Send the request';
+
+  @override
+  String get schemeSent => 'Your request was sent to the office';
+
+  @override
+  String schemePending(String name, String month) {
+    return 'Your request for “$name” from $month is waiting for the office';
+  }
+
+  @override
+  String schemeApproved(String name, String month) {
+    return 'Approved: “$name” from $month';
+  }
+
+  @override
+  String schemeRejected(String name, String note) {
+    return 'The office turned down “$name”: $note';
+  }
+
+  @override
+  String get schemeCancel => 'Cancel the request';
+
+  @override
+  String schemePerOrder(String rate) {
+    return 'Per order: $rate KWD';
+  }
+
+  @override
+  String get schemeBatchRates => 'Price per order by the month\'s batch level:';
+
+  @override
+  String schemeBatchRow(String level, String rate) {
+    return 'Batch $level: $rate KWD';
+  }
+
+  @override
+  String schemeReduced(String rate, String marks) {
+    return 'Drops to $rate KWD for every order of the month if you miss a Star Day or reach $marks marks';
+  }
+
+  @override
+  String schemeReducedStar(String rate) {
+    return 'Drops to $rate KWD for every order of the month if you miss a Star Day';
+  }
+
+  @override
+  String get schemeReducedLoses => 'A reduced month pays no tier bonus';
+
+  @override
+  String get schemeTiers => 'Tier bonus (only the highest tier you reach):';
+
+  @override
+  String schemeTierRow(String orders, String amount) {
+    return '$orders orders: $amount KWD';
+  }
+
+  @override
+  String get schemeMarks => 'Attendance marks deduction:';
+
+  @override
+  String schemeMarkRow(String marks, String amount) {
+    return '$marks marks: $amount KWD';
+  }
+
+  @override
+  String schemeTarget(String orders, String days) {
+    return 'Target: $orders orders and $days valid days a month';
+  }
+
+  @override
+  String schemeMissing(String rate) {
+    return 'Each order short of the target deducts $rate KWD';
+  }
+
+  @override
+  String get schemeNoMissing => 'No deduction for orders short of the target';
+
+  @override
+  String schemeCovers(String items) {
+    return 'The company pays: $items';
+  }
+
+  @override
+  String get schemeCoversNone => 'You pay the expenses: maintenance, housing, gas and SIM';
+
+  @override
+  String get schemePlatformRates => 'The platform\'s own rule: a basic salary and the company\'s rates';
+
+  @override
+  String get expense_maintenance => 'maintenance';
+
+  @override
+  String get expense_housing => 'housing';
+
+  @override
+  String get expense_gas => 'gas';
+
+  @override
+  String get expense_sim => 'SIM';
+
+  @override
+  String get schemeChoose => 'Pay scheme';
+
+  @override
+  String get schemeChooseHint =>
+      'Choose the scheme you work on. The office reviews it with your registration, and you can ask to change it later from the app.';
 }

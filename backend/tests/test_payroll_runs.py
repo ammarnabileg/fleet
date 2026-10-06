@@ -463,6 +463,7 @@ class _S:
 
     def __init__(self, **kw):
         self.working_days = self.valid_days = self.orders = self.hours = None
+        self.batch_level = self.attendance_marks = self.star_day_failed = None
         for k in ("bonus", "tips", "cancelled_orders", "platform_deductions", "late", "cash_shortage"):
             setattr(self, k, Decimal(0))
         self.__dict__.update(kw)

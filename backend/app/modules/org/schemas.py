@@ -72,7 +72,7 @@ class DriverSignInSettings(_Section):
 
 # the driver app's screens an office may hide; sign-in, the day's start and end (custody, odometer, tracking),
 # the self-registration and the phone permissions are not here: the app does not work without them
-APP_SCREENS = ("daily_report", "cash", "maintenance", "accidents", "fines", "statement", "payslips")
+APP_SCREENS = ("daily_report", "cash", "maintenance", "accidents", "fines", "statement", "payslips", "schemes")
 LOCKED_SCREENS = ("sign_in", "day", "onboarding", "permissions")
 
 

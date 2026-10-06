@@ -70,7 +70,19 @@ MODULES: list[tuple[str, list[Permission]]] = [
     ("accidents", _module("accidents", "view", "create", "update", "approve", "export", sensitive=("approve",))),
     ("fines", _module("fines", "view", "manage")),
     ("finance", _module("finance", "view", "create", "approve", "export", sensitive=("approve",))),
-    ("payroll", _module("payroll", "view", "prepare", "approve", "unlock", "export", sensitive=("approve", "unlock"))),
+    (
+        "payroll",
+        _module(
+            "payroll",
+            "view",
+            "prepare",
+            "approve",
+            "unlock",
+            "export",
+            "schemes",  # pay schemes, who is on which, and the drivers' requests to change
+            sensitive=("approve", "unlock", "schemes"),
+        ),
+    ),
     ("deductions", _module("deductions", "view", "manage", sensitive=("manage",))),
     ("leaves", _module("leaves", "view", "approve")),
     ("approvals", _module("approvals", "view", "workflows")),

@@ -395,6 +395,85 @@ void main() {
   );
 
   test(
+    'pay schemes: the office puts him on one, he reads the terms and asks for another, the office approves',
+    () async {
+      final admin = await signedInAdmin();
+      final n = DateTime.now().millisecondsSinceEpoch % 10000000;
+      final platform = await admin.call('POST', '/payroll/platforms', {
+        'code': 's$n',
+        'name': {'ar': 'منصة الأنظمة', 'en': 'Schemes platform'},
+      });
+      final fixed = await admin.call('POST', '/payroll/schemes', {
+        'platform_id': platform['id'],
+        'code': 'fixed',
+        'name': {'ar': 'سعر ثابت', 'en': 'Fixed'},
+        'calculator': 'per_order',
+        'per_order': '0.350',
+        'company_covers': ['maintenance', 'sim'],
+      });
+      final tiers = await admin.call('POST', '/payroll/schemes', {
+        'platform_id': platform['id'],
+        'code': 'tiers',
+        'name': {'ar': 'الشرائح', 'en': 'Tiers'},
+        'calculator': 'tiered_target',
+        'per_order': '0.350',
+        'reduced_rate': '0.200',
+        'missing_order_rate': '0.350',
+        'steps': [
+          {'kind': 'tier_bonus', 'threshold': 450, 'amount': '50.000'},
+          {'kind': 'marks_deduction', 'threshold': 3, 'amount': '10.000'},
+          {'kind': 'marks_reduce', 'threshold': 5},
+        ],
+      });
+      final driver = await admin.call('POST', '/employees', {
+        'employee_number': 'S$n',
+        'name': {'ar': 'سائق الأنظمة', 'en': 'Schemes Driver'},
+        'company_id': await companyId(admin),
+        'is_driver': true,
+        'phone': '+9656${n.toString().padLeft(7, '0')}',
+        'platform_id': platform['id'],
+      });
+      final month = DateTime.now().toIso8601String().substring(0, 7);
+      await admin.call('POST', '/payroll/schemes/${fixed['id']}/assign', {
+        'employee_ids': [driver['id']],
+        'month': '$month-01',
+      });
+      await admin.call('PUT', '/employees/${driver['id']}/app-access', {'app_access': 'active'});
+      final link = await admin.call('POST', '/employees/${driver['id']}/activation-link', {
+        'channel': 'manual',
+        'onboarding': false,
+      });
+      final db = await testDb();
+      final state = appAgainstBackend(db);
+      await state.activate(AppState.activationToken(Uri.parse(link['url'] as String))!);
+
+      // ---- the app reads the server's own JSON: amounts, thresholds, who pays what
+      await state.loadSchemes();
+      final v = state.schemes!;
+      expect((v.current!.code, v.current!.perOrder), ('fixed', '0.350'));
+      expect(v.current!.companyCovers, ['maintenance', 'sim']);
+      final offered = v.offered.firstWhere((s) => s.code == 'tiers');
+      expect([for (final s in offered.stepsOf('tier_bonus')) (s.threshold, s.amount)], [(450, '50.000')]);
+      expect(offered.stepsOf('marks_reduce').single.amount, isNull);
+      expect(offered.reducedRate, '0.200');
+
+      // ---- he asks for the tiers from next month; the office approves; the app shows the change
+      await state.requestScheme(tiers['id'] as String, note: 'من الشهر الجاي');
+      expect((state.schemes!.request!.status, state.schemes!.request!.requestedLabel('ar')), ('pending', 'الشرائح'));
+      final pending = (await admin.call('GET', '/payroll/scheme-requests?status=pending&limit=500') as List).firstWhere(
+        (r) => r['employee']['id'] == driver['id'],
+      );
+      await admin.call('POST', '/payroll/scheme-requests/${pending['id']}/approve', {'version': pending['version']});
+      await state.loadSchemes();
+      expect(state.schemes!.request!.status, 'approved');
+      expect(state.schemes!.nextMonth!.code, 'tiers');
+      expect(state.schemes!.current!.code, 'fixed', reason: 'this month stays as it was');
+    },
+    skip: backend == null ? 'set BACKEND_URL to run against a real backend' : null,
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test(
     'monthly statement from the app, reviewed, then the payroll and the payslip in the platform order',
     () async {
       final admin = await signedInAdmin();

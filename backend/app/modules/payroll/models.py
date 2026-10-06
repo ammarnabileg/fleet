@@ -123,6 +123,8 @@ class Statement(Base):
         CheckConstraint("cash_shortage >= 0", name="cash_shortage"),
         CheckConstraint("status <> 'rejected' OR review_note IS NOT NULL", name="rejected"),
         CheckConstraint("submitted_by_device IS NOT NULL OR submitted_by_user IS NOT NULL", name="source"),
+        CheckConstraint("batch_level BETWEEN 1 AND 20", name="batch_level"),
+        CheckConstraint("attendance_marks >= 0", name="attendance_marks"),
         Index(
             "statements_one_per_month_idx",
             "employee_id",
@@ -152,6 +154,10 @@ class Statement(Base):
     platform_deductions: Mapped[Decimal] = mapped_column(Numeric(12, 3), server_default=text("0"))
     late: Mapped[Decimal] = mapped_column(Numeric(12, 3), server_default=text("0"))
     cash_shortage: Mapped[Decimal] = mapped_column(Numeric(12, 3), server_default=text("0"))
+    # monthly facts a scheme needs, from the platform's partner report (the reviewer enters them)
+    batch_level: Mapped[int | None] = mapped_column(SmallInteger)
+    attendance_marks: Mapped[int | None] = mapped_column(SmallInteger)
+    star_day_failed: Mapped[bool | None] = mapped_column(Boolean)
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     submitted_by_device: Mapped[int | None] = mapped_column(BigInteger)
     submitted_by_user: Mapped[int | None] = mapped_column(BigInteger)
@@ -221,6 +227,8 @@ class Line(Base):
     deductions: Mapped[Decimal] = mapped_column(Numeric(12, 3))
     net: Mapped[Decimal] = mapped_column(Numeric(12, 3))
     flags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    scheme_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.schemes.id"))
+    breakdown: Mapped[list] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))  # how the scheme got the pay
 
 
 class LineDeduction(Base):
@@ -239,3 +247,135 @@ class LineDeduction(Base):
     deduction_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("payroll.deductions.id"), primary_key=True)
     due: Mapped[Decimal] = mapped_column(Numeric(12, 3))
     deducted: Mapped[Decimal] = mapped_column(Numeric(12, 3))
+
+
+class Scheme(Base):
+    """A pay scheme a platform offers (per order, by batch level, base price with tier bonuses and penalties): its
+    calculator and its numbers. Never changed once a driver is on it: a new price is a new scheme."""
+
+    __tablename__ = "schemes"
+    __table_args__ = (
+        UniqueConstraint("platform_id", "code", name="schemes_platform_id_key"),
+        CheckConstraint("code ~ '^[a-z][a-z0-9_]{1,30}$'", name="code"),
+        CheckConstraint("calculator IN ('platform_rates', 'per_order', 'batch', 'tiered_target')", name="calculator"),
+        CheckConstraint("per_order >= 0", name="per_order"),
+        CheckConstraint("target_orders >= 0", name="target_orders"),
+        CheckConstraint("required_valid_days BETWEEN 0 AND 31", name="required_valid_days"),
+        CheckConstraint("missing_order_rate >= 0", name="missing_order_rate"),
+        CheckConstraint("reduced_rate >= 0", name="reduced_rate"),
+        CheckConstraint(
+            "company_covers <@ ARRAY['maintenance', 'housing', 'gas', 'sim']::text[]", name="company_covers"
+        ),
+        CheckConstraint(
+            "(calculator NOT IN ('per_order', 'tiered_target') OR per_order IS NOT NULL) AND "
+            "(calculator <> 'tiered_target' OR reduced_rate IS NOT NULL)",
+            name="rates",
+        ),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    platform_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("payroll.platforms.id"))
+    code: Mapped[str] = mapped_column(Text)
+    name: Mapped[dict] = mapped_column(JSONB)
+    description: Mapped[dict | None] = mapped_column(JSONB)
+    calculator: Mapped[str] = mapped_column(Text)
+    per_order: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    target_orders: Mapped[int] = mapped_column(Integer, server_default=text("420"))
+    required_valid_days: Mapped[int] = mapped_column(SmallInteger, server_default=text("28"))
+    missing_order_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    reduced_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    bonus_when_reduced: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    marks_when_reduced: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    floor_at_zero: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    company_covers: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    driver_selectable: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    created_by: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+
+
+class SchemeStep(Base):
+    """A list-shaped rule of a scheme: a threshold and what it gives (a batch level's price per order, a tier's
+    bonus from a number of orders, a deduction from a number of attendance marks, or the reduced price)."""
+
+    __tablename__ = "scheme_steps"
+    __table_args__ = (
+        CheckConstraint("kind IN ('batch_rate', 'tier_bonus', 'marks_deduction', 'marks_reduce')", name="kind"),
+        CheckConstraint("threshold >= 0", name="threshold"),
+        CheckConstraint("amount >= 0", name="amount"),
+        CheckConstraint("(kind = 'marks_reduce') = (amount IS NULL)", name="amount_kind"),
+        SCHEMA,
+    )
+
+    scheme_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("payroll.schemes.id", ondelete="CASCADE"), primary_key=True
+    )
+    kind: Mapped[str] = mapped_column(Text, primary_key=True)
+    threshold: Mapped[Decimal] = mapped_column(Numeric(12, 3), primary_key=True)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+
+
+class SchemeChangeRequest(Base):
+    """A driver asks from the app to move to another of his platform's schemes from the next month."""
+
+    __tablename__ = "scheme_change_requests"
+    __table_args__ = (
+        CheckConstraint("extract(day FROM effective_month) = 1", name="month"),
+        CheckConstraint("status IN ('pending', 'approved', 'rejected', 'cancelled')", name="status"),
+        CheckConstraint("requested_scheme_id IS DISTINCT FROM current_scheme_id", name="change"),
+        CheckConstraint("(status IN ('approved', 'rejected')) = (decided_at IS NOT NULL)", name="decided"),
+        Index(
+            "scheme_change_requests_employee_id_idx",
+            "employee_id",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+        ),
+        Index("scheme_change_requests_status_idx", "status", "created_at"),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    company_id: Mapped[int] = mapped_column(BigInteger)
+    current_scheme_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.schemes.id"))
+    requested_scheme_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("payroll.schemes.id"))
+    effective_month: Mapped[date] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
+    driver_note: Mapped[str | None] = mapped_column(Text)
+    admin_note: Mapped[str | None] = mapped_column(Text)
+    submitted_by_device: Mapped[int | None] = mapped_column(BigInteger)
+    decided_by: Mapped[int | None] = mapped_column(BigInteger)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+
+
+class DriverScheme(Base):
+    """Which scheme a driver is on, month by month (valid_to exclusive, none: still on it). The database refuses two
+    rows for the same driver and month (an exclusion constraint in the migration)."""
+
+    __tablename__ = "driver_schemes"
+    __table_args__ = (
+        CheckConstraint(
+            "extract(day FROM valid_from) = 1 AND "
+            "(valid_to IS NULL OR (extract(day FROM valid_to) = 1 AND valid_to > valid_from))",
+            name="month",
+        ),
+        CheckConstraint("source IN ('office', 'registration', 'request', 'import')", name="source"),
+        Index("driver_schemes_scheme_id_idx", "scheme_id"),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    scheme_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("payroll.schemes.id"))
+    valid_from: Mapped[date] = mapped_column(Date)
+    valid_to: Mapped[date | None] = mapped_column(Date)
+    source: Mapped[str] = mapped_column(Text)
+    request_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.scheme_change_requests.id"))
+    set_by: Mapped[int | None] = mapped_column(BigInteger)
+    set_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

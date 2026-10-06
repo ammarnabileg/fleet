@@ -15,7 +15,8 @@ from app.modules.identity.service import (
     require_permission,
 )
 from app.modules.org import service as org
-from app.modules.payroll import columns, export, platforms, runs, schemas, service, statements
+from app.modules.payroll import columns, export, platforms, runs, schemas, schemes, service, statements
+from app.modules.people import service as people
 
 router = APIRouter(prefix="/api/v1", tags=["payroll"])
 
@@ -292,3 +293,140 @@ def export_run(
 def my_payslips(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
     """The driver's approved payslips, each in his platform's sheet order (FR-PAY-06)."""
     return runs.payslips(db, device.employee_id)
+
+
+# ------------------------------------------------------------------ pay schemes (docs/payroll-schemes.md)
+
+
+@router.get("/payroll/schemes", response_model=list[schemas.SchemeOut])
+def list_schemes(
+    platform_id: int | None = None,
+    _: Principal = Depends(require_permission("payroll.view")),
+    db: Session = Depends(get_session),
+):
+    return schemes.list_schemes(db, platform_id=platform_id)
+
+
+@router.post("/payroll/schemes", response_model=schemas.SchemeOut, status_code=201)
+def create_scheme(
+    body: schemas.SchemeIn,
+    principal: Principal = Depends(require_permission("payroll.schemes")),
+    db: Session = Depends(get_session),
+):
+    return schemes.create(db, body.model_dump(), actor_user_id=principal.user_id)
+
+
+@router.patch("/payroll/schemes/{public_id}", response_model=schemas.SchemeOut)
+def update_scheme(
+    public_id: uuid.UUID,
+    body: schemas.SchemeUpdateIn,
+    principal: Principal = Depends(require_permission("payroll.schemes")),
+    db: Session = Depends(get_session),
+):
+    changes = body.model_dump(exclude_unset=True, exclude={"version"})
+    return schemes.update(db, public_id, version=body.version, changes=changes, actor_user_id=principal.user_id)
+
+
+@router.post("/payroll/schemes/{public_id}/assign", response_model=schemas.AssignSchemeOut)
+def assign_scheme(
+    public_id: uuid.UUID,
+    body: schemas.AssignSchemeIn,
+    principal: Principal = Depends(require_permission("payroll.schemes")),
+    db: Session = Depends(get_session),
+):
+    """Drivers on this scheme from a month on: a first assignment, or everyone moved to a new price."""
+    return schemes.assign_many(
+        db, public_id, body.employee_ids, body.month, actor_user_id=principal.user_id, **principal.scope
+    )
+
+
+@router.get("/employees/{public_id}/schemes", response_model=list[schemas.SchemeHistoryOut])
+def scheme_history(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("payroll.view")),
+    db: Session = Depends(get_session),
+):
+    return schemes.history(db, people.ref_by_public_id(db, public_id, **principal.scope).id)
+
+
+@router.get("/payroll/scheme-requests", response_model=list[schemas.SchemeRequestOut])
+def scheme_requests(
+    status: Literal["pending", "approved", "rejected", "cancelled"] | None = None,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    principal: Principal = Depends(require_permission("payroll.view")),
+    db: Session = Depends(get_session),
+):
+    return schemes.list_requests(db, status=status, limit=limit, offset=offset, **principal.scope)
+
+
+@router.get("/payroll/scheme-requests/counts")
+def scheme_request_counts(
+    principal: Principal = Depends(require_permission("payroll.view")), db: Session = Depends(get_session)
+):
+    return schemes.request_counts(db, **principal.scope)
+
+
+@router.post("/payroll/scheme-requests/{public_id}/approve", response_model=schemas.SchemeRequestOut)
+def approve_scheme_request(
+    public_id: uuid.UUID,
+    body: schemas.ApproveSchemeRequestIn,
+    principal: Principal = Depends(require_permission("payroll.schemes")),
+    db: Session = Depends(get_session),
+):
+    """The driver moves to the scheme he asked for, from the first month without an approved payroll."""
+    return schemes.approve(
+        db,
+        public_id,
+        version=body.version,
+        month=body.month,
+        note=body.note,
+        actor_user_id=principal.user_id,
+        **principal.scope,
+    )
+
+
+@router.post("/payroll/scheme-requests/{public_id}/reject", response_model=schemas.SchemeRequestOut)
+def reject_scheme_request(
+    public_id: uuid.UUID,
+    body: schemas.RejectSchemeRequestIn,
+    principal: Principal = Depends(require_permission("payroll.schemes")),
+    db: Session = Depends(get_session),
+):
+    return schemes.reject(
+        db, public_id, version=body.version, note=body.note, actor_user_id=principal.user_id, **principal.scope
+    )
+
+
+@router.get("/driver/schemes", response_model=schemas.DriverSchemesOut, dependencies=[Depends(org.screen("schemes"))])
+def my_schemes(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
+    """His platform's schemes with their terms, his scheme this month and next, and his latest request."""
+    return schemes.driver_view(db, device.employee_id)
+
+
+@router.post(
+    "/driver/scheme-requests",
+    response_model=schemas.DriverSchemesOut,
+    status_code=201,
+    dependencies=[Depends(org.screen("schemes"))],
+)
+def ask_scheme(
+    body: schemas.SchemeRequestIn,
+    device: DevicePrincipal = Depends(require_device),
+    db: Session = Depends(get_session),
+):
+    """A request to move to another scheme from next month: the office decides."""
+    return schemes.request_change(
+        db, device.employee_id, device_id=device.device_id, scheme_public_id=body.scheme_id, note=body.note
+    )
+
+
+@router.delete(
+    "/driver/scheme-requests/{public_id}",
+    response_model=schemas.DriverSchemesOut,
+    dependencies=[Depends(org.screen("schemes"))],
+)
+def cancel_scheme_request(
+    public_id: uuid.UUID, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
+):
+    return schemes.cancel(db, device.employee_id, public_id)

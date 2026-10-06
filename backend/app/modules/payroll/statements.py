@@ -25,11 +25,12 @@ from app.modules.daily_ops import service as daily_ops
 from app.modules.files import service as files
 from app.modules.fleet import service as fleet
 from app.modules.identity import service as identity
-from app.modules.payroll import platforms
+from app.modules.payroll import calculators, platforms, schemes
 from app.modules.payroll.models import Run, Statement, StatementFile
 from app.modules.people import service as people
 
-COUNTS = ("working_days", "valid_days", "orders", "hours")
+# the month's counts, and what a pay scheme needs from the platform's partner report (entered by the reviewer)
+COUNTS = ("working_days", "valid_days", "orders", "hours", "batch_level", "attendance_marks", "star_day_failed")
 AMOUNTS = ("bonus", "tips", "cancelled_orders", "platform_deductions", "late", "cash_shortage")
 
 
@@ -106,9 +107,19 @@ def _out(db: Session, rows: list[Statement], *, with_system: bool = False) -> li
             shots.setdefault(f.statement_id, []).append(f.sha256)
     locked = locked_months(db, {(s.company_id, s.month) for s in rows})
     system: dict[tuple[int, date], dict] = {}
+    on: dict[int, dict | None] = {}
     if with_system:
         for s in rows:
             system[(s.employee_id, s.month)] = system_counts(db, [s.employee_id], s.month)[s.employee_id]
+            sc = schemes.scheme_of(db, s.employee_id, s.month)
+            calc = calculators.CALCULATORS.get(sc.calculator) if sc else None
+            # the figures the reviewer enters from the partner report for this driver's scheme
+            on[s.id] = sc and {
+                "id": str(sc.public_id),
+                "name": sc.name,
+                "calculator": sc.calculator,
+                "needs": [f for f in (calc.needs if calc else ()) if f not in ("orders", "valid_days")],
+            }
     return [
         {
             "id": str(s.public_id),
@@ -121,6 +132,7 @@ def _out(db: Session, rows: list[Statement], *, with_system: bool = False) -> li
             **{k: getattr(s, k) for k in COUNTS + AMOUNTS},
             "screenshots": shots.get(s.id, []),
             "system": system.get((s.employee_id, s.month), {}),
+            "scheme": on.get(s.id),
             "submitted_at": s.submitted_at,
             "from_driver": s.submitted_by_device is not None,
             "reviewed_at": s.reviewed_at,

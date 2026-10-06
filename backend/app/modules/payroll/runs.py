@@ -1,6 +1,7 @@
 """The monthly payroll (BRD FR-PAY-01..06): one run per company and month, one line per employee at work.
 
-A line, in the order the salary sheet shows it:
+A line, in the order the salary sheet shows it (for a driver on a pay scheme, the scheme's calculator gives the
+earnings and its penalties instead of the platform's rates and invalid days: docs/payroll-schemes.md):
 
     earnings    = basic salary (when the platform's rule pays it) + orders x rate + hours x rate + valid days x rate
                   + bonus + tips
@@ -35,7 +36,8 @@ from app.core.events import emit
 from app.modules.audit import service as audit
 from app.modules.identity import service as identity
 from app.modules.org import service as org
-from app.modules.payroll import platforms, statements
+from app.modules.payroll import calculators, platforms, schemes, statements
+from app.modules.payroll.calculators import Month, Rules
 from app.modules.payroll.columns import BY_CODE, COLUMNS
 from app.modules.payroll.models import Deduction, Line, LineDeduction, Platform, Run, Statement
 from app.modules.payroll.service import month_cap, schedule
@@ -43,7 +45,15 @@ from app.modules.people import service as people
 
 FILS = Decimal("0.001")
 ZERO = Decimal(0)
-BLOCKING = ("statement_missing", "statement_pending", "daily_pending", "net_negative")
+BLOCKING = (
+    "statement_missing",
+    "statement_pending",
+    "daily_pending",
+    "scheme_missing",
+    "figures_missing",
+    "net_negative",
+)
+SCHEME_CELLS = ("orders_pay", "tier_bonus", "missing_target", "marks_deduction", "uncovered_penalty")
 # installment deductions by source -> the salary-sheet column they fill
 SOURCE_COLUMN = {
     "accident": "car_repair",
@@ -76,6 +86,7 @@ class Computed:
     net: Decimal
     flags: list[str] = field(default_factory=list)
     dues: list[Due] = field(default_factory=list)
+    breakdown: list[dict] = field(default_factory=list)  # the scheme's items: what the payslip explains
 
 
 def compute(
@@ -88,8 +99,13 @@ def compute(
     cap_percent: Decimal,
     cap_base: str,
     name_lang: str,
+    scheme_name: dict | None = None,
+    rules: Rules | None = None,
+    needs_scheme: bool = False,
 ) -> Computed:
-    """One salary line. Pure: everything it needs is passed in."""
+    """One salary line. Pure: everything it needs is passed in. With `rules` (the driver's scheme this month) the
+    scheme's calculator gives the earnings and the penalties; `needs_scheme`: his platform has schemes, so a driver
+    on none is flagged rather than paid on the platform's rates."""
     approved = statement if statement is not None and statement.status == "approved" else None
     basic = money(profile["basic_salary"])
     pay_basic = platform.pay_basic if platform else True
@@ -106,15 +122,35 @@ def compute(
         valid_days = system["valid_days"]
     items = {k: money(getattr(approved, k)) if approved else ZERO for k in ("bonus", "tips", *MONTH_ITEMS)}
 
-    gross = basic if pay_basic else ZERO
-    if platform:
+    on_scheme = rules is not None and rules.calculator != "platform_rates"
+    month = Month(
+        orders=orders or 0,
+        valid_days=valid_days,
+        batch_level=approved.batch_level if approved else None,
+        attendance_marks=approved.attendance_marks if approved else None,
+        star_day_failed=approved.star_day_failed if approved else None,
+    )
+    scheme_cells = dict.fromkeys(SCHEME_CELLS, ZERO)
+    breakdown: list[dict] = []
+    penalties = ZERO
+    lacking = calculators.missing(calculators.CALCULATORS[rules.calculator], month) if on_scheme else []
+
+    gross = basic if pay_basic and not on_scheme else ZERO  # a scheme is the whole of the platform's pay
+    if on_scheme and not lacking:
+        result = calculators.run(rules, month)
+        gross += result.pay
+        penalties = result.penalties
+        for item in result.items:
+            scheme_cells[item.code] = scheme_cells.get(item.code, ZERO) + abs(item.amount)
+            breakdown.append({"code": item.code, "amount": str(item.amount), "why": item.why})
+    elif platform and not on_scheme:
         gross += money(platform.per_order * (orders or 0))
         gross += money(platform.per_hour * (hours or 0))
         gross += money(platform.per_valid_day * (valid_days or 0))
     gross += items["bonus"] + items["tips"]
 
     invalid = ZERO
-    if platform and platform.invalid_days != "none" and valid_days is not None:
+    if platform and not on_scheme and platform.invalid_days != "none" and valid_days is not None:
         days = max(0, working_days - valid_days)
         rate = (
             money(basic / platform.day_divisor)
@@ -123,7 +159,7 @@ def compute(
         )
         invalid = money(days * rate)
     month_items = sum((items[k] for k in MONTH_ITEMS), ZERO)
-    earned = gross - invalid
+    earned = gross - invalid - penalties
     room = max(ZERO, earned - month_items)
     allowed = min(month_cap(basic if cap_base == "basic" else max(earned, ZERO), cap_percent), room)
     for d in sorted(dues, key=lambda x: (x.deduction.start_month, x.deduction.id)):
@@ -134,7 +170,7 @@ def compute(
         taken[SOURCE_COLUMN[d.deduction.source_type]] += d.deducted
     installments = sum(taken.values(), ZERO)
     carried = sum((d.due - d.deducted for d in dues), ZERO)
-    deductions = invalid + month_items + installments
+    deductions = invalid + penalties + month_items + installments
     net = gross - deductions
 
     flags = []
@@ -144,9 +180,13 @@ def compute(
         flags.append("statement_missing")
     elif needs_statement and approved is None:
         flags.append("statement_pending")
+    if needs_scheme and rules is None:
+        flags.append("scheme_missing")
+    if lacking:
+        flags.append("figures_missing")  # the reviewer enters them from the platform's report
     if earned - month_items < 0:
         flags.append("net_negative")
-    if pay_basic and not basic:
+    if pay_basic and not basic and not on_scheme:
         flags.append("no_basic_salary")
     if profile["payment_method"] != "cash" and not profile["iban"]:
         flags.append("no_iban")
@@ -169,6 +209,10 @@ def compute(
         "orders": orders,
         "working_days": working_days,
         "valid_days": valid_days,
+        "scheme": (scheme_name or {}).get(name_lang) or next(iter((scheme_name or {}).values()), None),
+        "batch_level": month.batch_level,
+        "attendance_marks": month.attendance_marks,
+        **scheme_cells,
         "bonus": items["bonus"],
         "tips": items["tips"],
         "gross": gross,
@@ -182,7 +226,7 @@ def compute(
     for code, value in cells.items():  # every amount with its three decimals, as the sheet shows it
         if value is not None and BY_CODE[code].kind == "money":
             cells[code] = money(value)
-    return Computed(cells, money(gross), money(deductions), money(net), flags, dues)
+    return Computed(cells, money(gross), money(deductions), money(net), flags, dues, breakdown)
 
 
 def _json(cells: dict) -> dict:
@@ -257,11 +301,17 @@ def _fill(db: Session, run: Run) -> None:
     system = statements.system_counts(db, ids, month)
     dues = dues_for(db, ids, month)
     plats = platforms.all_by_id(db)
+    assigned = schemes.for_month(db, ids, month)
+    rules = schemes.rules_for(db, {s.id: s for s in assigned.values()})
+    with_schemes = schemes.platforms_with_schemes(db)
     lang = i18n.default_language(db).code
     totals = {"lines": 0, "gross": ZERO, "deductions": ZERO, "net": ZERO, "blocking": 0, "by_platform": {}}
     for p in profiles:
         platform = plats.get(p["platform_id"])
         st = found.get(p["id"])
+        scheme = assigned.get(p["id"])
+        if scheme is not None and scheme.platform_id != p["platform_id"]:
+            scheme = None  # he moved platform: his old platform's scheme does not apply
         c = compute(
             p,
             platform,
@@ -271,6 +321,9 @@ def _fill(db: Session, run: Run) -> None:
             cap_percent=run.cap_percent,
             cap_base=run.cap_base,
             name_lang=lang,
+            scheme_name=scheme.name if scheme else None,
+            rules=rules.get(scheme.id) if scheme else None,
+            needs_scheme=bool(p["is_driver"] and p["platform_id"] in with_schemes),
         )
         line = Line(
             run_id=run.id,
@@ -282,6 +335,8 @@ def _fill(db: Session, run: Run) -> None:
             deductions=c.deductions,
             net=c.net,
             flags=c.flags,
+            scheme_id=scheme.id if scheme else None,
+            breakdown=c.breakdown,
         )
         db.add(line)
         db.flush()
@@ -341,6 +396,7 @@ def _out(db: Session, r: Run, *, lines: bool = False) -> dict:
                 "net": line.net,
                 "flags": list(line.flags),
                 "statement_id": sts.get(line.statement_id),
+                "breakdown": line.breakdown,
             }
             for line in rows
         ]

@@ -10,6 +10,7 @@ in the settings (FR-PAY-03), the rest moving to the next month (`month_deduction
 after legal advice (BR-16) and has no default.
 """
 
+import logging
 from collections.abc import Iterable
 from datetime import date
 from decimal import ROUND_DOWN, Decimal
@@ -24,8 +25,10 @@ from app.core.errors import AppError
 from app.core.events import emit
 from app.modules.audit import service as audit
 from app.modules.identity import service as identity
-from app.modules.payroll.models import Deduction, Platform
+from app.modules.payroll.models import Deduction, Platform, Scheme
 from app.modules.people import service as people
+
+log = logging.getLogger("fleet.payroll")
 
 CENT = Decimal("0.001")
 
@@ -34,6 +37,32 @@ def daily_fields(db: Session, platform_id: int | None) -> list[str] | None:
     """What a driver on this platform sends in his daily report (orders, cash, valid_day); None without a platform."""
     p = db.get(Platform, platform_id) if platform_id else None
     return list(p.daily_fields) if p else None
+
+
+def offered_schemes(db: Session, platform_id: int | None) -> list[dict]:
+    """The pay schemes a driver on this platform may choose (active, offered to drivers), with their terms."""
+    from app.modules.payroll import schemas, schemes
+
+    offered = schemes.list_schemes(db, platform_id=platform_id, offered_only=True) if platform_id else []
+    return [schemas.DriverSchemeOut.model_validate(s).model_dump(mode="json") for s in offered]
+
+
+def scheme_from_registration(db: Session, driver: people.EmployeeRef, scheme_public_id, *, actor_user_id: int) -> bool:
+    """In the caller's transaction: the scheme the driver chose in his self-registration, from this month, unless the
+    office already put him on one. False when it did, or when the choice no longer holds (the scheme was withdrawn or
+    his platform changed since he sent it): the registration is still approved, and his payroll line says he has no
+    scheme until the office sets one."""
+    from app.modules.payroll import schemes
+
+    if schemes.scheme_of(db, driver.id, month_start(today())) is not None:
+        return False
+    scheme = db.scalar(select(Scheme).where(Scheme.public_id == scheme_public_id))
+    offered = scheme is not None and scheme.is_active and scheme.driver_selectable
+    if not offered or scheme.platform_id != driver.platform_id:
+        log.info("registration scheme choice dropped for employee %s", driver.id)
+        return False
+    schemes.assign(db, driver, scheme, today(), source="registration", actor_user_id=actor_user_id)
+    return True
 
 
 def month_start(d: date) -> date:

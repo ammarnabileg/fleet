@@ -847,4 +847,145 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get validDayNo => 'غير صالح';
+
+  @override
+  String get paySchemes => 'نظام الدفع';
+
+  @override
+  String get schemesIntro =>
+      'النظام يحدد كيف يُحسب راتبك من طلباتك. تقدر تطلب نظاماً آخر تعرضه منصتك، ويبدأ من أول الشهر التالي لو وافق المكتب.';
+
+  @override
+  String get schemeNow => 'نظامك هذا الشهر';
+
+  @override
+  String get schemeNone => 'لم يحدد المكتب نظامك بعد';
+
+  @override
+  String schemeNextMonth(String name) {
+    return 'من الشهر القادم: $name';
+  }
+
+  @override
+  String get schemeOthers => 'الأنظمة الأخرى في منصتك';
+
+  @override
+  String get schemeAsk => 'اطلب هذا النظام';
+
+  @override
+  String schemeAskBody(String name, String month) {
+    return 'تطلب «$name» من $month. يراجعه المكتب ويصلك الرد هنا وعلى واتساب.';
+  }
+
+  @override
+  String get schemeNoteHint => 'ملاحظة للمكتب (اختياري)';
+
+  @override
+  String get schemeSend => 'إرسال الطلب';
+
+  @override
+  String get schemeSent => 'أُرسل طلبك للمكتب';
+
+  @override
+  String schemePending(String name, String month) {
+    return 'طلبك «$name» من $month بانتظار المكتب';
+  }
+
+  @override
+  String schemeApproved(String name, String month) {
+    return 'وافق المكتب: «$name» من $month';
+  }
+
+  @override
+  String schemeRejected(String name, String note) {
+    return 'رفض المكتب طلبك «$name»: $note';
+  }
+
+  @override
+  String get schemeCancel => 'إلغاء الطلب';
+
+  @override
+  String schemePerOrder(String rate) {
+    return 'سعر الطلب: $rate د.ك';
+  }
+
+  @override
+  String get schemeBatchRates => 'سعر الطلب حسب مستوى الباتش في الشهر:';
+
+  @override
+  String schemeBatchRow(String level, String rate) {
+    return 'باتش $level: $rate د.ك';
+  }
+
+  @override
+  String schemeReduced(String rate, String marks) {
+    return 'ينخفض إلى $rate د.ك لكل طلبات الشهر لو فوّت Star Day أو وصلت علاماتك $marks';
+  }
+
+  @override
+  String schemeReducedStar(String rate) {
+    return 'ينخفض إلى $rate د.ك لكل طلبات الشهر لو فوّت Star Day';
+  }
+
+  @override
+  String get schemeReducedLoses => 'في شهر السعر المخفض لا يُصرف البونص';
+
+  @override
+  String get schemeTiers => 'بونص الشرائح (أعلى شريحة تصلها فقط):';
+
+  @override
+  String schemeTierRow(String orders, String amount) {
+    return '$orders طلب: $amount د.ك';
+  }
+
+  @override
+  String get schemeMarks => 'خصم علامات الحضور:';
+
+  @override
+  String schemeMarkRow(String marks, String amount) {
+    return '$marks علامات: $amount د.ك';
+  }
+
+  @override
+  String schemeTarget(String orders, String days) {
+    return 'التارجت: $orders طلب و$days يوم صالح في الشهر';
+  }
+
+  @override
+  String schemeMissing(String rate) {
+    return 'كل طلب ناقص عن التارجت يُخصم $rate د.ك';
+  }
+
+  @override
+  String get schemeNoMissing => 'لا خصم على الطلبات الناقصة عن التارجت';
+
+  @override
+  String schemeCovers(String items) {
+    return 'على الشركة: $items';
+  }
+
+  @override
+  String get schemeCoversNone => 'المصاريف عليك: الصيانة والسكن والبنزين والشريحة';
+
+  @override
+  String get schemePlatformRates => 'حسب قاعدة المنصة: راتب أساسي وأسعار الشركة';
+
+  @override
+  String get expense_maintenance => 'الصيانة';
+
+  @override
+  String get expense_housing => 'السكن';
+
+  @override
+  String get expense_gas => 'البنزين';
+
+  @override
+  String get expense_sim => 'الشريحة';
+
+  @override
+  String get schemeChoose => 'نظام الدفع';
+
+  @override
+  String get schemeChooseHint =>
+      'اختر النظام الذي تشتغل عليه. يراجعه المكتب مع تسجيلك، وتقدر تطلب تغييره لاحقاً من التطبيق.';
 }

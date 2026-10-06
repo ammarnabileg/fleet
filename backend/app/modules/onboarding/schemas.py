@@ -50,6 +50,7 @@ class Draft(BaseModel):
     documents: list[DocumentEntry] = Field(default_factory=list, max_length=10)
     vehicle: VehicleEntry | None = None
     no_vehicle: bool = False  # the driver does not hold a vehicle yet
+    scheme_id: Annotated[str, StringConstraints(pattern=r"^[0-9a-f-]{36}$")] | None = None  # his pay scheme
 
 
 class DocumentTypeOut(BaseModel):
@@ -67,6 +68,8 @@ class DriverView(BaseModel):
     require_bank: bool  # the IBAN and bank name are required to submit
     vehicle_photos: list[str]
     document_types: list[DocumentTypeOut]
+    schemes: list[dict] = []  # the pay schemes his platform offers, with their terms
+    scheme_required: bool = False  # choose one to submit
 
 
 class PersonRef(BaseModel):

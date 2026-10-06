@@ -148,6 +148,10 @@ class Figures(BaseModel):
     valid_days: Days | None = None
     orders: int | None = Field(None, ge=0, le=20_000)
     hours: Decimal | None = Field(None, ge=0, le=744, max_digits=6, decimal_places=2)
+    # what a pay scheme needs, from the platform's partner report
+    batch_level: int | None = Field(None, ge=1, le=20)
+    attendance_marks: int | None = Field(None, ge=0, le=31)
+    star_day_failed: bool | None = None
     bonus: Money = Decimal(0)
     tips: Money = Decimal(0)
     cancelled_orders: Money = Decimal(0)
@@ -180,6 +184,9 @@ class StatementOut(BaseModel):
     valid_days: int | None
     orders: int | None
     hours: Decimal | None
+    batch_level: int | None
+    attendance_marks: int | None
+    star_day_failed: bool | None
     bonus: Decimal
     tips: Decimal
     cancelled_orders: Decimal
@@ -188,6 +195,7 @@ class StatementOut(BaseModel):
     cash_shortage: Decimal
     screenshots: list[str]
     system: dict  # what the system itself counted for the month (days worked, orders reported), to compare
+    scheme: dict | None = None  # the driver's pay scheme that month, and the figures it needs (detail only)
     submitted_at: datetime
     from_driver: bool
     reviewed_at: datetime | None
@@ -263,6 +271,7 @@ class LineOut(BaseModel):
     net: Decimal
     flags: list[str]
     statement_id: str | None
+    breakdown: list[dict] = []  # a pay scheme's items: orders, tier bonus, penalties, with why
 
 
 class RunOut(BaseModel):
@@ -297,3 +306,172 @@ class PayslipOut(BaseModel):
     gross: Decimal
     deductions: Decimal
     net: Decimal
+
+
+# ------------------------------------------------------------------ pay schemes
+
+CalculatorCode = Literal["platform_rates", "per_order", "batch", "tiered_target"]
+StepKind = Literal["batch_rate", "tier_bonus", "marks_deduction", "marks_reduce"]
+Cover = Literal["maintenance", "housing", "gas", "sim"]
+Note = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+
+class SchemeStepIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: StepKind
+    threshold: Annotated[Decimal, Field(ge=0, le=100_000, max_digits=12, decimal_places=3)]
+    amount: Money | None = None  # none for marks_reduce (the scheme's reduced price applies)
+
+
+class SchemeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    platform_id: int
+    code: Code
+    name: LocalizedText
+    description: LocalizedText | None = None
+    calculator: CalculatorCode
+    per_order: Money | None = None
+    target_orders: int = Field(420, ge=0, le=100_000)
+    required_valid_days: int = Field(28, ge=0, le=31)
+    missing_order_rate: Money | None = None
+    reduced_rate: Money | None = None
+    bonus_when_reduced: bool = False
+    marks_when_reduced: bool = False
+    floor_at_zero: bool = True
+    company_covers: list[Cover] = Field(default_factory=list, max_length=4)
+    driver_selectable: bool = True
+    steps: list[SchemeStepIn] = Field(default_factory=list, max_length=50)
+
+
+class SchemeUpdateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: int
+    name: LocalizedText | None = None
+    description: LocalizedText | None = None
+    is_active: bool | None = None
+    driver_selectable: bool | None = None
+    # what drivers are paid on: refused once a driver is on the scheme (a new price is a new scheme)
+    calculator: CalculatorCode | None = None
+    per_order: Money | None = None
+    target_orders: int | None = Field(None, ge=0, le=100_000)
+    required_valid_days: int | None = Field(None, ge=0, le=31)
+    missing_order_rate: Money | None = None
+    reduced_rate: Money | None = None
+    bonus_when_reduced: bool | None = None
+    marks_when_reduced: bool | None = None
+    floor_at_zero: bool | None = None
+    company_covers: list[Cover] | None = Field(None, max_length=4)
+    steps: list[SchemeStepIn] | None = Field(None, max_length=50)
+
+
+class SchemeOut(BaseModel):
+    id: str
+    platform_id: int
+    code: str
+    name: dict[str, str]
+    description: dict[str, str] | None
+    calculator: str
+    per_order: Decimal | None
+    target_orders: int
+    required_valid_days: int
+    missing_order_rate: Decimal | None
+    reduced_rate: Decimal | None
+    bonus_when_reduced: bool
+    marks_when_reduced: bool
+    floor_at_zero: bool
+    company_covers: list[str]
+    driver_selectable: bool
+    is_active: bool
+    steps: list[dict]
+    drivers: int  # on it this month
+    version: int
+
+
+class AssignSchemeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    employee_ids: list[uuid.UUID] = Field(min_length=1, max_length=1000)
+    month: date  # from this month on
+
+
+class AssignSchemeOut(BaseModel):
+    set: int
+    skipped: list[dict]
+    from_: date = Field(alias="from")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class SchemeHistoryOut(BaseModel):
+    scheme: dict
+    valid_from: date
+    valid_to: date | None
+    source: str
+    set_at: datetime
+
+
+class SchemeRequestIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scheme_id: uuid.UUID
+    note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)] | None = None
+
+
+class SchemeRequestOut(BaseModel):
+    id: str
+    employee: dict | None
+    company_id: int
+    current: dict | None
+    requested: dict | None
+    effective_month: date
+    status: str
+    driver_note: str | None
+    admin_note: str | None
+    created_at: datetime
+    decided_at: datetime | None
+    version: int
+
+
+class DriverSchemeOut(BaseModel):
+    """A scheme's terms as the driver reads them: not how many drivers are on it, nor the office's flags."""
+
+    id: str
+    code: str
+    name: dict[str, str]
+    description: dict[str, str] | None
+    calculator: str
+    per_order: Decimal | None
+    target_orders: int
+    required_valid_days: int
+    missing_order_rate: Decimal | None
+    reduced_rate: Decimal | None
+    bonus_when_reduced: bool
+    marks_when_reduced: bool
+    floor_at_zero: bool
+    company_covers: list[str]
+    steps: list[dict]
+
+
+class DriverSchemesOut(BaseModel):
+    current: DriverSchemeOut | None  # this month
+    next_month: DriverSchemeOut | None  # when it changes next month
+    schemes: list[DriverSchemeOut]  # what his platform offers
+    request: SchemeRequestOut | None  # his latest request
+
+
+class ApproveSchemeRequestIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: int | None = None
+    month: date | None = None  # later than asked, never earlier
+    note: Note | None = None
+
+
+class RejectSchemeRequestIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: int | None = None
+    note: Note  # the driver reads why

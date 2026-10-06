@@ -28,6 +28,7 @@ from app.modules.integrations import service as integrations
 from app.modules.notifications import service as notifications
 from app.modules.onboarding.models import Submission
 from app.modules.org import service as org
+from app.modules.payroll import service as payroll
 from app.modules.people import service as people
 
 log = logging.getLogger("fleet.onboarding")
@@ -59,7 +60,10 @@ def for_driver(db: Session, employee_id: int) -> dict:
     submission = _get(db, employee_id)
     settings = org.get_section(db, "onboarding")
     types = {t["code"]: t for t in documents.list_types(db) if t["applies_to"] == "employee"}
+    schemes = payroll.offered_schemes(db, people.ref(db, employee_id).platform_id)
     return {
+        "schemes": schemes,
+        "scheme_required": bool(schemes),
         "required": submission is not None and submission.status in OPEN,
         "status": submission.status if submission else "none",
         "data": submission.data if submission else {},
@@ -107,7 +111,7 @@ def save_draft(db: Session, employee_id: int, device_id: int, data: dict) -> dic
     return for_driver(db, employee_id)
 
 
-def _missing(db: Session, data: dict) -> list[str]:
+def _missing(db: Session, data: dict, driver: people.EmployeeRef) -> list[str]:
     settings = org.get_section(db, "onboarding")
     types = documents.employee_type_codes(db)
     docs = {d["type_code"]: d for d in data.get("documents") or ()}
@@ -121,6 +125,9 @@ def _missing(db: Session, data: dict) -> list[str]:
     missing += [f"document.{code}" for code in settings.required_documents if code in types and code not in docs]
     if settings.require_bank:
         missing += [f for f in ("iban", "bank_name") if not data.get(f)]
+    offered = {s["id"] for s in payroll.offered_schemes(db, driver.platform_id)}
+    if offered and data.get("scheme_id") not in offered:
+        missing.append("scheme")  # his platform's schemes: he chooses one (the office decides at the review)
     if not data.get("no_vehicle"):
         vehicle = data.get("vehicle") or {}
         missing += [f"vehicle.{f}" for f in ("plate_number", "odometer_km", "odometer_photo") if vehicle.get(f) is None]
@@ -134,7 +141,7 @@ def submit(db: Session, employee_id: int, device_id: int) -> dict:
     if submission is None or submission.status not in OPEN:
         raise AppError(409, "onboarding_not_open")
     data = submission.data
-    missing = _missing(db, data)
+    missing = _missing(db, data, people.ref(db, employee_id))
     if missing:
         raise AppError(422, "onboarding_incomplete", missing=", ".join(missing))
     _check_files(db, data, device_id)
@@ -262,6 +269,8 @@ def approve(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
     data, custody = s.data, None
     try:
         people.apply_self_registration(db, driver.id, data, actor_user_id=actor_user_id)
+        if data.get("scheme_id"):
+            payroll.scheme_from_registration(db, driver, data["scheme_id"], actor_user_id=actor_user_id)
         owner = documents.Owner("employee", driver.id, str(driver.public_id), driver.company_id, driver.name)
         for doc in data.get("documents") or ():
             documents.add(

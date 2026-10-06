@@ -1639,6 +1639,228 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'غير صالح'**
   String get validDayNo;
+
+  /// No description provided for @paySchemes.
+  ///
+  /// In ar, this message translates to:
+  /// **'نظام الدفع'**
+  String get paySchemes;
+
+  /// No description provided for @schemesIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'النظام يحدد كيف يُحسب راتبك من طلباتك. تقدر تطلب نظاماً آخر تعرضه منصتك، ويبدأ من أول الشهر التالي لو وافق المكتب.'**
+  String get schemesIntro;
+
+  /// No description provided for @schemeNow.
+  ///
+  /// In ar, this message translates to:
+  /// **'نظامك هذا الشهر'**
+  String get schemeNow;
+
+  /// No description provided for @schemeNone.
+  ///
+  /// In ar, this message translates to:
+  /// **'لم يحدد المكتب نظامك بعد'**
+  String get schemeNone;
+
+  /// No description provided for @schemeNextMonth.
+  ///
+  /// In ar, this message translates to:
+  /// **'من الشهر القادم: {name}'**
+  String schemeNextMonth(String name);
+
+  /// No description provided for @schemeOthers.
+  ///
+  /// In ar, this message translates to:
+  /// **'الأنظمة الأخرى في منصتك'**
+  String get schemeOthers;
+
+  /// No description provided for @schemeAsk.
+  ///
+  /// In ar, this message translates to:
+  /// **'اطلب هذا النظام'**
+  String get schemeAsk;
+
+  /// No description provided for @schemeAskBody.
+  ///
+  /// In ar, this message translates to:
+  /// **'تطلب «{name}» من {month}. يراجعه المكتب ويصلك الرد هنا وعلى واتساب.'**
+  String schemeAskBody(String name, String month);
+
+  /// No description provided for @schemeNoteHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'ملاحظة للمكتب (اختياري)'**
+  String get schemeNoteHint;
+
+  /// No description provided for @schemeSend.
+  ///
+  /// In ar, this message translates to:
+  /// **'إرسال الطلب'**
+  String get schemeSend;
+
+  /// No description provided for @schemeSent.
+  ///
+  /// In ar, this message translates to:
+  /// **'أُرسل طلبك للمكتب'**
+  String get schemeSent;
+
+  /// No description provided for @schemePending.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلبك «{name}» من {month} بانتظار المكتب'**
+  String schemePending(String name, String month);
+
+  /// No description provided for @schemeApproved.
+  ///
+  /// In ar, this message translates to:
+  /// **'وافق المكتب: «{name}» من {month}'**
+  String schemeApproved(String name, String month);
+
+  /// No description provided for @schemeRejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'رفض المكتب طلبك «{name}»: {note}'**
+  String schemeRejected(String name, String note);
+
+  /// No description provided for @schemeCancel.
+  ///
+  /// In ar, this message translates to:
+  /// **'إلغاء الطلب'**
+  String get schemeCancel;
+
+  /// No description provided for @schemePerOrder.
+  ///
+  /// In ar, this message translates to:
+  /// **'سعر الطلب: {rate} د.ك'**
+  String schemePerOrder(String rate);
+
+  /// No description provided for @schemeBatchRates.
+  ///
+  /// In ar, this message translates to:
+  /// **'سعر الطلب حسب مستوى الباتش في الشهر:'**
+  String get schemeBatchRates;
+
+  /// No description provided for @schemeBatchRow.
+  ///
+  /// In ar, this message translates to:
+  /// **'باتش {level}: {rate} د.ك'**
+  String schemeBatchRow(String level, String rate);
+
+  /// No description provided for @schemeReduced.
+  ///
+  /// In ar, this message translates to:
+  /// **'ينخفض إلى {rate} د.ك لكل طلبات الشهر لو فوّت Star Day أو وصلت علاماتك {marks}'**
+  String schemeReduced(String rate, String marks);
+
+  /// No description provided for @schemeReducedStar.
+  ///
+  /// In ar, this message translates to:
+  /// **'ينخفض إلى {rate} د.ك لكل طلبات الشهر لو فوّت Star Day'**
+  String schemeReducedStar(String rate);
+
+  /// No description provided for @schemeReducedLoses.
+  ///
+  /// In ar, this message translates to:
+  /// **'في شهر السعر المخفض لا يُصرف البونص'**
+  String get schemeReducedLoses;
+
+  /// No description provided for @schemeTiers.
+  ///
+  /// In ar, this message translates to:
+  /// **'بونص الشرائح (أعلى شريحة تصلها فقط):'**
+  String get schemeTiers;
+
+  /// No description provided for @schemeTierRow.
+  ///
+  /// In ar, this message translates to:
+  /// **'{orders} طلب: {amount} د.ك'**
+  String schemeTierRow(String orders, String amount);
+
+  /// No description provided for @schemeMarks.
+  ///
+  /// In ar, this message translates to:
+  /// **'خصم علامات الحضور:'**
+  String get schemeMarks;
+
+  /// No description provided for @schemeMarkRow.
+  ///
+  /// In ar, this message translates to:
+  /// **'{marks} علامات: {amount} د.ك'**
+  String schemeMarkRow(String marks, String amount);
+
+  /// No description provided for @schemeTarget.
+  ///
+  /// In ar, this message translates to:
+  /// **'التارجت: {orders} طلب و{days} يوم صالح في الشهر'**
+  String schemeTarget(String orders, String days);
+
+  /// No description provided for @schemeMissing.
+  ///
+  /// In ar, this message translates to:
+  /// **'كل طلب ناقص عن التارجت يُخصم {rate} د.ك'**
+  String schemeMissing(String rate);
+
+  /// No description provided for @schemeNoMissing.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا خصم على الطلبات الناقصة عن التارجت'**
+  String get schemeNoMissing;
+
+  /// No description provided for @schemeCovers.
+  ///
+  /// In ar, this message translates to:
+  /// **'على الشركة: {items}'**
+  String schemeCovers(String items);
+
+  /// No description provided for @schemeCoversNone.
+  ///
+  /// In ar, this message translates to:
+  /// **'المصاريف عليك: الصيانة والسكن والبنزين والشريحة'**
+  String get schemeCoversNone;
+
+  /// No description provided for @schemePlatformRates.
+  ///
+  /// In ar, this message translates to:
+  /// **'حسب قاعدة المنصة: راتب أساسي وأسعار الشركة'**
+  String get schemePlatformRates;
+
+  /// No description provided for @expense_maintenance.
+  ///
+  /// In ar, this message translates to:
+  /// **'الصيانة'**
+  String get expense_maintenance;
+
+  /// No description provided for @expense_housing.
+  ///
+  /// In ar, this message translates to:
+  /// **'السكن'**
+  String get expense_housing;
+
+  /// No description provided for @expense_gas.
+  ///
+  /// In ar, this message translates to:
+  /// **'البنزين'**
+  String get expense_gas;
+
+  /// No description provided for @expense_sim.
+  ///
+  /// In ar, this message translates to:
+  /// **'الشريحة'**
+  String get expense_sim;
+
+  /// No description provided for @schemeChoose.
+  ///
+  /// In ar, this message translates to:
+  /// **'نظام الدفع'**
+  String get schemeChoose;
+
+  /// No description provided for @schemeChooseHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختر النظام الذي تشتغل عليه. يراجعه المكتب مع تسجيلك، وتقدر تطلب تغييره لاحقاً من التطبيق.'**
+  String get schemeChooseHint;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

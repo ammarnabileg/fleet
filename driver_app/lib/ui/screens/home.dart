@@ -12,6 +12,7 @@ import 'fines.dart';
 import 'maintenance.dart';
 import 'odometer.dart';
 import 'report.dart';
+import 'schemes.dart';
 import 'statement.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -266,6 +267,16 @@ class HomeTab extends StatelessWidget {
                 label: Text(l.payslips),
                 onPressed: () =>
                     Navigator.of(context).push(MaterialPageRoute(builder: (_) => PayslipsScreen(state: state))),
+              ),
+            ),
+            (
+              'schemes',
+              OutlinedButton.icon(
+                key: const Key('schemes'),
+                icon: const Icon(Icons.price_change_outlined),
+                label: Text(l.paySchemes),
+                onPressed: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => SchemesScreen(state: state))),
               ),
             ),
           ])

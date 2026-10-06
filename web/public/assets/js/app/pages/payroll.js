@@ -12,7 +12,9 @@
   var AMOUNTS = [['bonus', 'البونص'], ['tips', 'البقشيش'], ['cancelled_orders', 'خصومات الطلبات الملغاة'], ['platform_deductions', 'خصومات المنصة'], ['late', 'خصم التأخير'], ['cash_shortage', 'خصم الكاش']];
   var ST_TONE = { submitted: 'o', approved: 'g', rejected: 'r' };
   var RUN_TONE = { draft: 'o', approved: 'g', paid: 'b' };
-  var BLOCKING = ['statement_missing', 'statement_pending', 'net_negative'];
+  var BLOCKING = ['statement_missing', 'statement_pending', 'net_negative', 'daily_pending', 'scheme_missing', 'figures_missing'];
+  // أرقام يدخلها المراجع من تقرير المنصة للشركاء، حسب نظام دفع السائق
+  var SCHEME_FIGS = [['batch_level', 'مستوى الباتش'], ['attendance_marks', 'علامات الحضور'], ['star_day_failed', 'فوّت Star Day']];
   var IDENTITY = ['platform_driver_id', 'name', 'job_title', 'civil_id', 'iban', 'bank_name', 'payment_method', 'blank'];
 
   var plats = null;
@@ -41,6 +43,7 @@
     var v = A.view();
     var tabs = [];
     if (api.can('payroll.view')) tabs.push(['statements', 'كشوف المنصات'], ['runs', 'كشوف الرواتب']);
+    if (api.can('payroll.view')) tabs.push(['schemes', 'أنظمة الدفع'], ['requests', 'طلبات تغيير النظام' + (A.counts.scheme_requests ? ' (' + A.counts.scheme_requests + ')' : '')]);
     if (api.can('payroll.view') || api.can('settings.update')) tabs.push(['platforms', 'المنصات']);
     if (!tabs.length) { BT.render(v, A.forbidden()); return; }
     var tab = tabs.some(function (t) { return t[0] === q.tab; }) ? q.tab : tabs[0][0];
@@ -50,7 +53,7 @@
     var drawn = {};
     function show(t) {
       if (drawn[t]) return; drawn[t] = true;
-      ({ statements: statementsPanel, runs: runsPanel, platforms: platformsPanel })[t](v.querySelector('[data-p="' + t + '"]'), q);
+      ({ statements: statementsPanel, runs: runsPanel, schemes: A.schemesPanel, requests: A.schemeRequestsPanel, platforms: platformsPanel })[t](v.querySelector('[data-p="' + t + '"]'), q);
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/payroll?tab=' + e.detail); });
     show(tab);
@@ -84,14 +87,26 @@
     if (add) add.onclick = function () { officeStatement(month, function () { t.refresh(); }); };
   }
 
-  function figureFields(s, platform) {
+  function figureFields(s, platform, needs) {
     var counts = COUNTS.map(function (c) { return BT.f.input({ name: c[0], label: c[1], value: s[c[0]] == null ? '' : s[c[0]], num: true, optional: true, hint: c[0] === 'working_days' ? 'فارغ = ما سجله النظام (التقارير اليومية وبدء اليوم)' : c[0] === 'orders' ? 'فارغ = طلبات التقارير اليومية المعتمدة' : '' }); });
     var amounts = AMOUNTS.map(function (c) { return BT.f.money({ name: c[0], label: c[1], value: s[c[0]] != null && Number(s[c[0]]) ? s[c[0]] : '', optional: true }); });
-    return h`<div class="section-t">أرقام المنصة للشهر</div><div class="form-grid">${counts}</div><div class="section-t mt-12">من تسوية المنصة</div><div class="form-grid">${amounts}</div>${BT.f.input({ name: 'note', label: 'ملاحظة', optional: true, value: '' })}`;
+    var figs = SCHEME_FIGS.filter(function (c) { return !needs || needs.indexOf(c[0]) >= 0; }).map(function (c) {
+      if (c[0] === 'star_day_failed') return BT.f.select({ name: c[0], label: c[1], value: s[c[0]] == null ? '' : String(s[c[0]]), placeholder: 'لم يُدخل', options: [{ v: 'false', t: 'لا: حضره' }, { v: 'true', t: 'نعم: فوّته' }] });
+      return BT.f.input({ name: c[0], label: c[1], value: s[c[0]] == null ? '' : s[c[0]], num: true, optional: !needs });
+    });
+    var schemeHint = needs ? 'يحتاجها نظام دفعه، ولا يُعتمد كشف الرواتب بدونها' : 'حسب نظام دفع السائق: مستوى الباتش لنظام الباتش، والعلامات والـ Star Day لنظام الشرائح. اتركها فارغة لغيرهم';
+    return h`<div class="section-t">أرقام المنصة للشهر</div><div class="form-grid">${counts}</div>
+      ${figs.length ? h`<div class="section-t mt-12">من تقرير المنصة للشركاء</div><div class="hint mb-8">${schemeHint}</div><div class="form-grid">${figs}</div>` : ''}
+      <div class="section-t mt-12">من تسوية المنصة</div><div class="form-grid">${amounts}</div>${BT.f.input({ name: 'note', label: 'ملاحظة', optional: true, value: '' })}`;
   }
   function figuresOf(vals) {
     var out = {};
     COUNTS.forEach(function (c) { var x = vals[c[0]]; out[c[0]] = x === '' || x == null ? null : (c[0] === 'hours' ? String(x) : Math.round(Number(x))); });
+    SCHEME_FIGS.forEach(function (c) {
+      var x = vals[c[0]];
+      if (x === undefined) return; // not asked for this driver's scheme: left as it is
+      out[c[0]] = x === '' || x == null ? null : c[0] === 'star_day_failed' ? x === 'true' : Math.round(Number(x));
+    });
     AMOUNTS.forEach(function (c) { var x = vals[c[0]]; out[c[0]] = x === '' || x == null ? '0.000' : Number(x).toFixed(3); });
     out.note = vals.note || null;
     return out;
@@ -113,14 +128,14 @@
       } });
       BT.drawer.open({
         title: 'كشف ' + monthLabel(s.month), subtitle: api.name(s.employee.name) + (s.platform ? ' · ' + api.name(s.platform.name) : ''), icon: 'file-text', size: 'lg',
-        body: h`<div class="flex gap-8 wrap mb-12">${BT.pill(api.t('statement_status', s.status), ST_TONE[s.status], true)}${s.locked ? BT.pill('رواتب الشهر معتمدة: لا يتغير', 'n') : ''}${s.from_driver ? BT.pill('من تطبيق السائق', 'b') : BT.pill('أُدخل من المكتب', 'n')}</div>
+        body: h`<div class="flex gap-8 wrap mb-12">${BT.pill(api.t('statement_status', s.status), ST_TONE[s.status], true)}${s.locked ? BT.pill('رواتب الشهر معتمدة: لا يتغير', 'n') : ''}${s.from_driver ? BT.pill('من تطبيق السائق', 'b') : BT.pill('أُدخل من المكتب', 'n')}${s.scheme ? BT.pill('نظام الدفع: ' + api.name(s.scheme.name), 'b') : ''}</div>
           ${s.review_note ? h`<div class="banner ${s.status === 'rejected' ? 'danger' : 'note'} fs-sm mb-12">${icon('message-square', 15)}<div>${s.review_note}${s.reviewed_by ? ' — ' + s.reviewed_by : ''}</div></div>` : ''}
           ${s.from_driver ? h`<div class="section-t">لقطات الشاشة</div>${A.thumbs(shots)}` : ''}
           <div class="table-wrap mt-12"><table class="t compact"><thead><tr><th></th><th class="num">السائق</th><th class="num">النظام</th><th class="num">المعتمد</th></tr></thead><tbody>
             ${COUNTS.map(function (c) { return h`<tr><td>${c[1]}</td><td class="num">${d[c[0]] != null ? d[c[0]] : '—'}</td><td class="num">${sys[c[0]] != null ? sys[c[0]] : '—'}</td><td class="num">${s.status === 'approved' && s[c[0]] != null ? s[c[0]] : '—'}</td></tr>`; })}
           </tbody></table></div>
           <div class="muted fs-sm mt-4">«النظام» = أيام فيها تقرير يومي أو بدء يوم من التطبيق، وطلبات التقارير اليومية المعتمدة.</div>
-          ${editable ? h`<form data-fig class="form mt-16" novalidate>${figureFields(s.status === 'approved' ? s : Object.assign({}, s, { working_days: s.working_days }), s.platform)}</form>` : h`<div class="section-t mt-16">المبالغ</div>${BT.kv(AMOUNTS.map(function (c) { return [c[1], amt(s[c[0]])]; }))}`}`,
+          ${editable ? h`<form data-fig class="form mt-16" novalidate>${figureFields(s.status === 'approved' ? s : Object.assign({}, s, { working_days: s.working_days }), s.platform, s.scheme ? s.scheme.needs : [])}</form>` : h`<div class="section-t mt-16">المبالغ</div>${BT.kv(SCHEME_FIGS.filter(function (c) { return s.scheme && s.scheme.needs.indexOf(c[0]) >= 0; }).map(function (c) { return [c[1], s[c[0]] == null ? '—' : c[0] === 'star_day_failed' ? (s[c[0]] ? 'نعم: فوّته' : 'لا') : s[c[0]]]; }).concat(AMOUNTS.map(function (c) { return [c[1], amt(s[c[0]])]; })))}`}`,
         buttons: btns
       });
     }, api.fail);
@@ -202,9 +217,27 @@
     }
     BT.drawer.open({
       title: api.name(line.employee.name), subtitle: (platform ? api.name(platform.name) + ' · ' : '') + monthLabel(run.month), icon: 'receipt-text',
-      body: h`${line.flags.length ? h`<div class="flex gap-8 wrap mb-12">${flagPills(line.flags)}</div>` : ''}${BT.kv(cols.filter(function (c) { return c.code !== 'blank'; }).map(function (c) { return [c.header, val(c.code)]; }).concat([['مُرحَّل للشهر القادم', amt(line.cells.carried)]]))}`,
+      body: h`${line.flags.length ? h`<div class="flex gap-8 wrap mb-12">${flagPills(line.flags)}</div>` : ''}${breakdown(line)}${BT.kv(cols.filter(function (c) { return c.code !== 'blank'; }).map(function (c) { return [c.header, val(c.code)]; }).concat([['مُرحَّل للشهر القادم', amt(line.cells.carried)]]))}`,
       buttons: [{ label: 'إغلاق', cls: 'btn-ghost' }]
     });
+  }
+  /* كيف حسب نظام الدفع الشهر: ما يقرؤه المكتب ويشرحه للسائق */
+  function why(b) {
+    var w = b.why || {};
+    if (b.code === 'orders_pay') return w.orders + ' طلب × ' + fmt.money(w.rate) + (w.batch_level != null ? ' · باتش ' + w.batch_level : '') + (w.reduced_by ? ' · السعر المخفض: ' + (w.reduced_by === 'star_day' ? 'فوّت Star Day' : 'علامات الحضور') : '');
+    if (b.code === 'tier_bonus') return 'وصل ' + w.orders + ' طلب: شريحة ' + w.from;
+    if (b.code === 'missing_target') return w.missing + ' طلب ناقص عن ' + w.target + ' × ' + fmt.money(w.rate);
+    if (b.code === 'marks_deduction') return w.marks + ' علامات حضور';
+    if (b.code === 'uncovered_penalty') return 'عقوبات أكبر من المستحق: لم تُخصم';
+    return '';
+  }
+  function breakdown(line) {
+    if (!line.breakdown || !line.breakdown.length) return '';
+    return h`<div class="section-t">حساب نظام الدفع${line.cells.scheme ? ' — ' + line.cells.scheme : ''}</div>
+      <div class="table-wrap mb-16"><table class="t compact"><tbody>${line.breakdown.map(function (b) {
+        var n = Number(b.amount), info = b.code === 'uncovered_penalty';
+        return h`<tr><td>${api.t('payroll_column', b.code)}<span class="sub">${why(b)}</span></td><td class="num ${info ? 'muted' : n < 0 ? 't-danger' : ''}">${info ? BT.amt(n) : BT.amt(n, { signed: true })}</td></tr>`;
+      })}</tbody></table></div>`;
   }
   function wireRun(v, run, list) {
     var reload = function () { A.router.refresh(); };

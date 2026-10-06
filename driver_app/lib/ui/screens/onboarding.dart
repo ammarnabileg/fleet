@@ -6,6 +6,7 @@ import '../../core/models.dart';
 import '../photos.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'schemes.dart';
 
 /// First launch after the activation link: details, documents (both sides), the vehicle the driver holds and its
 /// photos. Every photo is uploaded as soon as it is taken and the draft is saved on the server, so nothing is lost
@@ -55,6 +56,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       ],
       'vehicle': Map<String, dynamic>.from(d['vehicle'] as Map? ?? {'photos': []}),
       'no_vehicle': d['no_vehicle'] ?? false,
+      'scheme_id': d['scheme_id'],
     };
     (draft['vehicle'] as Map)['photos'] ??= [];
     _civil.text = draft['civil_id'] ?? '';
@@ -67,6 +69,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       _numbers[doc['type_code'] as String] = TextEditingController(text: doc['number'] as String? ?? '');
     }
   }
+
+  /// His choice among his platform's schemes (one that is no longer offered is no choice).
+  PayScheme? get _scheme => ob.schemes.where((s) => s.id == draft['scheme_id']).firstOrNull;
 
   List<Map<String, dynamic>> get docs => (draft['documents'] as List).cast<Map<String, dynamic>>();
   Map<String, dynamic> get vehicle => draft['vehicle'] as Map<String, dynamic>;
@@ -95,6 +100,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'documents': docs,
       'no_vehicle': draft['no_vehicle'],
       'vehicle': draft['no_vehicle'] == true ? null : vehicle,
+      'scheme_id': ?_scheme?.id,
     };
   }
 
@@ -155,6 +161,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final iban = draft['iban'] as String?;
     if ((ob.requireBank && iban == null) || (iban != null && !ibanOk(iban))) out.add(l.iban);
     if (ob.requireBank && (draft['bank_name'] ?? '').isEmpty) out.add(l.bankName);
+    if (ob.schemeRequired && _scheme == null) out.add(l.paySchemes);
     for (final doc in docs) {
       final t = ob.documentTypes.where((x) => x.code == doc['type_code']).firstOrNull;
       final name = t?.label(state.lang) ?? doc['type_code'] as String;
@@ -303,6 +310,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         controller: _bank,
         decoration: InputDecoration(labelText: l.bankName),
       ),
+      if (ob.schemes.isNotEmpty) ...[
+        SectionTitle(l.schemeChoose),
+        Text(l.schemeChooseHint, style: const TextStyle(color: AppColors.muted, height: 1.6)),
+        const SizedBox(height: 8),
+        for (final s in ob.schemes)
+          SchemeCard(
+            key: Key('ob-scheme-${s.code}'),
+            scheme: s,
+            lang: state.lang,
+            selected: draft['scheme_id'] == s.id,
+            onTap: () => setState(() => draft['scheme_id'] = s.id),
+          ),
+      ],
     ];
   }
 
@@ -470,6 +490,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ListTile(title: Text(l.nationality), trailing: Text(draft['nationality'] ?? '—')),
             ListTile(title: Text(l.iban), trailing: Text('\u2066${draft['iban'] ?? '—'}\u2069')),
             ListTile(title: Text(l.bankName), trailing: Text(draft['bank_name'] ?? '—')),
+            if (ob.schemes.isNotEmpty)
+              ListTile(title: Text(l.paySchemes), trailing: Text(_scheme?.label(state.lang) ?? '—')),
             for (final doc in docs)
               ListTile(
                 title: Text(
