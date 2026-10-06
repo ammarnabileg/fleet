@@ -44,10 +44,8 @@
     var canEdit = api.can('payroll.schemes');
     A.load(el, Promise.all([A.platforms(true), api.get('/payroll/schemes')]), function (r) {
       var plats = r[0], schemes = r[1];
-      setTimeout(function () {
-        BT.on(el, 'click', '[data-new]', function (e, b) { var p = plats.find(function (x) { return String(x.id) === b.getAttribute('data-new'); }); schemeForm(p, null, function () { A.schemesPanel(el); }); });
-        BT.on(el, 'click', '[data-scheme]', function (e, b) { var s = schemes.find(function (x) { return x.id === b.getAttribute('data-scheme'); }); var p = plats.find(function (x) { return x.id === s.platform_id; }); schemeForm(p, s, function () { A.schemesPanel(el); }); });
-      });
+      A.delegate(el, 'click', '[data-new]', function (e, b) { var p = plats.find(function (x) { return String(x.id) === b.getAttribute('data-new'); }); schemeForm(p, null, function () { A.schemesPanel(el); }); });
+      A.delegate(el, 'click', '[data-scheme]', function (e, b) { var s = schemes.find(function (x) { return x.id === b.getAttribute('data-scheme'); }); var p = plats.find(function (x) { return x.id === s.platform_id; }); schemeForm(p, s, function () { A.schemesPanel(el); }); });
       return h`<div class="hint mb-12">كل منصة تعرض أنظمتها، وكل سائق على نظام واحد في الشهر. أسعار نظام عليه سائقون لا تتغير: السعر الجديد نظام جديد، وتنقل السائقين إليه من شهر (قائمة الموظفين ← حدّدهم ← «نظام الدفع»)، فلا يُعاد حساب شهر بسعر لم يكن له. منصة بلا أنظمة تبقى على قاعدتها في تبويب المنصات.</div>
         ${plats.filter(function (p) { return p.is_active; }).map(function (p) {
           var mine = schemes.filter(function (s) { return s.platform_id === p.id; });

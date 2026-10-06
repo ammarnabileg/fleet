@@ -32,6 +32,7 @@ from app.modules.org import service as org
 from app.modules.people import service as people
 
 ZERO = Decimal("0.000")
+FILS = Decimal("0.001")
 
 
 @dataclass(frozen=True)
@@ -120,7 +121,8 @@ def balances(db: Session, account_ids: Iterable[int]) -> dict[int, Balance]:
     rows = db.execute(
         text("SELECT account_id, posted, pending FROM cash.balances WHERE account_id = ANY(:ids)"), {"ids": ids}
     )
-    return {a: Balance(p, q) for a, p, q in rows}
+    # the view's coalesce(…, 0) has no scale: 0 would reach the screens as "0" instead of "0.000"
+    return {a: Balance(Decimal(p).quantize(FILS), Decimal(q).quantize(FILS)) for a, p, q in rows}
 
 
 def driver_balance(db: Session, employee_id: int) -> Balance:

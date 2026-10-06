@@ -245,8 +245,8 @@
   function rolesPanel(el) {
     A.load(el, Promise.all([loadRoles(), api.get('/permissions')]), function (r) {
       var roles = r[0], groups = r[1];
+      A.delegate(el, 'click', '[data-role]', function (e, b) { var role = roles.find(function (x) { return x.code === b.getAttribute('data-role'); }); roleForm(role, groups, function () { rolesPanel(el); }); });
       setTimeout(function () {
-        BT.on(el, 'click', '[data-role]', function (e, b) { var role = roles.find(function (x) { return x.code === b.getAttribute('data-role'); }); roleForm(role, groups, function () { rolesPanel(el); }); });
         var add = el.querySelector('[data-add]'); if (add) add.onclick = function () { roleForm(null, groups, function () { rolesPanel(el); }); };
       });
       return h`<div class="card"><div class="card-h"><div class="card-t">${fmt.int(roles.length)} دور</div>${api.can('roles.manage') ? h`<button type="button" class="btn btn-sm btn-primary ms-auto" data-add>${icon('plus', 14)} دور جديد</button>` : ''}</div>
@@ -326,8 +326,8 @@
     A.load(el, api.get('/branches'), function (rows) {
       api.branches = rows;
       var manage = api.can('branches.manage');
+      A.delegate(el, 'click', '[data-br]', function (e, b) { var br = rows.find(function (x) { return String(x.public_id) === b.getAttribute('data-br'); }); branchForm(br, function () { branchesPanel(el); }); });
       setTimeout(function () {
-        BT.on(el, 'click', '[data-br]', function (e, b) { var br = rows.find(function (x) { return String(x.public_id) === b.getAttribute('data-br'); }); branchForm(br, function () { branchesPanel(el); }); });
         var add = el.querySelector('[data-add]'); if (add) add.onclick = function () { branchForm(null, function () { branchesPanel(el); }); };
       });
       return h`<div class="card"><div class="card-h"><div class="card-t">الفروع</div>${manage ? h`<button type="button" class="btn btn-sm btn-primary ms-auto" data-add>${icon('plus', 14)} إضافة فرع</button>` : ''}</div><div class="hint mb-8">لكل فرع خزينته، والخزينة مشتركة بين شركات الفرع.</div>
@@ -465,8 +465,8 @@
   function statusesPanel(el) {
     A.load(el, api.get('/employment-statuses'), function (rows) {
       var canEdit = api.can('settings.update');
+      A.delegate(el, 'click', '[data-toggle]', function (e, b) { var code = b.getAttribute('data-toggle'), s = rows.find(function (x) { return x.code === code; }); api.patch('/employment-statuses/' + code, { is_active: !s.is_active }).then(function () { BT.toast('تم التحديث'); statusesPanel(el); }, api.fail).catch(function () {}); });
       setTimeout(function () {
-        BT.on(el, 'click', '[data-toggle]', function (e, b) { var code = b.getAttribute('data-toggle'), s = rows.find(function (x) { return x.code === code; }); api.patch('/employment-statuses/' + code, { is_active: !s.is_active }).then(function () { BT.toast('تم التحديث'); statusesPanel(el); }, api.fail).catch(function () {}); });
         var add = el.querySelector('[data-add]');
         if (add) add.onclick = function () {
           A.formModal({ title: 'حالة وظيفية جديدة', icon: 'repeat', size: 'sm', done: 'تمت الإضافة', after: function () { statusesPanel(el); },

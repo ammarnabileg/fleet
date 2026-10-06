@@ -39,6 +39,7 @@ test('pay schemes: built, assigned, asked for, approved, and the month explained
   await admin.goto('/admin.html#/payroll?tab=schemes');
   await settled(admin);
   await admin.click(`[data-new="${s.keeta.id}"]`);
+  await expect(admin.locator('.overlay.show')).toHaveCount(1); // one form, whatever happened before the click
   const m = top();
   await m.locator('[name=code]').fill('base');
   await m.locator('[name=name_ar]').fill('كيتا الأساسي');

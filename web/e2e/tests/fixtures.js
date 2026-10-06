@@ -35,12 +35,20 @@ class Api {
     const t = await this.call('POST', '/driver/auth/activate', { token, device_uid: deviceUid, model: 'E2E' });
     const auth = { Authorization: 'Bearer ' + t.access_token };
     const self = this;
+    const answer = (method, path) => async (r) => {
+      const text = await r.text();
+      if (!r.ok()) throw new Error(`${method} ${path} -> ${r.status()} ${text}`);
+      return text ? JSON.parse(text) : null;
+    };
     return {
-      call: (method, path, body) => self.ctx.fetch('/api/v1' + path, { method, data: body, headers: auth }).then(async (r) => {
-        const text = await r.text();
-        if (!r.ok()) throw new Error(`${method} ${path} -> ${r.status()} ${text}`);
-        return text ? JSON.parse(text) : null;
-      }),
+      call: (method, path, body) => self.ctx.fetch('/api/v1' + path, { method, data: body, headers: auth }).then(answer(method, path)),
+      /** A photo from the gallery (a JPEG never sent before, as the server refuses a reused one). */
+      photo: () => {
+        const bytes = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), require('crypto').randomBytes(64)]);
+        return self.ctx.fetch('/api/v1/driver/files?source=upload', {
+          method: 'POST', headers: auth, multipart: { file: { name: 'shot.jpg', mimeType: 'image/jpeg', buffer: bytes } },
+        }).then(answer('POST', '/driver/files')).then((f) => f.sha256);
+      },
     };
   }
 }
@@ -66,16 +74,24 @@ const test = base.test.extend({
     await ctx.dispose();
   },
 
-  admin: async ({ page }, use) => {
+  admin: async ({ page }, use, testInfo) => {
     const errors = [];
     const allowed = [];
-    page.on('pageerror', (e) => errors.push('page error: ' + e.message));
+    const trail = []; // what the browser did, printed when the test fails (CI keeps no screenshots we can open)
+    const t0 = Date.now();
+    const note = (line) => trail.push(String(Date.now() - t0).padStart(6) + 'ms ' + line);
+    page.on('pageerror', (e) => { errors.push('page error: ' + e.message); note('PAGE ERROR ' + e.message); });
     page.on('console', (m) => {
+      note('console.' + m.type() + ' ' + m.text());
       // failed loads are reported by the response listener below, with their URL
       if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console: ' + m.text());
     });
+    page.on('request', (r) => { if (r.url().includes('/api/')) note('→ ' + r.method() + ' ' + r.url().replace(/^https?:\/\/[^/]+/, '')); });
+    page.on('requestfailed', (r) => note('✗ ' + r.method() + ' ' + r.url() + ' ' + (r.failure() || {}).errorText));
+    page.on('framenavigated', (f) => { if (f === page.mainFrame()) note('at ' + f.url().replace(/^https?:\/\/[^/]+/, '')); });
     page.on('response', (r) => {
       const url = r.url();
+      if (url.includes('/api/')) note('← ' + r.status() + ' ' + r.request().method() + ' ' + url.replace(/^https?:\/\/[^/]+/, ''));
       if (r.status() >= 400 && !url.endsWith('/api/v1/auth/me')) errors.push(`HTTP ${r.status()} ${r.request().method()} ${url}`);
     });
     page.allow = (pattern) => allowed.push(pattern);
@@ -86,6 +102,11 @@ const test = base.test.extend({
     await page.waitForURL(/admin\.html/);
     await settled(page);
     await use(page);
+    if (testInfo.status !== testInfo.expectedStatus) {
+      const dialogs = await page.evaluate(() => [...document.querySelectorAll('.overlay')].map((o) => o.className + ' | '
+        + [...o.querySelectorAll('.field.invalid')].map((f) => f.innerText.replace(/\s+/g, ' ')).join(' / '))).catch(() => []);
+      console.log(`--- browser trail of "${testInfo.title}" ---\n${trail.slice(-150).join('\n')}\n--- dialogs: ${JSON.stringify(dialogs)}`);
+    }
     const unexpected = errors.filter((e) => !allowed.some((p) => p.test(e)));
     expect(unexpected, 'page, console or API errors').toEqual([]);
   },

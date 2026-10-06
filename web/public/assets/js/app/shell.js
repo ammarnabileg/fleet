@@ -77,6 +77,13 @@
     return h`<div class="card"><div class="card-b">${BT.empty('wifi-off', 'تعذر تحميل البيانات', api.message(err), raw('<button type="button" class="btn btn-sm btn-secondary mt-8" data-action="reload">إعادة المحاولة</button>'))}</div></div>`;
   };
   BT.actions['reload'] = function () { A.router.refresh(); };
+  /* معالج نقرات لعنصر يُعاد رسمه بنفسه (لوحة تُحدَّث بعد الحفظ): معالج واحد دائماً، بآخر بيانات.
+     BT.on مباشرة في كل رسم يضيف معالجاً جديداً كل مرة، فتفتح النقرة نموذجين أو ترسل الطلب مرتين. */
+  A.delegate = function (el, evt, sel, fn) {
+    var reg = el._delegated || (el._delegated = {}), key = evt + ' ' + sel;
+    if (!reg[key]) BT.on(el, evt, sel, function (e, t) { reg[key](e, t); });
+    reg[key] = fn;
+  };
   /* يعرض التحميل ثم المحتوى، أو رسالة خطأ مع إعادة المحاولة. el مثبّت عند بداية الصفحة. */
   A.load = function (el, promise, render) {
     BT.render(el, A.spinner());

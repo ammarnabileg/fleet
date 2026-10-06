@@ -90,7 +90,7 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
-          npx playwright test || (tail -n 100 /tmp/api.log; exit 1)
+          npx playwright test || (for f in test-results/*/error-context.md; do echo "== $f"; cat "$f"; done; tail -n 100 /tmp/api.log; exit 1)
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

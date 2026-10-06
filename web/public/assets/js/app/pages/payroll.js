@@ -261,9 +261,9 @@
   function platformsPanel(el) {
     var canEdit = api.can('settings.update');
     A.load(el, A.platforms(true), function (list) {
+      A.delegate(el, 'click', '[data-edit]', function (e, x) { var p = list.find(function (y) { return y.id === +x.getAttribute('data-edit'); }); platformForm(p, null, function () { platformsPanel(el); }); });
       setTimeout(function () {
         var b = el.querySelector('#plat-template'); if (b) b.onclick = function () { fromTemplate(function () { platformsPanel(el); }); };
-        BT.on(el, 'click', '[data-edit]', function (e, x) { var p = list.find(function (y) { return y.id === +x.getAttribute('data-edit'); }); platformForm(p, null, function () { platformsPanel(el); }); });
       });
       return h`<div class="flex gap-8 items-center mb-12"><div class="muted fs-sm">${RULE_HINT}</div><span class="spacer"></span>${canEdit ? A.btn('منصة جديدة من نموذج Excel', { icon: 'file-spreadsheet', cls: 'btn-primary', id: 'plat-template' }) : ''}</div>
         ${list.length ? h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(360px,1fr))">${list.map(function (p) {

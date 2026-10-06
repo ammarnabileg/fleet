@@ -87,6 +87,16 @@ def test_uat02_tled01_a_report_is_unapproved_cash_until_reviewed(client, earlier
     assert cash_of(client, earlier) == (D("81.500"), D("40.500"))
 
 
+def test_amounts_always_read_in_fils(admin_client, client, earlier):
+    """Nothing pending is 0.000, not 0: the app and the panel show the amount as the server sends it."""
+    c = client.get("/api/v1/driver/cash", headers=earlier["h"]).json()
+    assert (c["posted"], c["pending"], c["total"]) == ("81.500", "0.000", "81.500")
+    s = admin_client.get(f"/api/v1/cash/drivers/{earlier['id']}/statement").json()
+    assert (s["posted"], s["pending"], s["total"]) == ("81.500", "0.000", "81.500")
+    row = next(b for b in admin_client.get("/api/v1/cash/balances").json() if b["driver"]["id"] == earlier["id"])
+    assert (row["pending"], row["total"]) == ("0.000", "81.500")
+
+
 def test_uat03_tled02_a_correction_posts_an_adjustment_with_its_reason(admin_client, client, earlier, db):
     rid = report(client, earlier, cash="40.500").json()["id"]
     r = approve(admin_client, rid, cash_amount="38.500")
