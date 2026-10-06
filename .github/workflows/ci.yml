@@ -41,6 +41,65 @@ jobs:
         run: docker run --rm --add-host api:127.0.0.1 fleet-web:ci nginx -t
       - run: docker build -t fleet-postgres:ci deploy/postgres
 
+  # the admin panel in a real browser against a real backend: every page and tab, phone width, and whole flows
+  web-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fleet
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/e2e/package-lock.json
+      - name: start the panel and its backend on one origin
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/fleet
+          SECRET_KEY: ci-e2e-secret-key-not-for-production
+          COOKIE_SECURE: "false"
+          APP_ENV: development
+          MESSAGING_PROVIDER: log
+          LIVE_BROKER: memory
+          FILES_DIR: /tmp/fleet-files
+          ADMIN_PASSWORD: correct-horse-battery
+        run: |
+          pip install -r requirements.txt
+          alembic upgrade head
+          python -m app.ops.bootstrap --username admin --full-name "CI Admin"
+          nohup uvicorn app.ops.devserver:app --port 8000 > /tmp/api.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8000/healthz && break; sleep 1; done
+          curl -sf -o /dev/null http://127.0.0.1:8000/admin.html
+      - name: browser tests
+        working-directory: web/e2e
+        env:
+          BASE_URL: http://127.0.0.1:8000
+          ADMIN_PASSWORD: correct-horse-battery
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test || (tail -n 100 /tmp/api.log; exit 1)
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: web-e2e-report
+          path: |
+            web/e2e/playwright-report
+            web/e2e/test-results
+          retention-days: 14
+
   driver-app:
     runs-on: ubuntu-latest
     services:

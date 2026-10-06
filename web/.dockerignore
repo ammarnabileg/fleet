@@ -13,3 +13,5 @@ public/assets/js/driver.js
 public/assets/js/portal.js
 public/assets/js/pages
 public/assets/css/driver.css
+# the browser tests of the panel and their node_modules
+e2e

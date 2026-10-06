@@ -16,7 +16,6 @@
   function fils(v) { return v === '' || v == null ? null : Number(v).toFixed(3); }
   function monthLabel(iso) { var m = String(iso).split('-'); return fmt.month(+m[0], +m[1]); }
   function thisMonth() { return BT.config.today.slice(0, 7); }
-  function nextMonth() { var d = new Date(BT.config.today.slice(0, 7) + '-01T00:00:00'); d.setMonth(d.getMonth() + 1); return d.toISOString().slice(0, 7); }
 
   /* ما يقرؤه المكتب والسائق: شروط النظام في سطور */
   A.schemeTerms = function (s) {
@@ -236,5 +235,4 @@
       });
     }, api.fail);
   }
-  A.nextMonth = nextMonth;
 })();
