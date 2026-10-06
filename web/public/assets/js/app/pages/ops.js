@@ -170,7 +170,7 @@
   }
   function withDrivers(driver, build) {
     if (driver) { build(driverPicker(driver), function (v) { return v.driver_id; }); return; }
-    api.get('/employees', { is_driver: true, limit: 200 }).then(function (rows) {
+    A.all('/employees', { is_driver: true }).then(function (rows) {
       build(A.picker({ name: 'drv', label: 'السائق', required: true, items: rows.map(function (e) { return { id: e.id, label: api.name(e.name) + ' — ' + e.employee_number }; }) }), function (v) { return A.picked('drv', v.drv); });
     }, api.fail).catch(function () {});
   }

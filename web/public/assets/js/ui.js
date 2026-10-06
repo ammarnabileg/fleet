@@ -49,6 +49,9 @@
     if (!BT.ui.root) document.documentElement.style.overflow = 'hidden';
     requestAnimationFrame(function () { ov.classList.add('show'); });
     setTimeout(function () {
+      // already in one of its fields (a quick tap, or a slow phone where this runs late): never pull the focus back,
+      // or the rest of what is typed lands in the first field
+      if (panel.contains(document.activeElement)) return;
       var target = panel.querySelector('[autofocus]') || panel.querySelector('input:not([type=hidden]):not([readonly]),select,textarea') || panel;
       try { target.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
     }, 60);

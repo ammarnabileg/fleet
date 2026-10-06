@@ -199,7 +199,7 @@
   /* تسليم سيارة: صورة العداد إلزامية، وصور الحالة تحفظ وضع السيارة لحظة التسليم */
   A.handover = function (pre, after) {
     var wait = BT.modal.open({ title: 'تسليم سيارة لسائق', icon: 'key-round', size: 'sm', body: A.spinner() });
-    var jobs = [pre.vehicle ? Promise.resolve([pre.vehicle]) : api.get('/vehicles', { status: 'available', limit: 200 }), api.get('/employees', { is_driver: true, status_code: 'active', limit: 200 }), api.get('/custodies', { open: true, limit: 200 })];
+    var jobs = [pre.vehicle ? Promise.resolve([pre.vehicle]) : A.all('/vehicles', { status: 'available' }), A.all('/employees', { is_driver: true, status_code: 'active' }), A.all('/custodies', { open: true })];
     Promise.all(jobs).then(function (r) {
       wait.close();
       var vehicles = r[0], holding = {};

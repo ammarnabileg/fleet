@@ -77,6 +77,17 @@
     return h`<div class="card"><div class="card-b">${BT.empty('wifi-off', 'تعذر تحميل البيانات', api.message(err), raw('<button type="button" class="btn btn-sm btn-secondary mt-8" data-action="reload">إعادة المحاولة</button>'))}</div></div>`;
   };
   BT.actions['reload'] = function () { A.router.refresh(); };
+  /* كل صفوف قائمة من الخادم (200 في كل طلب) لقوائم الاختيار: السائق رقم 201 يجب أن يُختار كالأول */
+  A.all = function (path, params) {
+    var out = [];
+    function page(offset) {
+      return api.get(path, Object.assign({}, params, { limit: 200, offset: offset })).then(function (rows) {
+        out = out.concat(rows);
+        return rows.length === 200 && out.length < 5000 ? page(offset + 200) : out;
+      });
+    }
+    return page(0);
+  };
   /* معالج نقرات لعنصر يُعاد رسمه بنفسه (لوحة تُحدَّث بعد الحفظ): معالج واحد دائماً، بآخر بيانات.
      BT.on مباشرة في كل رسم يضيف معالجاً جديداً كل مرة، فتفتح النقرة نموذجين أو ترسل الطلب مرتين. */
   A.delegate = function (el, evt, sel, fn) {

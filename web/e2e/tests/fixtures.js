@@ -42,16 +42,18 @@ class Api {
     };
     return {
       call: (method, path, body) => self.ctx.fetch('/api/v1' + path, { method, data: body, headers: auth }).then(answer(method, path)),
-      /** A photo from the gallery (a JPEG never sent before, as the server refuses a reused one). */
-      photo: () => {
-        const bytes = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), require('crypto').randomBytes(64)]);
-        return self.ctx.fetch('/api/v1/driver/files?source=upload', {
-          method: 'POST', headers: auth, multipart: { file: { name: 'shot.jpg', mimeType: 'image/jpeg', buffer: bytes } },
+      /** A photo from the gallery, or the camera (a JPEG never sent before, as the server refuses a reused one). */
+      photo: (source) => {
+        return self.ctx.fetch('/api/v1/driver/files?source=' + (source || 'upload'), {
+          method: 'POST', headers: auth, multipart: { file: { name: 'shot.jpg', mimeType: 'image/jpeg', buffer: jpeg() } },
         }).then(answer('POST', '/driver/files')).then((f) => f.sha256);
       },
     };
   }
 }
+
+/** A JPEG never seen before: the server refuses a photo it already has. */
+function jpeg() { return Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), require('crypto').randomBytes(64)]); }
 
 // unique per run and per call: codes, employee numbers, phones (Kuwaiti mobile: 5, 6 or 9 then 7 digits)
 let seq = 0;
@@ -112,4 +114,4 @@ const test = base.test.extend({
   },
 });
 
-module.exports = { test, expect, uid, phone, settled };
+module.exports = { test, expect, uid, phone, settled, jpeg };
