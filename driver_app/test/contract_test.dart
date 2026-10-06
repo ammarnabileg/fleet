@@ -547,7 +547,7 @@ void main() {
       });
 
       final first = appAgainstBackend(await testDb());
-      await first.loadSignInMethods();
+      await first.loadAppConfig();
       expect(first.phoneCodes, isFalse, reason: 'the sign-in screen shows the civil ID and a password only');
       final claim = await first.claimStart(civil, '12345678');
       expect(claim.next, 'password');
@@ -560,6 +560,50 @@ void main() {
       expect(second.phase, Phase.onboarding);
       final devices = await admin.call('GET', '/employees/${driver['id']}/devices') as List;
       expect(devices.where((d) => d['revoked_at'] == null).length, 1, reason: 'one phone at a time');
+    },
+    skip: backend == null ? 'set BACKEND_URL to run against a real backend' : null,
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test(
+    'the office hides a screen: the app drops its button and the server refuses it',
+    () async {
+      final admin = await signedInAdmin();
+      Future<void> hide(List<String> screens) async {
+        final settings = await admin.call('GET', '/settings') as Map;
+        await admin.call('PUT', '/settings/driver_app', {
+          'version': (settings['driver_app'] as Map)['version'],
+          'value': {'hidden_screens': screens},
+        });
+      }
+
+      final driver = await admin.call('POST', '/employees', {
+        'employee_number': 'H${DateTime.now().millisecondsSinceEpoch % 10000000}',
+        'name': {'ar': 'سائق الشاشات', 'en': 'Screens Driver'},
+        'company_id': await companyId(admin),
+        'is_driver': true,
+        'phone': '+9656${(DateTime.now().millisecondsSinceEpoch % 10000000).toString().padLeft(7, '0')}',
+      });
+      await admin.call('PUT', '/employees/${driver['id']}/app-access', {'app_access': 'active'});
+      final link = await admin.call('POST', '/employees/${driver['id']}/activation-link', {
+        'channel': 'manual',
+        'onboarding': false,
+      });
+      final state = appAgainstBackend(await testDb());
+      await state.activate((link['url'] as String).split('#t=')[1]);
+      expect(await state.api.get('/driver/maintenance'), isA<List>());
+
+      await hide(['maintenance']);
+      addTearDown(() => hide([]));
+      await state.loadAppConfig();
+      expect((state.shows('maintenance'), state.shows('fines')), (false, true));
+      Object? refused;
+      try {
+        await state.api.get('/driver/maintenance');
+      } catch (e) {
+        refused = e;
+      }
+      expect('$refused', contains('screen_off'), reason: 'hidden is refused by the server, not only by the app');
     },
     skip: backend == null ? 'set BACKEND_URL to run against a real backend' : null,
     timeout: const Timeout(Duration(minutes: 2)),

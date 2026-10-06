@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.core.types import LocalizedText
 
@@ -70,6 +70,31 @@ class DriverSignInSettings(_Section):
     phone_codes: bool = True
 
 
+# the driver app's screens an office may hide; sign-in, the day's start and end (custody, odometer, tracking),
+# the self-registration and the phone permissions are not here: the app does not work without them
+APP_SCREENS = ("daily_report", "cash", "maintenance", "accidents", "fines", "statement", "payslips")
+LOCKED_SCREENS = ("sign_in", "day", "onboarding", "permissions")
+
+
+class DriverAppSettings(_Section):
+    """What the driver app shows for this client: the screens hidden (the server refuses them too, so an old app or
+    a direct call cannot use them), and a splash screen the office designs as one image, shown when the app opens
+    (from the first launch after the app has fetched it)."""
+
+    hidden_screens: list[Literal[APP_SCREENS]] = Field(default_factory=list, max_length=len(APP_SCREENS))
+    splash_enabled: bool = False
+    splash_image: str | None = Field(None, pattern=r"^[0-9a-f]{64}$")  # an uploaded file's sha256
+    splash_color: str = Field("#FFFFFF", pattern=r"^#[0-9A-Fa-f]{6}$")  # around the image on other screen shapes
+    splash_seconds: int = Field(2, ge=1, le=5)
+
+    @model_validator(mode="after")
+    def _check(self):
+        if self.splash_enabled and not self.splash_image:
+            raise ValueError("splash_image: an image is needed to show a splash screen")
+        self.hidden_screens = sorted(set(self.hidden_screens))
+        return self
+
+
 class MaintenanceSettings(_Section):
     approval_limit: Decimal = Field(Decimal("100.000"), ge=0, max_digits=12, decimal_places=3)  # quotes above it
     close_requires_invoice: bool = True  # a picked-up request closes once its invoice is approved
@@ -114,12 +139,30 @@ SECTIONS: dict[str, type[_Section]] = {
     "onboarding": OnboardingSettings,
     "messaging": MessagingSettings,
     "driver_sign_in": DriverSignInSettings,
+    "driver_app": DriverAppSettings,
     "maintenance": MaintenanceSettings,
     "accidents": AccidentsSettings,
     "payroll": PayrollSettings,
     "daily_report": DailyReportSettings,
     "branding": BrandingSettings,
 }
+
+
+class SplashOut(BaseModel):
+    image: str  # sha256: GET /driver/splash/{image}
+    color: str
+    seconds: int
+
+
+class DriverAppConfigOut(BaseModel):
+    phone_codes: bool  # false: the civil ID and a password only
+    hidden_screens: list[str]
+    splash: SplashOut | None
+
+
+class AppScreensOut(BaseModel):
+    screens: list[str]  # may be hidden
+    locked: list[str]  # always shown
 
 
 class SettingOut(BaseModel):

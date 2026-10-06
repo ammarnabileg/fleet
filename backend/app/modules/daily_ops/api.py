@@ -9,19 +9,27 @@ from app.core.db import get_session
 from app.modules.daily_ops import schemas, service
 from app.modules.files import service as files
 from app.modules.identity.service import DevicePrincipal, Principal, require_device, require_permission
+from app.modules.org import service as org
 from app.modules.people import service as people
 
 router = APIRouter(prefix="/api/v1", tags=["daily reports"])
 
 
-@router.post("/driver/reports", response_model=schemas.ReportOut, status_code=201)
+@router.post(
+    "/driver/reports",
+    response_model=schemas.ReportOut,
+    status_code=201,
+    dependencies=[Depends(org.screen("daily_report"))],
+)
 def submit(
     body: schemas.ReportIn, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
 ):
     return service.submit(db, employee_id=device.employee_id, device_id=device.device_id, data=body.model_dump())
 
 
-@router.get("/driver/reports", response_model=list[schemas.ReportOut])
+@router.get(
+    "/driver/reports", response_model=list[schemas.ReportOut], dependencies=[Depends(org.screen("daily_report"))]
+)
 def my_reports(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
     return service.for_driver(db, device.employee_id)
 

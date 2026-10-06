@@ -14,6 +14,7 @@ from app.modules.identity.service import (
     require_device,
     require_permission,
 )
+from app.modules.org import service as org
 from app.modules.payroll import columns, export, platforms, runs, schemas, service, statements
 
 router = APIRouter(prefix="/api/v1", tags=["payroll"])
@@ -176,13 +177,20 @@ def reject_statement(
     return statements.reject(db, public_id, reason=body.reason, actor_user_id=principal.user_id, **principal.scope)
 
 
-@router.get("/driver/statements", response_model=schemas.DriverPlatformOut)
+@router.get(
+    "/driver/statements", response_model=schemas.DriverPlatformOut, dependencies=[Depends(org.screen("statement"))]
+)
 def my_statements(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
     """The driver's platform, what it asks for, the months he can send now and what he sent."""
     return statements.driver_view(db, device.employee_id)
 
 
-@router.post("/driver/statements", response_model=schemas.DriverPlatformOut, status_code=201)
+@router.post(
+    "/driver/statements",
+    response_model=schemas.DriverPlatformOut,
+    status_code=201,
+    dependencies=[Depends(org.screen("statement"))],
+)
 def send_statement(
     body: schemas.DriverStatementIn,
     device: DevicePrincipal = Depends(require_device),
@@ -280,7 +288,7 @@ def export_run(
     )
 
 
-@router.get("/driver/payslips", response_model=list[schemas.PayslipOut])
+@router.get("/driver/payslips", response_model=list[schemas.PayslipOut], dependencies=[Depends(org.screen("payslips"))])
 def my_payslips(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
     """The driver's approved payslips, each in his platform's sheet order (FR-PAY-06)."""
     return runs.payslips(db, device.employee_id)

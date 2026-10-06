@@ -27,7 +27,7 @@ def _driver(db: Session, raw: str, principal: Principal) -> people.EmployeeRef:
 # ---- driver app
 
 
-@router.get("/driver/cash", response_model=schemas.DriverCashOut)
+@router.get("/driver/cash", response_model=schemas.DriverCashOut, dependencies=[Depends(org.screen("cash"))])
 def my_cash(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
     b = service.driver_balance(db, device.employee_id)
     return {
@@ -39,7 +39,11 @@ def my_cash(device: DevicePrincipal = Depends(require_device), db: Session = Dep
     }
 
 
-@router.post("/driver/cash/receipts/{public_id}/confirm", response_model=schemas.ReceiptOut)
+@router.post(
+    "/driver/cash/receipts/{public_id}/confirm",
+    response_model=schemas.ReceiptOut,
+    dependencies=[Depends(org.screen("cash"))],
+)
 def confirm_receipt(
     public_id: uuid.UUID, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
 ):

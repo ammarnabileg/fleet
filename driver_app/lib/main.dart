@@ -14,6 +14,7 @@ import 'ui/screens/home.dart';
 import 'ui/screens/onboarding.dart';
 import 'ui/screens/permissions.dart';
 import 'ui/screens/sign_in.dart';
+import 'ui/screens/splash.dart';
 import 'ui/screens/waiting.dart';
 import 'ui/theme.dart';
 import 'ui/widgets/common.dart';
@@ -96,6 +97,9 @@ class _DriverAppState extends State<DriverApp> {
     final s = widget.state;
     if (_activating != null) {
       return ActivatingScreen(error: _activationError, onBack: () => setState(() => _activating = null));
+    }
+    if (s.splashing && s.splashImage != null && s.splash != null) {
+      return SplashView(image: s.splashImage!, color: s.splash!.color);
     }
     return switch (s.phase) {
       Phase.booting => const Scaffold(body: Center(child: CircularProgressIndicator())),

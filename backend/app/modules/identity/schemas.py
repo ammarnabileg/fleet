@@ -304,10 +304,6 @@ class ClaimPasswordIn(BaseModel):
     app_version: Meta | None = None
 
 
-class SignInMethodsOut(BaseModel):
-    phone_codes: bool  # false: civil ID and password only
-
-
 class ClaimsIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

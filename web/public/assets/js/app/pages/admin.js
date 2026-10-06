@@ -158,7 +158,7 @@
   /* ================= الإعدادات والصلاحيات ================= */
   var TABS = [
     ['users', 'المستخدمون', 'users.view'], ['roles', 'الأدوار والصلاحيات', 'roles.view'], ['companies', 'الشركات', 'companies.view'],
-    ['branches', 'الفروع', null], ['system', 'إعدادات النظام', 'settings.view'], ['statuses', 'الحالات الوظيفية', null], ['i18n', 'اللغات والترجمة', 'i18n.manage']
+    ['branches', 'الفروع', null], ['system', 'إعدادات النظام', 'settings.view'], ['app', 'تطبيق السائق', 'settings.view'], ['statuses', 'الحالات الوظيفية', null], ['i18n', 'اللغات والترجمة', 'i18n.manage']
   ];
   BT.pages['settings'] = function (p, q) {
     A.setTitle('الإعدادات والصلاحيات');
@@ -170,7 +170,7 @@
     function show(t) {
       if (drawn[t]) return; drawn[t] = true;
       var el = v.querySelector('[data-p="' + t + '"]');
-      ({ users: usersPanel, roles: rolesPanel, companies: companiesPanel, branches: branchesPanel, system: systemPanel, statuses: statusesPanel, i18n: i18nPanel })[t](el);
+      ({ users: usersPanel, roles: rolesPanel, companies: companiesPanel, branches: branchesPanel, system: systemPanel, app: appPanel, statuses: statusesPanel, i18n: i18nPanel })[t](el);
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/settings?tab=' + e.detail); });
     show(tab);
@@ -372,7 +372,7 @@
           });
         });
       });
-      return h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr))">${Object.keys(sections).map(function (name) {
+      return h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr))">${Object.keys(sections).filter(function (name) { return name !== 'driver_app'; }).map(function (name) {
         var s = sections[name];
         return h`<form class="card" data-sec="${name}" novalidate><div class="card-h"><div class="card-t">${api.t('settings', name)}</div><span class="muted fs-sm">نسخة ${s.version}</span></div><div class="form">${Object.keys(s.value).map(function (k) {
           var val = s.value[k], label = api.t('settings', name + '.' + k);
@@ -383,6 +383,80 @@
           return BT.f.input({ name: k, label: label, value: val == null ? '' : val, readonly: !canEdit, num: /^\d+\.\d{3}$/.test(String(val)) });
         })}${canEdit ? h`<div><button type="submit" class="btn btn-sm btn-primary">${icon('check', 14)} حفظ</button></div>` : ''}</div></form>`;
       })}</div>`;
+    }).catch(function () {});
+  }
+
+  /* ---------- تطبيق السائق: الشاشات تُظهر وتُخفى مثل الصلاحيات، وشاشة البداية صورة يصممها المكتب ---------- */
+  var SCREEN_EFFECT = {
+    daily_report: 'لا يرسل السائق تقريره اليومي ولا الكاش المحصّل من التطبيق: يسجّله المكتب',
+    cash: 'يختفي تبويب الكاش: رصيده وإيصالات تسليم الكاش',
+    maintenance: 'لا يطلب السائق صيانة من التطبيق، ولا يرى «سيارتك جاهزة»',
+    accidents: 'لا يبلّغ السائق عن حادث ولا يرسل محضر الشرطة: يسجّله المكتب',
+    fines: 'لا يرى السائق مخالفاته وأقساط خصمها',
+    statement: 'لا يرسل السائق كشف منصته: يُدخله المكتب، وإلا توقفت رواتب المنصات التي تحتاج الأيام الصالحة',
+    payslips: 'لا يرى السائق كشف راتبه في التطبيق'
+  };
+  function appPanel(el) {
+    A.load(el, Promise.all([api.get('/settings'), api.get('/app-screens')]), function (r) {
+      var cur = r[0].driver_app, reg = r[1], v = cur.value, canEdit = api.can('settings.update');
+      var image = v.splash_image, preview = null;
+      setTimeout(function () {
+        var form = el.querySelector('form[data-app]'), box = form.querySelector('[data-preview]');
+        function draw() {
+          var vals = BT.form.values(form), color = /^#[0-9A-Fa-f]{6}$/.test(vals.splash_color || '') ? vals.splash_color : '#FFFFFF';
+          var src = preview || (image && v.splash_enabled && image === v.splash_image ? '/api/v1/driver/splash/' + image : null);
+          BT.render(box, h`<div class="flex gap-12 mt-8" style="align-items:flex-end;flex-wrap:wrap"><div data-phone style="width:150px;height:300px;border-radius:22px;border:6px solid var(--text);background:${color};display:flex;align-items:center;justify-content:center;overflow:hidden">${src ? h`<img src="${src}" alt="" style="max-width:100%;max-height:100%;object-fit:contain">` : h`<span class="muted fs-sm" style="padding:10px;text-align:center">${image ? 'الصورة محفوظة: تظهر هنا عند التفعيل' : 'لا توجد صورة بعد'}</span>`}</div><div class="muted fs-sm" style="max-width:320px">معاينة على هاتف طولي. على الشاشات الأعرض أو الأطول يملأ لون الخلفية ما حول الصورة.</div></div>`);
+        }
+        draw();
+        form.addEventListener('input', draw);
+        var file = form.querySelector('input[name=splash_file]');
+        if (file) file.addEventListener('change', function () {
+          var f = file.files[0]; if (!f) return;
+          if (!/^image\/(png|jpeg)$/.test(f.type)) { BT.toast('الصورة JPEG أو PNG', { type: 'error' }); file.value = ''; return; }
+          if (f.size > 2000000) { BT.toast('الصورة أكبر من 2 ميجابايت', { type: 'error' }); file.value = ''; return; }
+          preview = URL.createObjectURL(f); draw();
+          api.upload(f).then(function (x) { image = x.sha256; BT.toast('رُفعت الصورة: احفظ لتصل للتطبيق'); }, function (err) { preview = null; draw(); BT.toast(api.message(err), { type: 'error', timeout: 6000 }); });
+        });
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          if (!BT.form.validate(form)) return;
+          var vals = BT.form.values(form), shown = [].concat(vals.screen || []).filter(Boolean);
+          var value = {
+            hidden_screens: reg.screens.filter(function (k) { return shown.indexOf(k) < 0; }),
+            splash_enabled: !!vals.splash_enabled, splash_image: image || null,
+            splash_color: vals.splash_color, splash_seconds: Math.round(Number(vals.splash_seconds || 2))
+          };
+          if (value.splash_enabled && !value.splash_image) { BT.toast('اختر صورة شاشة البداية أولاً', { type: 'error' }); return; }
+          var hiding = value.hidden_screens.filter(function (k) { return v.hidden_screens.indexOf(k) < 0; });
+          var go = function () {
+            var b = form.querySelector('[type=submit]'); b.classList.add('is-loading');
+            return api.put('/settings/driver_app', { version: cur.version, value: value }).then(function () { BT.toast('حُفظ: يصل للسائقين مع اتصال التطبيق التالي'); appPanel(el); }, function (err) { b.classList.remove('is-loading'); BT.toast(api.message(err), { type: 'error', timeout: 6000 }); });
+          };
+          if (!hiding.length) return go();
+          A.confirmRun({ title: 'إخفاء ' + hiding.length + ' شاشة', icon: 'eye-off', tone: 'danger', confirmText: 'إخفاء', done: false,
+            message: hiding.map(function (k) { return api.t('app_screen', k) + ': ' + (SCREEN_EFFECT[k] || ''); }).join('\n'), run: go });
+        });
+      });
+      return h`<form class="card" data-app novalidate>
+        <div class="card-h"><div class="card-t">شاشات التطبيق</div><span class="muted fs-sm">نسخة ${cur.version}</span></div>
+        <div class="card-b form">
+          <div class="hint">المؤشَّر يظهر للسائق. المخفي يختفي من التطبيق ويرفضه الخادم أيضاً (فلا تصل إليه نسخة قديمة أو اتصال مباشر)، وبياناته لا تُحذف: تعود كما هي عند إظهاره. يصل التغيير للسائق مع اتصال التطبيق التالي، دون تحديثه.</div>
+          <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">${reg.screens.map(function (k) {
+            return h`<div data-screen="${k}">${canEdit ? BT.f.check({ name: 'screen', value: k, label: api.t('app_screen', k), checked: v.hidden_screens.indexOf(k) < 0 }) : BT.pill(api.t('app_screen', k), v.hidden_screens.indexOf(k) < 0 ? 'g' : 'n')}<div class="muted fs-sm" style="margin-inline-start:28px;margin-top:2px">${SCREEN_EFFECT[k] || ''}</div></div>`;
+          })}</div>
+          <div><b class="fs-sm">لا تُخفى (التطبيق لا يعمل بدونها)</b><div class="flex gap-8 mt-8" style="flex-wrap:wrap">${reg.locked.map(function (k) { return BT.pill(api.t('app_screen', k), 'n'); })}</div></div>
+        </div>
+        <div class="card-h"><div class="card-t">شاشة البداية</div></div>
+        <div class="card-b form">
+          ${canEdit ? BT.f.switch({ name: 'splash_enabled', label: 'تظهر عند فتح التطبيق', checked: v.splash_enabled }) : BT.pill(v.splash_enabled ? 'مفعّلة' : 'غير مفعّلة', v.splash_enabled ? 'g' : 'n')}
+          <div class="hint">صمّمها صورة واحدة بالشكل الذي تريده (شعار، نص، ألوان)، طولية مثل 1080×1920، JPEG أو PNG حتى 2 ميجابايت. تصل للسائق مع اتصال التطبيق التالي وتظهر من الفتح الذي بعده، دون تحديث التطبيق.</div>
+          <div class="form-grid">
+            ${canEdit ? BT.f.upload({ name: 'splash_file', label: 'الصورة', accept: 'image/png,image/jpeg', accept_label: 'JPEG أو PNG · حتى 2MB' }) : ''}
+            <div>${BT.f.input({ name: 'splash_color', label: 'لون الخلفية حول الصورة', value: v.splash_color, pattern: '#[0-9A-Fa-f]{6}', msg: 'مثل #0A6CFF', readonly: !canEdit })}${BT.f.input({ name: 'splash_seconds', label: 'مدة الظهور (ثانية، 1 إلى 5)', value: v.splash_seconds, num: true, readonly: !canEdit })}</div>
+          </div>
+          <div data-preview></div>
+          ${canEdit ? h`<div><button type="submit" class="btn btn-primary">${icon('check', 15)} حفظ</button></div>` : ''}
+        </div></form>`;
     }).catch(function () {});
   }
 

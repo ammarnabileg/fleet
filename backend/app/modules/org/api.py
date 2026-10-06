@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.db import get_session
+from app.core.errors import AppError
+from app.modules.files import service as files
 from app.modules.identity.service import Principal, get_principal, require_permission
 from app.modules.org import schemas, service
 
@@ -15,6 +17,28 @@ def branding(db: Session = Depends(get_session)):
     """Public: the sign-in page shows the installation's name before anyone signs in."""
     b = service.get_section(db, "branding")
     return schemas.BrandingOut(display_name=b.display_name, primary_color=b.primary_color)
+
+
+@router.get("/driver/app-config", response_model=schemas.DriverAppConfigOut)
+def driver_app_config(db: Session = Depends(get_session)):
+    """Asked by the app before and after sign-in (no secrets in it): how the driver signs in, the screens this client
+    hides, and the splash screen."""
+    return service.driver_app_config(db)
+
+
+@router.get("/driver/splash/{sha256}")
+def driver_splash(sha256: str, db: Session = Depends(get_session)):
+    """The splash image, before sign-in: only the one set now."""
+    info = service.splash_file(db)
+    if info is None or info.sha256 != sha256:
+        raise AppError(404, "file_not_found")
+    return files.response(db, info)
+
+
+@router.get("/app-screens", response_model=schemas.AppScreensOut)
+def app_screens(_: Principal = Depends(require_permission("settings.view"))):
+    """The driver app's screens an office may hide, and those it may not."""
+    return service.app_screens()
 
 
 @router.get("/settings", response_model=dict[str, schemas.SettingOut])

@@ -28,7 +28,7 @@
   /* ================= الصفحة ================= */
   /* كيف يدخل السائقون: الهاتف ورمز واتساب، أو (false) الرقم المدني وكلمة مرور فقط (إعدادات: دخول السائق للتطبيق) */
   A.phoneCodes = function () {
-    if (!A._codes) A._codes = api.get('/driver/auth/methods').then(function (r) { A.codes = r.phone_codes; return r.phone_codes; }, function () { A._codes = null; return true; });
+    if (!A._codes) A._codes = api.get('/driver/app-config').then(function (r) { A.codes = r.phone_codes; return r.phone_codes; }, function () { A._codes = null; return true; });
     return A._codes;
   };
 

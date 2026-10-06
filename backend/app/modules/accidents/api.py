@@ -8,6 +8,7 @@ from app.core.db import get_session
 from app.modules.accidents import schemas, service
 from app.modules.files import service as files
 from app.modules.identity.service import DevicePrincipal, Principal, require_device, require_permission
+from app.modules.org import service as org
 
 router = APIRouter(prefix="/api/v1", tags=["accidents"])
 
@@ -218,7 +219,12 @@ def portal_file(
 # ------------------------------------------------------------------ the driver app
 
 
-@router.post("/driver/accidents", response_model=schemas.DriverAccidentOut, status_code=201)
+@router.post(
+    "/driver/accidents",
+    response_model=schemas.DriverAccidentOut,
+    status_code=201,
+    dependencies=[Depends(org.screen("accidents"))],
+)
 def driver_report(
     body: schemas.DriverAccidentIn,
     device: DevicePrincipal = Depends(require_device),
@@ -227,12 +233,18 @@ def driver_report(
     return service.driver_report(db, employee_id=device.employee_id, device_id=device.device_id, data=body.model_dump())
 
 
-@router.get("/driver/accidents", response_model=list[schemas.DriverAccidentOut])
+@router.get(
+    "/driver/accidents", response_model=list[schemas.DriverAccidentOut], dependencies=[Depends(org.screen("accidents"))]
+)
 def my_accidents(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
     return service.for_driver(db, device.employee_id)
 
 
-@router.post("/driver/accidents/{public_id}/police-report", response_model=schemas.DriverAccidentOut)
+@router.post(
+    "/driver/accidents/{public_id}/police-report",
+    response_model=schemas.DriverAccidentOut,
+    dependencies=[Depends(org.screen("accidents"))],
+)
 def driver_police_report(
     public_id: uuid.UUID,
     body: schemas.PoliceReportIn,

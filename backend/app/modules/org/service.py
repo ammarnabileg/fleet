@@ -4,16 +4,21 @@ import time
 import uuid
 from collections.abc import Iterable
 
+from fastapi import Depends
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from app.core.db import get_session
 from app.core.errors import AppError
 from app.core.events import emit
 from app.modules.audit import service as audit
+from app.modules.files import service as files
 from app.modules.i18n import service as i18n
 from app.modules.org.models import Branch, Company, Setting
-from app.modules.org.schemas import SECTIONS
+from app.modules.org.schemas import APP_SCREENS, LOCKED_SCREENS, SECTIONS
+
+SPLASH_MAX_BYTES = 2_000_000  # the app keeps it to show before the network answers
 
 CACHE_SECONDS = 60
 _cache: dict[str, tuple[float, int, BaseModel]] = {}
@@ -49,6 +54,50 @@ def get_section(db: Session, name: str) -> BaseModel:
 def phone_codes(db: Session) -> bool:
     """Whether a WhatsApp code verifies a driver's phone (and a driver signs in with it): see DriverSignInSettings."""
     return get_section(db, "driver_sign_in").phone_codes
+
+
+def screen_shown(db: Session, key: str) -> bool:
+    return key not in get_section(db, "driver_app").hidden_screens
+
+
+def screen(key: str):
+    """Dependency of a driver endpoint behind an app screen: refused while this client hides the screen, whatever
+    the app shows (an older app, or a direct call)."""
+    if key not in APP_SCREENS:
+        raise ValueError(f"unknown app screen {key}")
+
+    def check(db: Session = Depends(get_session)) -> None:
+        if not screen_shown(db, key):
+            raise AppError(403, "screen_off")
+
+    return check
+
+
+def app_screens() -> dict:
+    return {"screens": list(APP_SCREENS), "locked": list(LOCKED_SCREENS)}
+
+
+def splash_file(db: Session) -> files.FileInfo | None:
+    """The splash image when one is set and usable: a JPEG or PNG the app can keep."""
+    app = get_section(db, "driver_app")
+    if not app.splash_enabled or not app.splash_image:
+        return None
+    try:
+        info = files.get(db, app.splash_image)
+    except AppError:
+        return None
+    return info if info.content_type in files.IMAGES and info.size_bytes <= SPLASH_MAX_BYTES else None
+
+
+def driver_app_config(db: Session) -> dict:
+    """What the app asks before and after sign-in: how the driver signs in, the screens hidden, the splash screen."""
+    app = get_section(db, "driver_app")
+    image = splash_file(db)
+    return {
+        "phone_codes": phone_codes(db),
+        "hidden_screens": app.hidden_screens,
+        "splash": {"image": image.sha256, "color": app.splash_color, "seconds": app.splash_seconds} if image else None,
+    }
 
 
 def all_sections(db: Session) -> dict[str, tuple[int, BaseModel]]:

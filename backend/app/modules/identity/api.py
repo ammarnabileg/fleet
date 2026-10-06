@@ -10,7 +10,6 @@ from app.modules.i18n import service as i18n
 from app.modules.identity import claims, link_queue, schemas, service
 from app.modules.identity.service import Principal, get_principal, require_permission
 from app.modules.onboarding import service as onboarding
-from app.modules.org import service as org
 from app.modules.people import service as people
 
 router = APIRouter(prefix="/api/v1", tags=["identity"])
@@ -202,12 +201,6 @@ def activate(body: schemas.ActivateIn, db: Session = Depends(get_session)):
         model=body.model,
         app_version=body.app_version,
     )
-
-
-@router.get("/driver/auth/methods", response_model=schemas.SignInMethodsOut)
-def sign_in_methods(db: Session = Depends(get_session)):
-    """What the sign-in screen shows: the phone and a WhatsApp code, or only the civil ID and a password."""
-    return {"phone_codes": org.phone_codes(db)}
 
 
 @router.post("/driver/auth/claim", response_model=schemas.ClaimStartOut)

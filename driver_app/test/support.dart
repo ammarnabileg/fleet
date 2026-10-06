@@ -15,7 +15,7 @@ Future<AppDb> testDb([String? path]) async {
   return AppDb.open(factory: databaseFactoryFfiNoIsolate, path: path ?? '${dir.path}/fleet.db');
 }
 
-/// A scripted backend: each route answers with a status and a JSON body; every request is recorded.
+/// A scripted backend: each route answers with a status and a JSON body (or bytes); every request is recorded.
 class FakeServer {
   final requests = <http.Request>[];
   final routes = <String, (int, Object?) Function(http.Request)>{};
@@ -27,6 +27,7 @@ class FakeServer {
     final route = routes['${req.method} ${req.url.path}'];
     if (route == null) return http.Response(jsonEncode({'code': 'not_found'}), 404);
     final (status, body) = route(req);
+    if (body is List<int>) return http.Response.bytes(body, status, headers: {'content-type': 'image/png'});
     return http.Response(body == null ? '' : jsonEncode(body), status, headers: {'content-type': 'application/json'});
   });
 

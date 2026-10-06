@@ -8,6 +8,7 @@ from app.core.db import get_session
 from app.modules.files import service as files
 from app.modules.fines import schemas, service
 from app.modules.identity.service import DevicePrincipal, Principal, require_device, require_permission
+from app.modules.org import service as org
 
 router = APIRouter(prefix="/api/v1", tags=["fines"])
 
@@ -108,6 +109,6 @@ def mark_paid(
     )
 
 
-@router.get("/driver/fines", response_model=list[schemas.DriverFineOut])
+@router.get("/driver/fines", response_model=list[schemas.DriverFineOut], dependencies=[Depends(org.screen("fines"))])
 def my_fines(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
     return service.for_driver(db, device.employee_id)

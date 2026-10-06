@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -33,6 +34,22 @@ class Api {
       _send('POST', path, body: body ?? const {}, query: query, auth: auth);
 
   Future<dynamic> put(String path, {Object? body}) => _send('PUT', path, body: body ?? const {}, auth: true);
+
+  /// A public file's bytes, with no session (the splash image, shown before sign-in).
+  Future<Uint8List> bytes(String path) async {
+    final http.Response res;
+    try {
+      res = await _http.get(uri(path), headers: {'Accept-Language': lang}).timeout(timeout);
+    } on SocketException {
+      throw ApiError(0, 'network');
+    } on TimeoutException {
+      throw ApiError(0, 'network');
+    } on http.ClientException {
+      throw ApiError(0, 'network');
+    }
+    if (res.statusCode != 200) throw ApiError(res.statusCode, 'http_${res.statusCode}');
+    return res.bodyBytes;
+  }
 
   /// Uploads a file to /driver/files. [source] "camera" for photos taken in the app, "upload" for picked files.
   Future<Map<String, dynamic>> upload(String filePath, {String source = 'camera'}) async {

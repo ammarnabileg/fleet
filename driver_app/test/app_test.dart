@@ -903,7 +903,11 @@ void main() {
     tester,
   ) async {
     final w = (await tester.runAsync(() => world(signedIn: false)))!;
-    w.server.on('GET', '/api/v1/driver/auth/methods', (r) => (200, {'phone_codes': false}));
+    w.server.on(
+      'GET',
+      '/api/v1/driver/app-config',
+      (r) => (200, {'phone_codes': false, 'hidden_screens': <String>[], 'splash': null}),
+    );
     final name = {'ar': 'الفاتح مختار', 'en': 'Alfatih'};
     w.server.on('POST', '/api/v1/driver/auth/claim', (r) {
       final b = jsonDecode(r.body) as Map;
@@ -955,5 +959,72 @@ void main() {
     await idle(tester);
     expect(find.textContaining('18/23456'), findsOneWidget);
     expect(w.server.calls('/api/v1/driver/auth/claim/password').length, 1);
+  });
+
+  testWidgets('the office hides screens: their buttons, banners and the cash tab go', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    var hidden = <String>[];
+    w.server.on(
+      'GET',
+      '/api/v1/driver/app-config',
+      (r) => (200, {'phone_codes': true, 'hidden_screens': hidden, 'splash': null}),
+    );
+    await pumpApp(tester, w);
+    for (final k in ['daily-report', 'maintenance', 'accident', 'fines', 'statement', 'payslips']) {
+      expect(find.byKey(Key(k)), findsOneWidget, reason: k);
+    }
+    expect(find.text('الكاش'), findsWidgets);
+    hidden = ['cash', 'maintenance', 'fines', 'payslips'];
+    await tester.runAsync(() => w.state.refresh());
+    await idle(tester);
+    for (final k in ['maintenance', 'fines', 'payslips']) {
+      expect(find.byKey(Key(k)), findsNothing, reason: k);
+    }
+    for (final k in ['daily-report', 'accident', 'statement', 'start-day']) {
+      expect(find.byKey(Key(k)), findsOneWidget, reason: k);
+    }
+    expect(find.byIcon(Icons.account_balance_wallet_outlined), findsNothing, reason: 'no cash tab');
+    final cashCalls = w.server.calls('/api/v1/driver/cash').length;
+    await tester.runAsync(() => w.state.refresh());
+    expect(w.server.calls('/api/v1/driver/cash').length, cashCalls, reason: 'a hidden screen is not even loaded');
+    await shot(tester, '23-hidden-screens');
+  });
+
+  testWidgets('the splash screen the office designed shows when the app opens, from the next launch', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final png = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    );
+    final sha = 'a' * 64;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/app-config',
+      (r) => (
+        200,
+        {
+          'phone_codes': true,
+          'hidden_screens': <String>[],
+          'splash': {'image': sha, 'color': '#0A6CFF', 'seconds': 2},
+        },
+      ),
+    );
+    w.server.on('GET', '/api/v1/driver/splash/$sha', (r) => (200, png));
+    await pumpApp(tester, w);
+    expect(find.byKey(const Key('splash')), findsNothing, reason: 'the first launch only fetches and keeps it');
+    expect(w.server.calls('/api/v1/driver/splash/$sha').length, 1);
+
+    // the next launch: shown before anything else, then the app goes on
+    final again = AppState(db: w.state.db, api: w.state.api, pollEvery: null, platform: w.state.platform);
+    await tester.pumpWidget(const SizedBox()); // the app closed
+    await tester.pumpWidget(DriverApp(state: again));
+    await tester.runAsync(() => again.boot());
+    await tester.pump();
+    expect(find.byKey(const Key('splash')), findsOneWidget);
+    await shot(tester, '24-splash');
+    await tester.runAsync(() => Future<void>.delayed(const Duration(seconds: 2, milliseconds: 100)));
+    await idle(tester);
+    expect(find.byKey(const Key('splash')), findsNothing);
+    expect(find.byKey(const Key('start-day')), findsOneWidget);
+    expect(w.server.calls('/api/v1/driver/splash/$sha').length, 1, reason: 'kept on the phone, not fetched again');
   });
 }

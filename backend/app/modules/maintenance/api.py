@@ -8,6 +8,7 @@ from app.core.db import get_session
 from app.modules.files import service as files
 from app.modules.identity.service import DevicePrincipal, Principal, require_device, require_permission
 from app.modules.maintenance import schemas, service
+from app.modules.org import service as org
 
 router = APIRouter(prefix="/api/v1", tags=["maintenance"])
 
@@ -426,7 +427,12 @@ def portal_invoice_file(
 # ------------------------------------------------------------------ the driver app
 
 
-@router.post("/driver/maintenance", response_model=schemas.DriverRequestOut, status_code=201)
+@router.post(
+    "/driver/maintenance",
+    response_model=schemas.DriverRequestOut,
+    status_code=201,
+    dependencies=[Depends(org.screen("maintenance"))],
+)
 def driver_request(
     body: schemas.DriverRequestIn,
     device: DevicePrincipal = Depends(require_device),
@@ -437,6 +443,10 @@ def driver_request(
     )
 
 
-@router.get("/driver/maintenance", response_model=list[schemas.DriverRequestOut])
+@router.get(
+    "/driver/maintenance",
+    response_model=list[schemas.DriverRequestOut],
+    dependencies=[Depends(org.screen("maintenance"))],
+)
 def my_requests(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
     return service.for_driver(db, device.employee_id)

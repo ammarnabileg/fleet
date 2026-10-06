@@ -360,7 +360,8 @@
     "device_already_bound": "Already has a bound phone: signs in with the WhatsApp code",
     "sign_in_method_changed": "The company changed how drivers sign in. Start signing in again",
     "phone_sign_in_off": "Signing in with a phone number is off: use your civil ID and password",
-    "password_not_allowed": "Choose a password other than the initial password and your civil ID"
+    "password_not_allowed": "Choose a password other than the initial password and your civil ID",
+    "screen_off": "This screen is turned off in your company's app"
   },
   "settings": {
     "branding": "Branding",
@@ -403,7 +404,13 @@
     "payroll.deduction_cap_base": "The cap is a share of",
     "onboarding.require_bank": "IBAN and bank name required in self-registration",
     "driver_sign_in": "Driver sign-in",
-    "driver_sign_in.phone_codes": "Verify the driver's phone with a WhatsApp code (off: civil ID and a password only)"
+    "driver_sign_in.phone_codes": "Verify the driver's phone with a WhatsApp code (off: civil ID and a password only)",
+    "driver_app": "Driver app: screens and splash screen",
+    "driver_app.hidden_screens": "Hidden screens",
+    "driver_app.splash_enabled": "Splash screen",
+    "driver_app.splash_image": "Splash image",
+    "driver_app.splash_color": "Background around the image",
+    "driver_app.splash_seconds": "Shown for (seconds)"
   },
   "common": {
     "active": "Active",
@@ -709,5 +716,18 @@
     "none": "Not deducted",
     "daily_wage": "A day's wage (basic ÷ divisor)",
     "fixed": "A fixed amount per day"
+  },
+  "app_screen": {
+    "daily_report": "Daily report",
+    "cash": "Cash and handover receipts",
+    "maintenance": "Maintenance request",
+    "accidents": "Report an accident",
+    "fines": "Traffic fines",
+    "statement": "Monthly platform statement",
+    "payslips": "Payslips",
+    "sign_in": "Sign-in",
+    "day": "Start and end of the day (odometer, custody, tracking)",
+    "onboarding": "Self-registration (set in the self-registration settings)",
+    "permissions": "Phone permissions (location, camera)"
   }
 }

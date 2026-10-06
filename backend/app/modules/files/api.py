@@ -23,6 +23,7 @@ UPLOADERS = (
     "portal.quotes",
     "portal.invoices",
     "portal.damage",  # the damage estimate and its photos
+    "settings.update",  # the driver app's splash image
 )
 
 

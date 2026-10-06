@@ -73,19 +73,29 @@ class AppState extends ChangeNotifier {
   bool busy = false;
   Timer? _poll;
 
-  /// How this company signs drivers in: the phone and a WhatsApp code, or (false) the civil ID and a password only.
-  /// Kept from the last time the server answered, so the right screen shows offline.
+  /// What this company's office set for the app (GET /driver/app-config), kept from the last answer so the right
+  /// screens show offline: how drivers sign in (the phone and a WhatsApp code, or false: the civil ID and a password
+  /// only), the screens it hides (the server refuses them too), and its splash screen.
   bool phoneCodes = true;
+  Set<String> hiddenScreens = {};
+  ({String image, String color, int seconds})? splash;
+
+  /// The splash image kept on the phone, and whether it is showing (only when the app opens).
+  Uint8List? splashImage;
+  bool splashing = false;
+
+  bool shows(String screen) => !hiddenScreens.contains(screen);
 
   /// [deviceLang]: the phone's language at first launch; afterwards the driver's choice is kept.
   Future<void> boot({String deviceLang = 'ar'}) async {
     lang = await db.get('lang') ?? (deviceLang == 'ar' ? 'ar' : 'en');
     api.lang = lang;
+    _applyConfig(await db.get('app_config'));
+    await _showSplash();
     unawaited(catalog.load(api, lang));
-    phoneCodes = await db.get('phone_codes') != 'false';
     if (!await tokens.hasSession()) {
       _set(Phase.signedOut);
-      unawaited(loadSignInMethods());
+      unawaited(loadAppConfig());
       return;
     }
     await refresh();
@@ -106,18 +116,59 @@ class AppState extends ChangeNotifier {
 
   // ---------------------------------------------------------------- sign in
 
-  Future<void> loadSignInMethods() async {
+  Future<void> loadAppConfig() async {
     try {
-      final r = await api.get('/driver/auth/methods', auth: false) as Map<String, dynamic>;
-      final value = r['phone_codes'] != false;
-      await db.put('phone_codes', '$value');
-      if (value != phoneCodes) {
-        phoneCodes = value;
-        notifyListeners();
-      }
+      final raw = jsonEncode(await api.get('/driver/app-config', auth: false));
+      await db.put('app_config', raw);
+      final changed = _applyConfig(raw);
+      await _keepSplash();
+      if (changed) notifyListeners();
     } catch (_) {
       // offline or an older server: the last known answer stays
     }
+  }
+
+  bool _applyConfig(String? raw) {
+    if (raw == null) return false;
+    final c = jsonDecode(raw) as Map<String, dynamic>;
+    final codes = c['phone_codes'] != false;
+    final hidden = {for (final s in c['hidden_screens'] as List? ?? const []) s as String};
+    final s = c['splash'] as Map<String, dynamic>?;
+    final next = s == null
+        ? null
+        : (image: s['image'] as String, color: s['color'] as String, seconds: (s['seconds'] as num).toInt());
+    final changed = codes != phoneCodes || !setEquals(hidden, hiddenScreens) || next != splash;
+    phoneCodes = codes;
+    hiddenScreens = hidden;
+    splash = next;
+    return changed;
+  }
+
+  /// The splash image is kept on the phone: it shows when the app opens, before the network answers (so from the
+  /// launch after it was set).
+  Future<void> _keepSplash() async {
+    final s = splash;
+    if (s == null) {
+      await db.put('splash_sha', null);
+      await db.put('splash_image', null);
+      return;
+    }
+    if (await db.get('splash_sha') == s.image) return;
+    final bytes = await api.bytes('/driver/splash/${s.image}');
+    await db.put('splash_image', base64Encode(bytes));
+    await db.put('splash_sha', s.image);
+  }
+
+  Future<void> _showSplash() async {
+    final s = splash;
+    final kept = await db.get('splash_image');
+    if (s == null || kept == null || await db.get('splash_sha') != s.image) return;
+    splashImage = base64Decode(kept);
+    splashing = true;
+    Timer(Duration(seconds: s.seconds), () {
+      splashing = false;
+      notifyListeners();
+    });
   }
 
   Future<void> requestCode(String phone) async {
@@ -227,14 +278,14 @@ class AppState extends ChangeNotifier {
     await tokens.clear();
     _reset();
     _set(Phase.signedOut);
-    unawaited(loadSignInMethods());
+    unawaited(loadAppConfig());
   }
 
   void _sessionEnded() {
     unawaited(platform.stopTracking());
     _reset();
     _set(Phase.signedOut);
-    unawaited(loadSignInMethods());
+    unawaited(loadAppConfig());
   }
 
   void _reset() {
@@ -254,12 +305,19 @@ class AppState extends ChangeNotifier {
   /// Decides where the driver is (registration, waiting, permissions, ready) and loads the home data.
   Future<void> refresh() async {
     try {
+      await loadAppConfig();
       onboarding = Onboarding.fromJson(await api.get('/driver/onboarding') as Map<String, dynamic>);
       if (onboarding!.mustFill) return _set(Phase.onboarding);
       if (onboarding!.waiting) return _set(Phase.waiting);
       if (!await platform.permissionsOk()) return _set(Phase.permissions);
       await platform.startTracking();
-      await Future.wait([loadToday(), loadCash(), loadReports(), _quietly(loadMaintenance), _quietly(loadAccidents)]);
+      await Future.wait([
+        loadToday(),
+        if (shows('cash')) loadCash(),
+        if (shows('daily_report')) loadReports(),
+        if (shows('maintenance')) _quietly(loadMaintenance),
+        if (shows('accidents')) _quietly(loadAccidents),
+      ]);
       await _readLocal();
       _set(Phase.ready);
     } on SessionEnded {

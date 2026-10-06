@@ -210,9 +210,9 @@ def own_sign_in(client, password, device, model=None):
 def test_without_phone_codes_he_chooses_a_password_and_signs_in_with_it_on_any_phone(
     admin_client, client, imported, db
 ):
-    assert client.get("/api/v1/driver/auth/methods").json() == {"phone_codes": True}
+    assert client.get("/api/v1/driver/app-config").json()["phone_codes"] is True
     phone_codes(admin_client, False)
-    assert client.get("/api/v1/driver/auth/methods").json() == {"phone_codes": False}
+    assert client.get("/api/v1/driver/app-config").json()["phone_codes"] is False
     set_claim(admin_client, imported)
     claim = start(client).json()
     assert claim["next"] == "password" and claim["tokens"] is None

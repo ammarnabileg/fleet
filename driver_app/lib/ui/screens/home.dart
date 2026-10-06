@@ -29,30 +29,45 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final l = context.l;
-    final pages = [HomeTab(state: widget.state), CashTab(state: widget.state), AccountTab(state: widget.state)];
-    return Scaffold(
-      appBar: AppBar(title: Text([l.appTitle, l.cashTitle, l.tabAccount][tab])),
-      body: pages[tab],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: tab,
-        onDestinationSelected: (i) => setState(() => tab = i),
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.home_outlined),
-            selectedIcon: const Icon(Icons.home),
-            label: l.tabHome,
-          ),
+    final s = widget.state;
+    final tabs = [
+      (
+        HomeTab(state: s),
+        l.appTitle,
+        NavigationDestination(
+          icon: const Icon(Icons.home_outlined),
+          selectedIcon: const Icon(Icons.home),
+          label: l.tabHome,
+        ),
+      ),
+      if (s.shows('cash'))
+        (
+          CashTab(state: s),
+          l.cashTitle,
           NavigationDestination(
             icon: const Icon(Icons.account_balance_wallet_outlined),
             selectedIcon: const Icon(Icons.account_balance_wallet),
             label: l.tabCash,
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.person_outline),
-            selectedIcon: const Icon(Icons.person),
-            label: l.tabAccount,
-          ),
-        ],
+        ),
+      (
+        AccountTab(state: s),
+        l.tabAccount,
+        NavigationDestination(
+          icon: const Icon(Icons.person_outline),
+          selectedIcon: const Icon(Icons.person),
+          label: l.tabAccount,
+        ),
+      ),
+    ];
+    if (tab >= tabs.length) tab = 0; // the office hid a tab while it was open
+    return Scaffold(
+      appBar: AppBar(title: Text(tabs[tab].$2)),
+      body: tabs[tab].$1,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: tab,
+        onDestinationSelected: (i) => setState(() => tab = i),
+        destinations: [for (final t in tabs) t.$3],
       ),
     );
   }
@@ -68,12 +83,13 @@ class HomeTab extends StatelessWidget {
 
   Future<void> _refresh() async {
     try {
+      await state.loadAppConfig();
       await Future.wait([
         state.loadToday(),
-        state.loadCash(),
-        state.loadReports(),
-        state.loadMaintenance(),
-        state.loadAccidents(),
+        if (state.shows('cash')) state.loadCash(),
+        if (state.shows('daily_report')) state.loadReports(),
+        if (state.shows('maintenance')) state.loadMaintenance(),
+        if (state.shows('accidents')) state.loadAccidents(),
       ]);
     } on ApiError {
       // offline: the last data stays on screen
@@ -94,11 +110,11 @@ class HomeTab extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          for (final r in state.maintenance.where((r) => r.isReady)) ...[
+          for (final r in state.maintenance.where((r) => r.isReady && state.shows('maintenance'))) ...[
             ReadyBanner(request: r),
             const SizedBox(height: 12),
           ],
-          for (final a in state.accidents.where((a) => a.awaitsPoliceReport)) ...[
+          for (final a in state.accidents.where((a) => a.awaitsPoliceReport && state.shows('accidents'))) ...[
             InkWell(
               key: Key('police-banner-${a.number}'),
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AccidentScreen(state: state))),
@@ -180,12 +196,14 @@ class HomeTab extends StatelessWidget {
                   ),
             const SizedBox(height: 10),
           ],
-          OutlinedButton.icon(
-            key: const Key('daily-report'),
-            icon: const Icon(Icons.assignment_outlined),
-            label: Text(l.dailyReport),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReportScreen(state: state))),
-          ),
+          if (state.shows('daily_report'))
+            OutlinedButton.icon(
+              key: const Key('daily-report'),
+              icon: const Icon(Icons.assignment_outlined),
+              label: Text(l.dailyReport),
+              onPressed: () =>
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReportScreen(state: state))),
+            ),
           if (custody != null && today!.startDayDone) ...[
             const SizedBox(height: 10),
             OutlinedButton.icon(
@@ -198,46 +216,60 @@ class HomeTab extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            key: const Key('maintenance'),
-            icon: const Icon(Icons.car_repair),
-            label: Text(l.maintenance),
-            onPressed: () =>
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => MaintenanceScreen(state: state))),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            key: const Key('accident'),
-            style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
-            icon: const Icon(Icons.car_crash_outlined),
-            label: Text(l.accident),
-            onPressed: () =>
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => AccidentScreen(state: state))),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            key: const Key('fines'),
-            icon: const Icon(Icons.receipt_long_outlined),
-            label: Text(l.fines),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => FinesScreen(state: state))),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            key: const Key('statement'),
-            icon: const Icon(Icons.fact_check_outlined),
-            label: Text(l.monthlyStatement),
-            onPressed: () =>
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatementScreen(state: state))),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            key: const Key('payslips'),
-            icon: const Icon(Icons.payments_outlined),
-            label: Text(l.payslips),
-            onPressed: () =>
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => PayslipsScreen(state: state))),
-          ),
+          for (final (screen, button) in [
+            (
+              'maintenance',
+              OutlinedButton.icon(
+                key: const Key('maintenance'),
+                icon: const Icon(Icons.car_repair),
+                label: Text(l.maintenance),
+                onPressed: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => MaintenanceScreen(state: state))),
+              ),
+            ),
+            (
+              'accidents',
+              OutlinedButton.icon(
+                key: const Key('accident'),
+                style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+                icon: const Icon(Icons.car_crash_outlined),
+                label: Text(l.accident),
+                onPressed: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => AccidentScreen(state: state))),
+              ),
+            ),
+            (
+              'fines',
+              OutlinedButton.icon(
+                key: const Key('fines'),
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: Text(l.fines),
+                onPressed: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => FinesScreen(state: state))),
+              ),
+            ),
+            (
+              'statement',
+              OutlinedButton.icon(
+                key: const Key('statement'),
+                icon: const Icon(Icons.fact_check_outlined),
+                label: Text(l.monthlyStatement),
+                onPressed: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => StatementScreen(state: state))),
+              ),
+            ),
+            (
+              'payslips',
+              OutlinedButton.icon(
+                key: const Key('payslips'),
+                icon: const Icon(Icons.payments_outlined),
+                label: Text(l.payslips),
+                onPressed: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => PayslipsScreen(state: state))),
+              ),
+            ),
+          ])
+            if (state.shows(screen)) ...[const SizedBox(height: 10), button],
           if (state.queued.isNotEmpty) ...[
             SectionTitle(l.outboxTitle),
             for (final item in state.queued) _QueuedTile(state: state, item: item),
