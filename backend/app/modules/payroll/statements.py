@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.core.clock import today, utcnow
 from app.core.db import violated_constraint
 from app.core.errors import AppError
+from app.modules.attendance import service as attendance
 from app.modules.audit import service as audit
 from app.modules.daily_ops import service as daily_ops
 from app.modules.files import service as files
@@ -78,12 +79,14 @@ def system_counts(db: Session, employee_ids: Iterable[int], month: date) -> dict
     first, last = month_start(month), month_end(month)
     activity = daily_ops.month_activity(db, ids, first, last)
     started = fleet.start_days(db, ids, first, last)
+    absent = attendance.month_counts(db, ids, first, last)  # what HR marked, the approved leaves, the days left
     return {
         i: {
             "working_days": len(activity[i]["days"] | started[i]),
             "orders": activity[i]["orders"],
             "valid_days": activity[i]["valid_days"],
             "pending_reports": activity[i]["pending"],
+            **absent[i],
         }
         for i in ids
     }

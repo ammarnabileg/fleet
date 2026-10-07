@@ -113,12 +113,12 @@
         if (document.getElementById('veh-fines') && A.vehicleFines) A.vehicleFines(document.getElementById('veh-fines'), x);
         if (readings && document.getElementById('veh-readings')) BT.table(document.getElementById('veh-readings'), { rows: readings, pageSize: 0, columns: readingColumns(false), rowClick: function (rd) { A.reading(rd); } });
         var on = function (sel, fn) { var b = document.getElementById(sel); if (b) b.onclick = fn; };
-        on('veh-edit', function () { A.vehicleForm(x, function () { A.router.refresh(); }); });
-        on('veh-handover', function () { A.handover({ vehicle: x }, function () { A.router.refresh(); }); });
-        on('veh-return', function () { A.returnVehicle(x.custody.id, x, function () { A.router.refresh(); }); });
+        on('veh-edit', function () { A.vehicleForm(x, function () { A.refreshIfAt('vehicles/' + x.id); }); });
+        on('veh-handover', function () { A.handover({ vehicle: x }, function () { A.refreshIfAt('vehicles/' + x.id); }); });
+        on('veh-return', function () { A.returnVehicle(x.custody.id, x, function () { A.refreshIfAt('vehicles/' + x.id); }); });
         on('who-drove', function () { A.whoDrove(x); });
         BT.on(v, 'click', '[data-custody]', function (e, b) { A.custody(b.getAttribute('data-custody')); });
-        BT.on(v, 'click', '[data-doc-add]', function () { A.addDocument('vehicle', x.id, function () { A.router.refresh(); }); });
+        BT.on(v, 'click', '[data-doc-add]', function () { A.addDocument('vehicle', x.id, function () { A.refreshIfAt('vehicles/' + x.id); }); });
       }
     }).catch(function () {});
   };

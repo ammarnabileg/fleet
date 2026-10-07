@@ -62,7 +62,7 @@ def workbook(db: Session, run: Run, lines: list[Line]) -> bytes:
         )
         ws = wb.create_sheet(_title(name, used))
         ws.sheet_view.rightToLeft = True
-        cols = sheet_columns(platform, labels.get("payroll_column", {}))
+        cols = sheet_columns(platform, labels.get("payroll_column", {}), [line.cells for line in groups.get(pid, [])])
         ws.append([c["header"] for c in cols])
         for cell in ws[1]:
             cell.font = Font(bold=True)

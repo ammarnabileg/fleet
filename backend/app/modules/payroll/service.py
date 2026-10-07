@@ -65,6 +65,14 @@ def scheme_from_registration(db: Session, driver: people.EmployeeRef, scheme_pub
     return True
 
 
+def month_locked(db: Session, company_id: int, month: date) -> bool:
+    """Whether the company's payroll for that month is approved or paid (its inputs may no longer change)."""
+    from app.modules.payroll.statements import locked_months
+
+    month = month_start(month)
+    return (company_id, month) in locked_months(db, [(company_id, month)])
+
+
 def month_start(d: date) -> date:
     return d.replace(day=1)
 

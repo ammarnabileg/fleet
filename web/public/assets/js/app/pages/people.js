@@ -472,7 +472,7 @@
       if (r.status !== 'submitted' || !api.can('employees.onboarding')) return;
       var foot = dlg.panel.querySelector('.modal-f');
       BT.render(foot, h`<span class="spacer"></span><button type="button" class="btn btn-outline" data-x="reject">${icon('x', 15)}إعادة للسائق مع السبب</button><button type="button" class="btn btn-primary" data-x="approve">${icon('check', 15)}اعتماد</button>`);
-      var done = function () { dlg.close(); A.refreshCounts(); A.router.refresh(); };
+      var done = function () { dlg.close(); A.refreshCounts(); A.refreshIfAt('employees'); };
       BT.on(foot, 'click', '[data-x]', function (ev, b) {
         if (b.getAttribute('data-x') === 'reject') {
           A.confirmRun({ title: 'إعادة الطلب للسائق', message: 'يصل السبب للسائق على واتساب وفي التطبيق، فيصحح ويرسل من جديد.', confirmText: 'إعادة للسائق', tone: 'warn', icon: 'rotate-ccw', reason: { label: 'السبب', required: true, placeholder: 'مثال: صورة الإقامة غير واضحة' },

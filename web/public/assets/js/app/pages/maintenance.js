@@ -17,7 +17,7 @@
   function fileUrl(id) { return function (sha) { return api.url('/maintenance/requests/' + id + '/files/' + sha); }; }
   function upload(file) { return api.upload(file).then(function (f) { return f.sha256; }); }
   function uploadAll(files) { return Promise.all(Array.prototype.map.call(files || [], upload)); }
-  function refreshAll() { A.router.refresh(); A.refreshCounts(); }
+  function refreshAll() { A.refreshIfAt('maintenance'); A.refreshCounts(); }
 
   /* ================= الصفحة: الطلبات · الفواتير · المراكز ================= */
   BT.pages['maintenance'] = function (p, q) {

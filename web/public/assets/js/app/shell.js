@@ -30,6 +30,7 @@
       { key: 'deductions', icon: 'minus-circle', label: 'الخصومات', any: ['deductions.view'] },
       { key: 'payroll', icon: 'banknote', label: 'الرواتب', any: ['payroll.view', 'settings.update'], count: 'payroll' },
       { key: 'employees', icon: 'users', label: 'الموظفون والسائقون', any: ['employees.view'], count: 'onboarding' },
+      { key: 'attendance', icon: 'calendar-x', label: 'الغياب والإجازات', any: ['leaves.view'], count: 'leaves' },
       { key: 'reports', icon: 'chart-column', label: 'التقارير', any: ['reports.view', 'cash.view'] }
     ] },
     { sec: 'الإدارة', items: [
@@ -77,6 +78,8 @@
     return h`<div class="card"><div class="card-b">${BT.empty('wifi-off', 'تعذر تحميل البيانات', api.message(err), raw('<button type="button" class="btn btn-sm btn-secondary mt-8" data-action="reload">إعادة المحاولة</button>'))}</div></div>`;
   };
   BT.actions['reload'] = function () { A.router.refresh(); };
+  /* بعد حفظ: تُعاد رسم الصفحة فقط إن كان المستخدم ما زال عليها؛ إن انتقل لصفحة أخرى قبل وصول الرد لا تُمس (ولا فلاترها) */
+  A.refreshIfAt = function (prefix) { if (location.hash.indexOf('#/' + prefix) === 0) A.router.refresh(); };
   /* كل صفوف قائمة من الخادم (200 في كل طلب) لقوائم الاختيار: السائق رقم 201 يجب أن يُختار كالأول */
   A.all = function (path, params) {
     var out = [];
@@ -183,6 +186,7 @@
     if (api.can('maintenance.approve')) jobs.push(api.get('/maintenance/requests', { status: 'requested,quote_pending', limit: 200 }).then(function (r) { A.counts.maintenance = r.length; }, function () {}));
     if (api.can('fines.manage') || api.can('deductions.manage')) jobs.push(api.get('/fines', { status: 'open', limit: 200 }).then(function (r) { A.counts.fines = r.length; }, function () {}));
     if (api.can('accidents.view')) jobs.push(api.get('/accidents', { stage: api.can('accidents.approve') ? 'reported,estimate_pending,awaiting_outcome' : 'reported,estimate_pending', limit: 200 }).then(function (r) { A.counts.accidents = r.length; }, function () {}));
+    if (api.can('leaves.approve')) jobs.push(api.get('/leaves', { status: 'pending', limit: 200 }).then(function (r) { A.counts.leaves = r.length; }, function () {}));
     if (api.can('employees.onboarding')) jobs.push(api.get('/onboarding', { status: 'submitted', limit: 200 }).then(function (r) { A.counts.onboarding = r.length; }, function () {}));
     if (api.can('payroll.prepare')) jobs.push(api.get('/payroll/statements/counts').then(function (r) { A.counts.statements = r.submitted; }, function () {}));
     if (api.can('payroll.view')) jobs.push(api.get('/payroll/scheme-requests/counts').then(function (r) { A.counts.scheme_requests = r.pending; }, function () {}));

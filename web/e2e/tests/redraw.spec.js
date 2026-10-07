@@ -43,3 +43,33 @@ test('a status toggled twice sends one request each time and ends where it start
   }
   expect(patches).toEqual([{ is_active: false }, { is_active: true }]);
 });
+
+// A save whose answer comes back after the user went to another page leaves that page alone: it redrew whatever page
+// was showing, so the filter the user had just chosen there went back to its default.
+test('a save answered after the user moved on does not redraw the page he is on', async ({ admin, api }) => {
+  const n = uid();
+  const company = await api.post('/companies', { name: { ar: 'شركة الرد المتأخر ' + n, en: 'Late answer ' + n } });
+  const vehicle = await api.post('/vehicles', { plate_number: '46/' + n.slice(-6), company_id: company.id, last_odometer_km: 1000 });
+  const accident = await api.post('/accidents', { vehicle_id: vehicle.id, description: 'خدش في الباب' });
+  await admin.goto('/admin.html#/accidents/' + accident.id);
+  await settled(admin);
+  // the server takes a while to answer the cancellation
+  await admin.route('**/accidents/*/cancel', async (r) => { await new Promise((ok) => setTimeout(ok, 1500)); await r.continue(); });
+  await admin.click('[data-action="acc-cancel"]');
+  const confirm = admin.locator('.overlay[data-open]').last();
+  await confirm.locator('[name=reason]').fill('بلاغ مكرر');
+  const answered = admin.waitForResponse((r) => r.url().includes('/cancel'));
+  await confirm.getByRole('button', { name: 'إلغاء الحادث', exact: true }).click();
+
+  await admin.goto('/admin.html#/deductions'); // before the answer
+  await settled(admin);
+  await admin.locator('#view .chip', { hasText: 'كل المعتمدة' }).click();
+  await settled(admin);
+  const asked = [];
+  admin.on('request', (r) => { if (r.url().includes('/api/v1/deductions')) asked.push(r.url()); });
+  await answered;
+  await expect.poll(() => admin.evaluate(() => document.querySelectorAll('.toast').length)).toBeGreaterThan(0); // its toast: the answer was handled
+  await expect(admin.locator('#view .chip.active')).toContainText('كل المعتمدة');
+  expect(asked).toEqual([]); // the deductions page was not reloaded
+  expect((await api.get('/accidents/' + accident.id)).status).toBe('cancelled');
+});

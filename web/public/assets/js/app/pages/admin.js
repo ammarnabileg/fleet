@@ -349,7 +349,10 @@
   }
 
   /* ---------- إعدادات النظام: كل قسم نموذج من قيمه الحالية ---------- */
-  var ENUMS = { 'payroll.deduction_cap_base': [{ v: 'gross', t: 'الراتب المستحق في الشهر' }, { v: 'basic', t: 'الراتب الأساسي' }] };
+  var ENUMS = {
+    'payroll.deduction_cap_base': [{ v: 'gross', t: 'الراتب المستحق في الشهر' }, { v: 'basic', t: 'الراتب الأساسي' }],
+    'payroll.absence_deduction': [{ v: 'none', t: 'لا يُخصم شيء' }, { v: 'daily_wage', t: 'أجر يوم لكل يوم (الأساسي ÷ أيام الشهر)' }]
+  };
   function systemPanel(el) {
     A.load(el, Promise.all([api.get('/settings'), A.docTypes()]).then(function (r) { return r[0]; }), function (sections) {
       var canEdit = api.can('settings.update');

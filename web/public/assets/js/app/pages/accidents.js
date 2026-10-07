@@ -10,7 +10,7 @@
   function fileUrl(id) { return function (sha) { return api.url('/accidents/' + id + '/files/' + sha); }; }
   function upload(file) { return api.upload(file).then(function (f) { return f.sha256; }); }
   function uploadAll(files) { return Promise.all(Array.prototype.map.call(files || [], upload)); }
-  function refreshAll() { A.router.refresh(); A.refreshCounts(); }
+  function refreshAll() { A.refreshIfAt('accidents'); A.refreshCounts(); }
   var CHIPS = {
     reported: { stage: 'reported' },
     estimate: { stage: 'awaiting_estimate,estimate_pending,estimate_rejected' },

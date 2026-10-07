@@ -536,6 +536,7 @@
     var wrapEl = el.querySelector('[data-wrap]'), pager = el.querySelector('[data-pager]'), chipsEl = el.querySelector('[data-chips]'), bulkEl = el.querySelector('[data-bulk]');
     var current = [], pageRows = [];
 
+    var typing = false;
     function load() {
       var ticket = ++st.ticket;
       st.loading = true; st.error = null; draw();
@@ -610,6 +611,7 @@
           <button type="button" data-page="${st.page + 1}"${st.page >= pages ? raw(' disabled') : ''} aria-label="التالي">${icon('chevron-left', 16)}</button></div></div>`);
       }
       drawBulk();
+      if (typing || st.loading) el.setAttribute('aria-busy', 'true'); else el.removeAttribute('aria-busy');
     }
     function selectedRows() {
       if (o.fetch) return Object.keys(st.sel).filter(function (k) { return st.sel[k]; }).map(function (k) { return st.selRows[k]; });
@@ -624,7 +626,9 @@
     }
 
     var reload = function () { if (o.fetch) load(); else draw(); };
-    if (o.search) el.querySelector('#' + searchId).addEventListener('input', BT.debounce(function (e) { st.q = e.target.value; st.page = 1; reload(); }, o.fetch ? 350 : 150));
+    // aria-busy from the first key until the rows found are drawn: a row clicked meanwhile may be gone the next moment
+    if (o.search) el.querySelector('#' + searchId).addEventListener('input', function () { typing = true; el.setAttribute('aria-busy', 'true'); });
+    if (o.search) el.querySelector('#' + searchId).addEventListener('input', BT.debounce(function (e) { typing = false; st.q = e.target.value; st.page = 1; reload(); }, o.fetch ? 350 : 150));
     BT.on(el, 'click', '[data-chip]', function (e, b) { st.chip = b.getAttribute('data-chip'); st.page = 1; drawChips(); reload(); if (o.onChip) o.onChip(st.chip); });
     BT.on(el, 'click', '[data-t-retry]', function () { load(); });
     BT.on(el, 'click', '[data-sort]', function (e, th) {

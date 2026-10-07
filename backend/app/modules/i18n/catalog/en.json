@@ -373,7 +373,14 @@
     "scheme_request_pending": "You already have a scheme change waiting for review",
     "scheme_request_not_found": "Request not found",
     "scheme_request_decided": "This request was already decided",
-    "range_too_long_months": "The period is longer than {months} months"
+    "range_too_long_months": "The period is longer than {months} months",
+    "leave_not_found": "Leave not found",
+    "leave_overlaps": "The employee already has a leave on some of these days",
+    "leave_not_pending": "This leave was already decided",
+    "leave_not_open": "This leave is rejected or cancelled",
+    "day_in_future": "A day still to come cannot be marked",
+    "mark_not_found": "This day has no mark",
+    "invalid_mark": "Unknown mark"
   },
   "settings": {
     "branding": "Branding",
@@ -422,7 +429,8 @@
     "driver_app.splash_enabled": "Splash screen",
     "driver_app.splash_image": "Splash image",
     "driver_app.splash_color": "Background around the image",
-    "driver_app.splash_seconds": "Shown for (seconds)"
+    "driver_app.splash_seconds": "Shown for (seconds)",
+    "payroll.absence_deduction": "Absence and unpaid leave days — the client's decision"
   },
   "common": {
     "active": "Active",
@@ -704,7 +712,10 @@
     "tier_bonus": "Tier bonus",
     "missing_target": "Missing target deduction",
     "marks_deduction": "Marks deduction",
-    "uncovered_penalty": "Penalties not taken"
+    "uncovered_penalty": "Penalties not taken",
+    "absence_days": "Absence days",
+    "leave_days": "Leave days",
+    "absence_deduction": "Absence deduction"
   },
   "payment_method": {
     "bank": "Bank transfer",
@@ -730,7 +741,8 @@
     "carried": "Part of the installments moved to next month",
     "daily_pending": "Daily reports waiting for review this month",
     "scheme_missing": "The driver has no pay scheme this month",
-    "figures_missing": "The month's figures his scheme needs are missing (batch level, marks or star day)"
+    "figures_missing": "The month's figures his scheme needs are missing (batch level, marks or star day)",
+    "days_unclassified": "Days without a start of day not marked yet: an absence among them is not deducted until marked"
   },
   "driver_field": {
     "valid_days": "Valid days",
@@ -876,5 +888,25 @@
     "kilometers": "Kilometers",
     "cash": "Cash",
     "payroll": "Payroll"
+  },
+  "leave_kind": {
+    "annual": "Annual",
+    "sick": "Sick",
+    "emergency": "Emergency",
+    "unpaid": "Unpaid",
+    "other": "Other"
+  },
+  "leave_status": {
+    "pending": "Waiting for approval",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "cancelled": "Cancelled"
+  },
+  "day_mark": {
+    "absence": "Absence",
+    "leave": "Leave",
+    "rest": "Day off",
+    "no_vehicle": "No vehicle",
+    "system_fault": "System fault"
   }
 }

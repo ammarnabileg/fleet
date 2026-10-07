@@ -37,6 +37,7 @@
     }
     return page(0);
   }
+  A.allEmployees = allEmployees;
 
   BT.pages['payroll'] = function (p, q) {
     A.setTitle('الرواتب');
@@ -208,6 +209,13 @@
   function lineView(run, line, list) {
     var platform = (list || []).find(function (p) { return p.id === line.platform_id; });
     var cols = platform && platform.columns.length ? platform.columns : Object.keys(line.cells).filter(function (c) { return c !== 'blank'; }).map(function (c) { return { code: c, header: api.t('payroll_column', c) }; });
+    // an absence deduction is shown even when the client's sheet has no column for it, just before the net
+    var codes = cols.map(function (c) { return c.code; });
+    if (codes.indexOf('absence_deduction') < 0 && Number(line.cells.absence_deduction || 0)) {
+      var at = codes.indexOf('net') < 0 ? cols.length : codes.indexOf('net');
+      var extra = ['absence_days', 'absence_deduction'].filter(function (k) { return codes.indexOf(k) < 0; }).map(function (k) { return { code: k, header: api.t('payroll_column', k) }; });
+      cols = cols.slice(0, at).concat(extra, cols.slice(at));
+    }
     function val(code) {
       var x = line.cells[code];
       if (x == null || x === '') return '—';
@@ -240,7 +248,7 @@
       })}</tbody></table></div>`;
   }
   function wireRun(v, run, list) {
-    var reload = function () { A.router.refresh(); };
+    var reload = function () { A.refreshIfAt('payroll/run/' + run.id); };
     BT.on(v, 'click', '[data-line]', function (e, tr) { var l = run.lines.find(function (x) { return x.employee.id === tr.getAttribute('data-line'); }); if (l) lineView(run, l, list); });
     function act(id, fn) { var b = v.querySelector('#' + id); if (b) b.onclick = fn; }
     act('run-recompute', function (e) { var b = e.currentTarget; b.classList.add('is-loading'); api.post('/payroll/runs/' + run.id + '/recompute').then(function () { BT.toast('أُعيد الحساب'); reload(); }, function (err) { b.classList.remove('is-loading'); api.fail(err); }); });

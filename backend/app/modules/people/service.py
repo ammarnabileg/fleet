@@ -7,11 +7,13 @@ Salary and IBAN are visible and settable only with employees.view_salary, and ne
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import Text, cast, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.clock import KUWAIT
 from app.core.db import like_pattern, violated_constraint
 from app.core.errors import AppError
 from app.core.events import emit
@@ -532,6 +534,73 @@ def driver_by_phone(db: Session, phone: str) -> EmployeeRef | None:
     return None if row is None else _ref(*row)
 
 
+def drivers_at_work(
+    db: Session,
+    first: date,
+    last: date,
+    *,
+    all_companies: bool,
+    company_ids: Iterable[int],
+    public_id=None,
+    ids: Iterable[int] | None = None,
+) -> list[dict]:
+    """Drivers in scope who were on a working status on some day from first to last, each with the periods they
+    were (BRD BR-18): one who resigned on the 20th still has the 1st to the 19th to account for in his last pay. A
+    status takes effect the day it was recorded; before the first record, the first status held since his hire."""
+    working = set(db.scalars(select(EmploymentStatus.code).where(EmploymentStatus.is_working.is_(True))))
+    changed_late = (
+        select(StatusHistory.id)
+        .where(
+            StatusHistory.employee_id == Employee.id,
+            StatusHistory.changed_at >= datetime.combine(first, time(0), tzinfo=KUWAIT),
+        )
+        .exists()
+    )
+    q = _scoped(
+        select(Employee)
+        .where(Employee.is_driver.is_(True), or_(Employee.status_code.in_(working), changed_late))
+        .order_by(Employee.employee_number),
+        all_companies,
+        company_ids,
+    )
+    if public_id is not None:
+        q = q.where(Employee.public_id == public_id)
+    if ids is not None:
+        q = q.where(Employee.id.in_(list(ids)))
+    employees = list(db.scalars(q))
+    history: dict[int, list[tuple[date, str]]] = {e.id: [] for e in employees}
+    if employees:
+        for employee_id, code, at in db.execute(
+            select(StatusHistory.employee_id, StatusHistory.status_code, StatusHistory.changed_at)
+            .where(StatusHistory.employee_id.in_(list(history)))
+            .order_by(StatusHistory.employee_id, StatusHistory.changed_at, StatusHistory.id)
+        ):
+            history[employee_id].append((at.astimezone(KUWAIT).date(), code))
+    out = []
+    for e in employees:
+        since = e.hire_date or e.created_at.astimezone(KUWAIT).date()
+        steps = history[e.id] or [(since, e.status_code)]
+        periods = []
+        for n, (start, code) in enumerate(steps):
+            end = steps[n + 1][0] - timedelta(days=1) if n + 1 < len(steps) else last
+            start = since if n == 0 else max(start, since)
+            lo, hi = max(start, first), min(end, last)
+            if code in working and lo <= hi:
+                periods.append((lo, hi))
+        if periods:
+            out.append(
+                {
+                    "id": e.id,
+                    "public_id": str(e.public_id),
+                    "name": e.name,
+                    "employee_number": e.employee_number,
+                    "company_id": e.company_id,
+                    "periods": periods,
+                }
+            )
+    return out
+
+
 def app_drivers(db: Session, *, all_companies: bool, company_ids: Iterable[int]) -> list[EmployeeRef]:
     """Drivers whose app access is active, in scope."""
     q = _scoped(
@@ -588,6 +657,20 @@ def status_by_name(db: Session, label: str) -> str | None:
 
 def get_version(db: Session, employee_id: int) -> int:
     return db.scalar(select(Employee.version).where(Employee.id == employee_id))
+
+
+def cards(db: Session, ids: Iterable[int], *, all_companies: bool, company_ids: Iterable[int]) -> dict[int, dict]:
+    """Id, name and number of those of the given employees in scope, whatever their status."""
+    ids = set(ids)
+    if not ids:
+        return {}
+    q = _scoped(
+        select(Employee.id, Employee.public_id, Employee.name, Employee.employee_number), all_companies, company_ids
+    )
+    return {
+        i: {"id": str(p), "name": n, "employee_number": num}
+        for i, p, n, num in db.execute(q.where(Employee.id.in_(ids)))
+    }
 
 
 def names(db: Session, ids: Iterable[int]) -> dict[int, dict]:

@@ -373,7 +373,14 @@
     "scheme_request_pending": "لديك طلب تغيير نظام بانتظار المراجعة",
     "scheme_request_not_found": "الطلب غير موجود",
     "scheme_request_decided": "تم البت في هذا الطلب من قبل",
-    "range_too_long_months": "الفترة أطول من {months} شهراً"
+    "range_too_long_months": "الفترة أطول من {months} شهراً",
+    "leave_not_found": "الإجازة غير موجودة",
+    "leave_overlaps": "للموظف إجازة أخرى في بعض هذه الأيام",
+    "leave_not_pending": "تم البت في الإجازة من قبل",
+    "leave_not_open": "الإجازة مرفوضة أو ملغاة",
+    "day_in_future": "لا يُصنَّف يوم لم يأتِ بعد",
+    "mark_not_found": "لا يوجد تصنيف لهذا اليوم",
+    "invalid_mark": "تصنيف غير معروف"
   },
   "settings": {
     "branding": "الهوية",
@@ -422,7 +429,8 @@
     "driver_app.splash_enabled": "شاشة البداية",
     "driver_app.splash_image": "صورة شاشة البداية",
     "driver_app.splash_color": "لون الخلفية حول الصورة",
-    "driver_app.splash_seconds": "مدة الظهور (ثانية)"
+    "driver_app.splash_seconds": "مدة الظهور (ثانية)",
+    "payroll.absence_deduction": "خصم أيام الغياب والإجازة بدون راتب — قرار العميل"
   },
   "common": {
     "active": "نشط",
@@ -704,7 +712,10 @@
     "tier_bonus": "بونص الشريحة",
     "missing_target": "خصم نقص التارجت",
     "marks_deduction": "خصم العلامات",
-    "uncovered_penalty": "عقوبات لم تُخصم"
+    "uncovered_penalty": "عقوبات لم تُخصم",
+    "absence_days": "أيام الغياب",
+    "leave_days": "أيام الإجازة",
+    "absence_deduction": "خصم الغياب"
   },
   "payment_method": {
     "bank": "تحويل بنكي",
@@ -730,7 +741,8 @@
     "carried": "جزء من الأقساط رُحّل للشهر القادم",
     "daily_pending": "تقارير يومية بانتظار المراجعة في الشهر",
     "scheme_missing": "السائق بلا نظام دفع هذا الشهر",
-    "figures_missing": "أرقام الشهر التي يحتاجها نظامه ناقصة (الباتش أو العلامات أو الـ Star Day)"
+    "figures_missing": "أرقام الشهر التي يحتاجها نظامه ناقصة (الباتش أو العلامات أو الـ Star Day)",
+    "days_unclassified": "أيام بلا بداية يوم لم تُصنَّف بعد: الغياب فيها لا يُخصم حتى تُصنَّف"
   },
   "driver_field": {
     "valid_days": "الأيام الصالحة",
@@ -876,5 +888,25 @@
     "kilometers": "الكيلومترات",
     "cash": "الكاش",
     "payroll": "الرواتب"
+  },
+  "leave_kind": {
+    "annual": "سنوية",
+    "sick": "مرضية",
+    "emergency": "طارئة",
+    "unpaid": "بدون راتب",
+    "other": "أخرى"
+  },
+  "leave_status": {
+    "pending": "بانتظار الاعتماد",
+    "approved": "معتمدة",
+    "rejected": "مرفوضة",
+    "cancelled": "ملغاة"
+  },
+  "day_mark": {
+    "absence": "غياب",
+    "leave": "إجازة",
+    "rest": "يوم راحة",
+    "no_vehicle": "بلا سيارة",
+    "system_fault": "عطل في النظام"
   }
 }

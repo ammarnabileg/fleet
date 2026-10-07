@@ -4,7 +4,7 @@ const { test, expect, settled } = require('./fixtures');
 
 const PAGES = [
   'dashboard', 'tracking', 'alerts', 'vehicles', 'custody', 'odometer', 'daily', 'maintenance', 'accidents', 'fines',
-  'cash', 'deductions', 'payroll', 'employees', 'reports', 'import', 'settings', 'integrations', 'audit',
+  'cash', 'deductions', 'payroll', 'employees', 'attendance', 'reports', 'import', 'settings', 'integrations', 'audit',
 ];
 
 async function open(page, key) {

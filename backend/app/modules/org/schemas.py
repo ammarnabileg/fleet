@@ -112,6 +112,9 @@ class PayrollSettings(_Section):
     # what the share is taken of: the basic salary, or the salary earned that month (after days the platform did
     # not count). Also the client's decision (BR-16)
     deduction_cap_base: Literal["basic", "gross"] = "gross"
+    # absence days and unpaid leave days (BR-18, FR-PAY-01): not deducted until the client decides (BRD 7.2); or a
+    # day's wage each (the basic salary over the platform's day divisor, 30 without a platform)
+    absence_deduction: Literal["none", "daily_wage"] = "none"
 
 
 class DailyReportSettings(_Section):

@@ -102,6 +102,7 @@ def compute(
     scheme_name: dict | None = None,
     rules: Rules | None = None,
     needs_scheme: bool = False,
+    absence_rule: str = "none",
 ) -> Computed:
     """One salary line. Pure: everything it needs is passed in. With `rules` (the driver's scheme this month) the
     scheme's calculator gives the earnings and the penalties; `needs_scheme`: his platform has schemes, so a driver
@@ -158,8 +159,13 @@ def compute(
             else money(platform.invalid_day_amount)
         )
         invalid = money(days * rate)
+    # absence and unpaid leave: a day's wage each when the settings say so, for pay made of the basic salary
+    absent = system.get("absence_days", 0) + system.get("unpaid_leave_days", 0)
+    absence = ZERO
+    if absence_rule == "daily_wage" and absent and pay_basic and not on_scheme:
+        absence = money(absent * money(basic / (platform.day_divisor if platform else 30)))
     month_items = sum((items[k] for k in MONTH_ITEMS), ZERO)
-    earned = gross - invalid - penalties
+    earned = gross - invalid - absence - penalties
     room = max(ZERO, earned - month_items)
     allowed = min(month_cap(basic if cap_base == "basic" else max(earned, ZERO), cap_percent), room)
     for d in sorted(dues, key=lambda x: (x.deduction.start_month, x.deduction.id)):
@@ -170,7 +176,7 @@ def compute(
         taken[SOURCE_COLUMN[d.deduction.source_type]] += d.deducted
     installments = sum(taken.values(), ZERO)
     carried = sum((d.due - d.deducted for d in dues), ZERO)
-    deductions = invalid + penalties + month_items + installments
+    deductions = invalid + absence + penalties + month_items + installments
     net = gross - deductions
 
     flags = []
@@ -194,6 +200,8 @@ def compute(
         flags.append("no_platform")
     if carried:
         flags.append("carried")
+    if system.get("unclassified_days"):
+        flags.append("days_unclassified")  # HR has days to mark: an absence among them is not deducted yet
 
     name = profile["name"].get(name_lang) or next(iter(profile["name"].values()), "")
     cells = {
@@ -209,6 +217,8 @@ def compute(
         "orders": orders,
         "working_days": working_days,
         "valid_days": valid_days,
+        "absence_days": system.get("absence_days", 0),
+        "leave_days": system.get("leave_days", 0),
         "scheme": (scheme_name or {}).get(name_lang) or next(iter((scheme_name or {}).values()), None),
         "batch_level": month.batch_level,
         "attendance_marks": month.attendance_marks,
@@ -217,6 +227,7 @@ def compute(
         "tips": items["tips"],
         "gross": gross,
         "invalid_days_deduction": invalid,
+        "absence_deduction": absence,
         **{k: items[k] for k in MONTH_ITEMS},
         **taken,
         "carried": carried,
@@ -305,6 +316,7 @@ def _fill(db: Session, run: Run) -> None:
     rules = schemes.rules_for(db, {s.id: s for s in assigned.values()})
     with_schemes = schemes.platforms_with_schemes(db)
     lang = i18n.default_language(db).code
+    absence_rule = org.get_section(db, "payroll").absence_deduction
     totals = {"lines": 0, "gross": ZERO, "deductions": ZERO, "net": ZERO, "blocking": 0, "by_platform": {}}
     for p in profiles:
         platform = plats.get(p["platform_id"])
@@ -324,6 +336,7 @@ def _fill(db: Session, run: Run) -> None:
             scheme_name=scheme.name if scheme else None,
             rules=rules.get(scheme.id) if scheme else None,
             needs_scheme=bool(p["is_driver"] and p["platform_id"] in with_schemes),
+            absence_rule=absence_rule,
         )
         line = Line(
             run_id=run.id,
@@ -542,10 +555,19 @@ def mark_paid(db: Session, public_id, *, payment_ref: str | None, actor_user_id:
 # ------------------------------------------------------------------ the driver's payslips
 
 
-def sheet_columns(platform: Platform | None, labels: dict) -> list[dict]:
-    if platform and platform.columns:
-        return platform.columns
-    return [{"code": c, "header": labels.get(c, c)} for c in DEFAULT_COLUMNS]
+def sheet_columns(platform: Platform | None, labels: dict, cells: Iterable[dict] = ()) -> list[dict]:
+    """The platform's sheet as the client set it, or every column. An absence deduction taken from any of the lines
+    (`cells`) is shown even when the client's sheet has no column for it, just before the net: no line's net may be
+    lower than its sheet adds up to without saying why."""
+    if not (platform and platform.columns):
+        return [{"code": c, "header": labels.get(c, c)} for c in DEFAULT_COLUMNS]
+    cols = list(platform.columns)
+    codes = {c["code"] for c in cols}
+    if "absence_deduction" in codes or not any(Decimal(str(x.get("absence_deduction") or 0)) for x in cells):
+        return cols
+    extra = [{"code": k, "header": labels.get(k, k)} for k in ("absence_days", "absence_deduction") if k not in codes]
+    at = next((i for i, c in enumerate(cols) if c["code"] == "net"), len(cols))
+    return cols[:at] + extra + cols[at:]
 
 
 def payslips(db: Session, employee_id: int) -> list[dict]:
@@ -565,7 +587,11 @@ def payslips(db: Session, employee_id: int) -> list[dict]:
     out = []
     for line, run in rows:
         platform = plats.get(line.platform_id)
-        cols = [c for c in sheet_columns(platform, labels) if c["code"] not in IDENTITY and c["code"] in BY_CODE]
+        cols = [
+            c
+            for c in sheet_columns(platform, labels, [line.cells])
+            if c["code"] not in IDENTITY and c["code"] in BY_CODE
+        ]
         out.append(
             {
                 "month": run.month,

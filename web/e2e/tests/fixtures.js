@@ -78,6 +78,13 @@ function uid() { seq += 1; return runId + String(seq).padStart(2, '0'); }
 function phone() { return '+9655' + uid(); }
 
 /** The view has finished loading: no spinner left in it. */
+// Types in the page's table search, then waits until the rows found are drawn: the search applies after a pause, and
+// a row taken before that (its menu opened, its box ticked) is the old list's, about to be replaced.
+async function search(page, q, within = '#view') {
+  await page.fill(within + ' input[type=search]', q);
+  await expect(page.locator(within + ' [aria-busy]')).toHaveCount(0);
+}
+
 async function settled(page) {
   await expect(page.locator('#view .spinner')).toHaveCount(0);
 }
@@ -121,6 +128,7 @@ function track(page, who) {
     note('console.' + m.type() + ' ' + m.text());
     // failed loads are reported by the response listener below, with their URL
     if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(who + ' console: ' + m.text());
+    if (/missing icon/.test(m.text())) errors.push(who + ' console: ' + m.text()); // an icon drawn empty
   });
   page.on('request', (r) => { if (r.url().includes('/api/')) note('→ ' + r.method() + ' ' + path(r.url())); });
   page.on('requestfailed', (r) => note('✗ ' + r.method() + ' ' + path(r.url()) + ' ' + (r.failure() || {}).errorText));
@@ -208,4 +216,4 @@ async function centerSignIn(portal, username) {
 /** A time as a datetime field shows it in Kuwait (UTC+3 all year, no daylight saving): "2026-10-05T13:00". */
 function kuwaitInput(ms) { return new Date(ms + 3 * 3600e3).toISOString().slice(0, 16); }
 
-module.exports = { test, expect, uid, phone, settled, clearToasts, jpeg, pdf, centerWithUser, centerSignIn, kuwaitInput };
+module.exports = { test, expect, uid, phone, settled, search, clearToasts, jpeg, pdf, centerWithUser, centerSignIn, kuwaitInput };

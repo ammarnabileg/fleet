@@ -14,7 +14,7 @@ from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.clock import business_date, today, utcnow
+from app.core.clock import KUWAIT, business_date, today, utcnow
 from app.core.db import like_pattern, violated_constraint
 from app.core.errors import AppError
 from app.core.events import emit
@@ -1117,6 +1117,26 @@ def driver_today(db: Session, employee_id: int) -> dict:
         },
         "start_day_done": done is not None,
     }
+
+
+def held_days(db: Session, driver_ids: Iterable[int], first, last) -> dict[int, set]:
+    """The Kuwait days, first to last inclusive, on which each driver held a vehicle for any part of the day."""
+    ids = list(driver_ids)
+    out: dict[int, set] = {i: set() for i in ids}
+    if not ids:
+        return out
+    start = datetime.combine(first, datetime.min.time(), tzinfo=KUWAIT)
+    end = datetime.combine(last + timedelta(days=1), datetime.min.time(), tzinfo=KUWAIT)
+    q = select(Custody.driver_id, Custody.started_at, Custody.ended_at).where(
+        Custody.driver_id.in_(ids), Custody.started_at < end, or_(Custody.ended_at.is_(None), Custody.ended_at > start)
+    )
+    now = utcnow()
+    for driver_id, started, ended in db.execute(q):
+        day, stop = max(business_date(started), first), min(business_date(ended or now), last)
+        while day <= stop:
+            out[driver_id].add(day)
+            day += timedelta(days=1)
+    return out
 
 
 def start_days(db: Session, employee_ids: Iterable[int], first, last) -> dict[int, set]:

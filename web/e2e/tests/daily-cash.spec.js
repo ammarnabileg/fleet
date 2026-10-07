@@ -1,6 +1,6 @@
 // A driver's day from his phone to the treasury: the daily report with its cash and screenshot, corrected and approved
 // by the reviewer (another refused with a reason), the cash balance it makes, and a receipt the driver confirms.
-const { test, expect, uid, phone, settled, clearToasts } = require('./fixtures');
+const { test, expect, uid, phone, settled, search, clearToasts } = require('./fixtures');
 
 const day = (back) => new Date(Date.now() + 3 * 3600e3 - back * 86400e3).toISOString().slice(0, 10); // Kuwait date
 
@@ -65,7 +65,7 @@ test('daily report: corrected and approved, another refused, then the cash colle
   // ---- the cash page: 10.000 collected by receipt from his row; he confirms it in the app
   await admin.goto('/admin.html#/cash');
   await settled(admin);
-  await admin.fill('#view input[type=search]', name);
+  await search(admin, name);
   const row = admin.locator('#view tbody tr', { hasText: name });
   await expect(row).toContainText('17.250');
   await row.locator('[data-row-menu]').click();

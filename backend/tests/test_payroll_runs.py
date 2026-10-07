@@ -214,7 +214,16 @@ def test_the_driver_sends_the_month_and_the_office_reviews_it(admin_client, clie
     sid = listed[0]["id"]
     detail = admin_client.get(f"{P}/statements/{sid}").json()
     assert detail["declared"] == {"valid_days": 24, "orders": 410} and detail["screenshots"] == [s1]
-    assert detail["system"] == {"working_days": 0, "orders": 0, "valid_days": 0, "pending_reports": 0}  # none sent
+    assert detail["system"] == {  # none sent, nothing marked
+        "working_days": 0,
+        "orders": 0,
+        "valid_days": 0,
+        "pending_reports": 0,
+        "absence_days": 0,
+        "unpaid_leave_days": 0,
+        "leave_days": 0,
+        "unclassified_days": 0,
+    }
     assert admin_client.get(f"{P}/statements/{sid}/files/{s1}").status_code == 200
     assert admin_client.get(f"{P}/statements/{sid}/files/{foreign}").status_code == 404
     assert admin_client.get(f"{P}/statements/counts").json() == {"submitted": 1}
