@@ -147,9 +147,8 @@ def report(result: dict) -> bool:
     for name, values in sorted(result["times"].items()):
         values.sort()
         p95 = values[max(0, int(len(values) * 0.95) - 1)]
-        print(
-            f"{name:28} {len(values):6d} {result['errors'][name]:6d} {statistics.median(values):8.0f} {p95:8.0f} {values[-1]:8.0f}"
-        )
+        p50, errors = statistics.median(values), result["errors"][name]
+        print(f"{name:28} {len(values):6d} {errors:6d} {p50:8.0f} {p95:8.0f} {values[-1]:8.0f}")
         if name == "GET /dashboard" and p95 > TARGET_MS:
             ok = False
         if result["errors"][name]:
