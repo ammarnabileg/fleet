@@ -434,7 +434,7 @@
           ${editing ? '' : BT.f.select({ name: 'status_code', label: 'الحالة', required: true, value: 'active', placeholder: false, options: statuses.filter(function (s) { return s.is_active && !s.is_terminal; }).map(function (s) { return { v: s.code, t: api.name(s.name) }; }) })}
           ${BT.f.select({ name: 'platform_id', label: 'منصة التوصيل', optional: true, value: e.platform_id || '', placeholder: '— لا يوجد —', options: plats.filter(function (x) { return x.is_active || x.id === e.platform_id; }).map(function (x) { return { v: x.id, t: api.name(x.name) }; }) })}
           ${BT.f.input({ name: 'platform_driver_id', label: 'رقمه في المنصة (driver id)', optional: true, value: e.platform_driver_id })}
-          ${salary ? h`${BT.f.money({ name: 'basic_salary', label: 'الراتب الأساسي', optional: true, value: e.basic_salary })}${BT.f.input({ name: 'iban', label: 'IBAN', optional: true, value: e.iban, placeholder: 'KW..' })}${BT.f.input({ name: 'bank_name', label: 'البنك', optional: true, value: e.bank_name })}${BT.f.select({ name: 'payment_method', label: 'طريقة الدفع', optional: true, value: e.payment_method || '', placeholder: '—', options: [{ v: 'bank', t: api.t('payment_method', 'bank') }, { v: 'cash', t: api.t('payment_method', 'cash') }] })}` : ''}
+          ${salary ? h`${BT.f.money({ name: 'basic_salary', id: 'f-basic-salary', label: 'الراتب الأساسي', optional: true, value: e.basic_salary, hint: 'للموظفين: السائق يُحاسب بنظام الدفع (بالطلب أو الباتش أو التارجت)' })}${BT.f.input({ name: 'iban', label: 'IBAN', optional: true, value: e.iban, placeholder: 'KW..' })}${BT.f.input({ name: 'bank_name', label: 'البنك', optional: true, value: e.bank_name })}${BT.f.select({ name: 'payment_method', label: 'طريقة الدفع', optional: true, value: e.payment_method || '', placeholder: '—', options: [{ v: 'bank', t: api.t('payment_method', 'bank') }, { v: 'cash', t: api.t('payment_method', 'cash') }] })}` : ''}
         </div>`,
         submit: function (v) {
           var body = {
@@ -444,7 +444,7 @@
             department: v.department || null, job_title: v.job_title || null,
             platform_id: v.platform_id ? +v.platform_id : null, platform_driver_id: v.platform_driver_id ? v.platform_driver_id.trim() : null
           };
-          if (salary) { body.basic_salary = v.basic_salary === '' ? null : String(v.basic_salary); body.iban = v.iban ? v.iban.replace(/\s/g, '').toUpperCase() : null; body.bank_name = v.bank_name || null; body.payment_method = v.payment_method || null; }
+          if (salary) { if (!v.is_driver) body.basic_salary = v.basic_salary === '' ? null : String(v.basic_salary); body.iban = v.iban ? v.iban.replace(/\s/g, '').toUpperCase() : null; body.bank_name = v.bank_name || null; body.payment_method = v.payment_method || null; }
           if (!editing) { body.status_code = v.status_code; return api.post('/employees', body); }
           var changes = { version: e.version };
           Object.keys(body).forEach(function (k) { if (JSON.stringify(body[k]) !== JSON.stringify(k === 'basic_salary' && e[k] != null ? String(Number(e[k])) : e[k] == null ? null : e[k])) changes[k] = body[k]; });
@@ -452,6 +452,10 @@
         },
         after: after
       });
+      // a driver has no fixed salary: his pay comes from his scheme, so the field shows for staff only
+      function basicFor(driver) { var f = dlg.el.querySelector('#f-basic-salary'); if (f) f.classList.toggle('hidden', driver); }
+      basicFor(!!e.is_driver);
+      BT.on(dlg.el, 'change', '[name=is_driver]', function (ev, x) { basicFor(x.checked); });
       return dlg;
     }, api.fail).catch(function () {});
   };

@@ -311,7 +311,7 @@
   }
   function platformForm(p, sheet, done) {
     var editing = !!p;
-    p = p || { code: '', name: { ar: sheet.suggested_name, en: '' }, driver_fields: sheet.driver_fields, daily_fields: ['orders', 'cash'], pay_basic: true, per_order: '0.000', per_hour: '0.000', per_valid_day: '0.000', invalid_days: sheet.invalid_days, invalid_day_amount: null, day_divisor: 30, columns: sheet.columns };
+    p = p || { code: '', name: { ar: sheet.suggested_name, en: '' }, driver_fields: sheet.driver_fields, daily_fields: ['orders', 'cash'], pay_basic: false, per_order: '0.000', per_hour: '0.000', per_valid_day: '0.000', invalid_days: sheet.invalid_days, invalid_day_amount: null, day_divisor: 30, columns: sheet.columns };
     var cols = p.columns.map(function (c) { return { code: c.code, header: c.header }; });
     var unknown = cols.filter(function (c) { return c.code === 'blank'; }).length;
     A.formModal({
@@ -330,7 +330,7 @@
         <div class="section-t mt-12">قاعدة الدفع</div>
         <div class="banner note fs-sm mb-8">${icon('info', 15)}<div>نموذجكم لا يذكر كيف يُحسب المستحق، فاضبطوا القاعدة هنا. ${RULE_HINT}</div></div>
         <div class="form-grid">
-          ${BT.f.switch({ name: 'pay_basic', label: 'يُدفع الراتب الأساسي للموظف', checked: p.pay_basic })}
+          ${BT.f.switch({ name: 'pay_basic', label: 'يُدفع راتب أساسي فوق أجر المنصة (عادةً لا: السائق بالطلب)', checked: p.pay_basic })}
           ${BT.f.money({ name: 'per_order', label: 'لكل طلب', value: p.per_order })}
           ${BT.f.money({ name: 'per_hour', label: 'لكل ساعة', value: p.per_hour })}
           ${BT.f.money({ name: 'per_valid_day', label: 'لكل يوم صالح', value: p.per_valid_day })}

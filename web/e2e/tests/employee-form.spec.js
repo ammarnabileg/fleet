@@ -1,5 +1,5 @@
-// The employee form picks the nationality from the list the driver's app shows (one spelling for every report),
-// searched in Arabic or English; a typed value is refused.
+// The employee form: the nationality picked from the list the driver's app shows (one spelling for every report),
+// searched in Arabic or English, a typed value refused; and no basic salary for a driver, paid by his scheme.
 const { test, expect, uid, settled, search, clearToasts } = require('./fixtures');
 
 test('the nationality is picked from the list, in Arabic or English', async ({ admin, api }) => {
@@ -30,4 +30,17 @@ test('the nationality is picked from the list, in Arabic or English', async ({ a
   await top().locator('button[type=submit]').click();
   await expect(admin.locator('.toast').last()).toContainText('تم حفظ التعديلات');
   expect((await api.get('/employees/' + e.id)).nationality).toBe('الهند');
+});
+
+test('a driver has no basic salary field: his pay comes from his scheme', async ({ admin }) => {
+  const top = () => admin.locator('.overlay[data-open]').last();
+  await admin.goto('/admin.html#/employees');
+  await settled(admin);
+  await admin.click('[data-action="employee-new"]');
+  await expect(top().locator('[name=is_driver]')).toBeChecked(); // a new employee is a driver by default
+  await expect(top().locator('#f-basic-salary')).toBeHidden();
+  await top().locator('label.switch', { hasText: 'سائق' }).click(); // staff
+  await expect(top().locator('#f-basic-salary')).toBeVisible();
+  await top().locator('label.switch', { hasText: 'سائق' }).click();
+  await expect(top().locator('#f-basic-salary')).toBeHidden();
 });
