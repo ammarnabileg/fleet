@@ -15,6 +15,8 @@ Process = Literal[
     "accident_estimate",
     "expense",
     "payroll_run",
+    "cash_adjustment",
+    "manual_deduction",
 ]
 RoleCode = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
 Reason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]

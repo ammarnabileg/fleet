@@ -283,7 +283,8 @@
 
   A.adjust = function (driver) {
     A.formModal({
-      title: 'تسوية يدوية', subtitle: api.name(driver.name), icon: 'scale', size: 'sm', done: 'تم تسجيل التسوية',
+      title: 'تسوية يدوية', subtitle: api.name(driver.name), icon: 'scale', size: 'sm',
+      done: function (j) { return j && j.status === 'pending' ? 'أُرسلت التسوية للاعتماد: تظهر غير معتمدة حتى تُعتمد' : 'تم تسجيل التسوية'; },
       body: h`<div class="form">${BT.f.radios({ name: 'dir', label: 'الاتجاه', required: true, value: 'plus', options: [{ v: 'plus', t: 'يزيد ما عليه', d: 'مبلغ لم يُسجَّل' }, { v: 'minus', t: 'ينقص ما عليه', d: 'مبلغ سُجّل بالخطأ' }] })}${BT.f.money({ name: 'amount', label: 'المبلغ', required: true, min: 0.001 })}${BT.f.textarea({ name: 'reason', label: 'السبب', required: true, rows: 2 })}</div>`,
       submit: function (v) { var a = Number(v.amount).toFixed(3); return api.post('/cash/adjustments', { driver_id: driver.id, amount: v.dir === 'minus' ? '-' + a : a, reason: v.reason }); },
       after: refreshCash

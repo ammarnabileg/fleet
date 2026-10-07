@@ -36,8 +36,8 @@ class Deduction(Base):
         CheckConstraint("total > 0", name="total"),
         CheckConstraint("installments BETWEEN 1 AND 60", name="installments"),
         CheckConstraint("extract(day FROM start_month) = 1", name="start_month"),
-        CheckConstraint("status IN ('approved', 'cancelled')", name="status"),
-        CheckConstraint("status <> 'cancelled' OR cancel_reason IS NOT NULL", name="cancelled"),
+        CheckConstraint("status IN ('pending', 'approved', 'rejected', 'cancelled')", name="status"),
+        CheckConstraint("status NOT IN ('cancelled', 'rejected') OR cancel_reason IS NOT NULL", name="cancelled"),
         Index(
             "deductions_one_per_source_idx",
             "source_type",

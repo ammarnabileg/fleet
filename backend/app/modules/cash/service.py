@@ -25,9 +25,11 @@ from app.core.clock import today, utcnow
 from app.core.db import violated_constraint
 from app.core.errors import AppError
 from app.core.events import emit
+from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
 from app.modules.cash.models import Account, Journal, JournalLine, Receipt
 from app.modules.files import service as files
+from app.modules.i18n import service as i18n
 from app.modules.notifications import service as notifications
 from app.modules.org import service as org
 from app.modules.people import service as people
@@ -365,8 +367,20 @@ def confirm_receipt(db: Session, employee_id: int, public_id) -> dict:
     return _receipt_out(receipt)
 
 
+def _adjustment_approval(db: Session, journal: Journal, driver: people.EmployeeRef, amount: Decimal) -> dict:
+    lang = i18n.default_language(db).code
+    return {
+        "document_id": journal.id,
+        "document_key": journal.public_id,
+        "document_ref": f"{i18n.pick(driver.name, lang, lang)} {amount:+.3f}",
+        "company_id": driver.company_id,
+        "amount": abs(amount),
+    }
+
+
 def adjust(db: Session, driver: people.EmployeeRef, *, amount: Decimal, reason: str, actor_user_id: int) -> dict:
-    """A manual correction of a driver's balance (+ the driver owes more, - less), always with its reason."""
+    """A manual correction of a driver's balance (+ the driver owes more, - less), always with its reason. With an
+    approval workflow for the amount it waits, pending (the "unapproved" balance), until its last step (FR-CSH-09)."""
     if not amount:
         raise AppError(422, "amount_must_not_be_zero")
     drv = account(db, "driver", driver_id=driver.id)
@@ -379,9 +393,11 @@ def adjust(db: Session, driver: people.EmployeeRef, *, amount: Decimal, reason: 
         lines=[(drv, amount), (adj, -amount)],
         actor_user_id=actor_user_id,
         reason=reason,
-        post=True,
     )
-    check_balance_alert(db, driver)
+    approval = _adjustment_approval(db, journal, driver, amount)
+    if not approvals.submitted(db, "cash_adjustment", **approval, actor_user_id=actor_user_id):
+        _decide(db, journal.id, "posted", actor_user_id)
+        check_balance_alert(db, driver)
     audit.record(
         db,
         action="cash.adjustment",
@@ -392,6 +408,43 @@ def adjust(db: Session, driver: people.EmployeeRef, *, amount: Decimal, reason: 
         after={"driver": str(driver.public_id), "amount": amount, "reason": reason},
     )
     db.commit()
+    return journal_out(db, journal)
+
+
+def decide_adjustment(
+    db: Session, public_id, *, approve: bool, reason: str | None, actor_user_id: int, all_companies: bool, company_ids
+) -> dict:
+    """A step of a pending adjustment's workflow, from the approvals inbox: the last approval posts it, a refusal
+    (with its reason) rejects it."""
+    journal = db.scalar(
+        select(Journal).where(Journal.public_id == public_id, Journal.kind == "adjustment").with_for_update()
+    )
+    if journal is None or not _visible(db, journal.id, all_companies, company_ids):
+        raise AppError(404, "journal_not_found")
+    if journal.status != "pending":
+        raise AppError(409, "journal_decided", status=journal.status)
+    driver = people.ref(db, journal.source_id)
+    amount = db.scalar(
+        select(JournalLine.amount)
+        .join(Account, Account.id == JournalLine.account_id)
+        .where(JournalLine.journal_id == journal.id, Account.kind == "driver")
+    )
+    approval = _adjustment_approval(db, journal, driver, amount)
+    if approvals.gate(db, "cash_adjustment", **approval, actor_user_id=actor_user_id, approve=approve, reason=reason):
+        _decide(db, journal.id, "posted" if approve else "rejected", actor_user_id)
+        if approve:
+            check_balance_alert(db, driver)
+        audit.record(
+            db,
+            action="cash.adjustment_approved" if approve else "cash.adjustment_rejected",
+            entity_type="journal",
+            entity_id=journal.public_id,
+            actor_user_id=actor_user_id,
+            company_id=driver.company_id,
+            comment=reason,
+        )
+    db.commit()
+    db.refresh(journal)
     return journal_out(db, journal)
 
 

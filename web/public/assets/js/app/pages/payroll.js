@@ -363,7 +363,8 @@
   A.manualDeduction = function (done) {
     allEmployees({}).then(function (rows) {
       A.formModal({
-        title: 'خصم جديد', subtitle: 'سلفة أو شريحة هاتف أو غيرها، بأقساط شهرية', icon: 'minus-circle', done: 'سُجّل الخصم',
+        title: 'خصم جديد', subtitle: 'سلفة أو شريحة هاتف أو غيرها، بأقساط شهرية', icon: 'minus-circle',
+        done: function (d) { return d && d.status === 'pending' ? 'أُرسل الخصم للاعتماد' : 'سُجّل الخصم'; },
         body: h`<div class="form-grid"><div class="full">${A.picker({ name: 'employee', label: 'الموظف', required: true, items: rows.map(function (e) { return { id: e.id, label: api.name(e.name) + ' — ' + e.employee_number }; }) })}</div>
           ${BT.f.select({ name: 'source_type', label: 'النوع', required: true, placeholder: false, options: ['advance', 'sim', 'other'].map(function (k) { return { v: k, t: api.t('deduction_source', k) }; }) })}
           ${BT.f.input({ name: 'reason', label: 'السبب (يظهر في كشف الراتب)', required: true })}

@@ -23,7 +23,9 @@ from app.core.clock import today, utcnow
 from app.core.db import violated_constraint
 from app.core.errors import AppError
 from app.core.events import emit
+from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
+from app.modules.i18n import service as i18n
 from app.modules.identity import service as identity
 from app.modules.notifications import service as notifications
 from app.modules.payroll.models import Deduction, Platform, Scheme
@@ -160,8 +162,10 @@ def create_deduction(
     installments: int,
     start_month: date,
     actor_user_id: int,
+    pending: bool = False,
 ) -> int:
-    """Approved by whoever calls it (the caller checks the permission). Returns the deduction's id."""
+    """Approved by whoever calls it (the caller checks the permission), or pending until its approval workflow
+    decides (a manual deduction). Returns the deduction's id."""
     total = Decimal(total).quantize(CENT)
     if total <= 0:
         raise AppError(422, "deduction_total_invalid")
@@ -180,6 +184,7 @@ def create_deduction(
         installments=installments,
         start_month=start_month,
         created_by=actor_user_id,
+        status="pending" if pending else "approved",
     )
     db.add(d)
     try:
@@ -190,20 +195,41 @@ def create_deduction(
             raise
         raise AppError(409, "deduction_exists") from None
     db.refresh(d)
+    if pending:
+        audit.record(
+            db,
+            action="deduction.requested",
+            entity_type="deduction",
+            entity_id=d.public_id,
+            actor_user_id=actor_user_id,
+            company_id=company_id,
+            after=_terms(d),
+        )
+    else:
+        _approved(db, d, actor_user_id)
+    return d.id
+
+
+def _terms(d: Deduction) -> dict:
+    return {
+        "source_type": d.source_type,
+        "reason": d.reason,
+        "total": d.total,
+        "installments": d.installments,
+        "start_month": d.start_month,
+    }
+
+
+def _approved(db: Session, d: Deduction, actor_user_id: int) -> None:
+    d.status = "approved"
     audit.record(
         db,
         action="deduction.approved",
         entity_type="deduction",
         entity_id=d.public_id,
         actor_user_id=actor_user_id,
-        company_id=company_id,
-        after={
-            "source_type": source_type,
-            "reason": reason,
-            "total": total,
-            "installments": installments,
-            "start_month": start_month,
-        },
+        company_id=d.company_id,
+        after=_terms(d),
     )
     emit(
         db,
@@ -211,14 +237,13 @@ def create_deduction(
         d.public_id,
         {
             "deduction_id": str(d.public_id),
-            "employee_id": str(people.ref(db, employee_id).public_id),
-            "source_type": source_type,
-            "total": str(total),
-            "installments": installments,
-            "start_month": start_month.isoformat(),
+            "employee_id": str(people.ref(db, d.employee_id).public_id),
+            "source_type": d.source_type,
+            "total": str(d.total),
+            "installments": d.installments,
+            "start_month": d.start_month.isoformat(),
         },
     )
-    return d.id
 
 
 def deduction(db: Session, deduction_id: int | None) -> dict | None:
@@ -271,8 +296,10 @@ def cancel(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
     d = db.scalar(_scoped(select(Deduction).where(Deduction.public_id == public_id), **scope).with_for_update())
     if d is None:
         raise AppError(404, "deduction_not_found")
-    if d.status == "cancelled":
+    if d.status in ("cancelled", "rejected"):
         raise AppError(409, "deduction_cancelled")
+    if d.status == "pending":  # withdrawn before its workflow decided
+        approvals.withdrawn(db, "manual_deduction", [d.id])
     d.status, d.cancel_reason, d.cancelled_by, d.cancelled_at = "cancelled", reason, actor_user_id, utcnow()
     audit.record(
         db,
@@ -304,20 +331,72 @@ def create_manual(db: Session, data: dict, *, actor_user_id: int, **scope) -> di
         installments=data["installments"],
         start_month=start,
         actor_user_id=actor_user_id,
+        pending=True,
     )
-    notifications.notify_driver(
-        db,
-        employee.id,
-        "deduction_added",
-        params={
-            "reason": data["reason"],
-            "amount": f"{Decimal(data['total']):.3f}",
-            "installments": data["installments"],
-        },
-        entity_type="deduction",
-    )
+    d = db.get(Deduction, deduction_id)
+    # with an approval workflow for the amount it waits for its last step (BRD FR-WFL-02); otherwise it applies now
+    if not approvals.submitted(db, "manual_deduction", **_approval(db, d, employee), actor_user_id=actor_user_id):
+        _approved(db, d, actor_user_id)
+        _tell_driver(db, d)
     db.commit()
     return deduction(db, deduction_id)
+
+
+def _approval(db: Session, d: Deduction, employee: people.EmployeeRef) -> dict:
+    lang = i18n.default_language(db).code
+    return {
+        "document_id": d.id,
+        "document_key": d.public_id,
+        "document_ref": f"{i18n.pick(employee.name, lang, lang)} {d.total:.3f}",
+        "company_id": d.company_id,
+        "amount": d.total,
+    }
+
+
+def _tell_driver(db: Session, d: Deduction) -> None:
+    notifications.notify_driver(
+        db,
+        d.employee_id,
+        "deduction_added",
+        params={"reason": d.reason, "amount": f"{d.total:.3f}", "installments": d.installments},
+        entity_type="deduction",
+    )
+
+
+def decide_manual(db: Session, public_id, *, approve: bool, reason: str | None, actor_user_id: int, **scope) -> dict:
+    """A step of a pending manual deduction's workflow, from the approvals inbox. Approved after its first month has
+    passed, it starts with the current month; refused, it keeps the reason and is never deducted."""
+    d = db.scalar(_scoped(select(Deduction).where(Deduction.public_id == public_id), **scope).with_for_update())
+    if d is None:
+        raise AppError(404, "deduction_not_found")
+    if d.status != "pending":
+        raise AppError(409, "deduction_decided", status=d.status)
+    employee = people.ref(db, d.employee_id)
+    if approvals.gate(
+        db,
+        "manual_deduction",
+        **_approval(db, d, employee),
+        actor_user_id=actor_user_id,
+        approve=approve,
+        reason=reason,
+    ):
+        if approve:
+            d.start_month = max(d.start_month, month_start(today()))
+            _approved(db, d, actor_user_id)
+            _tell_driver(db, d)
+        else:
+            d.status, d.cancel_reason, d.cancelled_by, d.cancelled_at = "rejected", reason, actor_user_id, utcnow()
+            audit.record(
+                db,
+                action="deduction.rejected",
+                entity_type="deduction",
+                entity_id=d.public_id,
+                actor_user_id=actor_user_id,
+                company_id=d.company_id,
+                comment=reason,
+            )
+    db.commit()
+    return _out([d], db)[0]
 
 
 # ------------------------------------------------------------------ for finance

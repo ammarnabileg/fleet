@@ -430,7 +430,8 @@
     "delegation_in_past": "This delegation period has already ended",
     "delegation_not_found": "Delegation not found",
     "correction_at_last_step": "The cash amount is corrected at the last approval step",
-    "mfa_code_invalid": "The authenticator code is not correct"
+    "mfa_code_invalid": "The authenticator code is not correct",
+    "deduction_decided": "This deduction was already decided"
   },
   "settings": {
     "branding": "Branding",
@@ -713,7 +714,9 @@
   },
   "deduction_status": {
     "approved": "Approved",
-    "cancelled": "Cancelled"
+    "cancelled": "Cancelled",
+    "pending": "Awaiting approval",
+    "rejected": "Rejected"
   },
   "fine_status": {
     "open": "Awaiting decision",
@@ -1124,7 +1127,9 @@
     "maintenance_invoice": "Maintenance invoices",
     "accident_estimate": "Accident damage estimates",
     "expense": "Expenses",
-    "payroll_run": "Payroll runs"
+    "payroll_run": "Payroll runs",
+    "cash_adjustment": "Manual cash adjustments",
+    "manual_deduction": "Manual deductions"
   },
   "approval_status": {
     "pending": "Pending",

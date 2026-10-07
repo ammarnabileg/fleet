@@ -430,7 +430,8 @@
     "delegation_in_past": "فترة التفويض انتهت بالفعل",
     "delegation_not_found": "التفويض غير موجود",
     "correction_at_last_step": "تصحيح مبلغ الكاش يكون في آخر خطوة اعتماد",
-    "mfa_code_invalid": "رمز تطبيق المصادقة غير صحيح"
+    "mfa_code_invalid": "رمز تطبيق المصادقة غير صحيح",
+    "deduction_decided": "تم البت في هذا الخصم من قبل"
   },
   "settings": {
     "branding": "الهوية",
@@ -713,7 +714,9 @@
   },
   "deduction_status": {
     "approved": "معتمد",
-    "cancelled": "ملغى"
+    "cancelled": "ملغى",
+    "pending": "بانتظار الاعتماد",
+    "rejected": "مرفوض"
   },
   "fine_status": {
     "open": "بانتظار القرار",
@@ -1124,7 +1127,9 @@
     "maintenance_invoice": "فواتير الصيانة",
     "accident_estimate": "تقديرات أضرار الحوادث",
     "expense": "المصروفات",
-    "payroll_run": "مسيرات الرواتب"
+    "payroll_run": "مسيرات الرواتب",
+    "cash_adjustment": "التسويات اليدوية للكاش",
+    "manual_deduction": "الخصومات اليدوية"
   },
   "approval_status": {
     "pending": "قيد الاعتماد",

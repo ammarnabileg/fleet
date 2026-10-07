@@ -231,21 +231,25 @@ def submitted(
     amount: Decimal,
     actor_user_id: int | None = None,
     note: str = "resubmitted",
-) -> None:
+) -> bool:
     """A document sent for approval: with a workflow, its request opens now and waits in its first approvers' inbox.
-    A document sent again (corrected after a refusal, recomputed) starts over."""
+    A document sent again (corrected after a refusal, recomputed) starts over. True when a request opened: a module
+    whose documents otherwise apply at once (a cash adjustment, a manual deduction) then keeps them pending."""
     if not _active(db, process):
-        return
+        return False
     _cancel_pending(db, select(Request).where(Request.process == process, Request.document_id == document_id), note)
-    _open(
-        db,
-        process,
-        document_id=document_id,
-        document_key=document_key,
-        document_ref=document_ref,
-        company_id=company_id,
-        amount=amount,
-        actor_user_id=actor_user_id,
+    return (
+        _open(
+            db,
+            process,
+            document_id=document_id,
+            document_key=document_key,
+            document_ref=document_ref,
+            company_id=company_id,
+            amount=amount,
+            actor_user_id=actor_user_id,
+        )
+        is not None
     )
 
 
@@ -384,6 +388,14 @@ def _apply(db: Session, req: Request, *, approve: bool, reason: str | None, acto
             m.approve_run(db, key, **by)
         else:
             m.send_back_run(db, key, reason=reason or "", **by)
+    elif req.process == "cash_adjustment":
+        from app.modules.cash import service as m
+
+        m.decide_adjustment(db, key, approve=approve, reason=reason, **by)
+    elif req.process == "manual_deduction":
+        from app.modules.payroll import service as m
+
+        m.decide_manual(db, key, approve=approve, reason=reason, **by)
 
 
 def decide(

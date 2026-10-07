@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/v1", tags=["payroll"])
 
 @router.get("/deductions", response_model=list[schemas.DeductionOut])
 def list_deductions(
-    status: Literal["approved", "cancelled"] | None = None,
+    status: Literal["pending", "approved", "rejected", "cancelled"] | None = None,
     employee_id: uuid.UUID | None = None,
     month: date | None = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,

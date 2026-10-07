@@ -31,6 +31,8 @@ PROCESSES = (
     "accident_estimate",
     "expense",
     "payroll_run",
+    "cash_adjustment",
+    "manual_deduction",
 )
 
 
@@ -39,7 +41,7 @@ class Workflow(Base):
     __table_args__ = (
         CheckConstraint(
             "process IN ('daily_report', 'maintenance_request', 'maintenance_quote', 'maintenance_invoice', "
-            "'accident_estimate', 'expense', 'payroll_run')",
+            "'accident_estimate', 'expense', 'payroll_run', 'cash_adjustment', 'manual_deduction')",
             name="process",
         ),
         SCHEMA,

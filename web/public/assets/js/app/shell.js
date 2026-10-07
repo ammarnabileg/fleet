@@ -154,7 +154,8 @@
       onOpen: o.onOpen,
       onSubmit: function (vals, dlg) {
         return Promise.resolve(o.submit(vals, dlg)).then(function (res) {
-          if (o.done !== false) BT.toast(o.done || 'تم الحفظ');
+          // done may depend on the answer: a document that waits for its approval workflow says so (FR-WFL-02)
+          if (o.done !== false) BT.toast((typeof o.done === 'function' ? o.done(res) : o.done) || 'تم الحفظ');
           if (o.after) o.after(res);
           return res === false ? false : true;
         }).catch(api.fail);

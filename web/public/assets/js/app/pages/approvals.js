@@ -7,7 +7,7 @@
   'use strict';
   var BT = window.BT, h = BT.h, raw = BT.raw, icon = BT.icon, fmt = BT.fmt, api = BT.api, A = BT.A;
 
-  var PROCESSES = ['daily_report', 'maintenance_request', 'maintenance_quote', 'maintenance_invoice', 'accident_estimate', 'expense', 'payroll_run'];
+  var PROCESSES = ['daily_report', 'maintenance_request', 'maintenance_quote', 'maintenance_invoice', 'accident_estimate', 'expense', 'payroll_run', 'cash_adjustment', 'manual_deduction'];
   A.tone.approval_status = { pending: 'o', approved: 'g', rejected: 'r', cancelled: 'n' };
   A.tone.delegation_status = { active: 'g', upcoming: 'b', ended: 'n', cancelled: 'n' };
 
@@ -19,7 +19,8 @@
     var routes = {
       daily_report: '#/daily', maintenance_request: '#/maintenance/' + r.document_id, maintenance_quote: '#/maintenance',
       maintenance_invoice: '#/maintenance?tab=invoices', accident_estimate: '#/accidents/' + r.document_id,
-      expense: '#/finance', payroll_run: '#/payroll/run/' + r.document_id
+      expense: '#/finance', payroll_run: '#/payroll/run/' + r.document_id,
+      cash_adjustment: '#/cash', manual_deduction: '#/deductions?chip=pending'
     };
     return routes[r.process];
   }

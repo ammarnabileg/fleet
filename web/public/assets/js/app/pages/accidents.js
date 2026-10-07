@@ -269,15 +269,15 @@
     var add = v.querySelector('#ded-new');
     if (add) add.onclick = function () { A.manualDeduction(function () { t.refresh(); }); };
     var t = BT.table(v.querySelector('[data-t]'), {
-      fetch: function (s) { return api.get('/deductions', { status: s.chip === 'cancelled' ? 'cancelled' : 'approved', month: s.chip === 'month' ? BT.config.today : null, limit: s.limit, offset: s.offset }); },
-      chips: { value: q.chip || 'month', all: false, options: [{ v: 'month', t: 'هذا الشهر' }, { v: 'approved', t: 'كل المعتمدة' }, { v: 'cancelled', t: 'الملغاة' }] },
+      fetch: function (s) { return api.get('/deductions', { status: s.chip === 'month' ? 'approved' : s.chip, month: s.chip === 'month' ? BT.config.today : null, limit: s.limit, offset: s.offset }); },
+      chips: { value: q.chip || 'month', all: false, options: [{ v: 'month', t: 'هذا الشهر' }, { v: 'approved', t: 'كل المعتمدة' }, { v: 'pending', t: 'بانتظار الاعتماد' }, { v: 'rejected', t: 'المرفوضة' }, { v: 'cancelled', t: 'الملغاة' }] },
       columns: [
         { key: 'employee', label: 'الموظف', render: function (d) { return A.person(d.employee); } },
         { key: 'source_type', label: 'المصدر', render: function (d) { return h`${api.t('deduction_source', d.source_type)}<span class="sub">${d.reason}</span>`; } },
         { key: 'total', label: 'الإجمالي', num: true, render: function (d) { return BT.amt(Number(d.total)); } },
         { key: 'installments', label: 'الأقساط', render: function (d) { var m = d.start_month.split('-'); return h`<span class="num">${d.installments}</span><span class="sub">من ${fmt.month(+m[0], +m[1])}</span>`; } },
         { key: 'this', label: 'قسط هذا الشهر', num: true, render: function (d) { var cur = BT.config.today.slice(0, 7), x = d.schedule.filter(function (s) { return s.month.slice(0, 7) === cur; })[0]; return x ? BT.amt(Number(x.amount)) : '—'; } },
-        { key: 'status', label: 'الحالة', render: function (d) { return BT.pill(api.t('deduction_status', d.status), d.status === 'approved' ? 'g' : 'n'); } }
+        { key: 'status', label: 'الحالة', render: function (d) { return BT.pill(api.t('deduction_status', d.status), { approved: 'g', pending: 'o', rejected: 'r' }[d.status] || 'n'); } }
       ],
       rowClick: function (d) { deductionView(d, function () { t.refresh(); }); },
       empty: { icon: 'minus-circle', title: 'لا توجد خصومات هنا' }
@@ -285,7 +285,7 @@
   };
   function deductionView(d, done) {
     var btns = [{ label: 'إغلاق', cls: 'btn-ghost' }];
-    if (d.status === 'approved' && api.can('deductions.manage')) btns.push({ label: 'إلغاء الخصم', cls: 'btn-ghost', icon: 'ban', close: false, onClick: function (dlg) {
+    if ((d.status === 'approved' || d.status === 'pending') && api.can('deductions.manage')) btns.push({ label: d.status === 'pending' ? 'سحب الخصم' : 'إلغاء الخصم', cls: 'btn-ghost', icon: 'ban', close: false, onClick: function (dlg) {
       A.confirmRun({ title: 'إلغاء الخصم', message: 'لا يُخصم أي قسط بعد الإلغاء. يبقى في السجل بسببه.', tone: 'danger', confirmText: 'إلغاء الخصم', reason: { label: 'السبب', required: true }, run: function (reason) { return api.post('/deductions/' + d.id + '/cancel', { reason: reason }); }, done: 'أُلغي الخصم', after: function () { dlg.close(); done(); } });
     } });
     BT.drawer.open({
@@ -294,7 +294,7 @@
         ['الموظف', A.person(d.employee)],
         ['المصدر', api.t('deduction_source', d.source_type) + ' · ' + d.reason],
         ['الاعتماد', (d.created_by || '') + ' · ' + fmt.dt(d.created_at)],
-        d.cancelled_at ? ['الإلغاء', (d.cancelled_by || '') + ' · ' + fmt.dt(d.cancelled_at) + ' · ' + d.cancel_reason] : null
+        d.cancelled_at ? [d.status === 'rejected' ? 'الرفض' : 'الإلغاء', (d.cancelled_by || '') + ' · ' + fmt.dt(d.cancelled_at) + ' · ' + d.cancel_reason] : null
       ].filter(Boolean))}<div class="section-t mt-16">الأقساط</div>${C.schedule(d)}`,
       buttons: btns
     });

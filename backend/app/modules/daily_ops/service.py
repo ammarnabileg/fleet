@@ -22,6 +22,7 @@ from app.modules.cash import service as cash
 from app.modules.daily_ops.models import Report, ReportChange
 from app.modules.files import service as files
 from app.modules.fleet import service as fleet
+from app.modules.i18n import service as i18n
 from app.modules.notifications import service as notifications
 from app.modules.org import service as org
 from app.modules.payroll import service as payroll
@@ -134,7 +135,7 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
     cash.submit_collection(db, driver, report_id=report.id, amount=amount, business_date=day, device_id=device_id)
     notifications.resolve(db, f"daily_report_missing:{employee_id}:{day}")  # sent after all
     cash.check_balance_alert(db, driver)
-    approvals.submitted(db, "daily_report", **_approval(report, driver.name))
+    approvals.submitted(db, "daily_report", **_approval(db, report, driver))
     audit.record(
         db,
         action="daily_report.submitted",
@@ -281,11 +282,12 @@ def screenshot(db: Session, public_id, **scope) -> files.FileInfo:
     return files.get(db, report.screenshot_sha256)
 
 
-def _approval(report: Report, driver_name: str) -> dict:
+def _approval(db: Session, report: Report, driver: people.EmployeeRef) -> dict:
+    lang = i18n.default_language(db).code  # the name as text: the inbox shows it as typed, not as a dict
     return {
         "document_id": report.id,
         "document_key": report.public_id,
-        "document_ref": f"{driver_name} {report.business_date.isoformat()}",
+        "document_ref": f"{i18n.pick(driver.name, lang, lang)} {report.business_date.isoformat()}",
         "company_id": report.company_id,
         "amount": report.cash_amount,
     }
@@ -302,7 +304,7 @@ def approve(
         raise AppError(422, "reason_required")  # a correction always says why (spec T-LED-02)
     driver = people.ref(db, report.employee_id)
     if not approvals.gate(
-        db, "daily_report", **_approval(report, driver.name), actor_user_id=actor_user_id, reason=reason
+        db, "daily_report", **_approval(db, report, driver), actor_user_id=actor_user_id, reason=reason
     ):
         if approved != report.cash_amount:
             raise AppError(409, "correction_at_last_step")  # the cash is corrected by whoever approves it last
@@ -369,7 +371,7 @@ def reject(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
         raise AppError(409, "report_not_submitted")
     driver = people.ref(db, report.employee_id)
     approvals.gate(
-        db, "daily_report", **_approval(report, driver.name), actor_user_id=actor_user_id, approve=False, reason=reason
+        db, "daily_report", **_approval(db, report, driver), actor_user_id=actor_user_id, approve=False, reason=reason
     )
     cash.reject_collection(db, report_id=report.id, actor_user_id=actor_user_id)
     report.status, report.review_note = "rejected", reason
@@ -548,7 +550,7 @@ def edit(db: Session, *, employee_id: int, device_id: int, public_id, data: dict
     report.status, report.updated_at, report.version = "submitted", utcnow(), report.version + 1
     _log(db, report, "edit", "applied", before, after, created_by_device=device_id)
     if returned or "cash_amount" in after:  # sent back to review, or another amount: the approval starts over
-        approvals.submitted(db, "daily_report", **_approval(report, driver.name), note="edited")
+        approvals.submitted(db, "daily_report", **_approval(db, report, driver), note="edited")
     cash.check_balance_alert(db, driver)
     audit.record(
         db,
