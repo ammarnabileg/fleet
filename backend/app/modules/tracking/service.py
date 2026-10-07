@@ -8,6 +8,7 @@ the batch was sent. Every point must fall inside one of the driver's custody per
 custody's vehicle. Mock locations are rejected and kept only as security events.
 """
 
+import json
 import math
 import time
 from collections.abc import AsyncIterator, Iterable
@@ -206,12 +207,14 @@ def _publish(db: Session, rows: list[dict], device: identity.DevicePrincipal) ->
     if not rows:
         return
     vehicles = fleet.vehicles(db, [r["vehicle_id"] for r in rows])
+    working = fleet.on_duty_now(db, {r["custody_id"] for r in rows if r.get("custody_id")})
     for r in rows:
         v = vehicles[r["vehicle_id"]]
         live.broker().publish(
             v.company_id,
             {
                 "vehicle": {"id": str(v.public_id), "plate_number": v.plate_number},
+                "on_duty": r.get("custody_id") in working,
                 "driver": {"name": device.name},
                 "lat": r["lat"],
                 "lng": r["lng"],
@@ -231,8 +234,11 @@ def company_scope(db: Session, all_companies: bool, company_ids: Iterable[int]) 
     return set(company_ids)
 
 
-def live_snapshot(db: Session, *, all_companies: bool, company_ids: Iterable[int]) -> list[dict]:
-    """Every vehicle in custody now, with its last position (or none yet) and whether its signal is lost."""
+def live_snapshot(
+    db: Session, *, see_off_duty: bool = False, all_companies: bool, company_ids: Iterable[int]
+) -> list[dict]:
+    """Every vehicle in custody now, with its last position (or none yet), whether its signal is lost and whether
+    its driver's day is on. Off duty, the position is shown only to who may see it (BRD FR-TRK-09)."""
     scope = company_scope(db, all_companies, company_ids)
     custodies = [c for c in fleet.open_custodies(db) if c.company_id in scope]
     if not custodies:
@@ -244,19 +250,23 @@ def live_snapshot(db: Session, *, all_companies: bool, company_ids: Iterable[int
         for p in db.scalars(select(LastPosition).where(LastPosition.vehicle_id.in_([c.vehicle_id for c in custodies])))
     }
     lost_after = timedelta(minutes=org.get_section(db, "tracking").signal_loss_minutes)
+    working = fleet.on_duty_now(db, [c.id for c in custodies])
     now, out = utcnow(), []
     for c in custodies:
         v, p = vehicles[c.vehicle_id], positions.get(c.vehicle_id)
         p = p if p is not None and p.custody_id == c.id else None  # a position from an earlier custody is stale
         reference = p.recorded_at if p else c.started_at
+        hidden = c.id not in working and not see_off_duty
         out.append(
             {
                 "vehicle": {"id": str(v.public_id), "plate_number": v.plate_number},
                 "driver": drivers.get(c.driver_id),
                 "custody_id": str(c.public_id),
                 "company_id": c.company_id,
+                "on_duty": c.id in working,
+                "position_hidden": hidden and p is not None,
                 "position": None
-                if p is None
+                if p is None or hidden
                 else {
                     "lat": p.lat,
                     "lng": p.lng,
@@ -271,15 +281,22 @@ def live_snapshot(db: Session, *, all_companies: bool, company_ids: Iterable[int
 
 
 async def live_events(
-    company_ids: set[int], *, keepalive: float = 15.0, max_seconds: float = 1800.0, max_events: int | None = None
+    company_ids: set[int],
+    *,
+    see_off_duty: bool = True,
+    keepalive: float = 15.0,
+    max_seconds: float = 1800.0,
+    max_events: int | None = None,
 ) -> AsyncIterator[str]:
-    """Server-sent events for the given companies (the caller's scope). The stream ends after max_seconds: the
-    browser reconnects, which re-checks the session and the scope."""
+    """Server-sent events for the given companies (the caller's scope); a position off duty only to who may see it.
+    The stream ends after max_seconds: the browser reconnects, which re-checks the session and the scope."""
     deadline, sent = time.monotonic() + max_seconds, 0
     yield "retry: 3000\n\n"
     async for message in live.broker().listen(company_ids, timeout=keepalive):
         if message is None:
             yield ": keep-alive\n\n"
+        elif not see_off_duty and json.loads(message).get("on_duty") is False:
+            continue
         else:
             yield f"event: position\ndata: {message}\n\n"
             sent += 1
@@ -304,6 +321,7 @@ def route(
     custody_public_id=None,
     start: datetime | None = None,
     end: datetime | None = None,
+    see_off_duty: bool = False,
     all_companies: bool,
     company_ids: Iterable[int],
 ) -> dict:
@@ -333,13 +351,21 @@ def route(
     )
     truncated = len(points) > MAX_ROUTE_POINTS
     points = points[:MAX_ROUTE_POINTS]
+    # BRD FR-TRK-09: a point is on duty within one of the driver's work days on this custody; the rest of the
+    # custody (before the day started, after it ended) is his own time, shown only to who may see it
+    periods = fleet.work_periods(db, vehicle_id, start, end)
+    flagged = [(p, any(c == p.custody_id and a <= p.recorded_at <= b for c, a, b in periods)) for p in points]
+    shown = flagged if see_off_duty else [(p, on) for p, on in flagged if on]
     v = fleet.vehicles(db, [vehicle_id])[vehicle_id]
-    drivers = people.names(db, {p.driver_id for p in points})
+    drivers = people.names(db, {p.driver_id for p, _ in shown})
+    pairs = list(zip(shown, shown[1:], strict=False))
     return {
         "vehicle": {"id": str(v.public_id), "plate_number": v.plate_number},
         "from": start,
         "to": end,
-        "distance_km": round(sum(_km(a, b) for a, b in zip(points, points[1:], strict=False)), 2),
+        "distance_km": round(sum(_km(a, b) for (a, _), (b, _) in pairs), 2),
+        "off_duty_km": round(sum(_km(a, b) for (a, x), (b, y) in pairs if not x and not y), 2),
+        "hidden_off_duty": len(flagged) - len(shown),
         "truncated": truncated,
         "drivers": list(drivers.values()),
         "points": [
@@ -350,8 +376,9 @@ def route(
                 "speed_kmh": p.speed_kmh,
                 "heading": p.heading,
                 "accuracy_m": p.accuracy_m,
+                "on_duty": on,
             }
-            for p in points
+            for p, on in shown
         ],
     }
 

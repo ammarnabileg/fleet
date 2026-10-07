@@ -36,7 +36,7 @@
       var rows = visible();
       BT.render(listEl, rows.length ? h`${rows.map(function (r) {
         var t = tone(r);
-        return h`<button type="button" class="li${state.selected === r.vehicle.id ? ' active' : ''}" data-veh="${r.vehicle.id}" style="width:100%;text-align:start"><span class="sdot ${t}" style="margin-top:6px"></span><div class="li-main"><div class="li-t"><span class="plate">${r.vehicle.plate_number}</span> <bdi>${api.name(r.driver && r.driver.name)}</bdi></div><div class="li-d">${r.position ? (t === 'r' ? 'آخر موقع ' : '') + fmt.since(r.position.recorded_at) + (r.position.speed_kmh != null ? ' · ' + Math.round(r.position.speed_kmh) + ' كم/س' : '') : 'لم يصل أي موقع خلال العهدة'}</div></div></button>`;
+        return h`<button type="button" class="li${state.selected === r.vehicle.id ? ' active' : ''}" data-veh="${r.vehicle.id}" style="width:100%;text-align:start"><span class="sdot ${t}" style="margin-top:6px"></span><div class="li-main"><div class="li-t"><span class="plate">${r.vehicle.plate_number}</span> <bdi>${api.name(r.driver && r.driver.name)}</bdi></div><div class="li-d">${r.position_hidden ? 'خارج يوم العمل: الموقع لا يظهر لصلاحيتك' : r.position ? (t === 'r' ? 'آخر موقع ' : '') + fmt.since(r.position.recorded_at) + (r.position.speed_kmh != null ? ' · ' + Math.round(r.position.speed_kmh) + ' كم/س' : '') + (r.on_duty === false ? ' · خارج يوم العمل' : '') : 'لم يصل أي موقع خلال العهدة'}</div></div></button>`;
       })}` : BT.empty('map', 'لا توجد سيارات', state.rows.length ? 'غيّر البحث أو التصفية' : 'لا توجد عهد مفتوحة الآن'));
     }
     function popup(r) {
@@ -81,7 +81,7 @@
         var m = JSON.parse(e.data), r = state.rows.find(function (x) { return x.vehicle.id === m.vehicle.id; });
         if (!r) { refresh(false); return; }
         r.position = { lat: m.lat, lng: m.lng, speed_kmh: m.speed_kmh, heading: m.heading, recorded_at: m.recorded_at };
-        r.signal_lost = false;
+        r.signal_lost = false; r.on_duty = m.on_duty; r.position_hidden = false;
         drawMarkers(false); drawList();
       });
       var timer = setInterval(function () { if (!document.hidden) refresh(false); }, 60000); // حالة الانقطاع من الخادم
@@ -106,11 +106,14 @@
       BT.render(sum, A.spinner(''));
       api.get('/tracking/route', { vehicle_id: vehicleId, start: fmt.kwIso(s), end: fmt.kwIso(e) }).then(function (r) {
         A.setTitle('مسار ' + r.vehicle.plate_number, [['التتبع الحي', 'tracking'], [r.vehicle.plate_number]]);
-        BT.render(sum, h`<span class="plate">${r.vehicle.plate_number}</span> · <b class="num">${fmt.int(r.points.length)}</b> نقطة · <b class="num">${r.distance_km}</b> كم${r.drivers.length ? h` · ${r.drivers.map(function (d) { return api.name(d.name); }).join('، ')}` : ''}${r.truncated ? h` ${BT.pill('مقتطع: قلّل الفترة', 'o')}` : ''}`);
+        // FR-TRK-09: the driver's own time (before his day started, after it ended) in orange, or hidden without the permission
+        var off = r.points.filter(function (x) { return !x.on_duty; }).length;
+        BT.render(sum, h`<span class="plate">${r.vehicle.plate_number}</span> · <b class="num">${fmt.int(r.points.length)}</b> نقطة · <b class="num">${r.distance_km}</b> كم${r.drivers.length ? h` · ${r.drivers.map(function (d) { return api.name(d.name); }).join('، ')}` : ''}${r.truncated ? h` ${BT.pill('مقتطع: قلّل الفترة', 'o')}` : ''}
+          ${off ? h` <span data-off-duty>${BT.pill('خارج يوم العمل: ' + r.off_duty_km + ' كم (' + fmt.int(off) + ' نقطة)', 'o')}</span>` : ''}${r.hidden_off_duty ? h` <span data-off-hidden>${BT.pill(fmt.int(r.hidden_off_duty) + ' نقطة خارج يوم العمل لا تظهر لصلاحيتك', 'n')}</span>` : ''}`);
         if (!map) return;
         ends.splice(0).forEach(function (m) { m.remove(); });
         var ll = r.points.map(function (x) { return [x.lat, x.lng]; });
-        map.line(ll);
+        map.line(ll, r.points.map(function (x) { return !x.on_duty; }));
         if (!ll.length) { BT.toast('لا توجد نقاط في هذه الفترة', { type: 'info' }); return; }
         ends.push(map.marker(ll[0], '<div class="route-end start"></div>', { title: 'البداية ' + fmt.dt(r.points[0].t) }));
         ends.push(map.marker(ll[ll.length - 1], '<div class="route-end end"></div>', { title: 'النهاية ' + fmt.dt(r.points[r.points.length - 1].t) }));

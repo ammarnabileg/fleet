@@ -117,15 +117,21 @@
       },
       view: function (p, zoom) { map.easeTo({ center: lngLat(p), zoom: zoom }); },
       zoom: function () { return map.getZoom(); },
-      /* خط المسار (يحلّ محل السابق) */
-      line: function (points) {
+      /* خط المسار (يحلّ محل السابق). off[i]: النقطة خارج يوم العمل (FR-TRK-09)؛ ما بين نقطتين خارجه يُرسم برتقالياً */
+      line: function (points, off) {
         return loaded.then(function () {
-          var data = { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: points.map(lngLat) } };
+          var features = [];
+          for (var i = 1; i < points.length; i++) {
+            var o = !!(off && off[i - 1] && off[i]), last = features[features.length - 1];
+            if (last && last.properties.off === o) last.geometry.coordinates.push(lngLat(points[i]));
+            else features.push({ type: 'Feature', properties: { off: o }, geometry: { type: 'LineString', coordinates: [lngLat(points[i - 1]), lngLat(points[i])] } });
+          }
+          var data = { type: 'FeatureCollection', features: features };
           if (map.getSource('route')) { map.getSource('route').setData(data); return; }
           map.addSource('route', { type: 'geojson', data: data });
           var layout = { 'line-join': 'round', 'line-cap': 'round' };
           map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: layout, paint: { 'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.9 } });
-          map.addLayer({ id: 'route', type: 'line', source: 'route', layout: layout, paint: { 'line-color': '#0A6CFF', 'line-width': 4, 'line-opacity': 0.9 } });
+          map.addLayer({ id: 'route', type: 'line', source: 'route', layout: layout, paint: { 'line-color': ['case', ['get', 'off'], '#F59E0B', '#0A6CFF'], 'line-width': 4, 'line-opacity': 0.9 } });
         });
       }
     };

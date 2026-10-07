@@ -79,6 +79,8 @@ class LiveVehicle(BaseModel):
     company_id: int
     position: LivePosition | None
     signal_lost: bool
+    on_duty: bool = True  # the driver's day started and not ended (BRD FR-TRK-09)
+    position_hidden: bool = False  # off duty, and the user may not see it (tracking.off_duty)
 
 
 class RoutePoint(BaseModel):
@@ -88,6 +90,7 @@ class RoutePoint(BaseModel):
     speed_kmh: float | None
     heading: int | None
     accuracy_m: float | None
+    on_duty: bool = True  # within one of the driver's work days (BRD FR-TRK-09)
 
 
 class RouteOut(BaseModel):
@@ -95,6 +98,8 @@ class RouteOut(BaseModel):
     from_: datetime = Field(alias="from")
     to: datetime
     distance_km: float
+    off_duty_km: float = 0  # between two points outside the work day
+    hidden_off_duty: int = 0  # points outside the work day the user may not see (tracking.off_duty)
     truncated: bool
     drivers: list[DriverRef]
     points: list[RoutePoint]

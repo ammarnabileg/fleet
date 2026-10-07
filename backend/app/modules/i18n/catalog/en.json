@@ -76,6 +76,7 @@
     "settings.update": "Change settings",
     "settings.view": "View settings",
     "tracking.export": "Export tracking data",
+    "tracking.off_duty": "Movement outside the work day",
     "tracking.history": "Route history",
     "tracking.live": "Live map",
     "treasury.manage": "Manage treasury and bank deposits",

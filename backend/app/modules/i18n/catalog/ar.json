@@ -76,6 +76,7 @@
     "settings.update": "تعديل الإعدادات",
     "settings.view": "عرض الإعدادات",
     "tracking.export": "تصدير بيانات التتبع",
+    "tracking.off_duty": "الحركة خارج يوم العمل",
     "tracking.history": "سجل المسارات",
     "tracking.live": "الخريطة الحية",
     "treasury.manage": "إدارة الخزينة والإيداعات البنكية",

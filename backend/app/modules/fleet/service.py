@@ -1183,6 +1183,60 @@ def driver_days(db: Session, employee_id: int, first, last) -> dict:
     return out
 
 
+def work_periods(db: Session, vehicle_id: int, start: datetime, end: datetime) -> list[tuple[int, datetime, datetime]]:
+    """The work days driven in this vehicle that overlap [start, end), as (custody, from, to): from a start of day to
+    the reading that closed it (his end of day or the return, on the same custody, within 24 hours and before his
+    next start, as driver_days pairs them), or to 24 hours later, or now (BRD FR-TRK-09). The vehicle's movement
+    outside them, in custody but before the day started or after it ended, is off duty."""
+    readings = db.scalars(
+        select(OdometerReading)
+        .where(
+            OdometerReading.vehicle_id == vehicle_id,
+            OdometerReading.kind.in_(("start_day", "end_day", "return")),
+            OdometerReading.recorded_at > start - DAY_CLOSES_WITHIN,
+            OdometerReading.recorded_at < end,
+        )
+        .order_by(OdometerReading.recorded_at, OdometerReading.id)
+    )
+    now, periods, opened = utcnow(), [], None
+    for r in readings:
+        if r.kind == "start_day":
+            if opened is not None:  # never closed: the next start ends it
+                periods.append(
+                    (opened.custody_id, opened.recorded_at, min(r.recorded_at, opened.recorded_at + DAY_CLOSES_WITHIN))
+                )
+            opened = r
+        elif (
+            opened is not None
+            and r.custody_id == opened.custody_id
+            and r.recorded_at <= opened.recorded_at + DAY_CLOSES_WITHIN
+        ):
+            periods.append((opened.custody_id, opened.recorded_at, r.recorded_at))
+            opened = None
+    if opened is not None:
+        periods.append((opened.custody_id, opened.recorded_at, min(opened.recorded_at + DAY_CLOSES_WITHIN, now)))
+    return [p for p in periods if p[2] > start and p[1] < end]
+
+
+def on_duty_now(db: Session, custody_ids: Iterable[int]) -> set[int]:
+    """The custodies whose driver has started his day and not ended it, now (within 24 hours of the start)."""
+    ids = list(custody_ids)
+    if not ids:
+        return set()
+    now = utcnow()
+    last = (
+        select(OdometerReading.custody_id, OdometerReading.kind, OdometerReading.recorded_at)
+        .where(
+            OdometerReading.custody_id.in_(ids),
+            OdometerReading.kind.in_(("start_day", "end_day", "return")),
+            OdometerReading.recorded_at > now - DAY_CLOSES_WITHIN,
+        )
+        .order_by(OdometerReading.custody_id, OdometerReading.recorded_at.desc(), OdometerReading.id.desc())
+        .distinct(OdometerReading.custody_id)
+    )
+    return {c for c, kind, _ in db.execute(last) if kind == "start_day"}
+
+
 def held_days(db: Session, driver_ids: Iterable[int], first, last) -> dict[int, set]:
     """The Kuwait days, first to last inclusive, on which each driver held a vehicle for any part of the day."""
     ids = list(driver_ids)

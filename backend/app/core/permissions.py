@@ -47,7 +47,7 @@ MODULES: list[tuple[str, list[Permission]]] = [
     ("vehicles", _module("vehicles", "view", "create", "update", "delete", "export", sensitive=("delete",))),
     ("custody", _module("custody", "view", "assign", "emergency")),
     ("odometer", _module("odometer", "view", "review")),
-    ("tracking", _module("tracking", "live", "history", "export")),
+    ("tracking", _module("tracking", "live", "history", "export", "off_duty", sensitive=("off_duty",))),
     ("devices", _module("devices", "manage")),
     ("daily_reports", _module("daily_reports", "view", "review", "export", "escalations")),
     (
