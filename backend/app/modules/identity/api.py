@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.errors import AppError
+from app.core.ratelimit import limited
 from app.modules.i18n import service as i18n
 from app.modules.identity import claims, link_queue, schemas, service
 from app.modules.identity.service import Principal, get_principal, require_permission
@@ -32,7 +33,7 @@ def _client(request: Request) -> dict:
     return {"ip": request.client.host if request.client else None, "user_agent": request.headers.get("user-agent")}
 
 
-@router.post("/auth/login", response_model=schemas.LoginOut)
+@router.post("/auth/login", response_model=schemas.LoginOut, dependencies=[Depends(limited("sign_in"))])
 def login(body: schemas.LoginIn, request: Request, response: Response, db: Session = Depends(get_session)):
     result = service.login(db, body.username, body.password, **_client(request))
     _set_cookie(response, result.token)
@@ -41,7 +42,7 @@ def login(body: schemas.LoginIn, request: Request, response: Response, db: Sessi
     )
 
 
-@router.post("/auth/mfa/verify", response_model=schemas.LoginOut)
+@router.post("/auth/mfa/verify", response_model=schemas.LoginOut, dependencies=[Depends(limited("sign_in"))])
 def verify_mfa(body: schemas.CodeIn, request: Request, response: Response, db: Session = Depends(get_session)):
     result = service.verify_mfa(db, request.cookies.get(service.SESSION_COOKIE), body.code, **_client(request))
     _set_cookie(response, result.token)
@@ -170,14 +171,14 @@ def list_permissions(
 # ---- driver app: binding by phone + OTP, then rotating bearer tokens (no cookies, so no CSRF)
 
 
-@router.post("/driver/auth/otp", status_code=202)
+@router.post("/driver/auth/otp", status_code=202, dependencies=[Depends(limited("otp_send"))])
 def request_otp(body: schemas.OtpRequestIn, request: Request, db: Session = Depends(get_session)):
     """Same answer whether or not the phone belongs to a driver."""
     service.request_otp(db, phone=body.phone, device_uid=body.device_uid, ip=_client(request)["ip"])
     return {"status": "sent"}
 
 
-@router.post("/driver/auth/verify", response_model=schemas.TokensOut)
+@router.post("/driver/auth/verify", response_model=schemas.TokensOut, dependencies=[Depends(limited("otp_check"))])
 def verify_otp(body: schemas.OtpVerifyIn, db: Session = Depends(get_session)):
     return service.verify_otp(
         db,
@@ -190,7 +191,7 @@ def verify_otp(body: schemas.OtpVerifyIn, db: Session = Depends(get_session)):
     )
 
 
-@router.post("/driver/auth/activate", response_model=schemas.TokensOut)
+@router.post("/driver/auth/activate", response_model=schemas.TokensOut, dependencies=[Depends(limited("sign_in"))])
 def activate(body: schemas.ActivateIn, db: Session = Depends(get_session)):
     """The app opens the activation link: the token (from after the "#") binds this phone, no OTP needed."""
     return service.activate(
@@ -234,13 +235,17 @@ def claim_password(body: schemas.ClaimPasswordIn, db: Session = Depends(get_sess
     )
 
 
-@router.post("/driver/auth/claim/phone", response_model=schemas.ClaimPhoneOut)
+@router.post(
+    "/driver/auth/claim/phone", response_model=schemas.ClaimPhoneOut, dependencies=[Depends(limited("otp_send"))]
+)
 def claim_phone(body: schemas.ClaimPhoneIn, db: Session = Depends(get_session)):
     """His phone: a WhatsApp code goes to it. Only a verified phone becomes his."""
     return claims.send_code(db, token=body.claim_token, device_uid=body.device_uid, phone=body.phone)
 
 
-@router.post("/driver/auth/claim/verify", response_model=schemas.TokensOut)
+@router.post(
+    "/driver/auth/claim/verify", response_model=schemas.TokensOut, dependencies=[Depends(limited("otp_check"))]
+)
 def claim_verify(body: schemas.ClaimVerifyIn, db: Session = Depends(get_session)):
     """The code: the phone is his, this phone is bound, and the self-registration (documents, IBAN) follows."""
     return claims.verify(

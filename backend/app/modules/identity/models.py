@@ -276,3 +276,15 @@ class ClaimAttempt(Base):
     ip: Mapped[str | None] = mapped_column(Text)
     ok: Mapped[bool] = mapped_column(Boolean)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RateHit(Base):
+    """Requests counted per window for a limit (app.core.ratelimit)."""
+
+    __tablename__ = "rate_hits"
+    __table_args__ = (Index("rate_hits_window_start_idx", "window_start"), SCHEMA)
+
+    bucket: Mapped[str] = mapped_column(Text, primary_key=True)
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    hits: Mapped[int] = mapped_column(Integer)

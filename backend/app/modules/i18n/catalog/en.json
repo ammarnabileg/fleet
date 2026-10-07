@@ -380,7 +380,8 @@
     "leave_not_open": "This leave is rejected or cancelled",
     "day_in_future": "A day still to come cannot be marked",
     "mark_not_found": "This day has no mark",
-    "invalid_mark": "Unknown mark"
+    "invalid_mark": "Unknown mark",
+    "too_many_requests": "Too many requests from this connection: try again in {minutes} minutes"
   },
   "settings": {
     "branding": "Branding",

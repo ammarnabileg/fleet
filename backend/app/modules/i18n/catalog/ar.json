@@ -380,7 +380,8 @@
     "leave_not_open": "الإجازة مرفوضة أو ملغاة",
     "day_in_future": "لا يُصنَّف يوم لم يأتِ بعد",
     "mark_not_found": "لا يوجد تصنيف لهذا اليوم",
-    "invalid_mark": "تصنيف غير معروف"
+    "invalid_mark": "تصنيف غير معروف",
+    "too_many_requests": "طلبات كثيرة من هذا الاتصال: حاول بعد {minutes} دقيقة"
   },
   "settings": {
     "branding": "الهوية",
