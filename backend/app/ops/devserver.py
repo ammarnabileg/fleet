@@ -6,8 +6,10 @@ uvicorn app.ops.devserver:app --reload     # then open http://localhost:8000/adm
 import os
 import pathlib
 
+from fastapi import HTTPException
 from fastapi.staticfiles import StaticFiles
 
+from app.core import messaging
 from app.core.config import get_settings
 from app.main import create_app
 
@@ -17,6 +19,18 @@ if get_settings().is_production:
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 
 app = create_app()
+
+
+@app.get("/__dev/messages", include_in_schema=False)
+def dev_messages(to: str):
+    """What the log provider would have sent to this number (a code, a link), for the browser tests to read as the
+    phone would. Only with the log provider, which itself refuses to run in production."""
+    provider = messaging.provider()
+    if not isinstance(provider, messaging.LogProvider):
+        raise HTTPException(404)
+    return [{"to": m.to, "text": m.text} for m in provider.sent if m.to == to]
+
+
 # the map file, as nginx serves it from deploy/maps (MAPS_DIR: another folder holding kuwait.pmtiles)
 maps = pathlib.Path(os.environ.get("MAPS_DIR", ROOT / "deploy" / "maps"))
 if maps.is_dir():

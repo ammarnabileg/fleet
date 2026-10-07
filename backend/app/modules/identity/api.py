@@ -8,7 +8,7 @@ from app.core.db import get_session
 from app.core.errors import AppError
 from app.core.ratelimit import failures_limited, limited
 from app.modules.i18n import service as i18n
-from app.modules.identity import claims, link_queue, schemas, service
+from app.modules.identity import claims, link_queue, recovery, schemas, service
 from app.modules.identity.service import Principal, get_principal, require_permission
 from app.modules.onboarding import service as onboarding
 from app.modules.people import service as people
@@ -47,6 +47,17 @@ def verify_mfa(body: schemas.CodeIn, request: Request, response: Response, db: S
     result = service.verify_mfa(db, request.cookies.get(service.SESSION_COOKIE), body.code, **_client(request))
     _set_cookie(response, result.token)
     return schemas.LoginOut(mfa_required=False, csrf_token=result.csrf_token)
+
+
+@router.post("/auth/password-reset", status_code=202, dependencies=[Depends(limited("otp_send"))])
+def request_password_reset(body: schemas.ResetCodeIn, request: Request, db: Session = Depends(get_session)):
+    """A code on WhatsApp to the phone saved on the account (FR-USR-03); the same answer for any username."""
+    recovery.request_code(db, body.username, ip=_client(request)["ip"])
+
+
+@router.post("/auth/password-reset/confirm", status_code=204, dependencies=[Depends(failures_limited("sign_in"))])
+def reset_password_with_code(body: schemas.ResetWithCodeIn, db: Session = Depends(get_session)):
+    recovery.reset(db, body.username, code=body.code, new_password=body.new_password, mfa_code=body.mfa_code)
 
 
 @router.post("/auth/logout", status_code=204)

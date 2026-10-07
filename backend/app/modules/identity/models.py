@@ -153,6 +153,24 @@ class DeviceToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class PasswordResetCode(Base):
+    """A code sent to an office user's phone to set a new password (BRD FR-USR-03); none is sent to an unknown
+    username, and the row counts toward the limit all the same."""
+
+    __tablename__ = "password_reset_codes"
+    __table_args__ = (Index("password_reset_codes_username_idx", "username", "created_at"), SCHEMA)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(Text)
+    user_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("identity.users.id"))
+    code_hash: Mapped[str | None] = mapped_column(Text)
+    attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ip: Mapped[str | None] = mapped_column(Text)
+
+
 class OtpChallenge(Base):
     __tablename__ = "otp_challenges"
     __table_args__ = (Index("otp_challenges_phone_idx", "phone", "created_at"), SCHEMA)

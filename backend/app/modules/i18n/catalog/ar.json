@@ -428,7 +428,8 @@
     "delegate_self": "لا يمكن التفويض للنفس",
     "delegation_in_past": "فترة التفويض انتهت بالفعل",
     "delegation_not_found": "التفويض غير موجود",
-    "correction_at_last_step": "تصحيح مبلغ الكاش يكون في آخر خطوة اعتماد"
+    "correction_at_last_step": "تصحيح مبلغ الكاش يكون في آخر خطوة اعتماد",
+    "mfa_code_invalid": "رمز تطبيق المصادقة غير صحيح"
   },
   "settings": {
     "branding": "الهوية",
@@ -559,7 +560,8 @@
     "onboarding_rejected": "{name}، بياناتك تحتاج تصحيحاً: {reason}\nافتح التطبيق وعدّلها ثم أرسلها من جديد.",
     "scheme_approved": "{name}، تمت الموافقة على طلبك: نظامك من {month} هو {scheme}.",
     "scheme_rejected": "{name}، لم تتم الموافقة على طلب تغيير نظامك: {reason}",
-    "notice_title": "إشعار جديد"
+    "notice_title": "إشعار جديد",
+    "password_reset": "رمز تغيير كلمة المرور: {code}. صالح لمدة {minutes} دقائق. إن لم تطلبه فتجاهله ولا تشاركه مع أحد."
   },
   "vehicle_status": {
     "available": "متاحة",

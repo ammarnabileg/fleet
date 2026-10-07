@@ -74,11 +74,48 @@
   s2.addEventListener('submit', function (e) { e.preventDefault(); verify(); });
   s2.addEventListener('otp:complete', verify);
 
+  /* FR-USR-03: a code on WhatsApp to the phone saved on the account, then a new password (and the authenticator's
+     code when two-step verification is on). The page says the same for any username. */
   document.getElementById('forgot').onclick = function () {
-    BT.modal.open({
+    var h = BT.h, user = document.getElementById('u').value.trim();
+    var dlg = BT.modal.open({
       title: 'نسيت كلمة المرور؟', icon: 'key-round', size: 'sm',
-      body: BT.h`<p>لحماية الحسابات لا تُستعاد كلمة المرور من هذه الصفحة. اطلب من مدير النظام إعادة تعيينها من <b>الإعدادات ← المستخدمون</b>، وستُطلب منك كلمة مرور جديدة عند أول دخول.</p>`,
-      buttons: [{ label: 'حسناً', cls: 'btn-primary' }]
+      body: h`<form class="form" data-reset-ask novalidate><p class="fs-sm">اكتب اسم المستخدم. إن كان للحساب رقم جوال مسجل يصله رمز على واتساب صالح 10 دقائق.</p>
+        ${BT.f.input({ name: 'username', label: 'اسم المستخدم', required: true, value: user })}</form>
+        <form class="form hidden" data-reset-set novalidate><p class="fs-sm" data-reset-sent></p>
+        ${BT.f.input({ name: 'code', label: 'الرمز من واتساب', required: true })}
+        ${BT.f.input({ name: 'new_password', label: 'كلمة المرور الجديدة', required: true, type: 'password' })}
+        ${BT.f.input({ name: 'mfa_code', label: 'رمز تطبيق المصادقة', optional: true, hint: 'فقط إن كان التحقق بخطوتين مفعلاً لحسابك' })}</form>
+        <div class="err-msg center" data-reset-err role="alert"></div>`,
+      buttons: [{ label: 'إلغاء', cls: 'btn-secondary' }, { label: 'أرسل الرمز', cls: 'btn-primary', close: false, onClick: function () { step(); return false; } }]
     });
+    var ask = dlg.body.querySelector('[data-reset-ask]'), set = dlg.body.querySelector('[data-reset-set]'), sent = false;
+    function err(msg) { var e = dlg.body.querySelector('[data-reset-err]'); e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; }
+    function step() {
+      err('');
+      var form = sent ? set : ask;
+      if (!BT.form.validate(form)) return;
+      var a = BT.form.values(ask), v = BT.form.values(set), digits = function (x) { return String(x == null ? '' : x).replace(/\s/g, ''); };
+      dlg.busy(1, true);
+      var call = sent
+        ? api.request('POST', '/auth/password-reset/confirm', { body: { username: a.username.trim(), code: digits(v.code), new_password: v.new_password, mfa_code: digits(v.mfa_code) || null }, noRedirect: true })
+        : api.request('POST', '/auth/password-reset', { body: { username: a.username.trim() }, noRedirect: true });
+      call.then(function () {
+        dlg.busy(1, false);
+        if (!sent) {
+          sent = true;
+          ask.classList.add('hidden'); set.classList.remove('hidden');
+          set.querySelector('[data-reset-sent]').textContent = 'إن كان «' + a.username.trim() + '» حساباً له جوال مسجل فقد أُرسل الرمز إليه. لم يصل؟ اطلب من مدير النظام إعادة تعيين كلمة المرور.';
+          dlg.btn(1).textContent = 'تغيير كلمة المرور';
+          set.querySelector('[name=code]').focus();
+          return;
+        }
+        dlg.close();
+        document.getElementById('u').value = a.username.trim();
+        document.getElementById('p').value = '';
+        document.getElementById('p').focus();
+        BT.toast('تم تغيير كلمة المرور. سجّل الدخول بها الآن');
+      }, function (e) { dlg.busy(1, false); err(api.message(e)); });
+    }
   };
 })();

@@ -28,6 +28,21 @@ class PasswordChangeIn(BaseModel):
     new_password: str = Field(max_length=200)
 
 
+class ResetCodeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    username: str = Field(min_length=1, max_length=100)
+
+
+class ResetWithCodeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    username: str = Field(min_length=1, max_length=100)
+    code: str = Field(min_length=1, max_length=12)
+    new_password: str = Field(max_length=200)
+    mfa_code: str | None = Field(None, max_length=12)  # the authenticator's, when two-step verification is on
+
+
 class PasswordResetIn(BaseModel):
     new_password: str = Field(max_length=200)
 

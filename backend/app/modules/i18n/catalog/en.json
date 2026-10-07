@@ -428,7 +428,8 @@
     "delegate_self": "You cannot delegate to yourself",
     "delegation_in_past": "This delegation period has already ended",
     "delegation_not_found": "Delegation not found",
-    "correction_at_last_step": "The cash amount is corrected at the last approval step"
+    "correction_at_last_step": "The cash amount is corrected at the last approval step",
+    "mfa_code_invalid": "The authenticator code is not correct"
   },
   "settings": {
     "branding": "Branding",
@@ -559,7 +560,8 @@
     "onboarding_rejected": "{name}, your registration needs a correction: {reason}\nOpen the app, fix it and send it again.",
     "scheme_approved": "{name}, your request was approved: from {month} your scheme is {scheme}.",
     "scheme_rejected": "{name}, your scheme change was not approved: {reason}",
-    "notice_title": "New notification"
+    "notice_title": "New notification",
+    "password_reset": "Your password reset code: {code}. Valid for {minutes} minutes. If you did not ask for it, ignore it and share it with no one."
   },
   "vehicle_status": {
     "available": "Available",
