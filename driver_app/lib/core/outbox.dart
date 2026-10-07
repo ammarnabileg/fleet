@@ -56,11 +56,15 @@ class Outbox {
     'renewal': ('/driver/documents/renewals', 'upload', {'renewal_exists'}, 'POST'),
     'accident': ('/driver/accidents', 'camera', {'accident_exists'}, 'POST'),
     // the office may have attached a report meanwhile: the accident has one, nothing more to send
-    'police_report': ('/driver/accidents/{accident_id}/police-report', 'camera', {'police_report_exists'}, 'POST'),
+    'police_report': ('/driver/accidents/{accident_id}/police-report', 'upload', {'police_report_exists'}, 'POST'),
     // the month's screenshots from the platform's app (from the gallery)
     'statement': ('/driver/statements', 'upload', {'statement_exists'}, 'POST'),
   };
   static const _claimTimeout = Duration(minutes: 2);
+
+  /// Fields that come from the phone's files even when the rest of the item is the camera's (the accident's police
+  /// report, BRD FR-APP-06).
+  static const _fromFiles = {'police_report'};
 
   Future<int> add(String kind, Map<String, dynamic> payload, Map<String, String> files) {
     assert(_routes.containsKey(kind));
@@ -179,7 +183,7 @@ class Outbox {
     final files = Map<String, String>.from(item.files);
     // upload what is not uploaded yet, remembering each sha256 at once so a retry never uploads twice
     for (final field in files.keys.toList()) {
-      final f = await api.upload(files[field]!, source: source);
+      final f = await api.upload(files[field]!, source: _fromFiles.contains(field) ? 'upload' : source);
       payload[field] = f['sha256'];
       files.remove(field);
       await db.raw.update(

@@ -117,6 +117,12 @@ class AppState extends ChangeNotifier {
   Future<void> boot({String deviceLang = 'ar'}) async {
     lang = await db.get('lang') ?? (deviceLang == 'ar' ? 'ar' : 'en');
     api.lang = lang;
+    try {
+      final m = await DeviceIdentity.meta();
+      api.userAgent = 'FleetDriver/${m['app_version']} (${m['model'] ?? m['platform']})';
+    } catch (_) {
+      // the plain name will do
+    }
     _applyConfig(await db.get('app_config'));
     _applyReportForm(await db.get('report_form'));
     await _showSplash();

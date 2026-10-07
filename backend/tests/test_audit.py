@@ -115,11 +115,13 @@ def test_search_by_who_by_kuwait_days_and_by_action_then_export(admin_client, ne
     assert (
         first[3] == "موظف"
         and first[5] == companies["a"]["name"]["ar"]
-        and json.loads(first[8]) == {"name": "=HYPERLINK(1)"}
+        and json.loads(first[10]) == {"name": "=HYPERLINK(1)"}
     )
-    assert ws.cell(row=2, column=9).data_type == "s"  # stays text
+    assert ws.cell(row=2, column=11).data_type == "s"  # stays text
     csv_rows = admin_client.get("/api/v1/audit/export", params=span | {"format": "csv"}).content.decode("utf-8-sig")
-    assert csv_rows.splitlines()[0] == "occurred_at,actor,action,entity_type,entity_id,company,ip,before,after"
+    assert csv_rows.splitlines()[0] == (
+        "occurred_at,actor,action,entity_type,entity_id,company,comment,ip,device,before,after"
+    )
     assert ",employee," in csv_rows.splitlines()[1]
 
     # a company-limited auditor exports his companies only; and an export too large is refused, not cut short
@@ -148,3 +150,32 @@ def test_search_by_who_by_kuwait_days_and_by_action_then_export(admin_client, ne
 
 def name_of(admin_client, username: str) -> str:
     return next(u["full_name"] for u in admin_client.get("/api/v1/users").json() if u["username"] == username)
+
+
+def test_each_event_names_its_device_and_its_comment(admin_client, client, company):
+    """BRD FR-AUD-01: the browser or the driver app the action came from, and the reason given with it."""
+    from app.core.clock import today
+    from tests.conftest import bearer, bind_device, jpeg, make_driver
+
+    d = make_driver(admin_client, company["id"])
+    browser = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/130"}
+    r = admin_client.post(
+        "/api/v1/cash/adjustments",
+        json={"driver_id": d["id"], "amount": "-3", "reason": "سلفة وقود"},
+        headers=browser,
+    )
+    assert r.status_code == 201, r.text
+    (event,) = admin_client.get("/api/v1/audit", params={"action": "cash.adjustment"}).json()
+    assert (event["device"], event["comment"]) == (browser["User-Agent"], "سلفة وقود")
+
+    phone = bearer(bind_device(client, d["phone"])) | {"User-Agent": "FleetDriver/1.0 (Pixel 8; Android 14)"}
+    shot = client.post(
+        "/api/v1/driver/files",
+        params={"source": "upload"},
+        headers=phone,
+        files={"file": ("s.jpg", jpeg(), "image/jpeg")},
+    ).json()["sha256"]
+    body = {"business_date": str(today()), "orders_count": 3, "cash_amount": "2", "screenshot_sha256": shot}
+    assert client.post("/api/v1/driver/reports", headers=phone, json=body).status_code == 201
+    (sent,) = admin_client.get("/api/v1/audit", params={"action": "daily_report.submitted"}).json()
+    assert (sent["device"], sent["actor_type"]) == ("FleetDriver/1.0 (Pixel 8; Android 14)", "device")

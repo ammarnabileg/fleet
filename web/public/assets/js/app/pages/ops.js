@@ -188,7 +188,8 @@
   BT.actions['cash-receipt'] = function () { A.receipt(null); };
 
   function balancesPanel(el) {
-    A.load(el, api.get('/cash/balances'), function (rows) {
+    A.load(el, Promise.all([api.get('/cash/balances'), api.get('/cash/receipts/unconfirmed')]), function (r) {
+      var rows = r[0], late = r[1];
       var sum = function (k) { return rows.reduce(function (s, r) { return s + Number(r[k]); }, 0); };
       var over = rows.filter(function (r) { return r.over_limit; }).length;
       setTimeout(function () {
@@ -217,7 +218,11 @@
           empty: { icon: 'wallet', title: 'لا توجد أرصدة', text: 'تظهر هنا أرصدة السائقين بعد أول تقرير معتمد أو رصيد افتتاحي' }
         });
       });
-      return h`<div class="kpis">${BT.kpi({ label: 'لدى السائقين (الإجمالي)', value: fmt.kwd(sum('total')), sub: BT.config.currency, dot: 'o' })}${BT.kpi({ label: 'منه معتمد', value: fmt.kwd(sum('posted')), dot: 'g' })}${BT.kpi({ label: 'منه غير معتمد', value: fmt.kwd(sum('pending')), sub: 'تقارير بانتظار المراجعة', dot: 'b' })}${BT.kpi({ label: 'فوق حد التنبيه', value: fmt.int(over), sub: 'تنبيه فقط، لا يوقف السائق', dot: 'r', tone: over ? 'danger' : null })}</div>
+      // receipts the drivers have not confirmed a day after they were given (FR-CSH-05): ask them before it is forgotten
+      var lateCard = late.length ? h`<div class="card mb-16" data-unconfirmed><div class="card-h"><div class="card-t">${icon('receipt', 16)} إيصالات لم يؤكدها السائق بعد 24 ساعة ${BT.pill(fmt.int(late.length), 'o')}</div><span class="card-meta">اسأل السائق: هل استلم الكاش منه من أعطاه الإيصال؟</span></div>
+        <div class="table-wrap"><table class="t compact"><thead><tr><th>السائق</th><th class="num">رقم الإيصال</th><th class="num">المبلغ</th><th class="num">أُعطي في</th></tr></thead>
+        <tbody>${late.map(function (x) { return h`<tr data-receipt="${x.id}"><td>${api.name(x.driver.name)}</td><td class="num">${x.receipt_no}</td><td class="num">${fmt.money(x.amount)}</td><td class="num">${fmt.dt(x.created_at)}</td></tr>`; })}</tbody></table></div></div>` : '';
+      return h`${lateCard}<div class="kpis">${BT.kpi({ label: 'لدى السائقين (الإجمالي)', value: fmt.kwd(sum('total')), sub: BT.config.currency, dot: 'o' })}${BT.kpi({ label: 'منه معتمد', value: fmt.kwd(sum('posted')), dot: 'g' })}${BT.kpi({ label: 'منه غير معتمد', value: fmt.kwd(sum('pending')), sub: 'تقارير بانتظار المراجعة', dot: 'b' })}${BT.kpi({ label: 'فوق حد التنبيه', value: fmt.int(over), sub: 'تنبيه فقط، لا يوقف السائق', dot: 'r', tone: over ? 'danger' : null })}</div>
         <div class="card">${api.can('cash.view') && api.can('reports.export') ? h`<div class="card-h"><span></span><button type="button" class="btn btn-sm btn-outline ms-auto" data-csv>${icon('download', 14)} تصدير CSV</button></div>` : ''}<div data-bal></div></div>`;
     }).then(function () {
       var c = el.querySelector('[data-csv]');
@@ -309,8 +314,11 @@
       if (b) b.onclick = function () {
         A.formModal({
           title: 'إيداع في البنك', icon: 'landmark', size: 'sm', done: 'تم تسجيل الإيداع',
-          body: h`<div class="form">${BT.f.select({ name: 'branch_id', label: 'الفرع', required: true, options: rows.map(function (r) { return { v: r.branch.id, t: api.name(r.branch.name) + ' — ' + fmt.money(r.treasury) }; }), placeholder: false })}${BT.f.money({ name: 'amount', label: 'المبلغ', required: true, min: 0.001 })}${BT.f.input({ name: 'reference', label: 'رقم إيصال البنك', required: true })}</div>`,
-          submit: function (v) { return api.post('/cash/bank-deposits', { branch_id: +v.branch_id, amount: String(v.amount), reference: v.reference }); },
+          body: h`<div class="form">${BT.f.select({ name: 'branch_id', label: 'الفرع', required: true, options: rows.map(function (r) { return { v: r.branch.id, t: api.name(r.branch.name) + ' — ' + fmt.money(r.treasury) }; }), placeholder: false })}${BT.f.money({ name: 'amount', label: 'المبلغ', required: true, min: 0.001 })}${BT.f.input({ name: 'reference', label: 'رقم إيصال البنك', required: true })}${BT.f.upload({ name: 'photo', label: 'صورة إيصال البنك', required: true, accept: 'image/*,application/pdf' })}</div>`,
+          // the bank's receipt is kept with the deposit (FR-CSH-07): uploaded first, then the deposit names it
+          submit: function (v) {
+            return api.upload(v.photo[0]).then(function (f) { return api.post('/cash/bank-deposits', { branch_id: +v.branch_id, amount: String(v.amount), reference: v.reference, receipt_sha256: f.sha256 }); });
+          },
           after: function () { treasuryPanel(el); }
         });
       };

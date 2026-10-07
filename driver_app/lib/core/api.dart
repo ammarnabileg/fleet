@@ -20,6 +20,9 @@ class Api {
   String lang;
   void Function()? onSessionEnded;
 
+  /// Names the app and the phone in the office's audit trail (BRD FR-AUD-01); the model is filled in at boot.
+  String userAgent = 'FleetDriver';
+
   static const timeout = Duration(seconds: 30);
 
   Uri uri(String path, [Map<String, String>? query]) {
@@ -43,7 +46,7 @@ class Api {
   Future<Uint8List> bytes(String path) async {
     final http.Response res;
     try {
-      res = await _http.get(uri(path), headers: {'Accept-Language': lang}).timeout(timeout);
+      res = await _http.get(uri(path), headers: {'Accept-Language': lang, 'User-Agent': userAgent}).timeout(timeout);
     } on SocketException {
       throw ApiError(0, 'network');
     } on TimeoutException {
@@ -80,7 +83,7 @@ class Api {
   Future<dynamic> _withAuth(bool auth, Future<http.Response> Function(Map<String, String> headers) call) async {
     String? stale;
     for (var attempt = 0; attempt < 2; attempt++) {
-      final headers = {'Accept': 'application/json', 'Accept-Language': lang};
+      final headers = {'Accept': 'application/json', 'Accept-Language': lang, 'User-Agent': userAgent};
       if (auth) {
         final token = await _token(stale);
         headers['Authorization'] = 'Bearer $token';

@@ -1162,7 +1162,8 @@ void main() {
   testWidgets('waiting for the police report: a banner on the home screen, sent later from the list', (tester) async {
     final w = (await tester.runAsync(() => world(accidents: [accident()])))!;
     final img = await tester.runAsync(testImage);
-    Photos.camera = (_) async => TakenPhoto(img!, DateTime.now());
+    Photos.camera = (_) async => fail('the police report comes from the phone files, not the camera');
+    Photos.gallery = () async => TakenPhoto(img!, DateTime.now());
     w.server.on(
       'POST',
       '/api/v1/driver/files',
@@ -1183,6 +1184,7 @@ void main() {
     await idle(tester);
     final call = w.server.calls('/api/v1/driver/accidents/a1/police-report').single;
     expect(jsonDecode(call.body), {'number': null, 'file_sha256': 'c' * 64});
+    expect(w.server.calls('/api/v1/driver/files').single.url.queryParameters['source'], 'upload');
     expect(find.text('تم الإرسال'), findsOneWidget);
   });
 

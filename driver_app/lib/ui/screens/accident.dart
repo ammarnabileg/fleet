@@ -78,8 +78,9 @@ class _AccidentScreenState extends State<AccidentScreen> {
     if (p != null) setState(() => photos.add(p));
   }
 
+  /// From the phone's files, not the camera (BRD FR-APP-06): the police hand it over as a paper or a file.
   Future<void> _takePolice() async {
-    final p = await Photos.camera(context);
+    final p = await Photos.gallery();
     if (p != null) setState(() => police = p);
   }
 
@@ -233,7 +234,7 @@ class AccidentTile extends StatelessWidget {
   final VoidCallback? onChanged;
 
   Future<void> _sendPolice(BuildContext context) async {
-    final photo = await Photos.camera(context);
+    final photo = await Photos.gallery();
     if (photo == null || !context.mounted) return;
     try {
       final r = await state.sendPoliceReport(accidentId: accident.id, photoPath: photo.path);

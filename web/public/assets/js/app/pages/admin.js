@@ -549,13 +549,14 @@
           { key: 'actor', label: 'بواسطة', render: function (e) { return e.actor_type === 'user' ? actor(e) : BT.pill(actor(e), 'n'); } },
           { key: 'action', label: 'الإجراء', render: function (e) { return h`<span class="ltr fs-sm">${e.action}</span>`; } },
           { key: 'entity', label: 'السجل', render: function (e) { return h`${entity(e.entity_type)}${e.entity_id ? h`<span class="sub ltr">${String(e.entity_id).slice(0, 8)}</span>` : ''}`; } },
+          { key: 'comment', label: 'التعليق', render: function (e) { return e.comment ? h`<span class="fs-sm" data-comment>${e.comment.length > 60 ? e.comment.slice(0, 60) + '…' : e.comment}</span>` : raw('<span class="muted">—</span>'); } },
           { key: 'company', label: 'الشركة', render: function (e) { return e.company_id ? api.company(e.company_id) : '—'; } },
           { key: 'ip', label: 'العنوان', render: function (e) { return e.ip ? h`<span class="num ltr fs-sm">${e.ip}</span>` : '—'; } }
         ],
         rowClick: function (e) {
           var pre = function (o) { return o == null ? raw('<span class="muted">—</span>') : h`<pre class="ltr fs-sm" style="white-space:pre-wrap;word-break:break-word;background:var(--surface-2);padding:10px;border-radius:8px;max-height:320px;overflow:auto">${JSON.stringify(o, null, 2)}</pre>`; };
           BT.drawer.open({ title: e.action, subtitle: fmt.dt(e.occurred_at), icon: 'shield-check', size: 'lg', buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }],
-            body: h`${BT.kv([['السجل', h`${entity(e.entity_type)} <span class="ltr fs-sm">${e.entity_id || ''}</span>`], ['بواسطة', actor(e)], ['العنوان', e.ip || '—'], ['رقم الطلب', e.request_id ? h`<span class="ltr fs-sm">${e.request_id}</span>` : '—']])}<div class="section-t mt-16">قبل</div>${pre(e.before)}<div class="section-t mt-16">بعد</div>${pre(e.after)}` });
+            body: h`${BT.kv([['السجل', h`${entity(e.entity_type)} <span class="ltr fs-sm">${e.entity_id || ''}</span>`], ['بواسطة', actor(e)], ['التعليق', e.comment || '—'], ['العنوان', e.ip || '—'], ['الجهاز', e.device ? h`<span class="ltr fs-sm" data-device>${e.device}</span>` : '—'], ['رقم الطلب', e.request_id ? h`<span class="ltr fs-sm">${e.request_id}</span>` : '—']])}<div class="section-t mt-16">قبل</div>${pre(e.before)}<div class="section-t mt-16">بعد</div>${pre(e.after)}` });
         },
         empty: { icon: 'shield-check', title: 'لا توجد أحداث مطابقة' }
       });

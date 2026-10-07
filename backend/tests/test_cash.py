@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.core.clock import today
-from tests.conftest import bearer, bind_device, jpeg, login, make_driver, make_user
+from tests.conftest import bearer, bind_device, jpeg, login, make_driver, make_user, upload
 
 
 @pytest.fixture
@@ -173,6 +173,13 @@ def test_uat05_tled07_tled09_a_numbered_receipt_at_the_cashier(admin_client, cli
     assert [x["receipt_no"] for x in mine] == [2, 1] and mine[0]["driver_confirmed_at"] is None
     ok = client.post(f"/api/v1/driver/cash/receipts/{mine[0]['id']}/confirm", headers=earlier["h"])
     assert ok.status_code == 200 and ok.json()["driver_confirmed_at"]
+    # a day later the unconfirmed one stands out (FR-CSH-05); the confirmed one does not
+    db.execute(text("UPDATE cash.receipts SET created_at = now() - interval '25 hours'"))
+    db.commit()
+    mine = client.get("/api/v1/driver/cash", headers=earlier["h"]).json()["receipts"]
+    assert [(x["receipt_no"], x["unconfirmed_late"]) for x in mine] == [(2, False), (1, True)]
+    (late,) = admin_client.get("/api/v1/cash/receipts/unconfirmed").json()
+    assert (late["receipt_no"], late["driver"]["id"]) == (1, earlier["id"])
     with pytest.raises(IntegrityError, match="receipts_branch_id_receipt_no_key"):
         db.execute(
             text(
@@ -248,13 +255,22 @@ def test_tled13_invariants_and_treasury_to_bank(admin_client, client, earlier, d
     admin_client.post("/api/v1/cash/receipts", json={"driver_id": earlier["id"], "amount": "60"})
     branch = admin_client.get("/api/v1/cash/treasury").json()[0]["branch"]["id"]
     r = admin_client.post(
-        "/api/v1/cash/bank-deposits", json={"branch_id": branch, "amount": "70", "reference": "NBK-1"}
+        "/api/v1/cash/bank-deposits",
+        json={"branch_id": branch, "amount": "70", "reference": "NBK-1", "receipt_sha256": upload(admin_client)},
     )
     assert r.status_code == 422 and r.json()["code"] == "treasury_insufficient"
-    r = admin_client.post(
+    no_photo = admin_client.post(
         "/api/v1/cash/bank-deposits", json={"branch_id": branch, "amount": "50", "reference": "NBK-1"}
     )
-    assert r.status_code == 201
+    assert no_photo.status_code == 422  # the bank receipt's photo goes with the reference (FR-CSH-07)
+    photo = upload(admin_client)
+    r = admin_client.post(
+        "/api/v1/cash/bank-deposits",
+        json={"branch_id": branch, "amount": "50", "reference": "NBK-1", "receipt_sha256": photo},
+    )
+    assert r.status_code == 201 and r.json()["has_attachment"] is True
+    kept = admin_client.get(f"/api/v1/cash/journals/{r.json()['id']}/attachment")
+    assert kept.status_code == 200 and kept.content.startswith(b"\xff\xd8")
     row = admin_client.get("/api/v1/cash/treasury").json()[0]
     assert (D(row["treasury"]), D(row["bank"]), D(row["cod_clearing"])) == (D("10.000"), D("50.000"), D("-81.500"))
     total = db.execute(

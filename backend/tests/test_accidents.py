@@ -431,9 +431,17 @@ def test_the_driver_sends_the_police_report_later(admin_client, client, setup):
     mine = client.get("/api/v1/driver/accidents", headers=s["h"]).json()
     assert mine[0]["has_police_report"] is False
     path = f"/api/v1/driver/accidents/{aid}/police-report"
-    r = client.post(path, json={"file_sha256": upload(admin_client)}, headers=s["h"])  # not this phone's camera
+    r = client.post(path, json={"file_sha256": upload(admin_client)}, headers=s["h"])  # not from this phone
     assert r.status_code == 422 and r.json()["code"] == "file_not_yours"
-    sha = camera(client, s["h"])
+    # from the phone's files (FR-APP-06): a PDF or a picture from the gallery, not only the camera
+    pdf = client.post(
+        "/api/v1/driver/files",
+        params={"source": "upload"},
+        headers=s["h"],
+        files={"file": ("police.pdf", b"%PDF-1.4 " + uuid.uuid4().bytes, "application/pdf")},
+    )
+    assert pdf.status_code == 201, pdf.text
+    sha = pdf.json()["sha256"]
     r = client.post(path, json={"file_sha256": sha, "number": "PR-1"}, headers=s["h"])
     assert r.status_code == 200, r.text
     assert r.json()["has_police_report"] is True

@@ -20,7 +20,19 @@ from app.modules.org import service as org
 router = APIRouter(prefix="/api/v1/audit", tags=["audit"])
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-COLUMNS = ("occurred_at", "actor", "action", "entity_type", "entity_id", "company", "ip", "before", "after")
+COLUMNS = (
+    "occurred_at",
+    "actor",
+    "action",
+    "entity_type",
+    "entity_id",
+    "company",
+    "comment",
+    "ip",
+    "device",
+    "before",
+    "after",
+)
 
 
 def _filters(
@@ -103,7 +115,9 @@ def export_audit(
             e.entity_type if format == "csv" else text(f"audit_entity.{e.entity_type}", e.entity_type),
             e.entity_id or "",
             company(e.company_id) if e.company_id else "",
+            e.comment or "",
             e.ip or "",
+            e.device or "",
             as_json(e.before),
             as_json(e.after),
         ]
@@ -113,6 +127,8 @@ def export_audit(
         body, media = sheets.to_csv(list(COLUMNS), rows), "text/csv; charset=utf-8"
     else:
         header = [text(f"audit_column.{c}", c) for c in COLUMNS]
-        body = sheets.to_xlsx(text("audit_column.title", "audit"), header, rows, rtl=lang == "ar", text_columns=(4, 6))
+        body = sheets.to_xlsx(
+            text("audit_column.title", "audit"), header, rows, rtl=lang == "ar", text_columns=(4, 6, 7, 8)
+        )
         media = XLSX
     return Response(body, media_type=media, headers={"Content-Disposition": f'attachment; filename="audit.{format}"'})

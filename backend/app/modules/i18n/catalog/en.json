@@ -1020,6 +1020,8 @@
     "system": "System"
   },
   "audit_column": {
+    "comment": "Comment",
+    "device": "Device",
     "title": "Audit log",
     "occurred_at": "Time (Kuwait)",
     "actor": "By",

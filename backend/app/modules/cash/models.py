@@ -85,6 +85,7 @@ class Journal(Base):
     source_id: Mapped[int] = mapped_column(BigInteger)
     reverses_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("cash.journals.id"))
     reason: Mapped[str | None] = mapped_column(Text)
+    attachment_sha256: Mapped[str | None] = mapped_column(Text, ForeignKey("files.files.sha256"))  # a deposit's receipt
     created_by: Mapped[int | None] = mapped_column(BigInteger)
     created_by_device: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

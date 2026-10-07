@@ -1020,6 +1020,8 @@
     "system": "النظام"
   },
   "audit_column": {
+    "comment": "التعليق",
+    "device": "الجهاز",
     "title": "سجل التدقيق",
     "occurred_at": "الوقت (الكويت)",
     "actor": "بواسطة",

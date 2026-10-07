@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_session
 from app.core.errors import AppError
 from app.modules.cash import schemas, service
+from app.modules.files import service as files
 from app.modules.identity.service import DevicePrincipal, Principal, require_device, require_permission
 from app.modules.org import service as org
 from app.modules.people import service as people
@@ -66,6 +67,15 @@ def balances(principal: Principal = Depends(require_permission("cash.view")), db
     return service.driver_balances(
         db, [d for d in people.app_drivers(db, **principal.scope)] + people.departed_drivers(db, **principal.scope)
     )
+
+
+@router.get("/cash/receipts/unconfirmed", response_model=list[schemas.UnconfirmedReceiptOut])
+def unconfirmed_receipts(
+    principal: Principal = Depends(require_permission("cash.view")), db: Session = Depends(get_session)
+):
+    """Receipts the drivers have not confirmed a day after they were given (FR-CSH-05)."""
+    drivers = people.app_drivers(db, **principal.scope) + people.departed_drivers(db, **principal.scope)
+    return service.unconfirmed_receipts(db, drivers)
 
 
 @router.get("/cash/drivers/{driver_id}/statement", response_model=schemas.StatementOut)
@@ -142,5 +152,20 @@ def bank_deposit(
     if not principal.sees_all_companies:  # the treasury is shared by every company of the branch
         raise AppError(403, "company_out_of_scope")
     return service.bank_deposit(
-        db, branch_id=body.branch_id, amount=body.amount, reference=body.reference, actor_user_id=principal.user_id
+        db,
+        branch_id=body.branch_id,
+        amount=body.amount,
+        reference=body.reference,
+        receipt_sha256=body.receipt_sha256,
+        actor_user_id=principal.user_id,
     )
+
+
+@router.get("/cash/journals/{public_id}/attachment")
+def journal_attachment(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("treasury.view")),
+    db: Session = Depends(get_session),
+):
+    """The bank receipt's photo of a deposit."""
+    return files.response(db, service.journal_attachment(db, public_id))

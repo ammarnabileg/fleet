@@ -23,6 +23,11 @@ class ReceiptOut(BaseModel):
     amount: Decimal
     created_at: datetime
     driver_confirmed_at: datetime | None
+    unconfirmed_late: bool = False  # still not confirmed by the driver after 24 hours (FR-CSH-05)
+
+
+class UnconfirmedReceiptOut(ReceiptOut):
+    driver: dict
 
 
 class AdjustmentIn(BaseModel):
@@ -45,6 +50,7 @@ class BankDepositIn(BaseModel):
     branch_id: int
     amount: Amount
     reference: Reason  # the bank's deposit reference
+    receipt_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]  # the bank receipt's photo
 
 
 class SettlementIn(BaseModel):
@@ -72,6 +78,7 @@ class JournalOut(BaseModel):
     reason: str | None
     created_at: datetime
     decided_at: datetime | None
+    has_attachment: bool = False  # a bank deposit's receipt photo
     lines: list[LineOut]
 
 

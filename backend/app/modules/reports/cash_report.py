@@ -103,6 +103,7 @@ GROUP BY a.branch_id
 
 DEPOSITS = text("""
 SELECT j.public_id, j.business_date, j.reason, j.created_by, a.branch_id, l.amount,
+       j.attachment_sha256 IS NOT NULL AS has_receipt,
        EXISTS (SELECT 1 FROM cash.journals x WHERE x.reverses_id = j.id) AS reversed
 FROM cash.journals j
 JOIN cash.journal_lines l ON l.journal_id = j.id
@@ -209,6 +210,7 @@ def cash_report(
                 "reference": r["reason"],
                 "by": by.get(r["created_by"], ""),
                 "reversed": r["reversed"],
+                "has_receipt": r["has_receipt"],  # the bank's receipt, shown from /cash/journals/{id}/attachment
             }
             for r in deposits
         ]

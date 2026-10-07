@@ -42,6 +42,28 @@ void main() {
     expect(File(file).existsSync(), isFalse);
   });
 
+  test('an accident: its photos from the camera, its police report from the phone files', () async {
+    final (db, _, api, server) = await session();
+    final box = Outbox(db);
+    var n = 0;
+    server.on('POST', '/api/v1/driver/files', (req) {
+      n++;
+      return (201, {'sha256': '$n' * 64, 'size_bytes': 7, 'content_type': 'image/jpeg'});
+    });
+    server.on('POST', '/api/v1/driver/accidents', (req) => (201, {'id': 'a1'}));
+    final id = await box.add(
+      'accident',
+      {'client_ref': 'x1', 'description': 'صدمة'},
+      {'photos.0': await photo(), 'police_report': await photo()},
+    );
+    expect(await box.sendNow(id, api), SendResult.sent);
+    final sources = {for (final c in server.calls('/api/v1/driver/files')) c.url.queryParameters['source']};
+    expect(sources, {'camera', 'upload'});
+    final sent = jsonDecode(server.calls('/api/v1/driver/accidents').single.body) as Map;
+    expect(sent['photos'], ['1' * 64]);
+    expect(sent['police_report'], '2' * 64);
+  });
+
   test('offline: queued, and the photo uploaded before the cut is not uploaded again', () async {
     final (db, _, api, server) = await session();
     final box = Outbox(db);

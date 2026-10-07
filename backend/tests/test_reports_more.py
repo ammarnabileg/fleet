@@ -257,7 +257,8 @@ def test_cash_balances_by_age_receipts_by_collector_and_the_treasury(admin_clien
     branch = r1["branch_id"]
     assert (
         admin_client.post(
-            "/api/v1/cash/bank-deposits", json={"branch_id": branch, "amount": "4", "reference": "DEP-1"}
+            "/api/v1/cash/bank-deposits",
+            json={"branch_id": branch, "amount": "4", "reference": "DEP-1", "receipt_sha256": upload(admin_client)},
         ).status_code
         == 201
     )
@@ -267,7 +268,9 @@ def test_cash_balances_by_age_receipts_by_collector_and_the_treasury(admin_clien
     [tr] = [x for x in rep["treasury"] if x["branch"]["id"] == branch]
     # in: 12 + 7; out: the reversed 7 and the 4 deposited
     assert (tr["opening"], tr["received"], tr["paid_out"], tr["closing"]) == ("0.000", "19.000", "11.000", "8.000")
-    assert [(x["amount"], x["reference"]) for x in rep["deposits"]] == [("4.000", "DEP-1")]
+    assert [(x["amount"], x["reference"], x["has_receipt"]) for x in rep["deposits"]] == [("4.000", "DEP-1", True)]
+    receipt = admin_client.get(f"/api/v1/cash/journals/{rep['deposits'][0]['id']}/attachment")
+    assert receipt.status_code == 200 and receipt.headers["content-type"] == "image/jpeg"
 
 
 def test_treasury_needs_its_permission(admin_client, new_client, company):

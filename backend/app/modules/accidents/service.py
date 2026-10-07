@@ -95,6 +95,16 @@ def _check_images(db: Session, shas: Iterable[str], *, user_id: int | None = Non
             raise AppError(422, "file_uploaded_by_other_account")
 
 
+def _check_police_file(db: Session, sha: str, *, device_id: int) -> None:
+    """The police report from the driver's phone files (BRD FR-APP-06): a photo or a PDF this phone uploaded, from the
+    gallery or the camera."""
+    info = files.get(db, sha)
+    if info.uploaded_by_device != device_id:
+        raise AppError(422, "file_not_yours")
+    if info.content_type not in files.IMAGES and info.content_type != "application/pdf":
+        raise AppError(422, "photo_must_be_image")
+
+
 def _check_document(db: Session, sha: str, *, user_id: int | None = None) -> None:
     info = files.get(db, sha)  # an image or a PDF
     if user_id is not None and info.uploaded_by_user != user_id:
@@ -410,7 +420,7 @@ def driver_report(db: Session, *, employee_id: int, device_id: int, data: dict) 
         raise AppError(422, "accident_photos_required", min=need)
     _check_images(db, photos, device_id=device_id)
     if data.get("police_report"):
-        _check_images(db, [data["police_report"]], device_id=device_id)
+        _check_police_file(db, data["police_report"], device_id=device_id)
     a = Accident(
         vehicle_id=custody.vehicle_id,
         company_id=custody.company_id,
@@ -452,7 +462,7 @@ def driver_police_report(db: Session, public_id, *, employee_id: int, device_id:
             return _driver_out(db, [a])[0]
         raise AppError(409, "police_report_exists")
     _open(a)
-    _check_images(db, [data["file_sha256"]], device_id=device_id)
+    _check_police_file(db, data["file_sha256"], device_id=device_id)
     a.police_report_sha256, a.police_report_no, a.police_report_at = data["file_sha256"], data.get("number"), utcnow()
     _event(db, a, "police_report", by_device=device_id, note=data.get("number"))
     notifications.resolve(db, f"acc_police:{a.id}")

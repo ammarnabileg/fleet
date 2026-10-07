@@ -104,7 +104,13 @@ def documents(admin_client, client, companies):
     assert pending.status_code == 201, pending.text
     receipt = admin_client.post("/api/v1/cash/receipts", json={"driver_id": d["id"], "amount": "15"}).json()
     r = admin_client.post(
-        "/api/v1/cash/bank-deposits", json={"branch_id": receipt["branch_id"], "amount": "10", "reference": "NBK-7"}
+        "/api/v1/cash/bank-deposits",
+        json={
+            "branch_id": receipt["branch_id"],
+            "amount": "10",
+            "reference": "NBK-7",
+            "receipt_sha256": upload(admin_client),
+        },
     )
     assert r.status_code == 201, r.text
     # fuel paid from the treasury; a supplier's invoice of 100.000 paid later from the bank

@@ -15,6 +15,7 @@ def install(app: FastAPI) -> None:
         rid = request.headers.get("x-request-id") or uuid.uuid4().hex
         context.request_id.set(rid)
         context.client_ip.set(request.client.host if request.client else None)
+        context.user_agent.set((request.headers.get("user-agent") or "")[:200] or None)
         started = time.perf_counter()
         response = await call_next(request)
         response.headers["X-Request-ID"] = rid

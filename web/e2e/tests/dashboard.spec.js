@@ -25,10 +25,29 @@ test('the last seven days on the dashboard are the API\'s, orders then cash, and
   const bars = admin.locator('[data-week-chart] rect.hit');
   await expect(bars).toHaveCount(7);
   const labels = () => bars.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
+  const tab = (name) => admin.locator('#view [data-tabs="dash-week"] [role=tab]', { hasText: name });
+  const title = admin.locator('[data-week-title]');
+  const quiet = () => admin.evaluate(() => new Promise((ok) => setTimeout(ok, 400))); // past the chart's resize wait
   expect((await labels()).map(value)).toEqual(week.map((x) => x.orders));
-  await admin.locator('#view [data-tabs="dash-week"] [role=tab]', { hasText: 'الكاش' }).click();
-  await expect(admin.locator('[data-week-title]')).toContainText('الكاش');
-  expect((await labels()).map(value)).toEqual(week.map((x) => Number(x.cash)));
+  // every chart drawn after the switch to cash, in order: a resize draws the cash again and nothing else. Each tab's
+  // chart used to stay subscribed to the size and draw its own numbers, so the orders came back under the cash title
+  await quiet();
+  await admin.evaluate(() => {
+    const el = document.querySelector('[data-week-chart]');
+    window.drawn = [];
+    new MutationObserver(() => window.drawn.push([...el.querySelectorAll('rect.hit')].map((r) => r.getAttribute('aria-label'))))
+      .observe(el, { childList: true });
+  });
+  await tab('الكاش').click();
+  await expect(title).toContainText('الكاش');
+  await admin.setViewportSize({ width: 1100, height: 900 });
+  await quiet();
+  const drawn = await admin.evaluate(() => window.drawn);
+  expect(drawn.length).toBeGreaterThanOrEqual(2); // the switch, then the resize
+  for (const chart of drawn) expect(chart.map(value)).toEqual(week.map((x) => Number(x.cash)));
+  await tab('الطلبات').click();
+  await expect(title).toContainText('الطلبات');
+  expect((await labels()).map(value)).toEqual(week.map((x) => x.orders));
 
   await admin.locator('[data-week-table]').click();
   const rows = admin.locator('.overlay[data-open] tbody tr');

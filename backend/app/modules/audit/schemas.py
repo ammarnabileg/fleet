@@ -20,6 +20,8 @@ class AuditEventOut(BaseModel):
     after: Any
     ip: str | None
     request_id: str | None
+    device: str | None = None  # the browser, or the driver app and phone (FR-AUD-01)
+    comment: str | None = None  # the reason or note given with the action
 
 
 class AuditUserOut(BaseModel):

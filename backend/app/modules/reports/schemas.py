@@ -225,6 +225,7 @@ class DepositLine(BaseModel):
     reference: str | None
     by: str
     reversed: bool
+    has_receipt: bool = False
 
 
 class CashReport(BaseModel):

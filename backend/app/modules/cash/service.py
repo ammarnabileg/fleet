@@ -13,7 +13,7 @@ or an adjustment corrects it.
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select, text, update
@@ -27,6 +27,7 @@ from app.core.errors import AppError
 from app.core.events import emit
 from app.modules.audit import service as audit
 from app.modules.cash.models import Account, Journal, JournalLine, Receipt
+from app.modules.files import service as files
 from app.modules.notifications import service as notifications
 from app.modules.org import service as org
 from app.modules.people import service as people
@@ -69,6 +70,7 @@ def _journal(
     reverses_id: int | None = None,
     post: bool = False,
     business_date: date | None = None,
+    attachment_sha256: str | None = None,
 ) -> Journal:
     closed = db.scalar(
         select(func.count())
@@ -86,6 +88,7 @@ def _journal(
         reverses_id=reverses_id,
         created_by=actor_user_id,
         created_by_device=actor_device_id,
+        attachment_sha256=attachment_sha256,
     )
     try:
         with db.begin_nested():
@@ -282,6 +285,9 @@ def _next_receipt_no(db: Session, branch_id: int) -> int:
     return (db.scalar(select(func.max(Receipt.receipt_no)).where(Receipt.branch_id == branch_id)) or 0) + 1
 
 
+UNCONFIRMED_AFTER = timedelta(hours=24)
+
+
 def _receipt_out(r: Receipt) -> dict:
     return {
         "id": str(r.public_id),
@@ -290,6 +296,8 @@ def _receipt_out(r: Receipt) -> dict:
         "amount": r.amount,
         "created_at": r.created_at,
         "driver_confirmed_at": r.driver_confirmed_at,
+        # still not confirmed by the driver a day later (BRD FR-CSH-05)
+        "unconfirmed_late": r.driver_confirmed_at is None and r.created_at < utcnow() - UNCONFIRMED_AFTER,
     }
 
 
@@ -420,10 +428,14 @@ def reverse(db: Session, public_id, *, reason: str, actor_user_id: int, all_comp
     return journal_out(db, journal)
 
 
-def bank_deposit(db: Session, *, branch_id: int, amount: Decimal, reference: str, actor_user_id: int) -> dict:
-    """Treasury cash taken to the bank (bank +Z, treasury -Z)."""
+def bank_deposit(
+    db: Session, *, branch_id: int, amount: Decimal, reference: str, receipt_sha256: str, actor_user_id: int
+) -> dict:
+    """Treasury cash taken to the bank (bank +Z, treasury -Z), with the bank's reference and the photo of its
+    receipt (BRD FR-CSH-07)."""
     if amount <= 0:
         raise AppError(422, "amount_must_be_positive")
+    files.get(db, receipt_sha256)
     if branch_id not in {b["id"] for b in org.list_branches(db)}:
         raise AppError(422, "branch_not_found")
     treasury = account(db, "treasury", branch_id=branch_id)
@@ -439,6 +451,7 @@ def bank_deposit(db: Session, *, branch_id: int, amount: Decimal, reference: str
         actor_user_id=actor_user_id,
         reason=reference,
         post=True,
+        attachment_sha256=receipt_sha256,
     )
     audit.record(
         db,
@@ -446,10 +459,17 @@ def bank_deposit(db: Session, *, branch_id: int, amount: Decimal, reference: str
         entity_type="journal",
         entity_id=journal.public_id,
         actor_user_id=actor_user_id,
-        after={"branch_id": branch_id, "amount": amount, "reference": reference},
+        after={"branch_id": branch_id, "amount": amount, "reference": reference, "receipt": receipt_sha256},
     )
     db.commit()
     return journal_out(db, journal)
+
+
+def journal_attachment(db: Session, public_id) -> files.FileInfo:
+    j = db.scalar(select(Journal).where(Journal.public_id == public_id))
+    if j is None or j.attachment_sha256 is None:
+        raise AppError(404, "file_not_found")
+    return files.get(db, j.attachment_sha256)
 
 
 # ------------------------------------------------------------------ end of service (spec 8.4)
@@ -651,6 +671,7 @@ def journal_out(db: Session, j: Journal) -> dict:
         "reason": j.reason,
         "created_at": j.created_at,
         "decided_at": j.decided_at,
+        "has_attachment": j.attachment_sha256 is not None,
         "lines": [{"account": k, "branch_id": b, "driver": d is not None, "amount": a} for k, d, b, a in lines],
     }
 
@@ -717,6 +738,27 @@ def driver_balances(db: Session, drivers: list[people.EmployeeRef]) -> list[dict
                 }
             )
     return sorted(out, key=lambda x: x["total"], reverse=True)
+
+
+def unconfirmed_receipts(db: Session, drivers: list[people.EmployeeRef]) -> list[dict]:
+    """The receipts these drivers have not confirmed a day after they were given (BRD FR-CSH-05), oldest first."""
+    by_id = {d.id: d for d in drivers}
+    if not by_id:
+        return []
+    q = (
+        select(Receipt)
+        .where(
+            Receipt.driver_id.in_(list(by_id)),
+            Receipt.driver_confirmed_at.is_(None),
+            Receipt.created_at < utcnow() - UNCONFIRMED_AFTER,
+        )
+        .order_by(Receipt.created_at)
+        .limit(500)
+    )
+    return [
+        _receipt_out(r) | {"driver": {"id": str(by_id[r.driver_id].public_id), "name": by_id[r.driver_id].name}}
+        for r in db.scalars(q)
+    ]
 
 
 def receipts_for_driver(db: Session, employee_id: int, limit: int = 20) -> list[dict]:

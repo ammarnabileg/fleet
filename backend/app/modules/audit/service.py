@@ -27,8 +27,10 @@ def record(
     company_id: int | None = None,
     before: Any = None,
     after: Any = None,
+    comment: str | None = None,
 ) -> None:
-    """Adds an audit event to the caller's transaction: it is committed, or rolled back, with the change itself."""
+    """Adds an audit event to the caller's transaction: it is committed, or rolled back, with the change itself.
+    The comment is the reason or note the action carries, unless given (BRD FR-AUD-01)."""
     db.add(
         AuditEvent(
             actor_type=actor_type or ("user" if actor_user_id else "system"),
@@ -41,8 +43,21 @@ def record(
             after=_jsonable(after),
             ip=context.client_ip.get(),
             request_id=context.request_id.get(),
+            device=context.user_agent.get(),
+            comment=comment or _comment(after) or _comment(before),
         )
     )
+
+
+COMMENT_KEYS = ("reason", "note", "comment", "review_note", "decision_note")
+
+
+def _comment(values: Any) -> str | None:
+    if isinstance(values, dict):
+        for key in COMMENT_KEYS:
+            if isinstance(values.get(key), str) and values[key].strip():
+                return values[key].strip()[:1000]
+    return None
 
 
 EXPORT_MAX = 20_000  # rows in one export: narrow the period or the filters past that
