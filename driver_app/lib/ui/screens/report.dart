@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/state.dart';
+import '../../core/outbox.dart';
 import '../photos.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'home.dart';
 
 /// The daily report: day (today or the two before), what the driver's platform asks (orders and cash for one, orders
-/// and whether the platform counted the day for another), the delivery app's day summary screenshot.
+/// and whether the platform counted the day for another), the delivery app's day summary screenshot. Today's report
+/// after a started day also carries the end-of-day odometer photo and reading, sent first (BRD FR-DWR-02).
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key, required this.state, DateTime Function()? clock}) : clock = clock ?? DateTime.now;
 
@@ -27,6 +29,10 @@ class _ReportScreenState extends State<ReportScreen> {
   final _form = GlobalKey<FormState>();
   TakenPhoto? shot;
   bool? validDay;
+  TakenPhoto? odometer;
+  final _km = TextEditingController();
+
+  bool get _endDue => daysBack == 0 && widget.state.endReadingDue;
 
   /// Business days follow Kuwait time (UTC+3, no daylight saving), like the server.
   String _day(int back) {
@@ -37,10 +43,28 @@ class _ReportScreenState extends State<ReportScreen> {
   static final _amount = RegExp(r'^\d{1,6}(\.\d{1,3})?$');
 
   Future<void> _send() async {
+    final endDue = _endDue;
+    if (endDue && odometer == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l.photoRequired)));
+      return;
+    }
     if (!_form.currentState!.validate()) return;
     final asks = widget.state.reportForm.fields;
     try {
+      var waiting = false;
+      if (endDue) {
+        final reading = await widget.state.sendReading(
+          kind: 'end_day',
+          km: int.parse(_km.text),
+          photoPath: odometer!.path,
+          takenAt: odometer!.takenAt,
+          lat: odometer!.lat,
+          lng: odometer!.lng,
+        );
+        waiting = reading == SendResult.queued;
+      }
       final r = await widget.state.sendReport(
+        queueOnly: waiting,
         businessDate: _day(daysBack),
         orders: asks.contains('orders') ? int.parse(_orders.text) : null,
         cash: asks.contains('cash') ? double.parse(_cash.text).toStringAsFixed(3) : null,
@@ -79,6 +103,33 @@ class _ReportScreenState extends State<ReportScreen> {
             ),
             const SizedBox(height: 6),
             Text('\u2066${_day(daysBack)}\u2069', style: const TextStyle(color: AppColors.muted)),
+            if (_endDue) ...[
+              const SizedBox(height: 16),
+              Banner2(key: const Key('end-reading'), text: l.endReadingIntro, icon: Icons.speed),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: 180,
+                child: PhotoTile(
+                  key: const Key('end-photo'),
+                  label: l.odometerPhoto,
+                  path: odometer?.path,
+                  onTap: () async {
+                    final p = await Photos.camera(context);
+                    if (p != null) setState(() => odometer = p);
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                key: const Key('end-km'),
+                controller: _km,
+                keyboardType: TextInputType.number,
+                textDirection: TextDirection.ltr,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(7)],
+                decoration: InputDecoration(labelText: l.odometerKm, suffixText: l.km),
+                validator: (v) => int.tryParse(v ?? '') == null ? l.kmInvalid : null,
+              ),
+            ],
             if (asks.contains('valid_day')) ...[
               const SizedBox(height: 16),
               Text(l.validDayQuestion, style: const TextStyle(fontWeight: FontWeight.w600)),

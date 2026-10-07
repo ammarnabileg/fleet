@@ -22,9 +22,9 @@ async function setup(api) {
   });
   const app = await api.driverPhone(driver.id, 'e2e-' + n);
   await app.call('POST', '/driver/odometer', { value_km: 20050, photo_sha256: await app.photo('camera'), recorded_at: new Date().toISOString(), lat: 29.37, lng: 47.97 });
+  await api.post(`/custodies/${custody.id}/return`, { odometer_km: 20080, photo_sha256: await photo() }); // closes his day
   const report = await app.call('POST', '/driver/reports', { business_date: kuwaitDay(), orders_count: 21, cash_amount: '17.500', screenshot_sha256: await app.photo() });
   await api.post(`/daily-reports/${report.id}/approve`, {});
-  await api.post(`/custodies/${custody.id}/return`, { odometer_km: 20080, photo_sha256: await photo() });
   // another vehicle and driver of the same company, which the filters must leave out
   const other = await api.post('/vehicles', { plate_number: '45/' + n.slice(-6), make: 'Kia', model: 'Rio', company_id: company.id, last_odometer_km: 9000 });
   const second = await api.post('/employees', {

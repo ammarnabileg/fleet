@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:fleet_driver/app/state.dart';
 import 'package:fleet_driver/core/db.dart';
+import 'package:fleet_driver/core/errors.dart';
 import 'package:fleet_driver/core/outbox.dart';
 import 'package:fleet_driver/tracking/tracker.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -199,9 +200,24 @@ void main() {
         SendResult.sent,
       );
 
-      // ---- daily report
-      final shot = await jpeg('shot');
+      // ---- daily report: after a started day, the server waits for the end-of-day reading
       final day = DateTime.now().toUtc().add(const Duration(hours: 3)).toIso8601String().substring(0, 10);
+      expect(state.endReadingDue, isTrue);
+      await expectLater(
+        state.sendReport(businessDate: day, orders: 21, cash: '17.250', screenshotPath: (await jpeg('early')).path),
+        throwsA(isA<ApiError>().having((e) => e.code, 'code', 'end_reading_required')),
+      );
+      expect(
+        await state.sendReading(
+          kind: 'end_day',
+          km: 30210,
+          photoPath: (await jpeg('odo-end')).path,
+          takenAt: DateTime.now().toUtc(),
+        ),
+        SendResult.sent,
+      );
+      expect((state.today!.endDayDone, state.endReadingDue), (true, false));
+      final shot = await jpeg('shot');
       expect(
         await state.sendReport(businessDate: day, orders: 21, cash: '17.250', screenshotPath: shot.path),
         SendResult.sent,

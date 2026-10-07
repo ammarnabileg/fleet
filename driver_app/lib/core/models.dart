@@ -16,15 +16,17 @@ class Custody {
 }
 
 class Today {
-  Today({this.custody, required this.startDayDone});
+  Today({this.custody, required this.startDayDone, this.endDayDone = false});
 
   factory Today.fromJson(Map<String, dynamic> j) => Today(
     custody: j['custody'] == null ? null : Custody.fromJson(j['custody'] as Map<String, dynamic>),
     startDayDone: j['start_day_done'] as bool? ?? false,
+    endDayDone: j['end_day_done'] as bool? ?? false,
   );
 
   final Custody? custody;
   final bool startDayDone;
+  final bool endDayDone; // closed by the end-of-day reading, or the vehicle returned
 }
 
 class Receipt {

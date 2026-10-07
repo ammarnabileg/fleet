@@ -95,6 +95,8 @@
   "kind_odometer": "Odometer reading",
   "kind_report": "Daily report",
   "startDayTitle": "Start of day",
+  "endDayDone": "Day ended",
+  "endReadingIntro": "Before today's report: the end-of-day odometer photo and reading. The reading goes first, then the report.",
   "endDayTitle": "End of day",
   "odometerIntro": "Photograph the odometer clearly, then type the reading as shown in the photo.",
   "retake": "Retake",

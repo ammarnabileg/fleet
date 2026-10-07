@@ -1100,15 +1100,10 @@ def driver_today(db: Session, employee_id: int) -> dict:
     """What the driver app shows on its home screen."""
     custody = db.scalar(select(Custody).where(Custody.driver_id == employee_id, Custody.ended_at.is_(None)))
     if custody is None:
-        return {"custody": None, "start_day_done": False}
+        return {"custody": None, "start_day_done": False, "end_day_done": False}
     vehicle = db.get(Vehicle, custody.vehicle_id)
-    done = db.scalar(
-        select(OdometerReading.id).where(
-            OdometerReading.custody_id == custody.id,
-            OdometerReading.kind == "start_day",
-            OdometerReading.business_date == today(),
-        )
-    )
+    day = driver_days(db, employee_id, today(), today()).get(today())
+    started = day is not None and day["start"]["custody_id"] == custody.id
     return {
         "custody": {
             "id": str(custody.public_id),
@@ -1116,8 +1111,75 @@ def driver_today(db: Session, employee_id: int) -> dict:
             "started_at": custody.started_at,
             "last_odometer_km": vehicle.last_odometer_km,
         },
-        "start_day_done": done is not None,
+        "start_day_done": started,
+        "end_day_done": started and day["end"] is not None,
     }
+
+
+def _brief(r: OdometerReading) -> dict:
+    return {
+        "id": str(r.public_id),
+        "kind": r.kind,
+        "km": r.effective_km,
+        "recorded_at": r.recorded_at,
+        "flags": list(r.flags),
+        "custody_id": r.custody_id,
+        "photo_sha256": r.photo_sha256,
+    }
+
+
+DAY_CLOSES_WITHIN = timedelta(hours=24)
+
+
+def driver_days(db: Session, employee_id: int, first, last) -> dict:
+    """Each business day from first to last the driver started (his start-of-day reading), with the reading that
+    closed it: his end of day, or the vehicle returned, on the same custody, within 24 hours and before his next
+    start. The day's distance is the difference (BRD FR-DWR-02/05)."""
+    starts = list(
+        db.scalars(
+            select(OdometerReading)
+            .where(
+                OdometerReading.driver_id == employee_id,
+                OdometerReading.kind == "start_day",
+                OdometerReading.business_date.between(first, last),
+            )
+            .order_by(OdometerReading.recorded_at)
+        )
+    )
+    if not starts:
+        return {}
+    later_start = db.scalar(
+        select(func.min(OdometerReading.recorded_at)).where(
+            OdometerReading.driver_id == employee_id,
+            OdometerReading.kind == "start_day",
+            OdometerReading.recorded_at > starts[-1].recorded_at,
+        )
+    )
+    closes = list(
+        db.scalars(
+            select(OdometerReading)
+            .where(
+                OdometerReading.driver_id == employee_id,
+                OdometerReading.kind.in_(("end_day", "return")),
+                OdometerReading.recorded_at > starts[0].recorded_at,
+                OdometerReading.recorded_at <= starts[-1].recorded_at + DAY_CLOSES_WITHIN,
+            )
+            .order_by(OdometerReading.recorded_at)
+        )
+    )
+    out = {}
+    for start, until in zip(starts, [s.recorded_at for s in starts[1:]] + [later_start], strict=True):
+        limit = min(start.recorded_at + DAY_CLOSES_WITHIN, until or start.recorded_at + DAY_CLOSES_WITHIN)
+        end = next(
+            (c for c in closes if c.custody_id == start.custody_id and start.recorded_at < c.recorded_at <= limit),
+            None,
+        )
+        out[start.business_date] = {
+            "start": _brief(start),
+            "end": _brief(end) if end else None,
+            "km": end.effective_km - start.effective_km if end else None,
+        }
+    return out
 
 
 def held_days(db: Session, driver_ids: Iterable[int], first, last) -> dict[int, set]:

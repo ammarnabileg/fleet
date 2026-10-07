@@ -22,6 +22,7 @@ class ReportIn(BaseModel):
 class ReportFormOut(BaseModel):
     fields: list[str]  # orders, cash, valid_day: what this driver's platform asks for
     screenshot: bool
+    end_reading: bool  # today's report, after a started day, needs the end-of-day reading first
 
 
 class PersonRef(BaseModel):
@@ -32,6 +33,7 @@ class PersonRef(BaseModel):
 class ReportOut(BaseModel):
     id: str
     late: bool  # sent after its own day
+    deviations: list[str]  # orders, cash: far from the driver's average (reviewers' list only)
     driver: PersonRef | None
     company_id: int
     vehicle_plate: str | None
@@ -59,3 +61,27 @@ class RejectIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reason: Reason
+
+
+class ReadingBrief(BaseModel):
+    id: str
+    kind: str  # start_day | end_day | return
+    km: int
+    recorded_at: datetime
+    flags: list[str]
+
+
+class Average(BaseModel):
+    days: int  # approved reports in the 30 days before
+    orders: Decimal | None
+    cash: Decimal | None
+    km: int | None
+    km_days: int
+
+
+class EvidenceOut(BaseModel):
+    start: ReadingBrief | None
+    end: ReadingBrief | None
+    km: int | None
+    average: Average
+    deviations: list[str]

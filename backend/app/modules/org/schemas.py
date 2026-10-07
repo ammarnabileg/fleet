@@ -121,6 +121,8 @@ class DailyReportSettings(_Section):
     require_orders_count: bool = True
     require_cash: bool = True
     require_screenshot: bool = True
+    require_end_reading: bool = True  # today's report waits for the end-of-day odometer photo and reading (FR-DWR-02)
+    deviation_percent: int = Field(50, ge=10, le=500)  # orders or cash this far from the driver's average (FR-DWR-08)
 
 
 class BrandingSettings(_Section):

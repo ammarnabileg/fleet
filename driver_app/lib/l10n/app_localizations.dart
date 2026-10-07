@@ -662,6 +662,18 @@ abstract class AppLocalizations {
   /// **'بداية اليوم'**
   String get startDayTitle;
 
+  /// No description provided for @endDayDone.
+  ///
+  /// In ar, this message translates to:
+  /// **'أنهيت اليوم'**
+  String get endDayDone;
+
+  /// No description provided for @endReadingIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'قبل إرسال تقرير اليوم: صورة عداد نهاية اليوم ورقمه. تُرسل القراءة أولاً ثم التقرير.'**
+  String get endReadingIntro;
+
   /// No description provided for @endDayTitle.
   ///
   /// In ar, this message translates to:

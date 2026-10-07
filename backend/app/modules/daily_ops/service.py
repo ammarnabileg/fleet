@@ -8,7 +8,7 @@ from collections.abc import Iterable
 from datetime import timedelta
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -33,6 +33,7 @@ MAX_DAYS_BACK = 2  # yesterday's report sent this morning is normal; older ones 
 def _out(r: Report, names: dict | None = None, plates: dict | None = None) -> dict:
     return {
         "late": business_date(r.submitted_at) > r.business_date,  # sent after its own day (BRD BR-04)
+        "deviations": [],  # in the reviewers' list: what is far from the driver's average
         "id": str(r.public_id),
         "driver": (names or {}).get(r.employee_id),
         "company_id": r.company_id,
@@ -67,7 +68,7 @@ def form(db: Session, driver: people.EmployeeRef) -> dict:
     fields = payroll.daily_fields(db, driver.platform_id)
     if fields is None:
         fields = [f for f, on in (("orders", rules.require_orders_count), ("cash", rules.require_cash)) if on]
-    return {"fields": fields, "screenshot": rules.require_screenshot}
+    return {"fields": fields, "screenshot": rules.require_screenshot, "end_reading": rules.require_end_reading}
 
 
 def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict:
@@ -83,6 +84,10 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
         shot = files.get(db, data["screenshot_sha256"])
         if shot.uploaded_by_device != device_id or shot.content_type not in files.IMAGES:
             raise AppError(422, "file_not_yours")
+    if asked["end_reading"] and day == today():
+        started = fleet.driver_days(db, employee_id, day, day).get(day)
+        if started is not None and started["end"] is None:  # drove today: the day's closing reading comes first
+            raise AppError(409, "end_reading_required")
     custodies = fleet.custodies_for_driver(db, employee_id, utcnow() - timedelta(days=MAX_DAYS_BACK + 1), utcnow())
     custody = custodies[-1] if custodies else None
     amount = Decimal(data.get("cash_amount") or 0)
@@ -153,7 +158,94 @@ def list_reports(
     if employee_id:
         q = q.where(Report.employee_id == employee_id)
     q = q.order_by(Report.submitted_at).limit(min(limit, 500)).offset(offset)
-    return _many(db, list(db.scalars(q)))
+    reports = list(db.scalars(q))
+    out = _many(db, reports)
+    if reports:
+        percent = org.get_section(db, "daily_report").deviation_percent
+        history = _history(
+            db,
+            {r.employee_id for r in reports},
+            min(r.business_date for r in reports) - timedelta(days=AVERAGE_DAYS),
+            max(r.business_date for r in reports),
+        )
+        for report, row in zip(reports, out, strict=True):
+            row["deviations"] = _deviations(
+                report, _average(history[report.employee_id], report.business_date), percent
+            )
+    return out
+
+
+AVERAGE_DAYS = 30  # the driver's average over his approved reports of the 30 days before (FR-DWR-05)
+MIN_HISTORY = 5  # fewer approved days than this: no average to compare with
+
+
+def _history(db: Session, employee_ids: set[int], first, last) -> dict[int, list[tuple]]:
+    """The approved reports of these drivers between the two days: (day, orders, cash as approved)."""
+    out: dict[int, list[tuple]] = {i: [] for i in employee_ids}
+    rows = db.execute(
+        select(
+            Report.employee_id,
+            Report.business_date,
+            Report.orders_count,
+            func.coalesce(Report.approved_cash, Report.cash_amount),
+        ).where(
+            Report.employee_id.in_(employee_ids),
+            Report.status == "approved",
+            Report.business_date.between(first, last),
+        )
+    )
+    for employee_id, day, orders, amount in rows:
+        out[employee_id].append((day, orders, amount))
+    return out
+
+
+def _average(rows: list[tuple], day) -> dict:
+    window = [r for r in rows if day - timedelta(days=AVERAGE_DAYS) <= r[0] < day]
+    orders = [r[1] for r in window if r[1] is not None]
+    return {
+        "days": len(window),
+        "orders": round(Decimal(sum(orders)) / len(orders), 1) if orders else None,
+        "cash": (sum(r[2] for r in window) / len(window)).quantize(Decimal("0.001")) if window else None,
+    }
+
+
+def _deviations(report: Report, average: dict, percent: int) -> list[str]:
+    """Orders or cash further from the driver's own average than the set percent, either way (FR-DWR-08)."""
+    if average["days"] < MIN_HISTORY:
+        return []
+    out = []
+    for field, value in (("orders", report.orders_count), ("cash", report.cash_amount)):
+        mean = average[field]
+        if value is not None and mean and abs(Decimal(value) - mean) * 100 > mean * percent:
+            out.append(field)
+    return out
+
+
+def evidence(db: Session, public_id, **scope) -> dict:
+    """What the reviewer checks the report against (FR-DWR-05): the day's odometer readings, start and close, and the
+    distance; the driver's averages over the 30 days before; what deviates from them."""
+    report = _row(db, public_id, **scope)
+    day = report.business_date
+    days = fleet.driver_days(db, report.employee_id, day - timedelta(days=AVERAGE_DAYS), day)
+    average = _average(
+        _history(db, {report.employee_id}, day - timedelta(days=AVERAGE_DAYS), day)[report.employee_id], day
+    )
+    kms = [d["km"] for d_day, d in days.items() if d_day < day and d["km"] is not None]
+    this = days.get(day) or {"start": None, "end": None, "km": None}
+    return {
+        "start": this["start"],
+        "end": this["end"],
+        "km": this["km"],
+        "average": average | {"km": round(sum(kms) / len(kms)) if kms else None, "km_days": len(kms)},
+        "deviations": _deviations(report, average, org.get_section(db, "daily_report").deviation_percent),
+    }
+
+
+def odometer_photo(db: Session, public_id, which: str, **scope) -> files.FileInfo:
+    reading = evidence(db, public_id, **scope)[which]
+    if reading is None:
+        raise AppError(404, "file_not_found")
+    return files.get(db, reading["photo_sha256"])
 
 
 def _row(db: Session, public_id, *, lock: bool = False, all_companies: bool, company_ids) -> Report:

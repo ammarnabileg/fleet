@@ -310,6 +310,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get startDayTitle => 'بداية اليوم';
 
   @override
+  String get endDayDone => 'أنهيت اليوم';
+
+  @override
+  String get endReadingIntro => 'قبل إرسال تقرير اليوم: صورة عداد نهاية اليوم ورقمه. تُرسل القراءة أولاً ثم التقرير.';
+
+  @override
   String get endDayTitle => 'نهاية اليوم';
 
   @override

@@ -35,9 +35,9 @@
       columns: [
         { key: 'driver', label: 'السائق', render: function (r) { return A.person(r.driver, r.vehicle_plate || ''); } },
         { key: 'business_date', label: 'اليوم', render: function (r) { return h`<span class="num">${fmt.date(r.business_date)}</span>`; } },
-        { key: 'orders', label: 'الطلبات', num: true, render: function (r) { return r.orders_count != null ? h`<span class="num">${fmt.int(r.orders_count)}</span>` : '—'; } },
+        { key: 'orders', label: 'الطلبات', num: true, render: function (r) { return r.orders_count != null ? h`<span class="num">${fmt.int(r.orders_count)}</span>${off(r, 'orders')}` : '—'; } },
         { key: 'valid_day', label: 'حسب المنصة', render: function (r) { return r.valid_day == null ? '—' : r.valid_day ? BT.pill('صالح', 'g') : BT.pill('غير صالح', 'n'); } },
-        { key: 'cash', label: 'الكاش', num: true, render: function (r) { return h`${amt(r.cash_amount)}${r.approved_cash != null && Number(r.approved_cash) !== Number(r.cash_amount) ? h`<span class="sub">المعتمد ${fmt.money(r.approved_cash)}</span>` : ''}`; } },
+        { key: 'cash', label: 'الكاش', num: true, render: function (r) { return h`${amt(r.cash_amount)}${off(r, 'cash')}${r.approved_cash != null && Number(r.approved_cash) !== Number(r.cash_amount) ? h`<span class="sub">المعتمد ${fmt.money(r.approved_cash)}</span>` : ''}`; } },
         { key: 'shot', label: 'اللقطة', render: function (r) { return r.has_screenshot ? icon('image', 16, 't-success') : raw('<span class="muted">—</span>'); } },
         { key: 'status', label: 'الحالة', render: function (r) { return h`${A.pill('report_status', r.status)}${r.late ? h` ${BT.pill('متأخر', 'o')}` : ''}`; } },
         { key: 'submitted_at', label: 'أُرسل', render: function (r) { return fmt.dt(r.submitted_at); } }
@@ -47,6 +47,22 @@
     });
     el.querySelector('[data-day]').addEventListener('change', function (e) { filters.day = e.target.value; t.refresh(); });
   };
+
+  // FR-DWR-08: far from the driver's own 30-day average, by the percent set in the settings
+  function off(r, field) { return (r.deviations || []).indexOf(field) >= 0 ? h` ${BT.pill('بعيد عن متوسطه', 'o')}` : ''; }
+
+  function evidence(r, ev) {
+    var a = ev.average, km = function (n) { return n == null ? '—' : h`<span class="num">${fmt.int(n)}</span> كم`; };
+    var photos = [];
+    if (ev.start) photos.push({ src: api.url('/daily-reports/' + r.id + '/odometer/start'), caption: 'عداد بداية اليوم ' + fmt.int(ev.start.km) + ' كم' });
+    if (ev.end) photos.push({ src: api.url('/daily-reports/' + r.id + '/odometer/end'), caption: (ev.end.kind === 'return' ? 'عداد استلام السيارة ' : 'عداد نهاية اليوم ') + fmt.int(ev.end.km) + ' كم' });
+    var avg = a.days ? h`<span class="num">${fmt.int(a.days)}</span> يوم معتمد: الطلبات <span class="num">${a.orders == null ? '—' : a.orders}</span> · الكاش ${a.cash == null ? '—' : amt(a.cash)}${a.km != null ? h` · <span class="num">${fmt.int(a.km)}</span> كم` : ''}` : h`<span class="muted">لا توجد تقارير معتمدة في آخر 30 يوماً</span>`;
+    return h`<div class="section-t mt-16">العداد والمتوسط</div>
+      <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
+        <div>${photos.length ? A.thumbs(photos) : BT.empty('gauge', 'لا قراءة عداد لهذا اليوم', 'لم يبدأ السائق يومه بقراءة')}</div>
+        <div>${BT.kv([['مسافة اليوم', ev.km != null ? km(ev.km) : (ev.start ? h`<span class="muted">لم يُغلق اليوم بقراءة</span>` : '—')], ['متوسط آخر 30 يوماً', avg], ev.deviations.length ? ['انحراف', h`${ev.deviations.map(function (f) { return BT.pill(f === 'orders' ? 'الطلبات بعيدة عن متوسطه' : 'الكاش بعيد عن متوسطه', 'o'); })}`] : null].filter(Boolean))}</div>
+      </div>`;
+  }
 
   function bulkApprove(rows, done) {
     if (!rows.length) { BT.toast('لا يوجد تقارير بانتظار المراجعة في التحديد', { type: 'info' }); return; }
@@ -67,13 +83,16 @@
     var body = h`<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
       <div>${r.has_screenshot ? A.thumbs([{ src: api.url('/daily-reports/' + r.id + '/screenshot'), caption: 'لقطة تطبيق الطلبات' }]) : BT.empty('image', 'بدون لقطة شاشة', '')}</div>
       <div>${BT.kv([['السائق', A.person(r.driver)], ['السيارة', r.vehicle_plate ? BT.plate(r.vehicle_plate) : '—'], ['يوم العمل', h`<span class="num">${fmt.date(r.business_date)}</span>`], ['الطلبات', r.orders_count != null ? h`<span class="num">${fmt.int(r.orders_count)}</span>` : '—'], r.valid_day != null ? ['اليوم حسب تطبيق المنصة', r.valid_day ? BT.pill('صالح', 'g') : BT.pill('غير صالح', 'n')] : null, ['الكاش المُبلّغ', amt(r.cash_amount)], r.approved_cash != null ? ['الكاش المعتمد', amt(r.approved_cash)] : null, ['الحالة', A.pill('report_status', r.status)], ['أُرسل', h`${fmt.dt(r.submitted_at)}${r.late ? h` ${BT.pill('متأخر — بعد يومه', 'o')}` : ''}`], r.notes ? ['ملاحظات السائق', r.notes] : null, r.review_note ? ['ملاحظة المراجعة', r.review_note] : null].filter(Boolean))}</div></div>
+      <div data-evidence></div>
       ${canReview ? h`<div class="form mt-16">${BT.f.money({ name: 'cash_amount', label: 'الكاش الصحيح (اختياري)', hint: 'اتركه فارغاً لاعتماد المبلغ كما أرسله السائق' })}${BT.f.textarea({ name: 'reason', label: 'السبب (إلزامي عند التصحيح أو الرفض)', rows: 2 })}</div>` : ''}`;
-    if (!canReview) return BT.drawer.open({ title: 'تقرير يومي', icon: 'clipboard-list', size: 'lg', body: body, buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] });
+    var showEvidence = function (d) { var el = d.panel.querySelector('[data-evidence]'); if (el) A.load(el, api.get('/daily-reports/' + r.id + '/evidence'), function (ev) { return evidence(r, ev); }).catch(function () {}); return d; };
+    if (!canReview) return showEvidence(BT.drawer.open({ title: 'تقرير يومي', icon: 'clipboard-list', size: 'lg', body: body, buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] }));
     var dlg = BT.drawer.open({
       title: 'مراجعة تقرير يومي', icon: 'clipboard-check', size: 'lg', form: true, body: body,
       buttons: [{ label: 'رفض', cls: 'btn-outline', icon: 'x', close: false, onClick: function () { decide('reject'); return false; } }, { label: 'اعتماد', cls: 'btn-primary', icon: 'check', submit: true }],
       onSubmit: function () { decide('approve'); return false; }
     });
+    showEvidence(dlg);
     function decide(kind) {
       var v = BT.form.values(dlg.form), reason = (v.reason || '').trim();
       if (kind === 'reject' && !reason) { BT.toast('اكتب سبب الرفض', { type: 'error' }); return; }

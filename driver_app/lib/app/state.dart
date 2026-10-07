@@ -99,7 +99,15 @@ class AppState extends ChangeNotifier {
 
   /// What the daily report asks, from the driver's platform: orders and cash for one, orders and whether the
   /// platform counted the day for another. Kept for offline; until the server answers, orders and cash.
-  ({List<String> fields, bool screenshot}) reportForm = (fields: const ['orders', 'cash'], screenshot: true);
+  ({List<String> fields, bool screenshot, bool endReading}) reportForm = (
+    fields: const ['orders', 'cash'],
+    screenshot: true,
+    endReading: false,
+  );
+
+  /// Today's report waits for the end-of-day odometer: the day was started on a vehicle still held and not closed.
+  bool get endReadingDue =>
+      reportForm.endReading && today?.custody != null && today!.startDayDone && !today!.endDayDone;
 
   /// [deviceLang]: the phone's language at first launch; afterwards the driver's choice is kept.
   Future<void> boot({String deviceLang = 'ar'}) async {
@@ -378,7 +386,11 @@ class AppState extends ChangeNotifier {
   void _applyReportForm(String? raw) {
     if (raw == null) return;
     final f = jsonDecode(raw) as Map<String, dynamic>;
-    reportForm = (fields: [for (final x in f['fields'] as List) x as String], screenshot: f['screenshot'] != false);
+    reportForm = (
+      fields: [for (final x in f['fields'] as List) x as String],
+      screenshot: f['screenshot'] != false,
+      endReading: f['end_reading'] == true,
+    );
   }
 
   Future<void> loadMaintenance() async => maintenance = [
@@ -494,6 +506,8 @@ class AppState extends ChangeNotifier {
     return _sendNow(id, after: loadToday);
   }
 
+  /// [queueOnly]: something it depends on (the end-of-day reading) is still waiting, so it waits behind it and goes
+  /// in order with the next send, never before it.
   Future<SendResult> sendReport({
     required String businessDate,
     int? orders,
@@ -501,6 +515,7 @@ class AppState extends ChangeNotifier {
     bool? validDay,
     String? screenshotPath,
     String? notes,
+    bool queueOnly = false,
   }) async {
     final id = await outbox.add(
       'report',
@@ -513,6 +528,10 @@ class AppState extends ChangeNotifier {
       },
       {'screenshot_sha256': ?screenshotPath},
     );
+    if (queueOnly) {
+      await _readLocal();
+      return SendResult.queued;
+    }
     return _sendNow(
       id,
       after: () async {

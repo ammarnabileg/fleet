@@ -391,6 +391,121 @@ void main() {
     expect(RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(body['business_date'] as String), isTrue);
   });
 
+  testWidgets('today\'s report after a started day: the end-of-day reading goes first', (tester) async {
+    var ended = false;
+    final w = (await tester.runAsync(
+      () => world(
+        today: {
+          'custody': {
+            'id': 'c1',
+            'plate_number': '18/23456',
+            'started_at': '2026-10-02T05:00:00Z',
+            'last_odometer_km': 45210,
+          },
+          'start_day_done': true,
+          'end_day_done': false,
+        },
+      ),
+    ))!;
+    final img = await tester.runAsync(testImage);
+    final screenshot = await tester.runAsync(testImage); // each photo its own file: the outbox removes it once sent
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.utc(2026, 10, 4, 18, 30));
+    Photos.gallery = () async => TakenPhoto(screenshot!, DateTime.now());
+    w.server.on(
+      'GET',
+      '/api/v1/driver/reports/form',
+      (r) => (
+        200,
+        {
+          'fields': ['orders', 'cash'],
+          'screenshot': true,
+          'end_reading': true,
+        },
+      ),
+    );
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': (r.url.queryParameters['source'] == 'camera' ? 'c' : 'd') * 64}),
+    );
+    w.server.on('POST', '/api/v1/driver/odometer', (r) {
+      ended = true;
+      return (201, {'id': 'e'});
+    });
+    w.server.on(
+      'GET',
+      '/api/v1/driver/today',
+      (r) => (
+        200,
+        {
+          'custody': {
+            'id': 'c1',
+            'plate_number': '18/23456',
+            'started_at': '2026-10-02T05:00:00Z',
+            'last_odometer_km': 45210,
+          },
+          'start_day_done': true,
+          'end_day_done': ended,
+        },
+      ),
+    );
+    w.server.on('POST', '/api/v1/driver/reports', (r) => (201, {'id': 'n'}));
+    await pumpApp(tester, w);
+    expect(find.byKey(const Key('end-day')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('daily-report')));
+    await settle(tester);
+    expect(find.byKey(const Key('end-reading')), findsOneWidget);
+    // another day's report does not ask for it
+    await tester.tap(find.text('أمس'));
+    await settle(tester);
+    expect(find.byKey(const Key('end-photo')), findsNothing);
+    await tester.tap(find.text('اليوم'));
+    await settle(tester);
+    final list = find.byType(Scrollable).first;
+    Future<void> reach(String key, {double step = 120}) async {
+      await tester.scrollUntilVisible(find.byKey(Key(key)), step, scrollable: list);
+      await tester.ensureVisible(find.byKey(Key(key)));
+      await tester.pumpAndSettle();
+    }
+
+    await reach('orders');
+    await tester.enterText(find.byKey(const Key('orders')), '30');
+    await reach('cash');
+    await tester.enterText(find.byKey(const Key('cash')), '12');
+    await reach('screenshot');
+    await tester.tap(find.byKey(const Key('screenshot')));
+    await idle(tester);
+    await reach('send-report');
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/reports', method: 'POST'), isEmpty, reason: 'no odometer photo yet');
+    await reach('end-photo', step: -120);
+    await tester.tap(find.byKey(const Key('end-photo')));
+    await idle(tester);
+    await reach('end-km');
+    await tester.enterText(find.byKey(const Key('end-km')), '45390');
+    await shot(tester, '30-report-end-reading');
+    await reach('send-report');
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    final sent = [
+      for (final r in w.server.requests)
+        if (r.method == 'POST' && r.url.path != '/api/v1/driver/files') r.url.path,
+    ];
+    expect(sent, ['/api/v1/driver/odometer', '/api/v1/driver/reports'], reason: 'the reading first');
+    final reading = jsonDecode(w.server.calls('/api/v1/driver/odometer').single.body) as Map;
+    expect(
+      (reading['kind'], reading['value_km'], reading['photo_sha256'], reading['recorded_at']),
+      ('end_day', 45390, 'c' * 64, '2026-10-04T18:30:00.000Z'),
+    );
+    final report = jsonDecode(w.server.calls('/api/v1/driver/reports', method: 'POST').single.body) as Map;
+    expect((report['orders_count'], report['screenshot_sha256']), (30, 'd' * 64));
+    await tester.tap(find.text('تم'));
+    await settle(tester);
+    expect(find.text('أنهيت اليوم'), findsOneWidget);
+    expect(find.byKey(const Key('end-day')), findsNothing);
+  });
+
   testWidgets('daily report on a platform that counts valid days: orders and the valid day, no cash', (tester) async {
     final w = (await tester.runAsync(() => world()))!;
     final img = await tester.runAsync(testImage);

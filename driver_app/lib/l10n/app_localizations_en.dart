@@ -311,6 +311,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get startDayTitle => 'Start of day';
 
   @override
+  String get endDayDone => 'Day ended';
+
+  @override
+  String get endReadingIntro =>
+      'Before today\'s report: the end-of-day odometer photo and reading. The reading goes first, then the report.';
+
+  @override
   String get endDayTitle => 'End of day';
 
   @override

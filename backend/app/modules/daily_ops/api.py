@@ -1,6 +1,6 @@
 import uuid
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -71,6 +71,26 @@ def report_screenshot(
     db: Session = Depends(get_session),
 ):
     info = service.screenshot(db, public_id, **principal.scope)
+    return files.response(db, info)
+
+
+@router.get("/daily-reports/{public_id}/evidence", response_model=schemas.EvidenceOut)
+def report_evidence(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("daily_reports.view")),
+    db: Session = Depends(get_session),
+):
+    return service.evidence(db, public_id, **principal.scope)
+
+
+@router.get("/daily-reports/{public_id}/odometer/{which}")
+def report_odometer_photo(
+    public_id: uuid.UUID,
+    which: Literal["start", "end"],
+    principal: Principal = Depends(require_permission("daily_reports.view")),
+    db: Session = Depends(get_session),
+):
+    info = service.odometer_photo(db, public_id, which, **principal.scope)
     return files.response(db, info)
 
 

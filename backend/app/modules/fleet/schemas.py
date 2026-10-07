@@ -183,3 +183,4 @@ class DriverCustody(BaseModel):
 class DriverTodayOut(BaseModel):
     custody: DriverCustody | None
     start_day_done: bool
+    end_day_done: bool  # the day closed: end-of-day reading, or the vehicle returned

@@ -31,6 +31,20 @@ def started(admin_client, client, company, km=40_000):
     return d, h
 
 
+def ended(client, h, km):
+    r = client.post(
+        "/api/v1/driver/odometer",
+        headers=h,
+        json={
+            "kind": "end_day",
+            "value_km": km,
+            "photo_sha256": _camera(client, h),
+            "recorded_at": datetime.now(UTC).isoformat(),
+        },
+    )
+    assert r.status_code == 201, r.text
+
+
 def send_report(client, h, day) -> dict:
     shot = client.post(
         "/api/v1/driver/files", params={"source": "upload"}, headers=h, files={"file": ("s.jpg", jpeg(), "image/jpeg")}
@@ -54,6 +68,7 @@ def test_started_the_day_and_sent_no_report(admin_client, client, new_client, co
     d, h = started(admin_client, client, company)
     other = new_client()
     d2, h2 = started(admin_client, other, company, km=50_000)
+    ended(other, h2, 50_090)
     send_report(other, h2, today())
     make_driver(admin_client, company["id"])  # did not start: owes nothing
     took = make_driver(admin_client, company["id"])  # took a vehicle today, never started the day: owes nothing
@@ -68,6 +83,7 @@ def test_started_the_day_and_sent_no_report(admin_client, client, new_client, co
     assert [n["kind"] for n in told] == ["report_missing"]
     assert other.get("/api/v1/driver/notifications", headers=h2).json()["items"] == []
     # sent after all, the same evening: the alert closes
+    ended(client, h, 40_100)
     send_report(client, h, today())
     assert open_alerts(admin_client, "daily_report_missing") == []
 
@@ -75,6 +91,7 @@ def test_started_the_day_and_sent_no_report(admin_client, client, new_client, co
 def test_a_report_sent_after_its_own_day_is_late(admin_client, client, company):
     d, h = started(admin_client, client, company)
     yesterday = send_report(client, h, today() - timedelta(days=1))
+    ended(client, h, 40_100)
     on_time = send_report(client, h, today())
     assert (yesterday["late"], on_time["late"]) == (True, False)
     listed = {r["id"]: r["late"] for r in admin_client.get("/api/v1/daily-reports").json()}
@@ -85,6 +102,7 @@ def test_an_unreviewed_report_is_escalated_to_the_manager(admin_client, client, 
     from app.modules.daily_ops import service
 
     d, h = started(admin_client, client, company)
+    ended(client, h, 40_100)
     report = send_report(client, h, today())
     other = send_report(client, h, today() - timedelta(days=1))
     owner_db.execute(text("UPDATE daily_ops.reports SET submitted_at = now() - interval '25 hours'"))
