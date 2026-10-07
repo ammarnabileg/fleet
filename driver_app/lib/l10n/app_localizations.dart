@@ -674,6 +674,66 @@ abstract class AppLocalizations {
   /// **'قبل إرسال تقرير اليوم: صورة عداد نهاية اليوم ورقمه. تُرسل القراءة أولاً ثم التقرير.'**
   String get endReadingIntro;
 
+  /// No description provided for @status_returned.
+  ///
+  /// In ar, this message translates to:
+  /// **'أُعيد للتصحيح'**
+  String get status_returned;
+
+  /// No description provided for @editReportTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'تعديل التقرير'**
+  String get editReportTitle;
+
+  /// No description provided for @changeReportTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلب تعديل تقرير معتمد'**
+  String get changeReportTitle;
+
+  /// No description provided for @changeReportIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'التقرير معتمد: يصل طلبك للمكتب، ويُعدَّل بعد الموافقة.'**
+  String get changeReportIntro;
+
+  /// No description provided for @changeReason.
+  ///
+  /// In ar, this message translates to:
+  /// **'سبب التعديل'**
+  String get changeReason;
+
+  /// No description provided for @newScreenshotOptional.
+  ///
+  /// In ar, this message translates to:
+  /// **'لقطة جديدة (اختياري)'**
+  String get newScreenshotOptional;
+
+  /// No description provided for @reportExistsForDay.
+  ///
+  /// In ar, this message translates to:
+  /// **'أرسلت تقرير هذا اليوم بالفعل. عدّله بدلاً من إرسال تقرير ثانٍ.'**
+  String get reportExistsForDay;
+
+  /// No description provided for @editReport.
+  ///
+  /// In ar, this message translates to:
+  /// **'تعديل التقرير'**
+  String get editReport;
+
+  /// No description provided for @changePending.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلب تعديل بانتظار المكتب'**
+  String get changePending;
+
+  /// No description provided for @returnedNote.
+  ///
+  /// In ar, this message translates to:
+  /// **'أعاده المكتب للتصحيح: {note}'**
+  String returnedNote(Object note);
+
   /// No description provided for @endDayTitle.
   ///
   /// In ar, this message translates to:

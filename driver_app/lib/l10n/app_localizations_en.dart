@@ -318,6 +318,38 @@ class AppLocalizationsEn extends AppLocalizations {
       'Before today\'s report: the end-of-day odometer photo and reading. The reading goes first, then the report.';
 
   @override
+  String get status_returned => 'Sent back for correction';
+
+  @override
+  String get editReportTitle => 'Edit the report';
+
+  @override
+  String get changeReportTitle => 'Ask to change an approved report';
+
+  @override
+  String get changeReportIntro => 'This report is approved: your request goes to the office and applies once approved.';
+
+  @override
+  String get changeReason => 'Reason for the change';
+
+  @override
+  String get newScreenshotOptional => 'New screenshot (optional)';
+
+  @override
+  String get reportExistsForDay => 'You already sent this day\'s report. Edit it instead of sending a second one.';
+
+  @override
+  String get editReport => 'Edit the report';
+
+  @override
+  String get changePending => 'Change waiting for the office';
+
+  @override
+  String returnedNote(Object note) {
+    return 'Sent back by the office: $note';
+  }
+
+  @override
   String get endDayTitle => 'End of day';
 
   @override

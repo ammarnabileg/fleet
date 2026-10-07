@@ -83,6 +83,8 @@ class Report {
     this.validDay,
     required this.status,
     this.reviewNote,
+    this.notes,
+    this.changePending = false,
   });
 
   factory Report.fromJson(Map<String, dynamic> j) => Report(
@@ -94,6 +96,8 @@ class Report {
     validDay: j['valid_day'] as bool?,
     status: j['status'] as String,
     reviewNote: j['review_note'] as String?,
+    notes: j['notes'] as String?,
+    changePending: j['change_pending'] as bool? ?? false,
   );
 
   final String id;
@@ -102,8 +106,12 @@ class Report {
   final String cash;
   final String? approvedCash;
   final bool? validDay;
-  final String status;
+  final String status; // submitted | returned | approved | rejected
   final String? reviewNote;
+  final String? notes;
+  final bool changePending; // a change asked for after approval waits for the office
+
+  bool get editable => status == 'submitted' || status == 'returned';
 }
 
 class DocType {

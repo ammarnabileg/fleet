@@ -24,7 +24,8 @@ class OutboxItem {
   );
 
   final int id;
-  final String kind; // odometer | report | maintenance | accident | police_report | statement
+  final String
+  kind; // odometer | report | report_edit | report_change | maintenance | accident | police_report | statement
   final Map<String, dynamic> payload;
   final Map<String, String> files; // payload field -> local file still to upload
   final DateTime createdAt;
@@ -44,14 +45,18 @@ class Outbox {
   /// Where each kind goes, how its files are uploaded, and which answers mean "already recorded" (the first try
   /// reached the server but its answer was lost: the retry must not count as a failure).
   static const _routes = {
-    'odometer': ('/driver/odometer', 'camera', {'reading_exists'}),
-    'report': ('/driver/reports', 'upload', {'report_exists'}),
-    'maintenance': ('/driver/maintenance', 'camera', {'request_exists'}),
-    'accident': ('/driver/accidents', 'camera', {'accident_exists'}),
+    'odometer': ('/driver/odometer', 'camera', {'reading_exists'}, 'POST'),
+    'report': ('/driver/reports', 'upload', {'report_exists'}, 'POST'),
+    // the driver corrects his report before approval (sent again the same, it changes nothing)
+    'report_edit': ('/driver/reports/{report_id}', 'upload', <String>{}, 'PATCH'),
+    // after approval he asks for the change; a retry finds his request already waiting
+    'report_change': ('/driver/reports/{report_id}/change-request', 'upload', {'change_request_exists'}, 'POST'),
+    'maintenance': ('/driver/maintenance', 'camera', {'request_exists'}, 'POST'),
+    'accident': ('/driver/accidents', 'camera', {'accident_exists'}, 'POST'),
     // the office may have attached a report meanwhile: the accident has one, nothing more to send
-    'police_report': ('/driver/accidents/{accident_id}/police-report', 'camera', {'police_report_exists'}),
+    'police_report': ('/driver/accidents/{accident_id}/police-report', 'camera', {'police_report_exists'}, 'POST'),
     // the month's screenshots from the platform's app (from the gallery)
-    'statement': ('/driver/statements', 'upload', {'statement_exists'}),
+    'statement': ('/driver/statements', 'upload', {'statement_exists'}, 'POST'),
   };
   static const _claimTimeout = Duration(minutes: 2);
 
@@ -167,7 +172,7 @@ class Outbox {
   );
 
   Future<void> _deliver(OutboxItem item, Api api) async {
-    final (path, source, alreadyDone) = _routes[item.kind]!;
+    final (path, source, alreadyDone, method) = _routes[item.kind]!;
     final payload = Map<String, dynamic>.from(item.payload);
     final files = Map<String, String>.from(item.files);
     // upload what is not uploaded yet, remembering each sha256 at once so a retry never uploads twice
@@ -185,7 +190,7 @@ class Outbox {
     final body = _lists(payload);
     final url = path.replaceAllMapped(RegExp(r'\{(\w+)\}'), (m) => '${body.remove(m.group(1))}');
     try {
-      await api.post(url, body: body);
+      await (method == 'PATCH' ? api.patch(url, body: body) : api.post(url, body: body));
     } on ApiError catch (e) {
       if (!alreadyDone.contains(e.code)) rethrow;
     }

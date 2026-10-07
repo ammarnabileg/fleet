@@ -250,7 +250,14 @@
     "reading_not_found": "Reading not found",
     "reason_required": "A reason is required",
     "receipt_not_found": "Receipt not found",
-    "report_exists": "The report for this day was already sent",
+    "report_not_editable": "This report can no longer be edited here: once approved, ask for a change",
+    "report_not_approved": "Only an approved report takes a change request; edit it until then",
+    "nothing_changed": "Nothing was changed",
+    "change_request_exists": "A change to this report is already waiting for a decision",
+    "change_not_found": "Change request not found",
+    "change_decided": "This change request was already decided",
+    "journal_decided": "This cash entry was already decided",
+    "report_exists": "The report for this day was already sent: edit it from your recent reports",
     "report_not_found": "Report not found",
     "report_not_submitted": "This report is not waiting for review",
     "request_cannot_cancel": "A request cannot be cancelled once the center has the vehicle",
@@ -532,6 +539,7 @@
     "fine_no_driver": "Fine {number} on vehicle {plate} at {at}: nobody held the vehicle at that time",
     "approval_escalated": "The approval of {ref} has waited more than {hours} hours: it is now open to the escalation role",
     "daily_report_escalated": "{driver}'s report for {date} was not reviewed within {hours} hours: escalated to management",
+    "daily_report_change_requested": "{driver} asks to change the report of {date}",
     "daily_report_missing": "{driver} started the day {date} but sent no report"
   },
   "messages": {
@@ -619,6 +627,7 @@
     "rejected": "Rejected"
   },
   "report_status": {
+    "returned": "Sent back for correction",
     "submitted": "Waiting for review",
     "approved": "Approved",
     "rejected": "Rejected"
@@ -1140,6 +1149,9 @@
   "driver_notice": {
     "receipt_issued": "The office received {amount} KWD from you, receipt no. {number}. Confirm it on the cash screen.",
     "report_corrected": "Report of {date}: the cash was approved as {approved} KWD instead of {reported} KWD. Reason: {reason}",
+    "report_returned": "Your report of {date} was sent back for correction: {reason}. Edit it and send it again.",
+    "report_change_approved": "The change you asked for to the report of {date} was approved",
+    "report_change_rejected": "The change you asked for to the report of {date} was refused: {reason}",
     "report_rejected": "Your report of {date} was refused: {reason}. Send it again, corrected.",
     "maintenance_approved": "Maintenance request no. {number} was approved.",
     "maintenance_rejected": "Maintenance request no. {number} was refused: {reason}",

@@ -541,6 +541,32 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  /// The driver's correction of a report: directly until it is approved (FR-DWR-06), after that as a request with
+  /// his reason, decided by the office (BR-06). Only a new screenshot is uploaded; the rest goes as it stands.
+  Future<SendResult> changeReport(
+    Report report, {
+    int? orders,
+    String? cash,
+    bool? validDay,
+    String? screenshotPath,
+    String? notes,
+    String? reason,
+  }) async {
+    final id = await outbox.add(
+      report.editable ? 'report_edit' : 'report_change',
+      {
+        'report_id': report.id,
+        'orders_count': ?orders,
+        'cash_amount': ?cash,
+        'valid_day': ?validDay,
+        'notes': notes,
+        'reason': ?reason,
+      },
+      {'screenshot_sha256': ?screenshotPath},
+    );
+    return _sendNow(id, after: loadReports);
+  }
+
   /// A maintenance request for the vehicle the driver holds. The id is made here, once: a retry after a lost
   /// answer is recognised by the server ("request_exists") instead of creating a second request.
   Future<SendResult> sendMaintenance({

@@ -19,7 +19,7 @@ from app.core.events import emit
 from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
 from app.modules.cash import service as cash
-from app.modules.daily_ops.models import Report
+from app.modules.daily_ops.models import Report, ReportChange
 from app.modules.files import service as files
 from app.modules.fleet import service as fleet
 from app.modules.notifications import service as notifications
@@ -55,7 +55,14 @@ def _out(r: Report, names: dict | None = None, plates: dict | None = None) -> di
 def _many(db: Session, reports: list[Report]) -> list[dict]:
     names = people.names(db, {r.employee_id for r in reports})
     plates = fleet.plate_numbers(db, {r.vehicle_id for r in reports if r.vehicle_id})
-    return [_out(r, names, plates) for r in reports]
+    waiting = set(
+        db.scalars(
+            select(ReportChange.report_id).where(
+                ReportChange.report_id.in_([r.id for r in reports]), ReportChange.status == "pending"
+            )
+        )
+    )
+    return [_out(r, names, plates) | {"change_pending": r.id in waiting} for r in reports]
 
 
 FIELD = {"orders": "orders_count", "cash": "cash_amount", "valid_day": "valid_day"}
@@ -71,19 +78,25 @@ def form(db: Session, driver: people.EmployeeRef) -> dict:
     return {"fields": fields, "screenshot": rules.require_screenshot, "end_reading": rules.require_end_reading}
 
 
+def _validate(db: Session, driver: people.EmployeeRef, device_id: int, data: dict, new_shot: bool = True) -> dict:
+    """What the driver's platform asks is there; a screenshot is his own phone's upload."""
+    asked = form(db, driver)
+    for field in [FIELD[f] for f in asked["fields"]] + (["screenshot_sha256"] if asked["screenshot"] else []):
+        if data.get(field) is None:
+            raise AppError(422, "field_required", field=field)
+    if new_shot and data.get("screenshot_sha256"):
+        shot = files.get(db, data["screenshot_sha256"])
+        if shot.uploaded_by_device != device_id or shot.content_type not in files.IMAGES:
+            raise AppError(422, "file_not_yours")
+    return asked
+
+
 def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict:
     driver = people.ref(db, employee_id)
     day = data["business_date"]
     if not today() - timedelta(days=MAX_DAYS_BACK) <= day <= today():
         raise AppError(422, "invalid_business_date")
-    asked = form(db, driver)
-    for field in [FIELD[f] for f in asked["fields"]] + (["screenshot_sha256"] if asked["screenshot"] else []):
-        if data.get(field) is None:
-            raise AppError(422, "field_required", field=field)
-    if data.get("screenshot_sha256"):
-        shot = files.get(db, data["screenshot_sha256"])
-        if shot.uploaded_by_device != device_id or shot.content_type not in files.IMAGES:
-            raise AppError(422, "file_not_yours")
+    asked = _validate(db, driver, device_id, data)
     if asked["end_reading"] and day == today():
         started = fleet.driver_days(db, employee_id, day, day).get(day)
         if started is not None and started["end"] is None:  # drove today: the day's closing reading comes first
@@ -110,7 +123,12 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
             db.flush()
     except IntegrityError as exc:
         if violated_constraint(exc) == "reports_one_per_day_idx":
-            raise AppError(409, "report_exists") from None
+            existing = db.scalar(
+                select(Report.public_id).where(
+                    Report.employee_id == employee_id, Report.business_date == day, Report.status != "rejected"
+                )
+            )
+            raise AppError(409, "report_exists", report_id=str(existing)) from None  # edit that one (UAT-04)
         raise
     db.refresh(report)
     cash.submit_collection(db, driver, report_id=report.id, amount=amount, business_date=day, device_id=device_id)
@@ -411,7 +429,10 @@ def scan_overdue(db: Session) -> int:
     (BRD BR-05, spec 13)."""
     hours = org.get_section(db, "cash").report_review_hours
     late = db.scalars(
-        select(Report).where(Report.status == "submitted", Report.submitted_at < utcnow() - timedelta(hours=hours))
+        select(Report).where(
+            Report.status == "submitted",
+            func.coalesce(Report.updated_at, Report.submitted_at) < utcnow() - timedelta(hours=hours),
+        )
     )
     raised = 0
     for report in late:
@@ -458,3 +479,284 @@ def month_activity(db: Session, employee_ids: Iterable[int], first, last) -> dic
         else:
             row["pending"] += 1
     return out
+
+
+# ------------------------------------------------------------------ changes (BRD FR-DWR-04, FR-DWR-06, BR-06, UAT-04)
+
+EDITABLE = ("orders_count", "cash_amount", "valid_day", "screenshot_sha256", "notes")
+
+
+def _values(r: Report, approved: bool = False) -> dict:
+    amount = r.approved_cash if approved and r.approved_cash is not None else r.cash_amount
+    return {
+        "orders_count": r.orders_count,
+        "cash_amount": f"{amount:.3f}",
+        "valid_day": r.valid_day,
+        "screenshot_sha256": r.screenshot_sha256,
+        "notes": r.notes,
+    }
+
+
+def _wanted(report: Report, data: dict, approved: bool = False) -> tuple[dict, dict, dict]:
+    """The fields the driver changes: (merged values, what they were, what they become); after approval the cash
+    compared is the approved one."""
+    current = _values(report, approved)
+    asked = {k: (f"{Decimal(v):.3f}" if k == "cash_amount" and v is not None else v) for k, v in data.items()}
+    changed = {k: v for k, v in asked.items() if k in EDITABLE and v != current[k]}
+    return current | changed, {k: current[k] for k in changed}, changed
+
+
+def _drivers_report(db: Session, employee_id: int, public_id) -> Report:
+    report = db.scalar(
+        select(Report).where(Report.public_id == public_id, Report.employee_id == employee_id).with_for_update()
+    )
+    if report is None:
+        raise AppError(404, "report_not_found")
+    return report
+
+
+def _log(db: Session, report: Report, kind: str, status: str, before: dict, after: dict, **extra) -> ReportChange:
+    change = ReportChange(report_id=report.id, kind=kind, status=status, before=before, after=after, **extra)
+    db.add(change)
+    db.flush()
+    return change
+
+
+def edit(db: Session, *, employee_id: int, device_id: int, public_id, data: dict) -> dict:
+    """The driver corrects his report until it is approved; one sent back to him goes to review again. A cash change
+    replaces the pending collection, so the ledger only ever holds what was finally reported."""
+    report = _drivers_report(db, employee_id, public_id)
+    if report.status not in ("submitted", "returned"):
+        raise AppError(409, "report_not_editable", status=report.status)
+    driver = people.ref(db, employee_id)
+    merged, before, after = _wanted(report, data)
+    _validate(db, driver, device_id, merged, new_shot="screenshot_sha256" in after)
+    returned = report.status == "returned"
+    if not after and not returned:
+        return _many(db, [report])[0]
+    for field, value in after.items():
+        setattr(report, field, Decimal(value) if field == "cash_amount" else value)
+    if "cash_amount" in after:
+        cash.replace_collection(
+            db,
+            driver,
+            report_id=report.id,
+            amount=report.cash_amount,
+            business_date=report.business_date,
+            device_id=device_id,
+        )
+    report.status, report.updated_at, report.version = "submitted", utcnow(), report.version + 1
+    _log(db, report, "edit", "applied", before, after, created_by_device=device_id)
+    if returned or "cash_amount" in after:  # sent back to review, or another amount: the approval starts over
+        approvals.submitted(db, "daily_report", **_approval(report, driver.name), note="edited")
+    cash.check_balance_alert(db, driver)
+    audit.record(
+        db,
+        action="daily_report.edited",
+        entity_type="daily_report",
+        entity_id=report.public_id,
+        actor_type="device",
+        company_id=report.company_id,
+        before=before,
+        after=after,
+    )
+    db.commit()
+    return _many(db, [report])[0]
+
+
+def send_back(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) -> dict:
+    """The reviewer asks the driver to correct his report (FR-DWR-04), with the reason he reads in the app."""
+    report = _row(db, public_id, lock=True, **scope)
+    if report.status != "submitted":
+        raise AppError(409, "report_not_submitted")
+    report.status, report.review_note, report.version = "returned", reason, report.version + 1
+    _log(db, report, "returned", "applied", {}, {}, reason=reason, created_by=actor_user_id)
+    approvals.withdrawn(db, "daily_report", [report.id], note="returned")
+    notifications.notify_driver(
+        db,
+        report.employee_id,
+        "report_returned",
+        params={"date": report.business_date.isoformat(), "reason": reason},
+        entity_type="daily_report",
+        entity_id=report.public_id,
+    )
+    notifications.resolve(db, f"daily_report_overdue:{report.id}")
+    notifications.resolve(db, f"daily_report_escalated:{report.id}")
+    audit.record(
+        db,
+        action="daily_report.returned",
+        entity_type="daily_report",
+        entity_id=report.public_id,
+        actor_user_id=actor_user_id,
+        company_id=report.company_id,
+        after={"reason": reason},
+    )
+    db.commit()
+    return _many(db, [report])[0]
+
+
+def request_change(db: Session, *, employee_id: int, device_id: int, public_id, data: dict, reason: str) -> dict:
+    """After approval the driver asks for a change, with his reason; the reviewer decides (BR-06). Not once the
+    month's payroll is approved: its figures are paid."""
+    report = _drivers_report(db, employee_id, public_id)
+    if report.status != "approved":
+        raise AppError(409, "report_not_approved")
+    if payroll.month_locked(db, report.company_id, report.business_date):
+        raise AppError(409, "payroll_locked")
+    driver = people.ref(db, employee_id)
+    merged, before, after = _wanted(report, data, approved=True)
+    if not after:
+        raise AppError(422, "nothing_changed")
+    _validate(db, driver, device_id, merged, new_shot="screenshot_sha256" in after)
+    try:
+        with db.begin_nested():
+            change = _log(db, report, "request", "pending", before, after, reason=reason, created_by_device=device_id)
+    except IntegrityError as exc:
+        if violated_constraint(exc) == "report_changes_one_pending_idx":
+            raise AppError(409, "change_request_exists") from None
+        raise
+    notifications.raise_alert(
+        db,
+        "daily_report_change_requested",
+        company_id=report.company_id,
+        entity_type="daily_report",
+        entity_id=report.public_id,
+        params={"driver": driver.name, "date": report.business_date.isoformat()},
+        dedupe_key=f"daily_report_change:{change.id}",
+    )
+    audit.record(
+        db,
+        action="daily_report.change_requested",
+        entity_type="daily_report",
+        entity_id=report.public_id,
+        actor_type="device",
+        company_id=report.company_id,
+        before=before,
+        after=after | {"reason": reason},
+    )
+    db.commit()
+    return _change_out(db, change, report)
+
+
+def decide_change(
+    db: Session, public_id, *, approve: bool, note: str | None, actor_user_id: int, all_companies: bool, company_ids
+) -> dict:
+    """The reviewer's decision on a change asked for after approval. Approved, the report takes the new figures and a
+    cash difference is posted as an adjustment with the driver's reason; refused, the driver reads why."""
+    row = db.execute(
+        select(ReportChange, Report)
+        .join(Report, Report.id == ReportChange.report_id)
+        .where(ReportChange.public_id == public_id)
+        .with_for_update()
+    ).first()
+    if row is None or not (all_companies or row[1].company_id in set(company_ids)):
+        raise AppError(404, "change_not_found")
+    change, report = row
+    if change.status != "pending":
+        raise AppError(409, "change_decided")
+    if not approve and not note:
+        raise AppError(422, "reason_required")
+    driver = people.ref(db, report.employee_id)
+    day = report.business_date.isoformat()
+    if approve:
+        if payroll.month_locked(db, report.company_id, report.business_date):
+            raise AppError(409, "payroll_locked")
+        for field, value in change.after.items():
+            if field != "cash_amount":
+                setattr(report, field, value)
+        if "cash_amount" in change.after:
+            new = Decimal(change.after["cash_amount"])
+            old = report.approved_cash if report.approved_cash is not None else report.cash_amount
+            cash.correct_approved(
+                db,
+                driver,
+                report_id=report.id,
+                difference=new - old,
+                reason=change.reason,
+                business_date=report.business_date,
+                actor_user_id=actor_user_id,
+            )
+            report.cash_amount, report.approved_cash = new, new
+        report.version += 1
+        notifications.notify_driver(
+            db,
+            report.employee_id,
+            "report_change_approved",
+            params={"date": day},
+            entity_type="daily_report",
+            entity_id=report.public_id,
+        )
+    else:
+        notifications.notify_driver(
+            db,
+            report.employee_id,
+            "report_change_rejected",
+            params={"date": day, "reason": note},
+            entity_type="daily_report",
+            entity_id=report.public_id,
+        )
+    change.status = "approved" if approve else "rejected"
+    change.decided_by, change.decided_at, change.decision_note = actor_user_id, utcnow(), note
+    notifications.resolve(db, f"daily_report_change:{change.id}")
+    cash.check_balance_alert(db, driver)
+    audit.record(
+        db,
+        action="daily_report.change_approved" if approve else "daily_report.change_rejected",
+        entity_type="daily_report",
+        entity_id=report.public_id,
+        actor_user_id=actor_user_id,
+        company_id=report.company_id,
+        before=change.before,
+        after=change.after | {"note": note},
+    )
+    db.commit()
+    return _change_out(db, change, report)
+
+
+def _change_out(db: Session, change: ReportChange, report: Report, names: dict | None = None) -> dict:
+    names = names if names is not None else people.names(db, {report.employee_id})
+    return {
+        "id": str(change.public_id),
+        "report_id": str(report.public_id),
+        "driver": names.get(report.employee_id),
+        "business_date": report.business_date,
+        "kind": change.kind,
+        "status": change.status,
+        "before": change.before,
+        "after": change.after,
+        "reason": change.reason,
+        "by_driver": change.created_by_device is not None,
+        "created_at": change.created_at,
+        "decided_at": change.decided_at,
+        "decision_note": change.decision_note,
+    }
+
+
+def history(db: Session, public_id, **scope) -> list[dict]:
+    """Every change to the report, oldest first."""
+    report = _row(db, public_id, **scope)
+    changes = db.scalars(select(ReportChange).where(ReportChange.report_id == report.id).order_by(ReportChange.id))
+    names = people.names(db, {report.employee_id})
+    return [_change_out(db, c, report, names) for c in changes]
+
+
+def driver_history(db: Session, employee_id: int, public_id) -> list[dict]:
+    report = db.scalar(select(Report).where(Report.public_id == public_id, Report.employee_id == employee_id))
+    if report is None:
+        raise AppError(404, "report_not_found")
+    changes = db.scalars(select(ReportChange).where(ReportChange.report_id == report.id).order_by(ReportChange.id))
+    return [_change_out(db, c, report, {}) for c in changes]
+
+
+def pending_changes(db: Session, *, all_companies: bool, company_ids, limit: int = 100) -> list[dict]:
+    """The changes drivers asked for after approval, waiting for a decision."""
+    q = (
+        select(ReportChange, Report)
+        .join(Report, Report.id == ReportChange.report_id)
+        .where(ReportChange.status == "pending")
+        .order_by(ReportChange.created_at)
+        .limit(min(limit, 500))
+    )
+    rows = list(db.execute(q if all_companies else q.where(Report.company_id.in_(list(company_ids)))))
+    names = people.names(db, {r.employee_id for _, r in rows})
+    return [_change_out(db, c, r, names) for c, r in rows]

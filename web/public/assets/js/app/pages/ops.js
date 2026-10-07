@@ -22,12 +22,13 @@
   BT.pages['daily'] = function (p, q) {
     A.setTitle('التقارير اليومية');
     var v = A.view(), filters = { day: q.date || '' };
-    BT.render(v, h`${A.head('تقارير السائقين اليومية', 'عدد الطلبات والكاش المحصّل ولقطة شاشة تطبيق الطلبات. الاعتماد يرحّل الكاش إلى حساب السائق، والتصحيح يحتاج سبباً', '')}<div class="card"><div id="daily-table"></div></div>`);
+    BT.render(v, h`${A.head('تقارير السائقين اليومية', 'عدد الطلبات والكاش المحصّل ولقطة شاشة تطبيق الطلبات. الاعتماد يرحّل الكاش إلى حساب السائق، والتصحيح يحتاج سبباً', '')}<div id="daily-changes"></div><div class="card"><div id="daily-table"></div></div>`);
     var el = document.getElementById('daily-table');
     var review = api.can('daily_reports.review');
+    if (review) changeRequests(document.getElementById('daily-changes'), function () { t.refresh(); });
     var t = BT.table(el, {
       fetch: function (s) { return api.get('/daily-reports', { status: s.chip, business_date: filters.day, limit: s.limit, offset: s.offset }); },
-      chips: { value: q.status || 'submitted', all: false, options: A.options('report_status', ['submitted', 'approved', 'rejected']) },
+      chips: { value: q.status || 'submitted', all: false, options: A.options('report_status', ['submitted', 'returned', 'approved', 'rejected']) },
       tools: h`<input class="input" type="date" data-day value="${filters.day}" aria-label="يوم العمل" title="يوم العمل">`,
       selectable: review,
       id: function (r) { return r.id; },
@@ -39,7 +40,7 @@
         { key: 'valid_day', label: 'حسب المنصة', render: function (r) { return r.valid_day == null ? '—' : r.valid_day ? BT.pill('صالح', 'g') : BT.pill('غير صالح', 'n'); } },
         { key: 'cash', label: 'الكاش', num: true, render: function (r) { return h`${amt(r.cash_amount)}${off(r, 'cash')}${r.approved_cash != null && Number(r.approved_cash) !== Number(r.cash_amount) ? h`<span class="sub">المعتمد ${fmt.money(r.approved_cash)}</span>` : ''}`; } },
         { key: 'shot', label: 'اللقطة', render: function (r) { return r.has_screenshot ? icon('image', 16, 't-success') : raw('<span class="muted">—</span>'); } },
-        { key: 'status', label: 'الحالة', render: function (r) { return h`${A.pill('report_status', r.status)}${r.late ? h` ${BT.pill('متأخر', 'o')}` : ''}`; } },
+        { key: 'status', label: 'الحالة', render: function (r) { return h`${A.pill('report_status', r.status)}${r.late ? h` ${BT.pill('متأخر', 'o')}` : ''}${r.change_pending ? h` ${BT.pill('طلب تعديل', 'b')}` : ''}`; } },
         { key: 'submitted_at', label: 'أُرسل', render: function (r) { return fmt.dt(r.submitted_at); } }
       ],
       rowClick: function (r) { A.report(r, t.refresh); },
@@ -47,6 +48,53 @@
     });
     el.querySelector('[data-day]').addEventListener('change', function (e) { filters.day = e.target.value; t.refresh(); });
   };
+
+  // FR-DWR-06: what a change touched, as the reviewer reads it
+  var FIELD_LABEL = { orders_count: 'الطلبات', cash_amount: 'الكاش', valid_day: 'اليوم حسب المنصة', screenshot_sha256: 'لقطة الشاشة', notes: 'الملاحظات' };
+  function fieldValue(k, v) {
+    if (v == null || v === '') return '—';
+    if (k === 'cash_amount') return fmt.money(v);
+    if (k === 'valid_day') return v ? 'صالح' : 'غير صالح';
+    if (k === 'screenshot_sha256') return 'صورة';
+    return String(v);
+  }
+  function diff(c) {
+    var keys = Object.keys(c.after || {});
+    if (!keys.length) return '';
+    return h`${keys.map(function (k) { return h`<div class="fs-sm">${FIELD_LABEL[k] || k}: <span class="num">${fieldValue(k, (c.before || {})[k])}</span> ← <b class="num">${fieldValue(k, c.after[k])}</b></div>`; })}`;
+  }
+  var CHANGE_KIND = { edit: 'عدّله السائق', returned: 'أُعيد للسائق', request: 'طلب تعديل بعد الاعتماد' };
+  var CHANGE_STATUS = { pending: ['بانتظار القرار', 'o'], approved: ['وافق', 'g'], rejected: ['رُفض', 'r'] };
+  function changeLog(list) {
+    if (!list.length) return '';
+    return h`<div class="section-t mt-16">سجل التعديلات</div><div class="timeline">${list.map(function (c) {
+      var st = CHANGE_STATUS[c.status];
+      var tone = c.kind === 'returned' ? 'o' : st ? st[1] : 'b';
+      return h`<div class="tl-item" data-change="${c.kind}"><span class="tl-ic ${tone}">${icon(c.kind === 'returned' ? 'undo-2' : 'pencil', 13)}</span><div class="flex-1"><div class="tl-t">${CHANGE_KIND[c.kind] || c.kind}${st ? h` ${BT.pill(st[0], st[1])}` : ''}</div><div class="tl-d">${fmt.dt(c.created_at)}</div>${diff(c)}${c.reason ? h`<div class="tl-d">السبب: ${c.reason}</div>` : ''}${c.decision_note ? h`<div class="tl-d">القرار: ${c.decision_note}</div>` : ''}</div></div>`;
+    })}</div>`;
+  }
+  function changeRequests(box, after) {
+    api.get('/daily-reports/change-requests').then(function (list) {
+      if (!document.contains(box)) return;
+      if (!list.length) { BT.render(box, ''); return; }
+      BT.render(box, h`<div class="card mb-16" data-change-requests><div class="card-h"><b>طلبات تعديل تقارير معتمدة</b> <span class="muted fs-sm">يطلبها السائق بعد الاعتماد؛ الموافقة ترحّل فرق الكاش بقيد تسوية بسببه</span></div><div class="card-b">${list.map(function (c) {
+        return h`<div class="between mb-12" data-change-id="${c.id}"><div>${A.person(c.driver)} <span class="num muted">${fmt.date(c.business_date)}</span>${diff(c)}<div class="fs-sm muted">السبب: ${c.reason || '—'}</div></div><div class="nowrap"><button type="button" class="btn btn-sm btn-primary" data-change-ok="${c.id}">موافقة</button> <button type="button" class="btn btn-sm btn-outline" data-change-no="${c.id}">رفض</button></div></div>`;
+      })}</div></div>`);
+      var reload = function () { changeRequests(box, after); if (after) after(); A.refreshCounts(); };
+      box.querySelectorAll('[data-change-ok]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          A.confirmRun({ title: 'الموافقة على التعديل', message: 'يأخذ التقرير الأرقام الجديدة، ويُرحّل فرق الكاش لحساب السائق بسببه.', confirmText: 'موافقة', tone: 'success',
+            run: function () { return api.post('/daily-reports/change-requests/' + b.getAttribute('data-change-ok') + '/approve', {}); }, done: 'تمت الموافقة على التعديل', after: reload });
+        });
+      });
+      box.querySelectorAll('[data-change-no]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          A.confirmRun({ title: 'رفض التعديل', message: 'يصل السبب للسائق في التطبيق.', confirmText: 'رفض', tone: 'danger', reason: { label: 'سبب الرفض' },
+            run: function (reason) { return api.post('/daily-reports/change-requests/' + b.getAttribute('data-change-no') + '/reject', { note: reason }); }, done: 'تم رفض التعديل', after: reload });
+        });
+      });
+    }, function () { BT.render(box, ''); });
+  }
 
   // FR-DWR-08: far from the driver's own 30-day average, by the percent set in the settings
   function off(r, field) { return (r.deviations || []).indexOf(field) >= 0 ? h` ${BT.pill('بعيد عن متوسطه', 'o')}` : ''; }
@@ -83,23 +131,34 @@
     var body = h`<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
       <div>${r.has_screenshot ? A.thumbs([{ src: api.url('/daily-reports/' + r.id + '/screenshot'), caption: 'لقطة تطبيق الطلبات' }]) : BT.empty('image', 'بدون لقطة شاشة', '')}</div>
       <div>${BT.kv([['السائق', A.person(r.driver)], ['السيارة', r.vehicle_plate ? BT.plate(r.vehicle_plate) : '—'], ['يوم العمل', h`<span class="num">${fmt.date(r.business_date)}</span>`], ['الطلبات', r.orders_count != null ? h`<span class="num">${fmt.int(r.orders_count)}</span>` : '—'], r.valid_day != null ? ['اليوم حسب تطبيق المنصة', r.valid_day ? BT.pill('صالح', 'g') : BT.pill('غير صالح', 'n')] : null, ['الكاش المُبلّغ', amt(r.cash_amount)], r.approved_cash != null ? ['الكاش المعتمد', amt(r.approved_cash)] : null, ['الحالة', A.pill('report_status', r.status)], ['أُرسل', h`${fmt.dt(r.submitted_at)}${r.late ? h` ${BT.pill('متأخر — بعد يومه', 'o')}` : ''}`], r.notes ? ['ملاحظات السائق', r.notes] : null, r.review_note ? ['ملاحظة المراجعة', r.review_note] : null].filter(Boolean))}</div></div>
-      <div data-evidence></div>
-      ${canReview ? h`<div class="form mt-16">${BT.f.money({ name: 'cash_amount', label: 'الكاش الصحيح (اختياري)', hint: 'اتركه فارغاً لاعتماد المبلغ كما أرسله السائق' })}${BT.f.textarea({ name: 'reason', label: 'السبب (إلزامي عند التصحيح أو الرفض)', rows: 2 })}</div>` : ''}`;
-    var showEvidence = function (d) { var el = d.panel.querySelector('[data-evidence]'); if (el) A.load(el, api.get('/daily-reports/' + r.id + '/evidence'), function (ev) { return evidence(r, ev); }).catch(function () {}); return d; };
+      <div data-evidence></div><div data-changes></div>
+      ${canReview ? h`<div class="form mt-16">${BT.f.money({ name: 'cash_amount', label: 'الكاش الصحيح (اختياري)', hint: 'اتركه فارغاً لاعتماد المبلغ كما أرسله السائق' })}${BT.f.textarea({ name: 'reason', label: 'السبب (إلزامي عند التصحيح أو الرفض أو الإعادة للسائق)', rows: 2 })}</div>` : ''}`;
+    var showEvidence = function (d) {
+      var el = d.panel.querySelector('[data-evidence]'), log = d.panel.querySelector('[data-changes]');
+      if (el) A.load(el, api.get('/daily-reports/' + r.id + '/evidence'), function (ev) { return evidence(r, ev); }).catch(function () {});
+      if (log) api.get('/daily-reports/' + r.id + '/changes').then(function (list) { if (document.contains(log)) BT.render(log, changeLog(list)); }, function () {});
+      return d;
+    };
     if (!canReview) return showEvidence(BT.drawer.open({ title: 'تقرير يومي', icon: 'clipboard-list', size: 'lg', body: body, buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] }));
     var dlg = BT.drawer.open({
       title: 'مراجعة تقرير يومي', icon: 'clipboard-check', size: 'lg', form: true, body: body,
-      buttons: [{ label: 'رفض', cls: 'btn-outline', icon: 'x', close: false, onClick: function () { decide('reject'); return false; } }, { label: 'اعتماد', cls: 'btn-primary', icon: 'check', submit: true }],
+      buttons: [{ label: 'إعادة للسائق', cls: 'btn-ghost', icon: 'undo-2', close: false, onClick: function () { decide('send-back'); return false; } }, { label: 'رفض', cls: 'btn-outline', icon: 'x', close: false, onClick: function () { decide('reject'); return false; } }, { label: 'اعتماد', cls: 'btn-primary', icon: 'check', submit: true }],
       onSubmit: function () { decide('approve'); return false; }
     });
     showEvidence(dlg);
     function decide(kind) {
       var v = BT.form.values(dlg.form), reason = (v.reason || '').trim();
       if (kind === 'reject' && !reason) { BT.toast('اكتب سبب الرفض', { type: 'error' }); return; }
+      if (kind === 'send-back' && !reason) { BT.toast('اكتب ما يصححه السائق في خانة السبب', { type: 'error' }); return; }
       if (kind === 'approve' && v.cash_amount !== '' && !reason) { BT.toast('التصحيح يحتاج سبباً', { type: 'error' }); return; }
-      var call = kind === 'reject' ? api.post('/daily-reports/' + r.id + '/reject', { reason: reason }) : api.post('/daily-reports/' + r.id + '/approve', { cash_amount: v.cash_amount === '' ? null : String(v.cash_amount), reason: reason || null });
-      dlg.busy(kind === 'reject' ? 0 : 1, true);
-      call.then(function () { BT.toast(kind === 'reject' ? 'تم رفض التقرير' : 'تم اعتماد التقرير'); dlg.close(); A.refreshCounts(); if (after) after(); }, function (err) { dlg.busy(kind === 'reject' ? 0 : 1, false); BT.toast(api.message(err), { type: 'error', timeout: 6000 }); });
+      var call = kind === 'approve' ? api.post('/daily-reports/' + r.id + '/approve', { cash_amount: v.cash_amount === '' ? null : String(v.cash_amount), reason: reason || null }) : api.post('/daily-reports/' + r.id + '/' + kind, { reason: reason });
+      var btn = { 'send-back': 0, reject: 1, approve: 2 }[kind];
+      dlg.busy(btn, true);
+      call.then(function (res) {
+        // with a workflow, an approval may only record this step: the report stays waiting for the next
+        BT.toast(kind === 'reject' ? 'تم رفض التقرير' : kind === 'send-back' ? 'أُعيد التقرير للسائق للتصحيح' : res && res.status === 'approved' ? 'تم اعتماد التقرير' : 'سُجلت موافقتك؛ ينتظر الخطوة التالية');
+        dlg.close(); A.refreshCounts(); if (after) after();
+      }, function (err) { dlg.busy(btn, false); BT.toast(api.message(err), { type: 'error', timeout: 6000 }); });
     }
     return dlg;
   };

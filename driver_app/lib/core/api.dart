@@ -35,6 +35,8 @@ class Api {
 
   Future<dynamic> put(String path, {Object? body}) => _send('PUT', path, body: body ?? const {}, auth: true);
 
+  Future<dynamic> patch(String path, {Object? body}) => _send('PATCH', path, body: body ?? const {}, auth: true);
+
   Future<dynamic> delete(String path) => _send('DELETE', path, auth: true);
 
   /// A public file's bytes, with no session (the splash image, shown before sign-in).

@@ -506,6 +506,100 @@ void main() {
     expect(find.byKey(const Key('end-day')), findsNothing);
   });
 
+  Map<String, dynamic> sentReport(String id, String day, String status, {String? note, bool pending = false}) => {
+    'id': id,
+    'driver': null,
+    'company_id': 1,
+    'vehicle_plate': '18/23456',
+    'business_date': day,
+    'orders_count': 24,
+    'cash_amount': '18.500',
+    'approved_cash': status == 'approved' ? '17.000' : null,
+    'valid_day': null,
+    'has_screenshot': true,
+    'notes': null,
+    'status': status,
+    'submitted_at': '${day}T20:00:00Z',
+    'reviewed_at': null,
+    'review_note': note,
+    'late': false,
+    'deviations': <String>[],
+    'change_pending': pending,
+  };
+
+  testWidgets('a report sent back: the office note, then corrected in place, never sent twice', (tester) async {
+    final today = DateTime.now().toUtc().add(const Duration(hours: 3)).toIso8601String().substring(0, 10);
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/reports',
+      (r) => (200, [sentReport('t1', today, 'returned', note: 'اللقطة لا تظهر الكاش')]),
+    );
+    w.server.on('PATCH', '/api/v1/driver/reports/t1', (r) => (200, sentReport('t1', today, 'submitted')));
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('daily-report')));
+    await settle(tester);
+    // UAT-04: today is reported already: no second report, the way to edit it
+    expect(find.byKey(const Key('report-exists')), findsOneWidget);
+    expect(find.byKey(const Key('send-report')), findsNothing);
+    await tester.tap(find.byKey(const Key('edit-sent')));
+    await settle(tester);
+    expect(find.text('تعديل التقرير'), findsWidgets);
+    expect(find.textContaining('اللقطة لا تظهر الكاش'), findsOneWidget);
+    expect(tester.widget<TextFormField>(find.byKey(const Key('cash'))).controller!.text, '18.500');
+    await tester.enterText(find.byKey(const Key('cash')), '19.25');
+    await shot(tester, '31-report-returned-edit');
+    await tester.ensureVisible(find.byKey(const Key('send-report')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/reports', method: 'POST'), isEmpty);
+    expect(w.server.calls('/api/v1/driver/files'), isEmpty, reason: 'the screenshot stays unless replaced');
+    final body = jsonDecode(w.server.calls('/api/v1/driver/reports/t1', method: 'PATCH').single.body) as Map;
+    expect((body['cash_amount'], body['orders_count'], body.containsKey('report_id')), ('19.250', 24, false));
+    expect(find.text('تم الإرسال'), findsOneWidget);
+  });
+
+  testWidgets('an approved report: a change is asked for with its reason, and waits for the office', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on('GET', '/api/v1/driver/reports', (r) => (200, [sentReport('a1', '2026-10-03', 'approved')]));
+    w.server.on('POST', '/api/v1/driver/reports/a1/change-request', (r) => (201, {'id': 'c1', 'status': 'pending'}));
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('daily-report')));
+    await settle(tester);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('report-2026-10-03')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(find.byKey(const Key('report-2026-10-03')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('report-2026-10-03')));
+    await settle(tester);
+    expect(find.byKey(const Key('change-intro')), findsOneWidget);
+    expect(
+      tester.widget<TextFormField>(find.byKey(const Key('cash'))).controller!.text,
+      '17.000',
+      reason: 'the approved cash',
+    );
+    await tester.enterText(find.byKey(const Key('orders')), '26');
+    await tester.ensureVisible(find.byKey(const Key('send-report')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/reports/a1/change-request'), isEmpty, reason: 'the reason is required');
+    await tester.ensureVisible(find.byKey(const Key('change-reason')));
+    await settle(tester);
+    await tester.enterText(find.byKey(const Key('change-reason')), 'طلبان لم يظهرا في اللقطة');
+    await shot(tester, '32-report-change-request');
+    await tester.ensureVisible(find.byKey(const Key('send-report')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/reports/a1/change-request').single.body) as Map;
+    expect((body['orders_count'], body['cash_amount'], body['reason']), (26, '17.000', 'طلبان لم يظهرا في اللقطة'));
+  });
+
   testWidgets('daily report on a platform that counts valid days: orders and the valid day, no cash', (tester) async {
     final w = (await tester.runAsync(() => world()))!;
     final img = await tester.runAsync(testImage);

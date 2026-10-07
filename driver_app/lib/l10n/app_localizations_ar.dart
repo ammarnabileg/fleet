@@ -316,6 +316,38 @@ class AppLocalizationsAr extends AppLocalizations {
   String get endReadingIntro => 'قبل إرسال تقرير اليوم: صورة عداد نهاية اليوم ورقمه. تُرسل القراءة أولاً ثم التقرير.';
 
   @override
+  String get status_returned => 'أُعيد للتصحيح';
+
+  @override
+  String get editReportTitle => 'تعديل التقرير';
+
+  @override
+  String get changeReportTitle => 'طلب تعديل تقرير معتمد';
+
+  @override
+  String get changeReportIntro => 'التقرير معتمد: يصل طلبك للمكتب، ويُعدَّل بعد الموافقة.';
+
+  @override
+  String get changeReason => 'سبب التعديل';
+
+  @override
+  String get newScreenshotOptional => 'لقطة جديدة (اختياري)';
+
+  @override
+  String get reportExistsForDay => 'أرسلت تقرير هذا اليوم بالفعل. عدّله بدلاً من إرسال تقرير ثانٍ.';
+
+  @override
+  String get editReport => 'تعديل التقرير';
+
+  @override
+  String get changePending => 'طلب تعديل بانتظار المكتب';
+
+  @override
+  String returnedNote(Object note) {
+    return 'أعاده المكتب للتصحيح: $note';
+  }
+
+  @override
   String get endDayTitle => 'نهاية اليوم';
 
   @override

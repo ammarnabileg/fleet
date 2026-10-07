@@ -227,6 +227,47 @@ def approve_collection(
         )
 
 
+def replace_collection(
+    db: Session, driver: people.EmployeeRef, *, report_id: int, amount: Decimal, business_date: date, device_id: int
+) -> None:
+    """The driver corrected his report's cash before review: the pending collection gives way to the new amount
+    (never posted, so nothing to reverse)."""
+    journal = _collection(db, report_id)
+    if journal is not None and not _decide(db, journal.id, "rejected", None):
+        raise AppError(409, "journal_decided")  # already posted: only an approved change may move it now
+    db.flush()
+    submit_collection(db, driver, report_id=report_id, amount=amount, business_date=business_date, device_id=device_id)
+
+
+def correct_approved(
+    db: Session,
+    driver: people.EmployeeRef,
+    *,
+    report_id: int,
+    difference: Decimal,
+    reason: str | None,
+    business_date: date,
+    actor_user_id: int,
+) -> None:
+    """A change to an approved report's cash, approved by the reviewer: the difference is posted as an adjustment
+    with the reason; the collection already posted stays as it was."""
+    if not difference:
+        return
+    drv = account(db, "driver", driver_id=driver.id)
+    cod = account(db, "cod_clearing", branch_id=driver.branch_id)
+    _journal(
+        db,
+        "adjustment",
+        source_type="daily_report",
+        source_id=report_id,
+        lines=[(drv, difference), (cod, -difference)],
+        actor_user_id=actor_user_id,
+        reason=reason,
+        post=True,
+        business_date=business_date,
+    )
+
+
 def reject_collection(db: Session, *, report_id: int, actor_user_id: int) -> None:
     journal = _collection(db, report_id)
     if journal is not None:

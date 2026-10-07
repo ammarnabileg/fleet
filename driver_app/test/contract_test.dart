@@ -228,6 +228,10 @@ void main() {
         (21, '17.250', true),
       );
       expect(state.reports.single.status, 'submitted');
+      // corrected before review (FR-DWR-06): the same report takes the new figures
+      expect(await state.changeReport(state.reports.single, orders: 22, cash: '17.500'), SendResult.sent);
+      final corrected = state.reports.single;
+      expect((corrected.orders, corrected.cash, corrected.status), (22, '17.500', 'submitted'));
 
       // ---- maintenance: a request for the vehicle held, with two camera photos; the office sees it with them
       final p1 = await jpeg('mnt1');
@@ -330,7 +334,7 @@ void main() {
 
       // ---- cash, then sign out: the phone forgets the session and the server refuses its tokens
       await state.loadCash();
-      expect(state.cash!.pending, '17.250');
+      expect(state.cash!.pending, '17.500'); // the corrected report's cash, not doubled
       final oldRefresh = (await db.get('refresh_token'))!;
       await state.signOut();
       expect(state.phase, Phase.signedOut);
