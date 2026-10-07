@@ -44,6 +44,7 @@ celery.conf.beat_schedule = {
     "position-partitions": {"task": "tracking.maintain_partitions", "schedule": crontab(hour=2, minute=10)},
     "document-expiry": {"task": "documents.scan_expiring", "schedule": crontab(hour=7, minute=0)},
     "daily-report-overdue": {"task": "daily_ops.scan_overdue", "schedule": crontab(minute=5)},
+    "daily-report-missing": {"task": "daily_ops.scan_missing", "schedule": crontab(hour=23, minute=30)},  # Kuwait
     "ledger-invariants": {"task": "cash.check_invariants", "schedule": crontab(hour=2, minute=0)},
     "police-reports": {"task": "accidents.scan_police_reports", "schedule": crontab(hour=9, minute=15)},
     "finance-entries": {"task": "finance.post_entries", "schedule": crontab(hour=3, minute=30)},

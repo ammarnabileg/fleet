@@ -49,7 +49,7 @@ MODULES: list[tuple[str, list[Permission]]] = [
     ("odometer", _module("odometer", "view", "review")),
     ("tracking", _module("tracking", "live", "history", "export")),
     ("devices", _module("devices", "manage")),
-    ("daily_reports", _module("daily_reports", "view", "review", "export")),
+    ("daily_reports", _module("daily_reports", "view", "review", "export", "escalations")),
     (
         "cash",
         _module(

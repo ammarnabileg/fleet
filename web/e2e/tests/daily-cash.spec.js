@@ -33,6 +33,7 @@ test('daily report: corrected and approved, another refused, then the cash colle
   let rows = await reports(0);
   await expect(rows).toHaveCount(1);
   await expect(rows).toContainText('18.500');
+  await expect(rows).not.toContainText('متأخر'); // sent on its own day
   await rows.click();
   const r1 = top();
   await expect(r1).toContainText('23');
@@ -46,8 +47,10 @@ test('daily report: corrected and approved, another refused, then the cash colle
   // ---- yesterday's refused: a reason is required
   rows = await reports(1);
   await expect(rows).toContainText('40.000');
+  await expect(rows).toContainText('متأخر'); // sent the day after (BRD BR-04)
   await rows.click();
   const r2 = top();
+  await expect(r2).toContainText('متأخر — بعد يومه');
   await r2.getByRole('button', { name: 'رفض', exact: true }).click();
   await expect(r2).toBeVisible(); // no reason: still open
   await r2.locator('[name=reason]').fill('اللقطة لا تخص هذا اليوم');

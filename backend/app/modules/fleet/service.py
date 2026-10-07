@@ -358,15 +358,16 @@ def _add_reading(
     db.flush()
     db.refresh(reading)
     if flags:
-        driver = (
-            people.names(db, [reading.driver_id]).get(reading.driver_id, {}).get("name", "")
-            if reading.driver_id
-            else ""
-        )
+        names = people.names(db, {reading.driver_id, previous.driver_id if previous else None} - {None})
+        driver = names.get(reading.driver_id, {}).get("name", "") if reading.driver_id else ""
+        handed = names.get(previous.driver_id, {}).get("name", "") if previous and previous.driver_id else ""
         base = {"plate": vehicle.plate_number, "driver": driver, "value": value_km, "previous": previous_km}
         alert = {
             "lower_than_previous": ("odometer_lower", base),
-            "off_duty_km": ("odometer_off_duty", base | {"km": value_km - (previous_km or 0)}),
+            "off_duty_km": (  # both drivers named: who ended or handed it, who started or took it (BRD TRK-13)
+                "odometer_off_duty",
+                base | {"km": value_km - (previous_km or 0), "from_driver": handed or "—", "to_driver": driver or "—"},
+            ),
             "daily_limit": (
                 "odometer_daily_limit",
                 base | {"km": value_km - (previous_km or 0), "limit": settings.daily_km_alert},
@@ -1153,3 +1154,16 @@ def start_days(db: Session, employee_ids: Iterable[int], first, last) -> dict[in
     for driver_id, day in db.execute(q):
         out[driver_id].add(day)
     return out
+
+
+def drivers_started(db: Session, day) -> set[int]:
+    """The drivers who started that business day (a start-of-day reading): they owe that day's report."""
+    return set(
+        db.scalars(
+            select(OdometerReading.driver_id).where(
+                OdometerReading.kind == "start_day",
+                OdometerReading.business_date == day,
+                OdometerReading.driver_id.is_not(None),
+            )
+        )
+    )

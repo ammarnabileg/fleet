@@ -89,7 +89,8 @@
     "vehicles.update": "تعديل السيارات",
     "vehicles.view": "عرض السيارات",
     "employees.onboarding": "مراجعة واعتماد التسجيل الذاتي للسائقين",
-    "payroll.schemes": "أنظمة الدفع وطلبات تغييرها"
+    "payroll.schemes": "أنظمة الدفع وطلبات تغييرها",
+    "daily_reports.escalations": "تصعيد التقارير المتأخرة (للمدير)"
   },
   "modules": {
     "accidents": "الحوادث",
@@ -515,7 +516,7 @@
     "odometer_daily_limit": "{plate} قطعت {km} كم، أكثر من الحد اليومي {limit} كم",
     "odometer_higher_than_next": "قراءة عداد {plate} ({value}) وصلت متأخرة وهي أعلى من القراءة التي بعدها ({next})",
     "odometer_lower": "قراءة عداد {plate} ({value}) أقل من السابقة ({previous})",
-    "odometer_off_duty": "{plate} قطعت {km} كم خارج العهدة",
+    "odometer_off_duty": "{plate}: قُطعت {km} كم خارج العمل بين نهاية {from_driver} وبداية {to_driver}",
     "odometer_photo_reused": "صورة عداد {plate} مستخدمة من قبل ({driver})",
     "onboarding_submitted": "{driver} أرسل بياناته ومستنداته للمراجعة",
     "otp_delivery_failed": "لم يصل رمز الدخول إلى {driver} عبر واتساب: تحقق من قناة الرسائل",
@@ -526,7 +527,9 @@
     "accident_estimate_submitted": "{center} أرسل تقدير أضرار الحادث {number} ({plate}): {amount}",
     "accident_awaiting_police_report": "الحادث {number} ({plate}) بدون محضر شرطة منذ {days} يوم",
     "fine_no_driver": "المخالفة {number} على السيارة {plate} في {at}: لم تكن مسلّمة لأي سائق في ذلك الوقت",
-    "approval_escalated": "اعتماد {ref} انتظر أكثر من {hours} ساعة: صار متاحًا لدور التصعيد"
+    "approval_escalated": "اعتماد {ref} انتظر أكثر من {hours} ساعة: صار متاحًا لدور التصعيد",
+    "daily_report_escalated": "تقرير {driver} ليوم {date} لم يُراجع خلال {hours} ساعة: مُصعّد للإدارة",
+    "daily_report_missing": "{driver} بدأ يومه {date} ولم يرسل تقريره"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
@@ -1146,6 +1149,7 @@
     "document_expiring": "{document} ينتهي في {date} (بعد {days} يوماً). جدّده وسلّم النسخة للمكتب.",
     "document_expired": "{document} انتهى في {date}. جدّده فوراً وسلّم النسخة للمكتب.",
     "scheme_request_approved": "اعتُمد طلبك: نظام الدفع {scheme} من شهر {month}.",
-    "scheme_request_rejected": "رُفض طلب تغيير نظام الدفع إلى {scheme}: {reason}"
+    "scheme_request_rejected": "رُفض طلب تغيير نظام الدفع إلى {scheme}: {reason}",
+    "report_missing": "بدأت يومك {date} ولم ترسل تقريرك بعد. أرسله الآن من التطبيق."
   }
 }

@@ -89,7 +89,8 @@
     "vehicles.update": "Edit vehicles",
     "vehicles.view": "View vehicles",
     "employees.onboarding": "Review and approve drivers' self-registration",
-    "payroll.schemes": "Pay schemes and requests to change them"
+    "payroll.schemes": "Pay schemes and requests to change them",
+    "daily_reports.escalations": "Overdue report escalations (manager)"
   },
   "modules": {
     "accidents": "Accidents",
@@ -515,7 +516,7 @@
     "odometer_daily_limit": "{plate} drove {km} km, more than the daily limit of {limit} km",
     "odometer_higher_than_next": "Odometer of {plate} ({value}) arrived late and is higher than the reading after it ({next})",
     "odometer_lower": "Odometer of {plate} ({value}) is lower than the previous reading ({previous})",
-    "odometer_off_duty": "{plate} drove {km} km while not in custody",
+    "odometer_off_duty": "{plate}: {km} km driven off duty between the end of {from_driver} and the start of {to_driver}",
     "odometer_photo_reused": "The odometer photo of {plate} was used before ({driver})",
     "onboarding_submitted": "{driver} sent his data and documents for review",
     "otp_delivery_failed": "The sign-in code did not reach {driver} over WhatsApp: check the messaging channel",
@@ -526,7 +527,9 @@
     "accident_estimate_submitted": "{center} sent the damage estimate for accident {number} ({plate}): {amount}",
     "accident_awaiting_police_report": "Accident {number} ({plate}) has no police report after {days} days",
     "fine_no_driver": "Fine {number} on vehicle {plate} at {at}: nobody held the vehicle at that time",
-    "approval_escalated": "The approval of {ref} has waited more than {hours} hours: it is now open to the escalation role"
+    "approval_escalated": "The approval of {ref} has waited more than {hours} hours: it is now open to the escalation role",
+    "daily_report_escalated": "{driver}'s report for {date} was not reviewed within {hours} hours: escalated to management",
+    "daily_report_missing": "{driver} started the day {date} but sent no report"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -1146,6 +1149,7 @@
     "document_expiring": "Your {document} expires on {date} (in {days} days). Renew it and give the copy to the office.",
     "document_expired": "Your {document} expired on {date}. Renew it now and give the copy to the office.",
     "scheme_request_approved": "Your request was approved: pay scheme {scheme} from {month}.",
-    "scheme_request_rejected": "Your request to change to pay scheme {scheme} was refused: {reason}"
+    "scheme_request_rejected": "Your request to change to pay scheme {scheme} was refused: {reason}",
+    "report_missing": "You started your day {date} but have not sent your report yet. Send it now from the app."
   }
 }

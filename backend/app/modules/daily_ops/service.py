@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.clock import today, utcnow
+from app.core.clock import business_date, today, utcnow
 from app.core.db import violated_constraint
 from app.core.errors import AppError
 from app.core.events import emit
@@ -32,6 +32,7 @@ MAX_DAYS_BACK = 2  # yesterday's report sent this morning is normal; older ones 
 
 def _out(r: Report, names: dict | None = None, plates: dict | None = None) -> dict:
     return {
+        "late": business_date(r.submitted_at) > r.business_date,  # sent after its own day (BRD BR-04)
         "id": str(r.public_id),
         "driver": (names or {}).get(r.employee_id),
         "company_id": r.company_id,
@@ -108,6 +109,7 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
         raise
     db.refresh(report)
     cash.submit_collection(db, driver, report_id=report.id, amount=amount, business_date=day, device_id=device_id)
+    notifications.resolve(db, f"daily_report_missing:{employee_id}:{day}")  # sent after all
     cash.check_balance_alert(db, driver)
     approvals.submitted(db, "daily_report", **_approval(report, driver.name))
     audit.record(
@@ -224,6 +226,7 @@ def approve(
             entity_id=report.public_id,
         )
     notifications.resolve(db, f"daily_report_overdue:{report.id}")
+    notifications.resolve(db, f"daily_report_escalated:{report.id}")
     cash.check_balance_alert(db, driver)
     audit.record(
         db,
@@ -271,6 +274,7 @@ def reject(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
         entity_id=report.public_id,
     )
     notifications.resolve(db, f"daily_report_overdue:{report.id}")
+    notifications.resolve(db, f"daily_report_escalated:{report.id}")
     cash.check_balance_alert(db, driver)
     audit.record(
         db,
@@ -285,8 +289,34 @@ def reject(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
     return _many(db, [report])[0]
 
 
+def scan_missing(db: Session, day=None) -> int:
+    """At the end of the day: the drivers who started it and sent no report are named to the supervisors, and the
+    driver is reminded in the app (BRD FR-DWR-07). Sending it closes the alert."""
+    day = day or today()
+    started = fleet.drivers_started(db, day)
+    sent = set(db.scalars(select(Report.employee_id).where(Report.business_date == day)))
+    raised = 0
+    for employee_id in sorted(started - sent):
+        driver = people.ref(db, employee_id)
+        raised += notifications.raise_alert(
+            db,
+            "daily_report_missing",
+            company_id=driver.company_id,
+            entity_type="employee",
+            entity_id=driver.public_id,
+            params={"driver": driver.name, "date": day.isoformat()},
+            dedupe_key=f"daily_report_missing:{employee_id}:{day}",
+        )
+        notifications.notify_driver(
+            db, employee_id, "report_missing", params={"date": day.isoformat()}, dedupe_key=f"report_missing:{day}"
+        )
+    db.commit()
+    return raised
+
+
 def scan_overdue(db: Session) -> int:
-    """Hourly: a report waiting longer than the review limit alerts the reviewers (escalation, spec 13)."""
+    """Hourly: a report waiting longer than the review limit alerts the reviewers, and is escalated to the manager
+    (BRD BR-05, spec 13)."""
     hours = org.get_section(db, "cash").report_review_hours
     late = db.scalars(
         select(Report).where(Report.status == "submitted", Report.submitted_at < utcnow() - timedelta(hours=hours))
@@ -302,6 +332,15 @@ def scan_overdue(db: Session) -> int:
             entity_id=report.public_id,
             params={"driver": driver.name, "date": report.business_date.isoformat(), "hours": hours},
             dedupe_key=f"daily_report_overdue:{report.id}",
+        )
+        notifications.raise_alert(
+            db,
+            "daily_report_escalated",
+            company_id=report.company_id,
+            entity_type="daily_report",
+            entity_id=report.public_id,
+            params={"driver": driver.name, "date": report.business_date.isoformat(), "hours": hours},
+            dedupe_key=f"daily_report_escalated:{report.id}",
         )
     db.commit()
     return raised

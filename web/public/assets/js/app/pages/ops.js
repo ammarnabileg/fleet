@@ -39,7 +39,7 @@
         { key: 'valid_day', label: 'حسب المنصة', render: function (r) { return r.valid_day == null ? '—' : r.valid_day ? BT.pill('صالح', 'g') : BT.pill('غير صالح', 'n'); } },
         { key: 'cash', label: 'الكاش', num: true, render: function (r) { return h`${amt(r.cash_amount)}${r.approved_cash != null && Number(r.approved_cash) !== Number(r.cash_amount) ? h`<span class="sub">المعتمد ${fmt.money(r.approved_cash)}</span>` : ''}`; } },
         { key: 'shot', label: 'اللقطة', render: function (r) { return r.has_screenshot ? icon('image', 16, 't-success') : raw('<span class="muted">—</span>'); } },
-        { key: 'status', label: 'الحالة', render: function (r) { return A.pill('report_status', r.status); } },
+        { key: 'status', label: 'الحالة', render: function (r) { return h`${A.pill('report_status', r.status)}${r.late ? h` ${BT.pill('متأخر', 'o')}` : ''}`; } },
         { key: 'submitted_at', label: 'أُرسل', render: function (r) { return fmt.dt(r.submitted_at); } }
       ],
       rowClick: function (r) { A.report(r, t.refresh); },
@@ -66,7 +66,7 @@
     var canReview = r.status === 'submitted' && api.can('daily_reports.review');
     var body = h`<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
       <div>${r.has_screenshot ? A.thumbs([{ src: api.url('/daily-reports/' + r.id + '/screenshot'), caption: 'لقطة تطبيق الطلبات' }]) : BT.empty('image', 'بدون لقطة شاشة', '')}</div>
-      <div>${BT.kv([['السائق', A.person(r.driver)], ['السيارة', r.vehicle_plate ? BT.plate(r.vehicle_plate) : '—'], ['يوم العمل', h`<span class="num">${fmt.date(r.business_date)}</span>`], ['الطلبات', r.orders_count != null ? h`<span class="num">${fmt.int(r.orders_count)}</span>` : '—'], r.valid_day != null ? ['اليوم حسب تطبيق المنصة', r.valid_day ? BT.pill('صالح', 'g') : BT.pill('غير صالح', 'n')] : null, ['الكاش المُبلّغ', amt(r.cash_amount)], r.approved_cash != null ? ['الكاش المعتمد', amt(r.approved_cash)] : null, ['الحالة', A.pill('report_status', r.status)], ['أُرسل', fmt.dt(r.submitted_at)], r.notes ? ['ملاحظات السائق', r.notes] : null, r.review_note ? ['ملاحظة المراجعة', r.review_note] : null].filter(Boolean))}</div></div>
+      <div>${BT.kv([['السائق', A.person(r.driver)], ['السيارة', r.vehicle_plate ? BT.plate(r.vehicle_plate) : '—'], ['يوم العمل', h`<span class="num">${fmt.date(r.business_date)}</span>`], ['الطلبات', r.orders_count != null ? h`<span class="num">${fmt.int(r.orders_count)}</span>` : '—'], r.valid_day != null ? ['اليوم حسب تطبيق المنصة', r.valid_day ? BT.pill('صالح', 'g') : BT.pill('غير صالح', 'n')] : null, ['الكاش المُبلّغ', amt(r.cash_amount)], r.approved_cash != null ? ['الكاش المعتمد', amt(r.approved_cash)] : null, ['الحالة', A.pill('report_status', r.status)], ['أُرسل', h`${fmt.dt(r.submitted_at)}${r.late ? h` ${BT.pill('متأخر — بعد يومه', 'o')}` : ''}`], r.notes ? ['ملاحظات السائق', r.notes] : null, r.review_note ? ['ملاحظة المراجعة', r.review_note] : null].filter(Boolean))}</div></div>
       ${canReview ? h`<div class="form mt-16">${BT.f.money({ name: 'cash_amount', label: 'الكاش الصحيح (اختياري)', hint: 'اتركه فارغاً لاعتماد المبلغ كما أرسله السائق' })}${BT.f.textarea({ name: 'reason', label: 'السبب (إلزامي عند التصحيح أو الرفض)', rows: 2 })}</div>` : ''}`;
     if (!canReview) return BT.drawer.open({ title: 'تقرير يومي', icon: 'clipboard-list', size: 'lg', body: body, buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] });
     var dlg = BT.drawer.open({

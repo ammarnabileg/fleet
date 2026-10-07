@@ -278,7 +278,8 @@ def test_manual_adjustment_and_review_overdue(admin_client, client, driver, db):
     db.execute(text("UPDATE daily_ops.reports SET submitted_at = now() - interval '25 hours'"))
     db.commit()
     assert daily.scan_overdue(db) == 1 and daily.scan_overdue(db) == 0
-    assert [a["kind"] for a in admin_client.get("/api/v1/alerts").json()] == ["daily_report_overdue"]
+    kinds = sorted(a["kind"] for a in admin_client.get("/api/v1/alerts").json())
+    assert kinds == ["daily_report_escalated", "daily_report_overdue"]  # the reviewer and, above, the manager
     rid = admin_client.get("/api/v1/daily-reports").json()[0]["id"]
     approve(admin_client, rid)
     assert admin_client.get("/api/v1/alerts").json() == []

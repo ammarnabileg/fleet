@@ -31,6 +31,7 @@ class PersonRef(BaseModel):
 
 class ReportOut(BaseModel):
     id: str
+    late: bool  # sent after its own day
     driver: PersonRef | None
     company_id: int
     vehicle_plate: str | None
