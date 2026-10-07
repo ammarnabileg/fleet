@@ -322,13 +322,14 @@ def kilometers_report(
     date_from: date,
     date_to: date,
     format: Format = "json",
-    section: Literal["vehicles", "drivers", "pending"] = "vehicles",
+    section: Literal["vehicles", "drivers", "days", "pending"] = "vehicles",
     p: filters.FilterParams = Depends(filters.params),
     accept_language: Annotated[str | None, Header()] = None,
     principal: Principal = Depends(require_permission("reports.view")),
     db: Session = Depends(get_session),
 ):
-    """By vehicle and driver, off duty, the readings waiting for review, the odometer against the GPS (FR-RPT-03)."""
+    """By vehicle, driver and day, off duty, the readings waiting for review, the odometer against the GPS
+    (FR-RPT-03; one vehicle's days are its daily use, FR-VEH-04)."""
     _needs(principal, "odometer.view")
     scope, f = _scope(db, principal, p)
     data = kilometers.kilometers_report(db, date_from=date_from, date_to=date_to, filters=f, **scope)
@@ -366,6 +367,21 @@ def kilometers_report(
                 _tenths(r["difference_percent"]),
             ]
             for r in data["by_vehicle"]
+        ]
+    elif section == "days":
+        header = ["day", "km", "on_duty", "off_duty", "unattended", "center", "with_driver", "gps"]
+        rows = [
+            [
+                str(r["day"]),
+                r["km"],
+                r["on_duty"],
+                r["off_duty"],
+                r["unattended"],
+                r["center"],
+                r["with_driver"],
+                _tenths(r["gps"]),
+            ]
+            for r in data["by_day"]
         ]
     elif section == "drivers":
         header = ["driver", "days", "on_duty", "off_duty", "gps", "km_per_day"]

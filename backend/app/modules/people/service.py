@@ -176,6 +176,16 @@ def _scoped(q, all_companies: bool, company_ids: Iterable[int]):
     return q if all_companies else q.where(Employee.company_id.in_(list(company_ids)))
 
 
+def facets(db: Session, *, all_companies: bool, company_ids: Iterable[int]) -> dict:
+    """The departments and job titles in use, for the list's filters (BRD FR-HR-03)."""
+
+    def distinct(column):
+        q = _scoped(select(column).where(column.is_not(None), column != "").distinct(), all_companies, company_ids)
+        return sorted(db.scalars(q))
+
+    return {"departments": distinct(Employee.department), "job_titles": distinct(Employee.job_title)}
+
+
 def _get(db: Session, public_id, *, all_companies: bool, company_ids: Iterable[int], lock: bool = False) -> Employee:
     q = _scoped(select(Employee).where(Employee.public_id == public_id), all_companies, company_ids)
     employee = db.scalar(q.with_for_update() if lock else q)
@@ -221,6 +231,11 @@ def list_employees(
     is_driver: bool | None = None,
     platform_id: int | None = None,
     no_phone: bool = False,
+    branch_id: int | None = None,
+    department: str | None = None,
+    job_title: str | None = None,
+    only_ids: Iterable[int] | None = None,
+    except_ids: Iterable[int] | None = None,
     q: str | None = None,
     limit: int = 50,
     offset: int = 0,
@@ -244,6 +259,16 @@ def list_employees(
         query = query.where(Employee.platform_id == platform_id)
     if no_phone:  # imported drivers still waiting for a phone (no app, no activation link)
         query = query.where(Employee.phone.is_(None))
+    if branch_id is not None:
+        query = query.where(Employee.branch_id == branch_id)
+    if department:
+        query = query.where(Employee.department == department)
+    if job_title:
+        query = query.where(Employee.job_title == job_title)
+    if only_ids is not None:  # e.g. the drivers holding a vehicle
+        query = query.where(Employee.id.in_(list(only_ids)))
+    if except_ids:
+        query = query.where(Employee.id.not_in(list(except_ids)))
     if q:
         pattern = like_pattern(q.strip())
         query = query.where(

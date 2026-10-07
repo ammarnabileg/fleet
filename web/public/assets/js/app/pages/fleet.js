@@ -107,8 +107,12 @@
         ${api.can('accidents.view') ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('shield-alert', 16)} الحوادث</div><a class="link-row" href="#/accidents">صفحة الحوادث ${icon('arrow-left', 14)}</a></div><div id="veh-acc"></div></div>` : ''}
         ${api.can('fines.view') ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('file-warning', 16)} المخالفات المرورية</div><a class="link-row" href="#/fines">صفحة المخالفات ${icon('arrow-left', 14)}</a></div><div id="veh-fines"></div></div>` : ''}
         ${api.can('finance.view') ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('receipt', 16)} المصروفات</div><a class="link-row" href="#/finance">صفحة المالية ${icon('arrow-left', 14)}</a></div><div id="veh-expenses"></div></div>` : ''}
-        ${docs ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('file-badge', 16)} مستندات السيارة</div></div><div id="veh-docs">${vehDocs(docs)}</div></div>` : ''}`;
+        ${docs ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('file-badge', 16)} مستندات السيارة</div></div><div id="veh-docs">${vehDocs(docs)}</div></div>` : ''}
+        ${api.can('reports.view') && api.can('odometer.view') ? h`<div class="card mt-16" data-veh-usage><div class="card-h"><div><div class="card-t">${icon('chart-column', 16)} الاستخدام اليومي — آخر 30 يوماً</div><div class="card-meta">كيلومترات العداد مع سائق في كل يوم، كما يحسبها تقرير الكيلومترات</div></div><button type="button" class="btn btn-sm btn-outline ms-auto" data-usage-table>${icon('table-2', 14)} جدول</button></div><div id="veh-usage"></div></div>` : ''}
+        ${api.can('audit.view') ? h`<div class="card mt-16" data-veh-audit><div class="card-h"><div class="card-t">${icon('shield-check', 16)} سجل التعديلات</div><a class="link-row" href="#/audit">سجل التدقيق ${icon('arrow-left', 14)}</a></div><div id="veh-audit"></div></div>` : ''}`;
       function wire(x) {
+        if (document.getElementById('veh-usage')) vehicleUsage(document.getElementById('veh-usage'), x);
+        if (document.getElementById('veh-audit')) vehicleAudit(document.getElementById('veh-audit'), x);
         if (document.getElementById('veh-mnt') && A.vehicleMaintenance) A.vehicleMaintenance(document.getElementById('veh-mnt'), x);
         if (document.getElementById('veh-acc') && A.vehicleAccidents) A.vehicleAccidents(document.getElementById('veh-acc'), x);
         if (document.getElementById('veh-fines') && A.vehicleFines) A.vehicleFines(document.getElementById('veh-fines'), x);
@@ -124,6 +128,42 @@
       }
     }).catch(function () {});
   };
+  /* FR-VEH-04: the vehicle's days over the last 30, from the kilometers report filtered to it (the same counting) */
+  function vehicleUsage(el, x) {
+    var to = BT.date.today(), from = BT.date.add(to, -29);
+    var fleetUse = api.can('vehicles.view') ? api.get('/reports/fleet', { date_from: from, date_to: to, vehicle_id: x.id }).then(function (r) { return r.by_vehicle[0] || null; }, function () { return null; }) : Promise.resolve(null);
+    A.load(el, Promise.all([api.get('/reports/kilometers', { date_from: from, date_to: to, vehicle_id: x.id }), fleetUse]), function (r) {
+      var days = r[0].by_day, use = r[1];
+      var total = days.reduce(function (s, d) { return s + d.with_driver; }, 0), driven = days.filter(function (d) { return d.with_driver > 0; }).length;
+      var gps = days.reduce(function (s, d) { return s + Number(d.gps); }, 0);
+      setTimeout(function () {
+        var chart = el.querySelector('[data-usage-chart]');
+        if (chart) BT.chart.bars(chart, { name: 'كيلومترات كل يوم', labels: days.map(function (d) { return fmt.dm(d.day); }), values: days.map(function (d) { return d.with_driver; }), format: fmt.int, unitLabel: 'كم', height: 200 });
+        var b = el.closest('[data-veh-usage]').querySelector('[data-usage-table]');
+        if (b) b.onclick = function () {
+          BT.modal.open({ title: 'الاستخدام اليومي: ' + x.plate_number, icon: 'table-2', size: 'lg', buttons: [{ label: 'إغلاق', cls: 'btn-primary' }],
+            body: BT.chart.table(['اليوم', 'مع سائق', 'منه خارج العمل', 'بلا سائق', 'في المركز', 'GPS'], days.slice().reverse().map(function (d) { return [BT.date.dayName(d.day) + ' ' + fmt.date(d.day), fmt.int(d.with_driver), fmt.int(d.off_duty), fmt.int(d.unattended), fmt.int(d.center), fmt.int(Number(d.gps))]; })) });
+        };
+      });
+      return h`<div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+          ${BT.kpi({ label: 'كم مع سائق', value: fmt.int(total), sub: 'في 30 يوماً', dot: 'b' })}
+          ${BT.kpi({ label: 'أيام قيدت فيها', value: fmt.int(driven), sub: driven ? 'بمتوسط ' + fmt.int(total / driven) + ' كم لليوم' : 'لم تتحرك مع سائق', dot: 'g' })}
+          ${BT.kpi({ label: 'أيام في العهدة', value: use ? fmt.int(use.days_held) : '—', sub: use && use.use_percent != null ? 'نسبة الاستخدام ' + use.use_percent + '%' : 'خارج الخدمة', dot: 'o' })}
+          ${BT.kpi({ label: 'كم بحسب GPS', value: fmt.int(gps), sub: 'خطوط مستقيمة بين نقاط الهاتف', dot: 'n' })}
+        </div><div data-usage-chart></div>`;
+    }).catch(function () {});
+  }
+
+  /* FR-VEH-04: who changed the vehicle's record, when and why; each opens in full */
+  function vehicleAudit(el, x) {
+    A.load(el, api.get('/audit', { entity_type: 'vehicle', entity_id: x.id, limit: 20 }), function (events) {
+      setTimeout(function () {
+        BT.on(el, 'click', '[data-event]', function (e, b) { A.auditEvent(events[+b.getAttribute('data-event')]); });
+      });
+      return events.length ? h`<div class="list">${events.map(function (e, i) { return h`<button type="button" class="li" data-event="${i}" style="width:100%;text-align:start"><span class="li-ic">${icon('history', 16)}</span><div class="li-main"><div class="li-t"><span class="ltr fs-sm">${e.action}</span>${e.comment ? h` <span class="muted fs-sm">— ${e.comment}</span>` : ''}</div><div class="li-d">${A.auditActor(e)} · <span class="num">${fmt.dt(e.occurred_at)}</span></div></div></button>`; })}</div>` : BT.empty('shield-check', 'لا تعديلات مسجلة', '');
+    }).catch(function () {});
+  }
+
   function vehDocs(docs) {
     return h`${docs.length ? h`<div class="list">${docs.map(function (d) { var n = d.expiry_date ? BT.date.daysLeft(d.expiry_date) : null; return h`<div class="li"><span class="li-ic">${icon('file-badge', 16)}</span><div class="li-main"><div class="li-t">${A.docTypeName(d.type_code)} ${d.number ? h`<span class="num muted fs-sm">${d.number}</span>` : ''}</div><div class="li-d">${d.expiry_date ? h`ينتهي <span class="num">${fmt.date(d.expiry_date)}</span>` : 'بلا تاريخ انتهاء'}</div></div>${d.has_file ? h`<a class="btn btn-sm btn-ghost" href="${api.url('/documents/' + d.id + '/file')}" target="_blank" rel="noopener">${icon('eye', 14)} عرض</a>` : ''}${n != null && n <= 30 ? BT.pill(fmt.daysLabel(n), n < 0 ? 'r' : 'o') : ''}</div>`; })}</div>` : BT.empty('file-badge', 'لا توجد مستندات', '')}
       ${api.can('documents.manage') ? h`<div class="mt-12"><button type="button" class="btn btn-sm btn-soft" data-doc-add>${icon('file-plus', 14)} إضافة أو تجديد مستند</button></div>` : ''}`;

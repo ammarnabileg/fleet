@@ -134,6 +134,22 @@ def test_kilometers_by_vehicle_and_driver_off_duty_and_against_the_gps(admin_cli
     assert rep["pending_count"] == 1 and rep["pending"][0]["value_km"] == 19_000
     assert rep["totals"]["km"] == 640 and rep["totals"]["gps"] == "27.8"
 
+    # each day, a stretch on the day of its second reading (the vehicle's daily use, FR-VEH-04): the first day's
+    # 10 + 200; the second's 30 off duty and 200; the third's 10 to the return, 20 with nobody, 130 and 10 to the
+    # center (the typo left out); the fourth's 30 at the center; nothing today
+    assert [d["day"] for d in rep["by_day"]] == [str(h["day0"] + timedelta(days=i)) for i in range(5)]
+    assert [(d["km"], d["on_duty"], d["off_duty"], d["unattended"], d["center"], d["gps"]) for d in rep["by_day"]] == [
+        (210, 210, 0, 0, 0, "22.2"),
+        (230, 200, 30, 0, 0, "0.0"),
+        (170, 150, 0, 20, 0, "5.6"),
+        (30, 0, 0, 0, 30, "0.0"),
+        (0, 0, 0, 0, 0, "0.0"),
+    ]
+    assert [d["with_driver"] for d in rep["by_day"]] == [210, 230, 150, 0, 0]  # on and off duty, nobody's apart
+    csv = admin_client.get(f"{R}/kilometers", params=params | {"format": "csv", "section": "days"})
+    lines = csv.content.decode("utf-8").lstrip("\ufeff").splitlines()
+    assert lines[0].startswith("day,km,on_duty") and lines[1] == f"{h['day0']},210,210,0,0,0,210,22.2"
+
     # the reviewer corrects the typo: its corrected value counts (10 then 120 km instead of nothing)
     typo = admin_client.get("/api/v1/odometer/readings", params={"review_status": "pending"}).json()[0]
     r = admin_client.post(

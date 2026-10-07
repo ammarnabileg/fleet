@@ -166,6 +166,17 @@ class KmDriver(BaseModel):
     km_per_day: Decimal | None
 
 
+class KmDay(BaseModel):
+    day: date
+    km: int
+    on_duty: int
+    off_duty: int
+    unattended: int
+    center: int
+    with_driver: int
+    gps: Decimal
+
+
 class PendingReading(BaseModel):
     id: str
     vehicle: dict | None
@@ -185,6 +196,7 @@ class KilometersReport(BaseModel):
     totals: dict
     by_vehicle: list[KmVehicle]
     by_driver: list[KmDriver]
+    by_day: list[KmDay]
     pending: list[PendingReading]
     pending_count: int
 

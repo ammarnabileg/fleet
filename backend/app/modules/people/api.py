@@ -40,6 +40,14 @@ def update_status(
     return service.update_status(db, code, body.model_dump(exclude_unset=True), actor_user_id=principal.user_id)
 
 
+@router.get("/employees/facets", response_model=schemas.EmployeeFacetsOut)
+def employee_facets(
+    principal: Principal = Depends(require_permission("employees.view")), db: Session = Depends(get_session)
+):
+    """The departments and job titles in use, for the list's filters."""
+    return service.facets(db, **principal.scope)
+
+
 @router.get("/employees", response_model=list[schemas.EmployeeOut])
 def list_employees(
     company_id: int | None = None,
@@ -47,12 +55,18 @@ def list_employees(
     is_driver: bool | None = None,
     platform_id: int | None = None,
     no_phone: bool = False,
+    branch_id: int | None = None,
+    department: Annotated[str | None, Query(max_length=100)] = None,
+    job_title: Annotated[str | None, Query(max_length=100)] = None,
+    has_vehicle: bool | None = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     principal: Principal = Depends(require_permission("employees.view")),
     db: Session = Depends(get_session),
 ):
+    # with a vehicle = in an open custody now (BRD FR-HR-03)
+    holders = None if has_vehicle is None else {c.driver_id for c in fleet.open_custodies(db)}
     return service.list_employees(
         db,
         show_salary=principal.has(SALARY),
@@ -61,6 +75,11 @@ def list_employees(
         is_driver=is_driver,
         platform_id=platform_id,
         no_phone=no_phone,
+        branch_id=branch_id,
+        department=department,
+        job_title=job_title,
+        only_ids=holders if has_vehicle else None,
+        except_ids=holders if has_vehicle is False else None,
         q=q,
         limit=limit,
         offset=offset,

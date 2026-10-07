@@ -517,11 +517,19 @@
 
   /* ================= سجل التدقيق ================= */
   /* البحث بمن قام بالإجراء ونوع السجل والفترة (أيام الكويت) والإجراء، والتصدير Excel أو CSV بنفس الفلاتر (FR-AUD-03) */
+  function entity(code) { var t = api.t('audit_entity', code); return t && t.indexOf('audit_entity.') !== 0 ? t : code; }
+  function actor(e) { return e.actor_type === 'user' ? (e.actor_name || '#' + e.actor_user_id) : api.t('audit_actor', e.actor_type); }
+  A.auditActor = actor;
+  /* one event in full: who, from where, with what comment, and the record before and after (also from a record's own file) */
+  A.auditEvent = function (e) {
+    var pre = function (o) { return o == null ? raw('<span class="muted">—</span>') : h`<pre class="ltr fs-sm" style="white-space:pre-wrap;word-break:break-word;background:var(--surface-2);padding:10px;border-radius:8px;max-height:320px;overflow:auto">${JSON.stringify(o, null, 2)}</pre>`; };
+    return BT.drawer.open({ title: e.action, subtitle: fmt.dt(e.occurred_at), icon: 'shield-check', size: 'lg', buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }],
+      body: h`${BT.kv([['السجل', h`${entity(e.entity_type)} <span class="ltr fs-sm">${e.entity_id || ''}</span>`], ['بواسطة', actor(e)], ['التعليق', e.comment || '—'], ['العنوان', e.ip || '—'], ['الجهاز', e.device ? h`<span class="ltr fs-sm" data-device>${e.device}</span>` : '—'], ['رقم الطلب', e.request_id ? h`<span class="ltr fs-sm">${e.request_id}</span>` : '—']])}<div class="section-t mt-16">قبل</div>${pre(e.before)}<div class="section-t mt-16">بعد</div>${pre(e.after)}` });
+  };
+
   BT.pages['audit'] = function () {
     A.setTitle('سجل التدقيق');
     var v = A.view(), filters = { actor_id: '', entity_type: '', action: '', date_from: '', date_to: '' }, cursors = [null];
-    function entity(code) { var t = api.t('audit_entity', code); return t && t.indexOf('audit_entity.') !== 0 ? t : code; }
-    function actor(e) { return e.actor_type === 'user' ? (e.actor_name || '#' + e.actor_user_id) : api.t('audit_actor', e.actor_type); }
     function query() { var q = {}; Object.keys(filters).forEach(function (k) { if (filters[k]) q[k] = filters[k]; }); return q; }
     BT.render(v, h`${A.head('سجل التدقيق', 'من غيّر ماذا ومتى ومن أي عنوان: لا يُعدَّل ولا يُحذف', api.can('audit.export') ? h`<div class="btn-group">
         <button type="button" class="btn btn-outline" data-audit-export="xlsx">${icon('file-spreadsheet', 16)} Excel</button>
@@ -553,11 +561,7 @@
           { key: 'company', label: 'الشركة', render: function (e) { return e.company_id ? api.company(e.company_id) : '—'; } },
           { key: 'ip', label: 'العنوان', render: function (e) { return e.ip ? h`<span class="num ltr fs-sm">${e.ip}</span>` : '—'; } }
         ],
-        rowClick: function (e) {
-          var pre = function (o) { return o == null ? raw('<span class="muted">—</span>') : h`<pre class="ltr fs-sm" style="white-space:pre-wrap;word-break:break-word;background:var(--surface-2);padding:10px;border-radius:8px;max-height:320px;overflow:auto">${JSON.stringify(o, null, 2)}</pre>`; };
-          BT.drawer.open({ title: e.action, subtitle: fmt.dt(e.occurred_at), icon: 'shield-check', size: 'lg', buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }],
-            body: h`${BT.kv([['السجل', h`${entity(e.entity_type)} <span class="ltr fs-sm">${e.entity_id || ''}</span>`], ['بواسطة', actor(e)], ['التعليق', e.comment || '—'], ['العنوان', e.ip || '—'], ['الجهاز', e.device ? h`<span class="ltr fs-sm" data-device>${e.device}</span>` : '—'], ['رقم الطلب', e.request_id ? h`<span class="ltr fs-sm">${e.request_id}</span>` : '—']])}<div class="section-t mt-16">قبل</div>${pre(e.before)}<div class="section-t mt-16">بعد</div>${pre(e.after)}` });
-        },
+        rowClick: function (e) { A.auditEvent(e); },
         empty: { icon: 'shield-check', title: 'لا توجد أحداث مطابقة' }
       });
       BT.on(el, 'change', '[data-f]', function (e, inp) {

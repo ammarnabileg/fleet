@@ -155,3 +155,8 @@ class ProfileOut(BaseModel):
     bank_name: str | None
     iban_last4: str | None
     payment_method: str | None
+
+
+class EmployeeFacetsOut(BaseModel):
+    departments: list[str]
+    job_titles: list[str]

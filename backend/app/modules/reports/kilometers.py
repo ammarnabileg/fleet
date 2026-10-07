@@ -16,13 +16,14 @@ the odometer counts with a driver (on duty and off duty), and read short where t
 """
 
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.dialects.postgresql import ARRAY, BIGINT
 from sqlalchemy.orm import Session
 
+from app.core.clock import business_date
 from app.modules.reports.filters import Filters
 from app.modules.reports.service import MAX_RANGE_DAYS, _people, _period, _range, _vehicle_cards
 
@@ -63,20 +64,20 @@ pairs AS (
     FROM readings r
     WINDOW w AS (PARTITION BY r.vehicle_id ORDER BY r.recorded_at, r.id)
 )
-SELECT vehicle_id, driver_id, custody_id, prev_custody, kind, prev_kind, GREATEST(km - prev_km, 0) AS km
+SELECT vehicle_id, driver_id, custody_id, prev_custody, kind, prev_kind, GREATEST(km - prev_km, 0) AS km, recorded_at
 FROM pairs
 WHERE prev_km IS NOT NULL AND recorded_at >= :start
 """).bindparams(bindparam("company_ids", type_=ARRAY(BIGINT)))
 
 GPS = text("""
-SELECT vehicle_id, driver_id, sum(d) AS km FROM (
-    SELECT p.vehicle_id, p.driver_id,
+SELECT vehicle_id, driver_id, day, sum(d) AS km FROM (
+    SELECT p.vehicle_id, p.driver_id, CAST(timezone('Asia/Kuwait', p.recorded_at) AS date) AS day,
            2 * 6371.0088 * asin(LEAST(1, sqrt(
                power(sin(radians(p.lat - p.plat) / 2), 2)
                + cos(radians(p.plat)) * cos(radians(p.lat)) * power(sin(radians(p.lng - p.plng) / 2), 2)
            ))) AS d
     FROM (
-        SELECT vehicle_id, driver_id, lat, lng, lag(lat) OVER w AS plat, lag(lng) OVER w AS plng
+        SELECT vehicle_id, driver_id, recorded_at, lat, lng, lag(lat) OVER w AS plat, lag(lng) OVER w AS plng
         FROM tracking.positions
         WHERE recorded_at >= :start AND recorded_at < :end AND vehicle_id = ANY(:vehicle_ids)
           AND (CAST(:driver_id AS bigint) IS NULL OR driver_id = :driver_id)
@@ -84,7 +85,7 @@ SELECT vehicle_id, driver_id, sum(d) AS km FROM (
     ) p
     WHERE p.plat IS NOT NULL
 ) x
-GROUP BY vehicle_id, driver_id
+GROUP BY vehicle_id, driver_id, day
 """).bindparams(bindparam("vehicle_ids", type_=ARRAY(BIGINT)))
 
 DAYS = text("""
@@ -140,12 +141,16 @@ def kilometers_report(
     }
     vehicles: dict[int, dict] = defaultdict(lambda: dict.fromkeys(KINDS, 0))
     drivers: dict[int, dict] = defaultdict(lambda: dict.fromkeys(("on_duty", "off_duty"), 0))
+    # each Kuwait day of the period, a stretch on the day of its second reading (BRD FR-VEH-04: daily use)
+    by_day = {date_from + timedelta(days=i): dict.fromkeys(KINDS, 0) for i in range((date_to - date_from).days + 1)}
+    gps_by_day: dict[date, float] = defaultdict(float)
     for r in db.execute(STRETCHES, scope).mappings():
         kind = stretch_kind(r["prev_kind"], r["kind"], r["prev_custody"], r["custody_id"])
         driver = r["driver_id"] if kind in ("on_duty", "off_duty") else None
         if filters.driver_id is not None and driver != filters.driver_id:
             continue
         vehicles[r["vehicle_id"]][kind] += r["km"]
+        by_day[business_date(r["recorded_at"])][kind] += r["km"]
         if driver is not None:
             drivers[driver][kind] += r["km"]
 
@@ -158,6 +163,7 @@ def kilometers_report(
         for r in db.execute(GPS, gps_params).mappings():
             gps_by_vehicle[r["vehicle_id"]] += r["km"]
             gps_by_driver[r["driver_id"]] += r["km"]
+            gps_by_day[r["day"]] += r["km"]
         days = {r.driver_id: r.days for r in db.execute(DAYS, gps_params) if r.driver_id is not None}
         for v in gps_by_vehicle:
             vehicles[v]  # a vehicle with GPS points and no odometer stretch still shows
@@ -216,6 +222,10 @@ def kilometers_report(
         }
         for r in rows
     ]
+    days_out = [
+        {"day": d, "km": sum(k.values()), **k, "with_driver": k["on_duty"] + k["off_duty"], "gps": _km(gps_by_day[d])}
+        for d, k in by_day.items()
+    ]
     totals = {k: sum(r[k] for r in by_vehicle) for k in ("km", *KINDS, "with_driver")}
     totals["gps"] = sum((r["gps"] for r in by_vehicle), Decimal("0.0"))
     return {
@@ -225,6 +235,7 @@ def kilometers_report(
         "totals": totals,
         "by_vehicle": by_vehicle,
         "by_driver": by_driver,
+        "by_day": days_out,
         "pending": pending,
         "pending_count": rows[0]["total"] if rows else 0,
     }
