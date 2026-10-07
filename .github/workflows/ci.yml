@@ -168,10 +168,10 @@ jobs:
         run: flutter test --tags contract || (cat /tmp/api.log; exit 1)
       - name: build the APK
         working-directory: driver_app
-        # the deployed address (repository variable DRIVER_API_URL, e.g. https://fleet.<client>.com): the app talks
-        # to it and the activation links open it
+        # the deployed address the app talks to and the activation links open; the repository variable
+        # DRIVER_API_URL replaces it (another deployment) without touching this file
         env:
-          API_URL: ${{ vars.DRIVER_API_URL || 'https://fleet.example.com' }}
+          API_URL: ${{ vars.DRIVER_API_URL || 'https://fleet.kuw1.com' }}
         run: flutter build apk --debug --dart-define=API_URL="$API_URL"
       - uses: actions/upload-artifact@v4
         with:
