@@ -1073,10 +1073,11 @@
     "deduction_sim": "SIM cards recovered",
     "deduction_other": "Other recoveries",
     "cash_adjustments": "Cash adjustments",
-    "salaries_expense": "Salaries expense",
+    "salaries_expense": "Office salaries expense",
     "maintenance_expense": "Maintenance expense",
     "traffic_fines_expense": "Traffic fines expense",
-    "cash_writeoff": "Driver cash written off"
+    "cash_writeoff": "Driver cash written off",
+    "driver_salaries_expense": "Drivers' salaries expense"
   },
   "approval_process": {
     "daily_report": "Daily reports",
@@ -1110,5 +1111,23 @@
     "upcoming": "Upcoming",
     "ended": "Ended",
     "cancelled": "Cancelled"
+  },
+  "account_class": {
+    "1": "Assets",
+    "2": "Liabilities",
+    "3": "Equity",
+    "4": "Revenue",
+    "5": "Operating costs",
+    "6": "General and administrative expenses"
+  },
+  "chart_column": {
+    "title": "Chart of accounts",
+    "code": "Code",
+    "name": "Account",
+    "class": "Class",
+    "type": "Type",
+    "used_for": "Used for",
+    "status": "Status",
+    "inactive": "Inactive"
   }
 }

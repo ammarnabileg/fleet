@@ -181,9 +181,9 @@ def test_every_document_makes_its_entry_and_the_books_balance(admin_client, docu
     run = next(e for e in drafts if e["source_kind"] == "payroll_run")
     detail = admin_client.get(f"{F}/entries/{run['id']}").json()
     assert [(ln["account"]["code"], ln["debit"], ln["credit"]) for ln in detail["lines"]] == [
-        ("5101", "300.000", "0.000"),
-        ("2103", "0.000", "250.000"),
-        ("1104", "0.000", "50.000"),
+        ("6110", "300.000", "0.000"),
+        ("2120", "0.000", "250.000"),
+        ("1150", "0.000", "50.000"),
     ]
     assert detail["entry_date"] == str(month()[1])  # the month's salaries, at its end
     fuel = next(e for e in drafts if e["source_kind"] == "expense" and e["amount"] == "12.500")
@@ -195,18 +195,18 @@ def test_every_document_makes_its_entry_and_the_books_balance(admin_client, docu
     assert r.json() == {"count": 12}
     tb = balances(admin_client)
     assert tb == {
-        "1101": "-57.500",  # +15 receipt -10 to the bank -12.5 fuel -50 advance
-        "1102": "-415.000",  # +10 deposit -100 supplier -45 invoice -250 salaries -30 fine
-        "1103": "5.000",  # +20 collected -15 handed in
-        "1104": "0.000",  # +50 advance -50 taken back in payroll
-        "2101": "-20.000",
-        "2102": "0.000",
-        "2103": "0.000",
-        "5101": "300.000",
-        "5102": "45.000",
-        "5103": "30.000",
-        "5104": "12.500",
-        "5107": "100.000",
+        "1110": "-57.500",  # +15 receipt -10 to the bank -12.5 fuel -50 advance
+        "1120": "-415.000",  # +10 deposit -100 supplier -45 invoice -250 salaries -30 fine
+        "1130": "5.000",  # +20 collected -15 handed in
+        "1150": "0.000",  # +50 advance -50 taken back in payroll
+        "2130": "-20.000",
+        "2110": "0.000",
+        "2120": "0.000",
+        "6110": "300.000",
+        "5130": "45.000",
+        "5170": "30.000",
+        "5120": "12.500",
+        "6190": "100.000",
     }
     assert sum(D(v) for v in tb.values()) == 0
 
@@ -246,13 +246,13 @@ def test_approved_entries_never_change_and_a_reversal_frees_the_document(admin_c
     rev = r.json()
     assert rev["source_kind"] == "reversal" and rev["status"] == "approved" and rev["reverses"] == supplier["number"]
     assert [(ln["account"]["code"], ln["debit"], ln["credit"]) for ln in rev["lines"]] == [
-        ("5107", "0.000", "100.000"),
-        ("2102", "100.000", "0.000"),
+        ("6190", "0.000", "100.000"),
+        ("2110", "100.000", "0.000"),
     ]
     again = admin_client.post(f"{F}/entries/{supplier['id']}/reverse", json={"reason": "again please"})
     assert again.status_code == 409 and again.json()["code"] == "entry_already_reversed"
     assert post(admin_client)["by_kind"] == {"expense": 1}  # entered anew
-    assert balances(admin_client)["5107"] == "0.000"  # the new draft is not approved yet
+    assert balances(admin_client)["6190"] == "0.000"  # the new draft is not approved yet
 
 
 def test_a_cancelled_expense_is_listed_to_reverse_and_not_entered_again(admin_client, company):
@@ -267,12 +267,12 @@ def test_a_cancelled_expense_is_listed_to_reverse_and_not_entered_again(admin_cl
     admin_client.post(f"{F}/entries/{entry['id']}/reverse", json={"reason": "expense cancelled"})
     result = post(admin_client)
     assert result["created"] == 0 and result["stale"] == []
-    assert balances(admin_client)["5104"] == "0.000"
+    assert balances(admin_client)["5120"] == "0.000"
 
 
 def test_the_chart_is_the_accountants(admin_client, company, owner_db):
     accounts = {a["code"]: a for a in admin_client.get(f"{F}/accounts").json()}
-    assert accounts["1101"]["roles"] == ["deduction_advance", "treasury"] and not accounts["1101"]["used"]
+    assert accounts["1110"]["roles"] == ["deduction_advance", "treasury"] and not accounts["1110"]["used"]
     # his own fuel account, the fuel type pointed at it; drafts made before keep the old one until made again
     approve(admin_client, expense(admin_client, company["id"]))
     post(admin_client)
@@ -286,7 +286,7 @@ def test_the_chart_is_the_accountants(admin_client, company, owner_db):
     fuel_type = types(admin_client)["fuel"]
     assert admin_client.patch(f"{F}/expense-types/{fuel_type}", json={"account_id": fuel["id"]}).status_code == 200
     [draft] = entries(admin_client, status="draft")
-    assert admin_client.get(f"{F}/entries/{draft['id']}").json()["lines"][0]["account"]["code"] == "5104"
+    assert admin_client.get(f"{F}/entries/{draft['id']}").json()["lines"][0]["account"]["code"] == "5120"
     assert admin_client.post(f"{F}/entries/discard", json=period()).json() == {"count": 1}
     post(admin_client)
     [draft] = entries(admin_client, status="draft")
@@ -301,7 +301,7 @@ def test_the_chart_is_the_accountants(admin_client, company, owner_db):
         f"{F}/accounts/{six['id']}", json={"version": six["version"], "name": {"ar": "الوقود", "en": "Fuel"}}
     )
     assert r.status_code == 200 and r.json()["used"]
-    treasury = next(a for a in used if a["code"] == "1101")
+    treasury = next(a for a in used if a["code"] == "1110")
     r = admin_client.patch(f"{F}/accounts/{treasury['id']}", json={"version": treasury["version"], "active": False})
     assert r.status_code == 409 and r.json()["code"] == "account_in_role"
     # a role without its account: that document waits, the others go in
@@ -426,3 +426,68 @@ def test_a_code_with_a_leading_zero_stays_text_in_excel():
     data = sheets.to_xlsx("t", ["code", "amount"], [["0101", "12.500"]], rtl=False, text_columns=(0,))
     ws = openpyxl.load_workbook(io.BytesIO(data)).active
     assert (ws.cell(2, 1).value, ws.cell(2, 1).data_type, ws.cell(2, 2).value) == ("0101", "s", D("12.5"))
+
+
+def test_the_default_chart_is_structured_and_salaries_go_to_two_accounts(admin_client, company):
+    """Four-digit codes whose first digit is the class; every role on an account; drivers' salaries an operating
+    cost, the office's an administrative one."""
+    accounts = admin_client.get(f"{F}/accounts").json()
+    kind = {"1": "asset", "2": "liability", "3": "equity", "4": "income", "5": "expense", "6": "expense"}
+    assert all(len(a["code"]) == 4 and a["type"] == kind[a["code"][0]] for a in accounts)
+    by_code = {a["code"]: a for a in accounts}
+    assert by_code["5110"]["roles"] == ["driver_salaries_expense"] and by_code["6110"]["roles"] == ["salaries_expense"]
+    assert {"2210", "3120", "6150"} <= set(by_code)  # end-of-service provision, owner's account, government fees
+    mapped = {r["role"] for r in admin_client.get(f"{F}/roles").json()}
+    assert len(mapped) == 20
+    assert {
+        t["code"]: by_code_of(accounts, t["account_id"]) for t in admin_client.get(f"{F}/expense-types").json()
+    } == {
+        "fuel": "5120",
+        "repairs": "5130",
+        "tyres": "5140",
+        "vehicle_insurance": "5150",
+        "registration": "5160",
+        "rent": "6130",
+        "telecom": "6140",
+        "gov_fees": "6150",
+        "office": "6160",
+        "bank_fees": "6170",
+        "other": "6190",
+    }
+    # the chart in Excel for the accountant: class, type and what each account is used for
+    r = admin_client.get(f"{F}/accounts/export", headers={"Accept-Language": "ar"})
+    assert r.status_code == 200, r.text
+    rows = list(openpyxl.load_workbook(io.BytesIO(r.content)).active.iter_rows(values_only=True))
+    assert rows[0] == ("الرمز", "الحساب", "الفئة", "النوع", "يُستخدم في", "الحالة")
+    drivers = next(row for row in rows if row[0] == "5110")
+    assert drivers[1:5] == ("رواتب السائقين", "تكاليف التشغيل", "مصروفات", "رواتب السائقين")
+    fuel = next(row for row in rows if row[0] == "5120")
+    assert fuel[4] == "وقود" and len(rows) == 1 + len(accounts)
+    # a month with a driver (200, of which 20 an advance taken back) and an office employee (300): the drivers'
+    # salaries are what they cost, net and installments, apart from the office's
+    driver = make_driver(admin_client, company["id"], basic_salary="200.000", payment_method="cash")
+    make_employee(admin_client, company["id"], basic_salary="300.000", payment_method="cash")
+    payroll_settings(admin_client)
+    first, _ = month()
+    r = admin_client.post(
+        "/api/v1/deductions",
+        json={"employee_id": driver["id"], "source_type": "advance", "reason": "advance", "total": "20",
+              "start_month": str(first)},
+    )  # fmt: skip
+    assert r.status_code == 201, r.text
+    run = admin_client.post("/api/v1/payroll/runs", json={"company_id": company["id"], "month": str(first)}).json()
+    r = admin_client.post(f"/api/v1/payroll/runs/{run['id']}/approve")
+    assert r.status_code == 200, r.text
+    post(admin_client)
+    entry = next(e for e in entries(admin_client, status="draft") if e["source_kind"] == "payroll_run")
+    lines = admin_client.get(f"{F}/entries/{entry['id']}").json()["lines"]
+    assert [(ln["account"]["code"], ln["debit"], ln["credit"]) for ln in lines] == [
+        ("5110", "200.000", "0.000"),
+        ("6110", "300.000", "0.000"),
+        ("2120", "0.000", "480.000"),
+        ("1150", "0.000", "20.000"),
+    ]
+
+
+def by_code_of(accounts, account_id) -> str:
+    return next(a["code"] for a in accounts if a["id"] == account_id)

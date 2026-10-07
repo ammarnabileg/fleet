@@ -1,6 +1,6 @@
 // Finance from the panel: a fuel expense for a vehicle registered and approved; the entries generated, its draft
 // approved with its lines, then reversed; the export carries both; the trial balance adds up to zero; the vehicle's file
-// lists the expense; an account added to the chart.
+// lists the expense; the chart grouped by class and exported for the accountant; an account added to it.
 const fs = require('fs');
 const { test, expect, uid, settled, clearToasts } = require('./fixtures');
 const { readXlsx } = require('./xlsx');
@@ -51,9 +51,9 @@ test('an expense from registration to its entry, reversed, exported, and the boo
   await draft.click();
   const lines = top().locator('tbody tr');
   await expect(lines).toHaveCount(2);
-  await expect(lines.nth(0)).toContainText('5104');
+  await expect(lines.nth(0)).toContainText('5120');
   await expect(lines.nth(0)).toContainText('12.500');
-  await expect(lines.nth(1)).toContainText('1101');
+  await expect(lines.nth(1)).toContainText('1110');
   await clearToasts(admin);
   await top().getByRole('button', { name: 'اعتماد', exact: true }).click();
   await expect(admin.locator('.toast').last()).toContainText('اعتُمد القيد');
@@ -77,7 +77,7 @@ test('an expense from registration to its entry, reversed, exported, and the boo
   expect(sheet[0].slice(0, 6)).toEqual(['رقم القيد', 'التاريخ', 'رمز الحساب', 'اسم الحساب', 'مدين', 'دائن']);
   const mine = sheet.filter((r) => r.includes('EXP-' + number));
   expect(mine.length).toBe(4); // two lines each
-  expect(mine.map((r) => r[2]).sort()).toEqual(['1101', '1101', '5104', '5104']);
+  expect(mine.map((r) => r[2]).sort()).toEqual(['1110', '1110', '5120', '5120']);
 
   // ---- the trial balance adds up to zero
   await admin.locator('#view [role=tab]', { hasText: 'ميزان المراجعة' }).click();
@@ -92,6 +92,11 @@ test('an expense from registration to its entry, reversed, exported, and the boo
   // ---- the accountant's own account added to the chart
   await admin.goto('/admin.html#/finance?tab=chart');
   await settled(admin);
+  await expect(admin.locator('#view [data-class="5"]')).toContainText('تكاليف التشغيل');
+  const [chart] = await Promise.all([admin.waitForEvent('download'), admin.locator('#view [data-chart-export]').click()]);
+  const rows = readXlsx(fs.readFileSync(await chart.path()));
+  expect(rows[0]).toEqual(['الرمز', 'الحساب', 'الفئة', 'النوع', 'يُستخدم في', 'الحالة']);
+  expect(rows.find((r) => r[0] === '5110').slice(1, 3)).toEqual(['رواتب السائقين', 'تكاليف التشغيل']);
   await admin.locator('[data-acc-new]').click();
   const code = '7' + n; // unique across runs on the same database (the slow-mode run reuses it)
   await top().locator('[name=code]').fill(code);

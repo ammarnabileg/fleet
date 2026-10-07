@@ -12,7 +12,9 @@
   A.tone.entry_status = { draft: 'o', approved: 'g' };
   var ROLES = ['treasury', 'bank', 'driver_cash', 'cod_clearing', 'suppliers_payable', 'salaries_expense', 'salaries_payable',
     'employee_receivable', 'payroll_recovery', 'maintenance_expense', 'traffic_fines_expense', 'deduction_accident',
-    'deduction_fine', 'deduction_advance', 'deduction_sim', 'deduction_other', 'cash_adjustments', 'cash_writeoff', 'opening_equity'];
+    'deduction_fine', 'deduction_advance', 'deduction_sim', 'deduction_other', 'cash_adjustments', 'cash_writeoff', 'opening_equity',
+    'driver_salaries_expense'];
+  var CLASSES = ['1', '2', '3', '4', '5', '6'];
 
   function amt(v) { return v == null ? '—' : BT.amt(Number(v)); }
   function money(v) { return v == null || Number(v) === 0 ? '' : fmt.money(v); }
@@ -298,11 +300,16 @@
       var byId = {}; accounts.forEach(function (a) { byId[a.id] = a; });
       var active = accounts.filter(function (a) { return a.active; });
       var mapped = {}; roles.forEach(function (x) { mapped[x.role] = x.account_id; });
-      return h`<div class="banner info mb-12">${icon('info', 16)}<div>الدليل والربط افتراضيان: يستبدلهما محاسبكم برموز حساباته قبل أول اعتماد. القيود المعتمدة تبقى على حساباتها؛ المسودات تُحذف وتُولَّد من جديد بعد أي تعديل.</div></div>
+      var groups = CLASSES.map(function (c) { return { c: c, rows: accounts.filter(function (a) { return a.code.charAt(0) === c; }) }; });
+      var others = accounts.filter(function (a) { return CLASSES.indexOf(a.code.charAt(0)) < 0; });
+      if (others.length) groups.push({ c: '', rows: others });
+      return h`<div class="banner info mb-12">${icon('info', 16)}<div>رمز الحساب من أربعة أرقام: الأول الفئة والثاني المجموعة. يراجعه محاسبكم (زر Excel) ويعدّله هنا قبل أول اعتماد؛ القيود المعتمدة تبقى على حساباتها، والمسودات تُحذف وتُولَّد من جديد بعد أي تعديل.</div></div>
         <div class="grid" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px">
-          <div class="card"><div class="card-h"><div class="card-t">${icon('book-open', 17)} الحسابات</div>${approve ? h`<button type="button" class="btn btn-sm btn-soft" data-acc-new>${icon('plus', 14)} حساب</button>` : ''}</div>
+          <div class="card"><div class="card-h"><div class="card-t">${icon('book-open', 17)} الحسابات</div><div><button type="button" class="btn btn-sm btn-outline" data-chart-export>${icon('file-spreadsheet', 14)} Excel</button>${approve ? h` <button type="button" class="btn btn-sm btn-soft" data-acc-new>${icon('plus', 14)} حساب</button>` : ''}</div></div>
             <div class="table-wrap"><table class="t compact"><thead><tr><th>الرمز</th><th>الاسم</th><th>النوع</th><th></th></tr></thead><tbody>
-              ${accounts.map(function (a) { return h`<tr class="${approve ? 'clickable' : ''}" data-acc="${a.id}"><td class="num">${a.code}</td><td>${api.name(a.name)}${a.roles.length ? h`<span class="sub">${a.roles.map(function (x) { return api.t('finance_role', x); }).join('، ')}</span>` : ''}</td><td>${api.t('account_type', a.type)}</td><td>${a.active ? '' : BT.pill('موقوف', 'n')}</td></tr>`; })}
+              ${groups.filter(function (g) { return g.rows.length; }).map(function (g) {
+                return h`<tr class="group-row" data-class="${g.c}"><td colspan="4"><b>${g.c ? g.c + ' · ' + api.t('account_class', g.c) : 'حسابات أخرى'}</b></td></tr>${g.rows.map(function (a) { return h`<tr class="${approve ? 'clickable' : ''}" data-acc="${a.id}"><td class="num">${a.code}</td><td>${api.name(a.name)}${a.roles.length ? h`<span class="sub">${a.roles.map(function (x) { return api.t('finance_role', x); }).join('، ')}</span>` : ''}</td><td>${api.t('account_type', a.type)}</td><td>${a.active ? '' : BT.pill('موقوف', 'n')}</td></tr>`; })}`;
+              })}
             </tbody></table></div></div>
           <div class="grid" style="gap:16px">
             <div class="card"><div class="card-h"><div class="card-t">${icon('git-branch', 17)} ربط الأدوار بالحسابات</div></div>
@@ -313,7 +320,9 @@
               <div class="list">${types.map(function (t) { var a = byId[t.account_id]; return h`<button type="button" class="li" data-type="${t.id}" style="width:100%;text-align:start"${approve ? '' : raw(' disabled')}><div class="li-main"><div class="li-t">${api.name(t.name)}</div><div class="li-d">${a ? accountLabel(a) : '—'}</div></div>${t.active ? '' : BT.pill('موقوف', 'n')}</button>`; })}</div></div>
           </div></div>`;
     }).then(function (r) {
-      if (!r || !approve) return;
+      if (!r) return;
+      BT.on(el, 'click', '[data-chart-export]', function () { A.downloadFile('/finance/accounts/export', {}, 'chart-of-accounts.xlsx'); });
+      if (!approve) return;
       var accounts = r[0], types = r[2];
       var reload = function () { chartPanel(el); };
       BT.on(el, 'click', '[data-acc-new]', function () { accountForm(null, reload); });

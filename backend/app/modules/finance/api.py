@@ -43,6 +43,44 @@ def accounts(_: Principal = Depends(view), db: Session = Depends(get_session)):
     return service.list_accounts(db)
 
 
+@router.get("/accounts/export")
+def export_chart(
+    accept_language: str | None = Header(None),
+    principal: Principal = Depends(view),
+    db: Session = Depends(get_session),
+):
+    """The chart with what each account is used for, for the client's accountant to review in Excel."""
+    lang = i18n.negotiate(db, principal.locale, accept_language)
+    default = i18n.default_language(db).code
+
+    def name(n: dict | None) -> str:
+        return "" if not n else n.get(lang) or n.get(default) or next(iter(n.values()), "")
+
+    def text(key: str, fallback: str) -> str:
+        value = i18n.t(db, lang, key)
+        return fallback if value == key else value
+
+    types: dict[int, list[str]] = {}
+    for t in service.list_types(db):
+        types.setdefault(t["account_id"], []).append(name(t["name"]))
+    body = [
+        [
+            a["code"],
+            name(a["name"]),
+            text(f"account_class.{a['code'][:1]}", "") if a["code"][:1] in "123456" else "",
+            text(f"account_type.{a['type']}", a["type"]),
+            "، ".join([text(f"finance_role.{r}", r) for r in a["roles"]] + types.get(a["id"], [])),
+            "" if a["active"] else text("chart_column.inactive", "inactive"),
+        ]
+        for a in service.list_accounts(db)
+    ]
+    header = [text(f"chart_column.{c}", c) for c in ("code", "name", "class", "type", "used_for", "status")]
+    content = sheets.to_xlsx(text("chart_column.title", "chart"), header, body, rtl=lang == "ar", text_columns=(0,))
+    return Response(
+        content, media_type=XLSX, headers={"Content-Disposition": 'attachment; filename="chart-of-accounts.xlsx"'}
+    )
+
+
 @router.post("/accounts", response_model=schemas.AccountOut, status_code=201)
 def create_account(
     body: schemas.AccountIn, principal: Principal = Depends(approve), db: Session = Depends(get_session)

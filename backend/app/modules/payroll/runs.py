@@ -22,6 +22,7 @@ missing or waiting for review, a negative net) and locks the run and the month's
 took in approved months is what the next months build on. Reopening is for the latest approved month only.
 """
 
+from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date
@@ -666,20 +667,22 @@ def runs_for_posting(db: Session, first: date, last: date) -> dict[str, list[dic
     paid_on = func.date(func.timezone("Asia/Kuwait", Run.paid_at))
     paid = db.execute(select(Run, paid_on).where(Run.status == "paid", paid_on.between(first, last))).all()
     ids = {r.id for r in approved} | {r.id for r, _ in paid}
-    net: dict[int, Decimal] = {}
-    taken: dict[int, Decimal] = {}
+    net: dict[int, Decimal] = defaultdict(lambda: ZERO)
+    taken: dict[int, Decimal] = defaultdict(lambda: ZERO)
+    drivers_cost: dict[int, Decimal] = defaultdict(lambda: ZERO)  # what the drivers' salaries cost, net + installments
     if ids:
-        net = dict(
-            db.execute(select(Line.run_id, func.sum(Line.net)).where(Line.run_id.in_(ids)).group_by(Line.run_id)).all()
-        )
-        taken = dict(
-            db.execute(
-                select(Line.run_id, func.sum(LineDeduction.deducted))
-                .join(LineDeduction, LineDeduction.line_id == Line.id)
-                .where(Line.run_id.in_(ids))
-                .group_by(Line.run_id)
-            ).all()
-        )
+        lines = db.execute(
+            select(Line.run_id, Line.employee_id, Line.net, func.coalesce(func.sum(LineDeduction.deducted), 0))
+            .outerjoin(LineDeduction, LineDeduction.line_id == Line.id)
+            .where(Line.run_id.in_(ids))
+            .group_by(Line.id)
+        ).all()
+        drivers = people.driver_ids(db, {employee_id for _, employee_id, _, _ in lines})
+        for run_id, employee_id, line_net, line_taken in lines:
+            net[run_id] += line_net
+            taken[run_id] += line_taken
+            if employee_id in drivers:
+                drivers_cost[run_id] += line_net + line_taken
 
     def out(r: Run, day: date) -> dict:
         return {
@@ -687,8 +690,9 @@ def runs_for_posting(db: Session, first: date, last: date) -> dict[str, list[dic
             "company_id": r.company_id,
             "month": r.month,
             "date": day,
-            "net": net.get(r.id) or ZERO,
-            "installments": taken.get(r.id) or ZERO,
+            "net": net[r.id],
+            "installments": taken[r.id],
+            "drivers": drivers_cost[r.id],
             "payment_ref": r.payment_ref,
         }
 

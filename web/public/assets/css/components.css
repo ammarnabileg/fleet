@@ -147,6 +147,7 @@ table.t tr.clickable { cursor: pointer; }
 table.t tr.selected td { background: var(--primary-softer); }
 table.t tr.row-warn td:first-child { box-shadow: inset -3px 0 0 var(--warning); }
 table.t tr.row-danger td:first-child { box-shadow: inset -3px 0 0 var(--danger); }
+table.t tr.group-row td { background: var(--surface-2); color: var(--text); font-size: 12.5px; padding-top: 8px; padding-bottom: 8px; }
 table.t th.sortable { cursor: pointer; user-select: none; }
 table.t th.sortable:hover { color: var(--text); }
 table.t th .sort-ic { opacity: .35; margin-inline-start: 3px; vertical-align: -2px; }

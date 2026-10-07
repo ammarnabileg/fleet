@@ -681,6 +681,14 @@ def company_ids_of(db: Session, ids: Iterable[int]) -> dict[int, int]:
     return dict(db.execute(select(Employee.id, Employee.company_id).where(Employee.id.in_(ids))).tuples().all())
 
 
+def driver_ids(db: Session, ids: Iterable[int]) -> set[int]:
+    """Which of these employees are drivers (finance enters their salaries apart from the office's)."""
+    ids = set(ids)
+    if not ids:
+        return set()
+    return set(db.scalars(select(Employee.id).where(Employee.id.in_(ids), Employee.is_driver.is_(True))))
+
+
 def names(db: Session, ids: Iterable[int]) -> dict[int, dict]:
     ids = set(ids)
     if not ids:

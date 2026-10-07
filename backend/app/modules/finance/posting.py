@@ -41,6 +41,7 @@ ROLES = (
     "deduction_sim",
     "deduction_other",
     "cash_adjustments",
+    "driver_salaries_expense",
     "salaries_expense",
     "maintenance_expense",
     "traffic_fines_expense",
@@ -194,7 +195,8 @@ def documents(db: Session, first: date, last: date) -> list[Doc]:
                 "payroll_run",
                 {"month": f"{r['month']:%Y-%m}"},
             )
-            .debit("salaries_expense", r["net"] + r["installments"])
+            .debit("driver_salaries_expense", r["drivers"])
+            .debit("salaries_expense", r["net"] + r["installments"] - r["drivers"])
             .credit("salaries_payable", r["net"])
             .credit("employee_receivable", r["installments"])
         )
