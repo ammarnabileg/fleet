@@ -32,9 +32,7 @@ class Deduction(Base):
 
     __tablename__ = "deductions"
     __table_args__ = (
-        CheckConstraint(
-            "source_type IN ('accident', 'fine', 'violation', 'advance', 'sim', 'other')", name="source_type"
-        ),
+        CheckConstraint("source_type IN ('accident', 'fine', 'advance', 'sim', 'other')", name="source_type"),
         CheckConstraint("total > 0", name="total"),
         CheckConstraint("installments BETWEEN 1 AND 60", name="installments"),
         CheckConstraint("extract(day FROM start_month) = 1", name="start_month"),

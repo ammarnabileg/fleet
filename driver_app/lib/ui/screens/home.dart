@@ -9,7 +9,6 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import 'accident.dart';
 import 'fines.dart';
-import 'fuel.dart';
 import 'maintenance.dart';
 import 'me.dart';
 import 'notifications.dart';
@@ -17,7 +16,6 @@ import 'odometer.dart';
 import 'report.dart';
 import 'schemes.dart';
 import 'statement.dart';
-import 'violations.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.state});
@@ -252,11 +250,6 @@ class HomeTab extends StatelessWidget {
                     ),
                   ),
           ],
-          // what has not reached the office yet comes before the other screens: the driver must see it
-          if (state.queued.isNotEmpty) ...[
-            SectionTitle(l.outboxTitle),
-            for (final item in state.queued) _QueuedTile(state: state, item: item),
-          ],
           for (final (screen, button) in [
             (
               'maintenance',
@@ -287,26 +280,6 @@ class HomeTab extends StatelessWidget {
                 label: Text(l.fines),
                 onPressed: () =>
                     Navigator.of(context).push(MaterialPageRoute(builder: (_) => FinesScreen(state: state))),
-              ),
-            ),
-            (
-              'fuel',
-              OutlinedButton.icon(
-                key: const Key('fuel'),
-                icon: const Icon(Icons.local_gas_station_outlined),
-                label: Text(l.fuel),
-                onPressed: () =>
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => FuelScreen(state: state))),
-              ),
-            ),
-            (
-              'violations',
-              OutlinedButton.icon(
-                key: const Key('violations'),
-                icon: const Icon(Icons.gavel_outlined),
-                label: Text(l.violations),
-                onPressed: () =>
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => ViolationsScreen(state: state))),
               ),
             ),
             (
@@ -341,6 +314,10 @@ class HomeTab extends StatelessWidget {
             ),
           ])
             if (state.shows(screen)) ...[const SizedBox(height: 10), button],
+          if (state.queued.isNotEmpty) ...[
+            SectionTitle(l.outboxTitle),
+            for (final item in state.queued) _QueuedTile(state: state, item: item),
+          ],
         ],
       ),
     );
@@ -362,8 +339,6 @@ class _QueuedTile extends StatelessWidget {
       'maintenance' => l.kind_maintenance,
       'accident' => l.kind_accident,
       'police_report' => l.kind_police_report,
-      'fuel' => l.kind_fuel,
-      'violation_objection' => l.kind_objection,
       _ => l.kind_report,
     };
     final reason = failed

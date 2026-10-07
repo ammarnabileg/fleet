@@ -18,7 +18,6 @@ def test_defaults_validation_versioning_audit_and_event(admin_client, db):
             "interval_stationary_s": 300,
             "signal_loss_minutes": 10,
             "retention_months": 0,
-            "speed_limit_kmh": 120,
         },
     }
     bad = admin_client.put("/api/v1/settings/tracking", json={"version": 0, "value": {"interval_moving_s": 1}})

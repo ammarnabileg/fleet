@@ -28,12 +28,10 @@ from app.modules.notifications import service as notifications
 from app.modules.org import service as org
 from app.modules.people import service as people
 from app.modules.tracking.models import LastPosition, MockEvent, Position, RejectedPoint
-from app.modules.violations import service as violations
 
 FUTURE_TOLERANCE = timedelta(minutes=2)
 MAX_AGE = timedelta(days=7)
 CLOCK_OFFSET_MIN_S = 60  # smaller differences are network delay, not a wrong clock
-MAX_SPEED_ACCURACY_M = 50  # a fix less precise than this does not raise a speeding alert
 MAX_ROUTE_RANGE = timedelta(days=2)
 MAX_ROUTE_POINTS = 20_000
 _partitions: set[date] = set()
@@ -174,9 +172,6 @@ def ingest(db: Session, device: identity.DevicePrincipal, *, sent_at: datetime, 
             dedupe_key=f"mock:{device.device_id}:{business_date(now)}",
             once=True,
         )
-        # TRK-M-02: the attempt is also a violation waiting for review (once a day per phone)
-        violations.fake_location(db, employee_id=device.employee_id, device_id=device.device_id, at=mocks[0][1])
-    _speeding(db, device, rows, custodies)
 
     latest: dict[int, dict] = {}
     for r in rows:
@@ -207,36 +202,6 @@ def ingest(db: Session, device: identity.DevicePrincipal, *, sent_at: datetime, 
         "rejected": [{"seq": s, "reason": r} for s, r in sorted(rejected.items())],
         "server_time": now,
     }
-
-
-def _speeding(db: Session, device: identity.DevicePrincipal, rows: list[dict], custodies: list) -> None:
-    """BR-13: a point faster than the limit (with a usable accuracy) is an alert, once a custody a day; only a
-    supervisor turns it into a violation."""
-    limit = org.get_section(db, "tracking").speed_limit_kmh
-    if not limit:
-        return
-    fastest: dict[tuple[int, object], dict] = {}
-    for r in rows:
-        if (r["speed_kmh"] or 0) > limit and (r["accuracy_m"] is None or r["accuracy_m"] <= MAX_SPEED_ACCURACY_M):
-            key = (r["custody_id"], business_date(r["recorded_at"]))
-            if key not in fastest or r["speed_kmh"] > fastest[key]["speed_kmh"]:
-                fastest[key] = r
-    if not fastest:
-        return
-    by_id = {c.id: c for c in custodies}
-    plates = fleet.plate_numbers(db, {r["vehicle_id"] for r in fastest.values()})
-    for (custody_id, day), r in fastest.items():
-        c = by_id[custody_id]
-        notifications.raise_alert(
-            db,
-            "speeding",
-            company_id=c.company_id,
-            entity_type="custody",
-            entity_id=c.public_id,
-            params={"driver": device.name, "plate": plates.get(r["vehicle_id"]), "speed": round(r["speed_kmh"])},
-            dedupe_key=f"speeding:{custody_id}:{day}",
-            once=True,
-        )
 
 
 def _publish(db: Session, rows: list[dict], device: identity.DevicePrincipal) -> None:
@@ -499,7 +464,6 @@ def scan_signal_loss(db: Session) -> int:
             raised += 1
             if p is not None:
                 p.signal_lost_alerted_at = now
-            violations.signal_lost(db, employee_id=c.driver_id, custody_id=c.id, lost_at=reference)  # TRK-M-03
     db.commit()
     return raised
 

@@ -11,7 +11,6 @@ from app.modules.files import models as files  # noqa: F401
 from app.modules.finance import models as finance  # noqa: F401
 from app.modules.fines import models as fines  # noqa: F401
 from app.modules.fleet import models as fleet  # noqa: F401
-from app.modules.fuel import models as fuel  # noqa: F401
 from app.modules.i18n import models as i18n  # noqa: F401
 from app.modules.identity import models as identity  # noqa: F401
 from app.modules.integrations import models as integrations  # noqa: F401
@@ -22,4 +21,3 @@ from app.modules.org import models as org  # noqa: F401
 from app.modules.payroll import models as payroll  # noqa: F401
 from app.modules.people import models as people  # noqa: F401
 from app.modules.tracking import models as tracking  # noqa: F401
-from app.modules.violations import models as violations  # noqa: F401

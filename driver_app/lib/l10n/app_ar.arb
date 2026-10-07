@@ -14,7 +14,7 @@
   "km": "كم",
   "signInTitle": "تسجيل الدخول",
   "signInHint": "أدخل رقم جوالك المسجل لدى الشركة. سيصلك رمز الدخول على واتساب.",
-  "phoneLabel": "الهاتف",
+  "phoneLabel": "رقم الجوال",
   "phoneInvalid": "8 أرقام كويتية، أو رقم دولي يبدأ بـ +",
   "sendCode": "إرسال الرمز",
   "activationTip": "إذا وصلك رابط التفعيل على واتساب، افتحه من هذا الهاتف ولن تحتاج رمزاً.",
@@ -166,6 +166,8 @@
   "vehicleChangeRejected": "رُفض طلب تغيير السيارة: {note}",
   "profileTitle": "بياناتي",
   "employeeNumber": "الرقم الوظيفي",
+  "phoneLabel": "الهاتف",
+  "civilId": "الرقم المدني",
   "companyLabel": "الشركة",
   "platformLabel": "المنصة",
   "bankLabel": "البنك",
@@ -755,127 +757,5 @@
   },
   "payWhyUncovered": "العقوبات أكبر من المستحق، والشهر لا ينزل تحت الصفر: هذا الباقي لم يُخصم",
   "noticesTitle": "الإشعارات",
-  "noticesNone": "لا توجد إشعارات بعد",
-  "fuel": "تعبئة الوقود",
-  "fuelTitle": "الوقود",
-  "kind_fuel": "تعبئة وقود",
-  "fuelNew": "تعبئة جديدة",
-  "fuelIntro": "اكتب ما في الفاتورة وصوّر الفاتورة والعداد من الكاميرا. التعبئة السليمة تُعتمد فورًا، وما يخالف سعة الخزان أو السعر الرسمي أو العداد يراجعه المحاسب.",
-  "fuelNoVehicle": "تُسجَّل التعبئة للسيارة التي في عهدتك. لا توجد سيارة معك الآن.",
-  "fuelTank": "الخزان {litres} لتر",
-  "@fuelTank": {
-    "placeholders": {
-      "litres": {
-        "type": "String"
-      }
-    }
-  },
-  "fuelType": "نوع الوقود",
-  "fuelLitres": "اللترات",
-  "fuelAmount": "المبلغ (د.ك)",
-  "fuelStation": "المحطة (اختياري)",
-  "fuelInvoicePhoto": "صورة الفاتورة",
-  "fuelPhotosRequired": "صوّر الفاتورة والعداد",
-  "fuelNumberInvalid": "اكتب رقمًا أكبر من صفر",
-  "fuelMine": "تعبئاتي",
-  "fuelNone": "لا توجد تعبئات",
-  "fuelFillNo": "تعبئة #{number}",
-  "@fuelFillNo": {
-    "placeholders": {
-      "number": {
-        "type": "String"
-      }
-    }
-  },
-  "fuelLine": "{litres} لتر · {amount} د.ك",
-  "@fuelLine": {
-    "placeholders": {
-      "litres": {
-        "type": "String"
-      },
-      "amount": {
-        "type": "String"
-      }
-    }
-  },
-  "fuelRejected": "رُفضت: {reason}",
-  "@fuelRejected": {
-    "placeholders": {
-      "reason": {
-        "type": "String"
-      }
-    }
-  },
-  "fuelType_premium_91": "ممتاز 91",
-  "fuelType_super_95": "خصوصي 95",
-  "fuelType_ultra_98": "ألترا 98",
-  "fuelType_diesel": "ديزل",
-  "fuelStatus_approved": "معتمدة",
-  "fuelStatus_pending": "بانتظار المراجعة",
-  "fuelStatus_rejected": "مرفوضة",
-  "violations": "مخالفات العمل",
-  "violationsTitle": "مخالفات العمل",
-  "violationsIntro": "المخالفات التي اعتمدها المكتب عليك. تستطيع الاعتراض على المخالفة حتى نهاية مهلتها، والقرار النهائي يصلك هنا وفي الإشعارات. الغرامة لا تُخصم قبل أن تصبح نهائية.",
-  "violationsNone": "لا توجد مخالفات عليك",
-  "kind_objection": "اعتراض على مخالفة",
-  "vioTitle": "مخالفة #{number} · {type}",
-  "@vioTitle": {
-    "placeholders": {
-      "number": {
-        "type": "String"
-      },
-      "type": {
-        "type": "String"
-      }
-    }
-  },
-  "vioReference": "المرجع: {reference}",
-  "@vioReference": {
-    "placeholders": {
-      "reference": {
-        "type": "String"
-      }
-    }
-  },
-  "vioPenalty": "الغرامة: {amount} د.ك",
-  "@vioPenalty": {
-    "placeholders": {
-      "amount": {
-        "type": "String"
-      }
-    }
-  },
-  "vioWarning": "إنذار بلا غرامة",
-  "vioYourObjection": "اعتراضك: {text}",
-  "@vioYourObjection": {
-    "placeholders": {
-      "text": {
-        "type": "String"
-      }
-    }
-  },
-  "vioDecision": "القرار: {reason}",
-  "@vioDecision": {
-    "placeholders": {
-      "reason": {
-        "type": "String"
-      }
-    }
-  },
-  "vioObjectUntil": "يمكنك الاعتراض حتى {time}",
-  "@vioObjectUntil": {
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "vioObject": "اعتراض",
-  "vioObjectIntro": "اكتب لماذا المخالفة ليست عليك (مثلاً: العميل ألغى الطلب، أو المطعم تأخر). أرفق لقطة شاشة إن كانت عندك.",
-  "vioObjectionText": "سبب الاعتراض",
-  "vioObjectionFile": "لقطة شاشة (اختياري)",
-  "vioStatus_approved": "معتمدة",
-  "vioStatus_objected": "اعتراضك قيد القرار",
-  "vioStatus_upheld": "نهائية",
-  "vioStatus_overturned": "أُلغيت"
+  "noticesNone": "لا توجد إشعارات بعد"
 }

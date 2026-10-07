@@ -134,7 +134,7 @@
     A.setTitle('التنبيهات');
     var v = A.view();
     BT.render(v, h`${A.head('التنبيهات', 'تظهر لك تنبيهات الصلاحيات التي تملكها فقط، ضمن شركاتك. «تم الاطلاع» يسجّل اسمك ووقتك في سجل التدقيق', '')}<div class="card"><div id="alerts-table"></div></div>`);
-    var cursors = [null], open = true, shown = {};
+    var cursors = [null], open = true;
     var t = BT.table(document.getElementById('alerts-table'), {
       fetch: function (s) {
         var page = Math.round(s.offset / (s.limit - 1));
@@ -142,7 +142,6 @@
         if (page === 0) cursors = [null];
         return api.get('/alerts', { open: open, limit: s.limit, before: cursors[page] }).then(function (rows) {
           if (rows.length >= s.limit) cursors[page + 1] = rows[s.limit - 2].created_at;
-          rows.forEach(function (a) { shown[a.id] = a; });
           return rows;
         });
       },
@@ -152,17 +151,9 @@
         { key: 'message', label: 'التنبيه', render: function (a) { return h`<span style="white-space:normal">${a.message}</span>`; } },
         { key: 'created_at', label: 'الوقت', render: function (a) { return h`${fmt.dt(a.created_at)}<span class="sub">${fmt.since(a.created_at)}</span>`; } },
         { key: 'company', label: 'الشركة', render: function (a) { return a.company_id ? api.company(a.company_id) : '—'; } },
-        { key: 'ack', label: '', render: function (a) {
-          if (a.acknowledged_at) return h`<span class="muted fs-sm">${icon('check', 13)} ${fmt.dt(a.acknowledged_at)}</span>`;
-          // BR-13: speed, a lost signal and the like stay alerts until a supervisor makes one a violation
-          var convert = A.violationFromAlert && A.violationFromAlert[a.kind] && api.can('violations.manage');
-          return h`<div class="flex gap-8">${convert ? h`<button type="button" class="btn btn-sm btn-ghost" data-violation="${a.id}">${icon('shield-alert', 13)} مخالفة</button>` : ''}<button type="button" class="btn btn-sm btn-soft" data-ack="${a.id}">${icon('check', 13)} تم الاطلاع</button></div>`;
-        } }
+        { key: 'ack', label: '', render: function (a) { return a.acknowledged_at ? h`<span class="muted fs-sm">${icon('check', 13)} ${fmt.dt(a.acknowledged_at)}</span>` : h`<button type="button" class="btn btn-sm btn-soft" data-ack="${a.id}">${icon('check', 13)} تم الاطلاع</button>`; } }
       ],
       empty: { icon: 'circle-check', title: 'لا توجد تنبيهات' }
-    });
-    BT.on(v, 'click', '[data-violation]', function (e, b) {
-      A.newViolation({ alert: shown[b.getAttribute('data-violation')], after: function () { t.refresh(); A.refreshCounts(); } });
     });
     BT.on(v, 'click', '[data-ack]', function (e, b) {
       b.disabled = true;

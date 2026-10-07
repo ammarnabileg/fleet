@@ -116,7 +116,7 @@ class Expense(Base):
     center_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("maintenance.centers.id"))
     notes: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
-    created_by: Mapped[int | None] = mapped_column(BigInteger)  # none: made by the system (a fuel fill)
+    created_by: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     decided_by: Mapped[int | None] = mapped_column(BigInteger)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

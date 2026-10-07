@@ -64,11 +64,6 @@ KINDS: dict[str, Kind] = {
     "accident_estimate_submitted": Kind("info", "accidents.update", ("plate", "number", "center", "amount")),
     "accident_awaiting_police_report": Kind("warning", "accidents.view", ("plate", "number", "days")),
     "fine_no_driver": Kind("warning", "fines.manage", ("plate", "number", "at")),
-    "fuel_review": Kind("warning", "fuel.approve", ("plate", "number", "checks")),
-    "fuel_consumption_high": Kind("warning", "fuel.view", ("plate", "number", "consumption", "reference")),
-    "violation_review": Kind("warning", "violations.approve", ("number", "driver", "type")),
-    "violation_objected": Kind("warning", "violations.approve", ("number", "driver")),
-    "speeding": Kind("warning", "tracking.live", ("driver", "plate", "speed")),
     "approval_escalated": Kind("warning", "approvals.view", ("ref", "hours")),
 }
 
@@ -189,24 +184,6 @@ def acknowledge(
     db.commit()
 
 
-def take_alert(
-    db: Session, public_id, *, actor_user_id: int, permissions: Iterable[str], all_companies: bool, company_ids
-) -> int:
-    """An alert acted on elsewhere (turned into a violation): acknowledged in the caller's transaction."""
-    q = _visible(
-        select(Alert).where(Alert.public_id == public_id),
-        permissions=permissions,
-        all_companies=all_companies,
-        company_ids=company_ids,
-    )
-    alert = db.scalar(q.with_for_update())
-    if alert is None:
-        raise AppError(404, "alert_not_found")
-    if alert.acknowledged_at is None:
-        alert.acknowledged_at, alert.acknowledged_by = func.now(), actor_user_id
-    return alert.id
-
-
 # ------------------------------------------------------------------ what the driver is told (FR-NTF-01/02)
 
 DRIVER_KINDS: dict[str, tuple[str, ...]] = {  # kind: the params its text uses
@@ -220,10 +197,6 @@ DRIVER_KINDS: dict[str, tuple[str, ...]] = {  # kind: the params its text uses
     "accident_charged": ("number", "amount", "installments"),
     "fine_charged": ("number", "amount", "installments"),
     "deduction_added": ("reason", "amount", "installments"),
-    "fuel_rejected": ("number", "reason"),
-    "violation_approved": ("number", "type", "amount", "hours"),
-    "violation_upheld": ("number", "reason"),
-    "violation_overturned": ("number", "reason"),
     "payslip_ready": ("month",),
     "report_missing": ("date",),
     "report_returned": ("date", "reason"),

@@ -23,9 +23,6 @@ class TrackingSettings(_Section):
     # GPS points kept for so many whole months before the current one; 0 keeps them all. Privacy against history is
     # the client's decision; routes and GPS kilometers of the deleted months are gone, the odometer's stay
     retention_months: int = Field(0, ge=0, le=120)
-    # a point from the phone faster than this raises an alert, once a custody a day; a supervisor decides whether it
-    # becomes a violation (BR-13). 0: no alert
-    speed_limit_kmh: int = Field(120, ge=0, le=250)
 
 
 class CashSettings(_Section):
@@ -78,18 +75,7 @@ class DriverSignInSettings(_Section):
 
 # the driver app's screens an office may hide; sign-in, the day's start and end (custody, odometer, tracking),
 # the self-registration and the phone permissions are not here: the app does not work without them
-APP_SCREENS = (
-    "daily_report",
-    "cash",
-    "maintenance",
-    "accidents",
-    "fines",
-    "statement",
-    "payslips",
-    "schemes",
-    "fuel",
-    "violations",
-)
+APP_SCREENS = ("daily_report", "cash", "maintenance", "accidents", "fines", "statement", "payslips", "schemes")
 LOCKED_SCREENS = ("sign_in", "day", "onboarding", "permissions")
 
 
@@ -142,16 +128,6 @@ class DailyReportSettings(_Section):
     deviation_percent: int = Field(50, ge=10, le=500)  # orders or cash this far from the driver's average (FR-DWR-08)
 
 
-class FuelSettings(_Section):
-    """The checks of a fill before its approval (BRD FR-FUL-02, FR-FUL-04; BR-07, BR-08)."""
-
-    price_tolerance_percent: Decimal = Field(Decimal("1.00"), ge=0, le=20, max_digits=4, decimal_places=2)
-    consumption_alert_percent: int = Field(20, ge=1, le=200)  # litres per 100 km this far over the model's reference
-    # how an approved fill enters finance: owed to the station (paid later from finance), or paid from the treasury.
-    # Who pays for fuel (a company card, a station account, the driver from the cash he holds) is the client's call
-    expense_payment: Literal["payable", "treasury"] = "payable"
-
-
 class BrandingSettings(_Section):
     display_name: str = Field("BrilliantTech Fleet", min_length=2, max_length=60)
     primary_color: str = Field("#0A6CFF", pattern=r"^#[0-9A-Fa-f]{6}$")
@@ -161,12 +137,6 @@ class BrandingSettings(_Section):
 class BrandingOut(BaseModel):
     display_name: str
     primary_color: str
-
-
-class ViolationsSettings(_Section):
-    objection_hours: int = Field(48, ge=0, le=720)  # BR-09; 0: final as approved
-    signal_loss_count: int = Field(3, ge=0, le=50)  # TRK-M-03: so many signal losses ...
-    signal_loss_days: int = Field(7, ge=1, le=31)  # ... within so many days open a violation; 0: none
 
 
 SECTIONS: dict[str, type[_Section]] = {
@@ -183,8 +153,6 @@ SECTIONS: dict[str, type[_Section]] = {
     "payroll": PayrollSettings,
     "daily_report": DailyReportSettings,
     "branding": BrandingSettings,
-    "fuel": FuelSettings,
-    "violations": ViolationsSettings,
 }
 
 

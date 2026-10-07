@@ -18,7 +18,6 @@ from app.modules.files.api import router as files_router
 from app.modules.finance.api import router as finance_router
 from app.modules.fines.api import router as fines_router
 from app.modules.fleet.api import router as fleet_router
-from app.modules.fuel.api import router as fuel_router
 from app.modules.i18n.api import router as i18n_router
 from app.modules.identity.api import router as identity_router
 from app.modules.imports.api import router as imports_router
@@ -31,7 +30,6 @@ from app.modules.payroll.api import router as payroll_router
 from app.modules.people.api import router as people_router
 from app.modules.reports.api import router as reports_router
 from app.modules.tracking.api import router as tracking_router
-from app.modules.violations.api import router as violations_router
 
 VERSION = "0.1.0"
 
@@ -74,8 +72,6 @@ def create_app() -> FastAPI:
         people_router,
         documents_router,
         fleet_router,
-        fuel_router,
-        violations_router,
         tracking_router,
         notifications_router,
         onboarding_router,

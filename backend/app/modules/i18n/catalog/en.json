@@ -91,13 +91,7 @@
     "vehicles.view": "View vehicles",
     "employees.onboarding": "Review and approve drivers' self-registration",
     "payroll.schemes": "Pay schemes and requests to change them",
-    "daily_reports.escalations": "Overdue report escalations (manager)",
-    "fuel.view": "View fuel",
-    "fuel.manage": "Record fills, prices and model references",
-    "fuel.approve": "Approve flagged fuel fills",
-    "violations.view": "View work violations",
-    "violations.manage": "Record work violations",
-    "violations.approve": "Review violations and decide objections"
+    "daily_reports.escalations": "Overdue report escalations (manager)"
   },
   "modules": {
     "accidents": "Accidents",
@@ -131,9 +125,7 @@
     "tracking": "Tracking",
     "treasury": "Treasury",
     "users": "Users",
-    "vehicles": "Vehicles",
-    "fuel": "Fuel",
-    "violations": "Work violations"
+    "vehicles": "Vehicles"
   },
   "errors": {
     "account_closed": "This driver's cash account was closed by the settlement",
@@ -439,26 +431,7 @@
     "delegation_not_found": "Delegation not found",
     "correction_at_last_step": "The cash amount is corrected at the last approval step",
     "mfa_code_invalid": "The authenticator code is not correct",
-    "deduction_decided": "This deduction was already decided",
-    "fuel_fill_not_found": "Fill not found",
-    "fuel_fill_exists": "This fuel invoice is already recorded",
-    "fuel_fill_decided": "This fill was already decided",
-    "fuel_price_exists": "This fuel already has a price from that date; add one from another day",
-    "fuel_model_exists": "This make and model already exists",
-    "fuel_model_not_found": "Make and model not found",
-    "fuel_expense_type_missing": "The fuel expense type is missing or inactive in finance",
-    "odometer_photo_required": "The odometer photo is required",
-    "violation_not_found": "Violation not found",
-    "violation_type_not_found": "Violation type not found or switched off",
-    "violation_cause_not_found": "Cause not found",
-    "violation_type_exists": "A type with this code exists",
-    "violation_cause_exists": "A cause with this code exists",
-    "violation_not_pending": "The violation is not waiting for review",
-    "violation_not_objected": "No objection is waiting for a decision",
-    "violation_not_objectable": "This violation cannot be objected to",
-    "objection_exists": "Your objection was already sent",
-    "objection_too_late": "The objection deadline has passed",
-    "violation_type_fixed": "A type's code and source do not change once created"
+    "deduction_decided": "This deduction was already decided"
   },
   "settings": {
     "branding": "Branding",
@@ -511,16 +484,7 @@
     "driver_app.splash_image": "Splash image",
     "driver_app.splash_color": "Background around the image",
     "driver_app.splash_seconds": "Shown for (seconds)",
-    "payroll.absence_deduction": "Absence and unpaid leave days — the client's decision",
-    "fuel": "Fuel",
-    "fuel.price_tolerance_percent": "Accepted difference from the official price (%)",
-    "fuel.consumption_alert_percent": "Consumption alert over the model's reference by (%)",
-    "fuel.expense_payment": "How a fill enters finance (owed to the station, or from the treasury)",
-    "violations": "Work violations",
-    "violations.objection_hours": "Driver's objection deadline (hours)",
-    "violations.signal_loss_count": "Signal losses that open a violation for review (0 = none)",
-    "violations.signal_loss_days": "Within (days)",
-    "tracking.speed_limit_kmh": "Speeding alert above (km/h, 0 = no alert)"
+    "payroll.absence_deduction": "Absence and unpaid leave days — the client's decision"
   },
   "common": {
     "active": "Active",
@@ -589,12 +553,7 @@
     "daily_report_change_requested": "{driver} asks to change the report of {date}",
     "vehicle_change_requested": "{driver} asks to change the vehicle {plate}: {reason}",
     "document_renewal_submitted": "{driver} sent a renewed {document}, valid until {date}: check and approve it",
-    "daily_report_missing": "{driver} started the day {date} but sent no report",
-    "fuel_review": "Fuel fill #{number} ({plate}) waits for review: {checks}",
-    "fuel_consumption_high": "{plate} at fill #{number}: {consumption} L/100 km against {reference}",
-    "violation_review": "Violation #{number} of {driver} ({type}) waits for review",
-    "violation_objected": "{driver} objected to violation #{number}: waiting for the final decision",
-    "speeding": "{driver} was speeding: {speed} km/h in {plate}"
+    "daily_report_missing": "{driver} started the day {date} but sent no report"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -872,9 +831,7 @@
     "day": "Start and end of the day (odometer, custody, tracking)",
     "onboarding": "Self-registration (set in the self-registration settings)",
     "permissions": "Phone permissions (location, camera)",
-    "schemes": "Pay schemes and change requests",
-    "fuel": "Fuel fills",
-    "violations": "Work violations"
+    "schemes": "Pay schemes and change requests"
   },
   "daily_field": {
     "orders": "Orders",
@@ -1062,13 +1019,7 @@
     "expense": "Expense",
     "expense_type": "Expense type",
     "workflow": "Approval workflow",
-    "delegation": "Delegation",
-    "fuel_fill": "Fuel fill",
-    "fuel_price": "Fuel price",
-    "fuel_model": "Make and model (fuel)",
-    "violation": "Work violation",
-    "violation_type": "Violation type",
-    "violation_cause": "Exclusion cause"
+    "delegation": "Delegation"
   },
   "audit_actor": {
     "user": "User",
@@ -1246,50 +1197,6 @@
     "document_expired": "Your {document} expired on {date}. Renew it now and give the copy to the office.",
     "scheme_request_approved": "Your request was approved: pay scheme {scheme} from {month}.",
     "scheme_request_rejected": "Your request to change to pay scheme {scheme} was refused: {reason}",
-    "report_missing": "You started your day {date} but have not sent your report yet. Send it now from the app.",
-    "fuel_rejected": "Fuel fill #{number} was refused: {reason}",
-    "violation_approved": "Violation #{number} ({type}) was recorded against you, penalty {amount} KWD. You may object from the app within {hours} hours.",
-    "violation_upheld": "Your objection to violation #{number} was rejected: {reason}",
-    "violation_overturned": "Your objection was accepted and violation #{number} cancelled: {reason}"
-  },
-  "fuel_type": {
-    "premium_91": "Premium 91",
-    "super_95": "Super 95",
-    "ultra_98": "Ultra 98",
-    "diesel": "Diesel"
-  },
-  "fuel_flag": {
-    "over_tank": "More than the tank holds",
-    "price_mismatch": "Amount differs from the official price",
-    "wrong_fuel_type": "A fuel the vehicle does not take",
-    "odometer_backwards": "Odometer below the last reading",
-    "odometer_jump": "Implausible distance since the last reading",
-    "no_model": "No reference for the vehicle's model",
-    "no_price": "No official price for that day"
-  },
-  "fuel_status": {
-    "pending": "Awaiting review",
-    "approved": "Approved",
-    "rejected": "Refused"
-  },
-  "violation_text": {
-    "mock_location": "Locations from a location-faking app were refused on the driver's phone",
-    "signal_loss": "The signal was lost {count} times within {days} days during work"
-  },
-  "violation_status": {
-    "pending": "Waiting for review",
-    "approved": "Approved",
-    "excluded": "Excluded",
-    "objected": "Objected",
-    "upheld": "Final: objection rejected",
-    "overturned": "Final: objection accepted"
-  },
-  "violation_source": {
-    "attendance": "Attendance",
-    "cash": "Cash",
-    "orders": "Orders",
-    "complaints": "Complaints",
-    "accidents": "Accidents",
-    "tracking": "Tracking"
+    "report_missing": "You started your day {date} but have not sent your report yet. Send it now from the app."
   }
 }

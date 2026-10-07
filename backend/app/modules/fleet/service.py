@@ -1078,12 +1078,6 @@ def custody_ref_by_public_id(db: Session, public_id, **scope) -> CustodyRef:
     return _cref(custody)
 
 
-def last_reading(db: Session, vehicle_id: int, before: datetime) -> tuple[int, datetime] | None:
-    """The vehicle's odometer (corrected when reviewed) at its last reading up to this time, and when."""
-    r = _previous_reading(db, vehicle_id, before)
-    return None if r is None else (r.effective_km, r.recorded_at)
-
-
 def open_custody_for_driver(db: Session, driver_id: int) -> CustodyRef | None:
     custody = db.scalar(select(Custody).where(Custody.driver_id == driver_id, Custody.ended_at.is_(None)))
     return None if custody is None else _cref(custody)
