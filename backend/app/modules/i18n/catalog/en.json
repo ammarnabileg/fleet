@@ -461,6 +461,7 @@
     "tracking.interval_moving_s": "Location interval while moving (seconds)",
     "tracking.interval_stationary_s": "Location interval when stopped (seconds)",
     "tracking.signal_loss_minutes": "Signal loss alert after (minutes)",
+    "tracking.retention_months": "Keep GPS points for (whole months before this one, 0 = keep all)",
     "onboarding": "Driver self-registration",
     "onboarding.required_documents": "Documents the driver must send",
     "onboarding.vehicle_photos": "Required vehicle photos",

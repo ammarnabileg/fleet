@@ -461,6 +461,7 @@
     "tracking.interval_moving_s": "تكرار الموقع أثناء الحركة (ثانية)",
     "tracking.interval_stationary_s": "تكرار الموقع عند التوقف (ثانية)",
     "tracking.signal_loss_minutes": "تنبيه انقطاع الإشارة بعد (دقيقة)",
+    "tracking.retention_months": "الاحتفاظ بنقاط التتبع (شهور كاملة قبل الحالي، 0 = بلا حذف)",
     "onboarding": "التسجيل الذاتي للسائق",
     "onboarding.required_documents": "المستندات المطلوبة من السائق",
     "onboarding.vehicle_photos": "صور السيارة المطلوبة",

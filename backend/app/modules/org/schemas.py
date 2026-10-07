@@ -20,6 +20,9 @@ class TrackingSettings(_Section):
     interval_moving_s: int = Field(30, ge=5, le=600)
     interval_stationary_s: int = Field(300, ge=30, le=3600)
     signal_loss_minutes: int = Field(10, ge=1, le=240)
+    # GPS points kept for so many whole months before the current one; 0 keeps them all. Privacy against history is
+    # the client's decision; routes and GPS kilometers of the deleted months are gone, the odometer's stay
+    retention_months: int = Field(0, ge=0, le=120)
 
 
 class CashSettings(_Section):

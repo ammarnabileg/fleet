@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.core import live
 from app.core.clock import KUWAIT, business_date, utcnow
 from app.core.errors import AppError
+from app.modules.audit import service as audit
 from app.modules.fleet import service as fleet
 from app.modules.identity import service as identity
 from app.modules.notifications import service as notifications
@@ -467,9 +468,11 @@ def scan_signal_loss(db: Session) -> int:
     return raised
 
 
-def maintain_partitions(db: Session) -> None:
-    """Daily: the current and the next two months always have a partition."""
-    month, months = _month(utcnow()), []
+def maintain_partitions(db: Session) -> int:
+    """Daily: the current and the next two months always have a partition; with a retention set, the months older
+    than it are deleted whole (BRD privacy and retention, a client setting). Returns how many months were deleted."""
+    current = month = _month(utcnow())
+    months = []
     for _ in range(3):
         _partitions.discard(month)
         ensure_partition(db, month)
@@ -477,3 +480,19 @@ def maintain_partitions(db: Session) -> None:
         month = (month + timedelta(days=32)).replace(day=1)
     db.commit()
     _partitions.update(months)
+    keep = org.get_section(db, "tracking").retention_months
+    if not keep:
+        return 0
+    index = current.year * 12 + current.month - 1 - keep
+    cutoff = date(index // 12, index % 12 + 1, 1)
+    dropped = db.scalar(text("SELECT tracking.drop_partitions_before(:m)"), {"m": cutoff}) or 0
+    if dropped:
+        audit.record(
+            db,
+            action="tracking.points_deleted",
+            entity_type="tracking",
+            actor_type="system",
+            after={"before_month": cutoff, "months": dropped, "retention_months": keep},
+        )
+    db.commit()
+    return dropped

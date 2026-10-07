@@ -13,7 +13,12 @@ def test_defaults_validation_versioning_audit_and_event(admin_client, db):
     s = admin_client.get("/api/v1/settings").json()
     assert s["tracking"] == {
         "version": 0,
-        "value": {"interval_moving_s": 30, "interval_stationary_s": 300, "signal_loss_minutes": 10},
+        "value": {
+            "interval_moving_s": 30,
+            "interval_stationary_s": 300,
+            "signal_loss_minutes": 10,
+            "retention_months": 0,
+        },
     }
     bad = admin_client.put("/api/v1/settings/tracking", json={"version": 0, "value": {"interval_moving_s": 1}})
     assert bad.status_code == 422 and bad.json()["code"] == "invalid_settings"
