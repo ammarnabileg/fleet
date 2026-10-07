@@ -32,6 +32,21 @@
     return A._codes;
   };
 
+  // FR-APP-05: a renewed document the driver sent from the app counts only once checked against its photo
+  function renewals(box) {
+    A.pendingBox(box, {
+      key: 'renewals', url: '/documents/renewals', title: 'مستندات جددها السائقون من التطبيق',
+      hint: 'قارن الصورة بالتاريخ والرقم: الاعتماد يجعله المستند الحالي ويحفظ القديم في السجل',
+      row: function (x) {
+        return h`<div class="flex gap-12 items-center">${A.thumbs([{ src: api.url('/documents/renewals/' + x.id + '/file'), caption: api.name(x.type_name) }])}<div>${A.person(x.driver)} <b>${api.name(x.type_name)}</b>${x.number ? h` <span class="num">${x.number}</span>` : ''}<div class="fs-sm">ينتهي <span class="num">${fmt.date(x.expiry_date)}</span> · أُرسل ${fmt.dt(x.created_at)}</div></div></div>`;
+      },
+      actions: [
+        { label: 'اعتماد', cls: 'btn-primary', title: 'اعتماد المستند المجدد', message: 'يصبح المستند الحالي للسائق بتاريخه الجديد، ويُغلق تنبيه انتهائه.', done: 'اعتُمد المستند', run: function (x) { return api.post('/documents/renewals/' + x.id + '/approve', {}); } },
+        { label: 'رفض', tone: 'danger', title: 'رفض المستند المجدد', message: 'يصل السبب للسائق ليرسله من جديد.', reason: { label: 'السبب' }, done: 'رُفض المستند', run: function (x, reason) { return api.post('/documents/renewals/' + x.id + '/reject', { note: reason }); } }
+      ]
+    });
+  }
+
   BT.pages['employees'] = function (p, q) {
     A.phoneCodes();
     A.setTitle('الموظفون والسائقون');
@@ -44,7 +59,7 @@
     BT.render(v, h`${A.head('ملف لكل موظف وسائق', 'البيانات والمستندات والهاتف المربوط والحالة الوظيفية', actions)}
       ${BT.tabs('emp', tabs, tab, 'tabs-line')}
       <div data-panel="list" data-group="emp" class="${tab === 'list' ? 'active' : ''}"><div class="card"><div id="emp-table"></div></div></div>
-      <div data-panel="docs" data-group="emp" class="${tab === 'docs' ? 'active' : ''}"><div id="doc-panel"></div></div>
+      <div data-panel="docs" data-group="emp" class="${tab === 'docs' ? 'active' : ''}"><div id="doc-renewals"></div><div id="doc-panel"></div></div>
       <div data-panel="reg" data-group="emp" class="${tab === 'reg' ? 'active' : ''}"><div class="banner info fs-sm mb-12">${icon('info', 15)}<div>ما يرسله السائق من التطبيق بعد رابط التفعيل. لا يدخل شيء في السجلات قبل الاعتماد، والاعتماد يسجّل البيانات والمستندات والعهدة معاً أو لا شيء.</div></div><div class="card"><div id="reg-table"></div></div></div>
       <div data-panel="queue" data-group="emp" class="${tab === 'queue' ? 'active' : ''}"><div id="queue-panel"></div></div>`);
 
@@ -53,7 +68,10 @@
       if (drawn[t]) return;
       drawn[t] = true;
       if (t === 'list') listTable();
-      if (t === 'docs') docsPanel(document.getElementById('doc-panel'));
+      if (t === 'docs') {
+        docsPanel(document.getElementById('doc-panel'));
+        if (api.can('documents.manage')) renewals(document.getElementById('doc-renewals'));
+      }
       if (t === 'reg') regTable();
       if (t === 'queue') queuePanel(document.getElementById('queue-panel'));
     }

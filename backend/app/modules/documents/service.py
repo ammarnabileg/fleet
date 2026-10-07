@@ -9,12 +9,14 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.clock import today
+from app.core.clock import today, utcnow
+from app.core.db import violated_constraint
 from app.core.errors import AppError
 from app.modules.audit import service as audit
-from app.modules.documents.models import Document, DocumentType
+from app.modules.documents.models import Document, DocumentType, Renewal
 from app.modules.files import service as files
 from app.modules.notifications import service as notifications
 from app.modules.org import service as org
@@ -222,3 +224,199 @@ def scan_expiring(db: Session, label_of) -> int:
             )
     db.commit()
     return raised
+
+
+# ------------------------------------------------------------------ the driver's documents (BRD FR-APP-05)
+
+
+def _renewal_out(r: Renewal, type_names: dict, names: dict | None = None) -> dict:
+    return {
+        "id": str(r.public_id),
+        "type_code": r.type_code,
+        "type_name": type_names.get(r.type_code),
+        "driver": (names or {}).get(r.employee_id),
+        "number": r.number,
+        "expiry_date": r.expiry_date,
+        "status": r.status,
+        "created_at": r.created_at,
+        "decided_at": r.decided_at,
+        "note": r.note,
+    }
+
+
+def _type_names(db: Session) -> dict:
+    return {t.code: t.name for t in db.scalars(select(DocumentType))}
+
+
+def driver_documents(db: Session, employee_id: int) -> list[dict]:
+    """The driver's current documents with their expiry and how long is left, and the renewal he sent for each
+    type, if any; plus the types he has none of yet."""
+    settings = org.get_section(db, "documents")
+    names = _type_names(db)
+    current = {
+        d.type_code: d
+        for d in db.scalars(
+            select(Document).where(
+                Document.owner_type == "employee", Document.owner_id == employee_id, Document.is_current.is_(True)
+            )
+        )
+    }
+    latest: dict[str, Renewal] = {}
+    for r in db.scalars(select(Renewal).where(Renewal.employee_id == employee_id).order_by(Renewal.id)):
+        latest[r.type_code] = r
+    types = db.scalars(
+        select(DocumentType)
+        .where(DocumentType.applies_to == "employee", DocumentType.is_active.is_(True))
+        .order_by(DocumentType.sort_order)
+    )
+    out = []
+    for t in types:
+        d = current.get(t.code)
+        days = (d.expiry_date - today()).days if d and d.expiry_date else None
+        state = (
+            "missing"
+            if d is None
+            else "expired"
+            if days is not None and days < 0
+            else "expiring"
+            if days is not None and days <= settings.expiry_alert_days
+            else "valid"
+        )
+        if d is None and not t.requires_expiry:
+            continue  # a contract he has none of is not his to send
+        renewal = latest.get(t.code)
+        out.append(
+            {
+                "type_code": t.code,
+                "type_name": t.name,
+                "number": d.number if d else None,
+                "expiry_date": d.expiry_date if d else None,
+                "days_left": days,
+                "state": state,
+                "renewable": t.requires_expiry,
+                "renewal": _renewal_out(renewal, names) if renewal else None,
+            }
+        )
+    return out
+
+
+def submit_renewal(
+    db: Session, *, employee_id: int, company_id: int, device_id: int, driver_name: dict, data: dict
+) -> dict:
+    """The renewed document from the driver's phone: the photo or scan from this phone, the new expiry date."""
+    doc_type = db.get(DocumentType, data["type_code"])
+    if doc_type is None or not doc_type.is_active or doc_type.applies_to != "employee" or not doc_type.requires_expiry:
+        raise AppError(422, "document_type_not_found")
+    if data["expiry_date"] <= today():
+        raise AppError(422, "expiry_in_past")
+    f = files.get(db, data["file_sha256"])
+    if f.uploaded_by_device != device_id:
+        raise AppError(422, "file_not_yours")
+    renewal = Renewal(
+        employee_id=employee_id,
+        company_id=company_id,
+        type_code=doc_type.code,
+        number=data.get("number"),
+        expiry_date=data["expiry_date"],
+        file_sha256=data["file_sha256"],
+        created_by_device=device_id,
+    )
+    try:
+        with db.begin_nested():
+            db.add(renewal)
+            db.flush()
+    except IntegrityError as exc:
+        if violated_constraint(exc) == "renewals_one_pending_idx":
+            raise AppError(409, "renewal_exists") from None
+        raise
+    notifications.raise_alert(
+        db,
+        "document_renewal_submitted",
+        company_id=company_id,
+        entity_type="document_renewal",
+        entity_id=renewal.public_id,
+        params={"driver": driver_name, "document": doc_type.name, "date": renewal.expiry_date.isoformat()},
+        dedupe_key=f"document_renewal:{renewal.id}",
+    )
+    audit.record(
+        db,
+        action="document.renewal_submitted",
+        entity_type="document_renewal",
+        entity_id=renewal.public_id,
+        actor_type="device",
+        company_id=company_id,
+        after={"type": doc_type.code, "number": renewal.number, "expiry_date": renewal.expiry_date},
+    )
+    db.commit()
+    return _renewal_out(renewal, _type_names(db))
+
+
+def _renewal(db: Session, public_id, *, lock: bool = False, all_companies: bool, company_ids) -> Renewal:
+    q = select(Renewal).where(Renewal.public_id == public_id)
+    r = db.scalar(q.with_for_update() if lock else q)
+    if r is None or not (all_companies or r.company_id in set(company_ids)):
+        raise AppError(404, "renewal_not_found")
+    return r
+
+
+def list_renewals(db: Session, *, status: str | None, names_of, all_companies: bool, company_ids) -> list[dict]:
+    q = select(Renewal).order_by(Renewal.created_at)
+    if status:
+        q = q.where(Renewal.status == status)
+    if not all_companies:
+        q = q.where(Renewal.company_id.in_(list(company_ids)))
+    rows = list(db.scalars(q.limit(500)))
+    names = names_of({r.employee_id for r in rows})
+    type_names = _type_names(db)
+    return [_renewal_out(r, type_names, names) for r in rows]
+
+
+def renewal_employee_id(db: Session, public_id, **scope) -> int:
+    return _renewal(db, public_id, **scope).employee_id
+
+
+def renewal_file(db: Session, public_id, **scope) -> files.FileInfo:
+    return files.get(db, _renewal(db, public_id, **scope).file_sha256)
+
+
+def decide_renewal(
+    db: Session, public_id, *, approve: bool, note: str | None, owner: Owner | None, actor_user_id: int, **scope
+) -> dict:
+    """Checked against the photo: approved, it becomes the driver's current document (the old one kept as history,
+    its expiry alerts closed); refused, the driver reads why."""
+    r = _renewal(db, public_id, lock=True, **scope)
+    if r.status != "pending":
+        raise AppError(409, "renewal_decided")
+    if not approve and not note:
+        raise AppError(422, "reason_required")
+    type_names = _type_names(db)
+    if approve:
+        doc = add(
+            db,
+            owner,
+            {"type_code": r.type_code, "number": r.number, "expiry_date": r.expiry_date, "file_sha256": r.file_sha256},
+            actor_user_id=actor_user_id,
+            commit=False,
+        )
+        r.document_id = db.scalar(select(Document.id).where(Document.public_id == doc["id"]))
+    r.status = "approved" if approve else "rejected"
+    r.decided_by, r.decided_at, r.note = actor_user_id, utcnow(), note
+    notifications.resolve(db, f"document_renewal:{r.id}")
+    params = {"document": type_names[r.type_code]} | ({} if approve else {"reason": note})
+    notifications.notify_driver(
+        db,
+        r.employee_id,
+        "document_renewal_approved" if approve else "document_renewal_rejected",
+        params=params,
+    )
+    audit.record(
+        db,
+        action="document.renewal_approved" if approve else "document.renewal_rejected",
+        entity_type="document_renewal",
+        entity_id=r.public_id,
+        actor_user_id=actor_user_id,
+        company_id=r.company_id,
+        after={"note": note},
+    )
+    db.commit()
+    return _renewal_out(r, type_names)

@@ -105,6 +105,10 @@ class AppState extends ChangeNotifier {
     endReading: false,
   );
 
+  Profile? profile;
+  MyVehicle? myVehicle;
+  List<DriverDocument> documents = [];
+
   /// Today's report waits for the end-of-day odometer: the day was started on a vehicle still held and not closed.
   bool get endReadingDue =>
       reportForm.endReading && today?.custody != null && today!.startDayDone && !today!.endDayDone;
@@ -321,6 +325,9 @@ class AppState extends ChangeNotifier {
   void _reset() {
     today = null;
     cash = null;
+    profile = null;
+    myVehicle = null;
+    documents = [];
     onboarding = null;
     reports = [];
     maintenance = [];
@@ -350,6 +357,7 @@ class AppState extends ChangeNotifier {
         if (shows('maintenance')) _quietly(loadMaintenance),
         if (shows('accidents')) _quietly(loadAccidents),
         _quietly(loadNotices),
+        _quietly(loadProfile),
       ]);
       await _readLocal();
       _set(Phase.ready);
@@ -369,6 +377,38 @@ class AppState extends ChangeNotifier {
   Future<void> permissionsGranted() => refresh();
 
   Future<void> loadToday() async => today = Today.fromJson(await api.get('/driver/today') as Map<String, dynamic>);
+
+  Future<void> loadProfile() async => profile = Profile(await api.get('/driver/profile') as Map<String, dynamic>);
+
+  Future<void> loadVehicle() async =>
+      myVehicle = MyVehicle.fromJson(await api.get('/driver/vehicle') as Map<String, dynamic>);
+
+  Future<void> loadDocuments() async => documents = [
+    for (final d in await api.get('/driver/documents') as List) DriverDocument(d as Map<String, dynamic>),
+  ];
+
+  /// Another vehicle, with his reason; the supervisor decides (FR-ASG-04). Needs the network.
+  Future<void> requestVehicleChange(String reason) async {
+    myVehicle = MyVehicle.fromJson(
+      await api.post('/driver/vehicle-change-requests', body: {'reason': reason}) as Map<String, dynamic>,
+    );
+    notifyListeners();
+  }
+
+  /// A renewed document, from the phone's files, with its new expiry; the office checks it before it counts.
+  Future<SendResult> sendRenewal({
+    required String typeCode,
+    required String expiry,
+    String? number,
+    required String filePath,
+  }) async {
+    final id = await outbox.add(
+      'renewal',
+      {'type_code': typeCode, 'expiry_date': expiry, 'number': number},
+      {'file_sha256': filePath},
+    );
+    return _sendNow(id, after: loadDocuments);
+  }
 
   Future<void> loadCash() async => cash = Cash.fromJson(await api.get('/driver/cash') as Map<String, dynamic>);
 

@@ -147,3 +147,34 @@ class OdometerReading(Base):
     @property
     def effective_km(self) -> int:
         return self.corrected_km if self.corrected_km is not None else self.value_km
+
+
+class VehicleChangeRequest(Base):
+    """The driver asks from the app for another vehicle, with his reason (BRD FR-ASG-04); the supervisor changes it
+    (the return closes the request) or refuses with a note."""
+
+    __tablename__ = "vehicle_change_requests"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'done', 'rejected')", name="status"),
+        Index(
+            "vehicle_change_requests_one_pending_idx",
+            "custody_id",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+        ),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    company_id: Mapped[int] = mapped_column(BigInteger)
+    custody_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("fleet.custodies.id"))
+    vehicle_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("fleet.vehicles.id"))
+    reason: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_by_device: Mapped[int | None] = mapped_column(BigInteger)
+    decided_by: Mapped[int | None] = mapped_column(BigInteger)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    note: Mapped[str | None] = mapped_column(Text)

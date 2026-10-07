@@ -774,3 +774,26 @@ def claim_app(db: Session, employee_id: int, *, phone: str | None) -> None:
         before=before,
         after={"phone": employee.phone, "app_access": employee.app_access},
     )
+
+
+def profile(db: Session, employee_id: int) -> dict:
+    """The driver's own record, as the app shows it (BRD FR-APP-01): who he is, his company, his bank (the IBAN's
+    last four digits only)."""
+    e = db.get(Employee, employee_id)
+    company, branch = org.labels(db, e.company_id, e.branch_id)
+    return {
+        "name": e.name,
+        "employee_number": e.employee_number,
+        "phone": e.phone,
+        "civil_id": e.civil_id,
+        "nationality": e.nationality,
+        "job_title": e.job_title,
+        "hire_date": e.hire_date,
+        "company": company,
+        "branch": branch,
+        "platform_id": e.platform_id,
+        "platform_driver_id": e.platform_driver_id,
+        "bank_name": e.bank_name,
+        "iban_last4": e.iban[-4:] if e.iban else None,
+        "payment_method": e.payment_method,
+    }

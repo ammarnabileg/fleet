@@ -179,7 +179,7 @@ abstract class AppLocalizations {
   /// No description provided for @phoneLabel.
   ///
   /// In ar, this message translates to:
-  /// **'رقم الجوال'**
+  /// **'الهاتف'**
   String get phoneLabel;
 
   /// No description provided for @phoneInvalid.
@@ -733,6 +733,216 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'أعاده المكتب للتصحيح: {note}'**
   String returnedNote(Object note);
+
+  /// No description provided for @myCar.
+  ///
+  /// In ar, this message translates to:
+  /// **'سيارتي'**
+  String get myCar;
+
+  /// No description provided for @carSince.
+  ///
+  /// In ar, this message translates to:
+  /// **'في عهدتك منذ'**
+  String get carSince;
+
+  /// No description provided for @lastReading.
+  ///
+  /// In ar, this message translates to:
+  /// **'آخر قراءة عداد'**
+  String get lastReading;
+
+  /// No description provided for @registrationExpiry.
+  ///
+  /// In ar, this message translates to:
+  /// **'انتهاء الاستمارة'**
+  String get registrationExpiry;
+
+  /// No description provided for @requestVehicleChange.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلب تغيير السيارة'**
+  String get requestVehicleChange;
+
+  /// No description provided for @vehicleChangeReason.
+  ///
+  /// In ar, this message translates to:
+  /// **'سبب الطلب'**
+  String get vehicleChangeReason;
+
+  /// No description provided for @vehicleChangePending.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلبك تغيير السيارة لدى المشرف'**
+  String get vehicleChangePending;
+
+  /// No description provided for @vehicleChangeRejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'رُفض طلب تغيير السيارة: {note}'**
+  String vehicleChangeRejected(Object note);
+
+  /// No description provided for @profileTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'بياناتي'**
+  String get profileTitle;
+
+  /// No description provided for @employeeNumber.
+  ///
+  /// In ar, this message translates to:
+  /// **'الرقم الوظيفي'**
+  String get employeeNumber;
+
+  /// No description provided for @companyLabel.
+  ///
+  /// In ar, this message translates to:
+  /// **'الشركة'**
+  String get companyLabel;
+
+  /// No description provided for @platformLabel.
+  ///
+  /// In ar, this message translates to:
+  /// **'المنصة'**
+  String get platformLabel;
+
+  /// No description provided for @bankLabel.
+  ///
+  /// In ar, this message translates to:
+  /// **'البنك'**
+  String get bankLabel;
+
+  /// No description provided for @myDocuments.
+  ///
+  /// In ar, this message translates to:
+  /// **'مستنداتي'**
+  String get myDocuments;
+
+  /// No description provided for @docValid.
+  ///
+  /// In ar, this message translates to:
+  /// **'سارٍ'**
+  String get docValid;
+
+  /// No description provided for @docExpiring.
+  ///
+  /// In ar, this message translates to:
+  /// **'ينتهي خلال {days} يوم'**
+  String docExpiring(Object days);
+
+  /// No description provided for @docExpired.
+  ///
+  /// In ar, this message translates to:
+  /// **'منتهٍ'**
+  String get docExpired;
+
+  /// No description provided for @docMissing.
+  ///
+  /// In ar, this message translates to:
+  /// **'غير مسجل'**
+  String get docMissing;
+
+  /// No description provided for @docExpires.
+  ///
+  /// In ar, this message translates to:
+  /// **'ينتهي {date}'**
+  String docExpires(Object date);
+
+  /// No description provided for @uploadRenewal.
+  ///
+  /// In ar, this message translates to:
+  /// **'رفع المستند المجدد'**
+  String get uploadRenewal;
+
+  /// No description provided for @renewalPending.
+  ///
+  /// In ar, this message translates to:
+  /// **'التجديد بانتظار مراجعة المكتب'**
+  String get renewalPending;
+
+  /// No description provided for @renewalRejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'رُفض التجديد: {note}'**
+  String renewalRejected(Object note);
+
+  /// No description provided for @newExpiry.
+  ///
+  /// In ar, this message translates to:
+  /// **'تاريخ الانتهاء الجديد'**
+  String get newExpiry;
+
+  /// No description provided for @documentNumber.
+  ///
+  /// In ar, this message translates to:
+  /// **'رقم المستند (اختياري)'**
+  String get documentNumber;
+
+  /// No description provided for @documentPhoto.
+  ///
+  /// In ar, this message translates to:
+  /// **'صورة المستند'**
+  String get documentPhoto;
+
+  /// No description provided for @pickDate.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختر التاريخ'**
+  String get pickDate;
+
+  /// No description provided for @cashNearLimit.
+  ///
+  /// In ar, this message translates to:
+  /// **'رصيدك يقترب من حد التنبيه ({limit}): سلّم الكاش قريباً.'**
+  String cashNearLimit(Object limit);
+
+  /// No description provided for @movements.
+  ///
+  /// In ar, this message translates to:
+  /// **'الحركات'**
+  String get movements;
+
+  /// No description provided for @noMovements.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد حركات بعد'**
+  String get noMovements;
+
+  /// No description provided for @moveCollection.
+  ///
+  /// In ar, this message translates to:
+  /// **'كاش تقرير يومي'**
+  String get moveCollection;
+
+  /// No description provided for @moveReceipt.
+  ///
+  /// In ar, this message translates to:
+  /// **'تسليم بإيصال'**
+  String get moveReceipt;
+
+  /// No description provided for @moveAdjustment.
+  ///
+  /// In ar, this message translates to:
+  /// **'تسوية'**
+  String get moveAdjustment;
+
+  /// No description provided for @moveReversal.
+  ///
+  /// In ar, this message translates to:
+  /// **'عكس قيد'**
+  String get moveReversal;
+
+  /// No description provided for @moveSettlement.
+  ///
+  /// In ar, this message translates to:
+  /// **'تسوية نهاية الخدمة'**
+  String get moveSettlement;
+
+  /// No description provided for @moveOpening.
+  ///
+  /// In ar, this message translates to:
+  /// **'رصيد افتتاحي'**
+  String get moveOpening;
 
   /// No description provided for @endDayTitle.
   ///

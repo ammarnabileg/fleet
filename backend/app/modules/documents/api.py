@@ -9,7 +9,7 @@ from app.core.errors import AppError
 from app.modules.documents import schemas, service
 from app.modules.files import service as files
 from app.modules.fleet import service as fleet
-from app.modules.identity.service import Principal, get_principal, require_permission
+from app.modules.identity.service import DevicePrincipal, Principal, get_principal, require_device, require_permission
 from app.modules.org import service as org
 from app.modules.people import service as people
 
@@ -100,3 +100,67 @@ def document_file(
 ):
     info = service.get_file(db, public_id, side=side, **principal.scope)
     return files.response(db, info)
+
+
+# ---- the driver's documents (BRD FR-APP-05)
+
+
+@router.get("/driver/documents", response_model=list[schemas.DriverDocumentOut])
+def my_documents(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
+    return service.driver_documents(db, device.employee_id)
+
+
+@router.post("/driver/documents/renewals", response_model=schemas.RenewalOut, status_code=201)
+def send_renewal(
+    body: schemas.RenewalIn, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
+):
+    driver = people.ref(db, device.employee_id)
+    return service.submit_renewal(
+        db,
+        employee_id=driver.id,
+        company_id=driver.company_id,
+        device_id=device.device_id,
+        driver_name=driver.name,
+        data=body.model_dump(),
+    )
+
+
+@router.get("/documents/renewals", response_model=list[schemas.RenewalOut])
+def renewals(
+    status: str | None = "pending",
+    principal: Principal = Depends(require_permission("documents.manage")),
+    db: Session = Depends(get_session),
+):
+    return service.list_renewals(db, status=status, names_of=lambda ids: people.names(db, ids), **principal.scope)
+
+
+@router.get("/documents/renewals/{public_id}/file")
+def renewal_file(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("documents.manage")),
+    db: Session = Depends(get_session),
+):
+    return files.response(db, service.renewal_file(db, public_id, **principal.scope))
+
+
+@router.post("/documents/renewals/{public_id}/{decision}", response_model=schemas.RenewalOut)
+def decide_renewal(
+    public_id: uuid.UUID,
+    decision: Literal["approve", "reject"],
+    body: schemas.DecisionIn,
+    principal: Principal = Depends(require_permission("documents.manage")),
+    db: Session = Depends(get_session),
+):
+    owner = None
+    if decision == "approve":
+        e = people.ref(db, service.renewal_employee_id(db, public_id, **principal.scope))
+        owner = service.Owner("employee", e.id, str(e.public_id), e.company_id, e.name)
+    return service.decide_renewal(
+        db,
+        public_id,
+        approve=decision == "approve",
+        note=body.note,
+        owner=owner,
+        actor_user_id=principal.user_id,
+        **principal.scope,
+    )

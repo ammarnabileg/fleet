@@ -184,3 +184,44 @@ class DriverTodayOut(BaseModel):
     custody: DriverCustody | None
     start_day_done: bool
     end_day_done: bool  # the day closed: end-of-day reading, or the vehicle returned
+
+
+class VehicleChangeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
+
+
+class VehicleChangeOut(BaseModel):
+    id: str
+    status: str  # pending | done | rejected
+    reason: str
+    note: str | None
+    created_at: datetime
+    decided_at: datetime | None
+    vehicle_plate: str | None = None
+    vehicle_id: str | None = None
+    driver: dict | None = None
+
+
+class MyVehicle(BaseModel):
+    plate_number: str
+    make: str | None
+    model: str | None
+    year: int | None
+    color: str | None
+    since: datetime
+    last_odometer_km: int | None
+    last_reading_at: datetime | None
+    registration_expiry: date | None
+
+
+class MyVehicleOut(BaseModel):
+    vehicle: MyVehicle | None
+    change_request: VehicleChangeOut | None
+
+
+class CloseChangeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)] | None = None

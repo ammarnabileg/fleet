@@ -52,7 +52,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get signInHint => 'Enter your phone number registered with the company. The sign-in code arrives on WhatsApp.';
 
   @override
-  String get phoneLabel => 'Phone number';
+  String get phoneLabel => 'Phone';
 
   @override
   String get phoneInvalid => '8 Kuwaiti digits, or an international number starting with +';
@@ -348,6 +348,121 @@ class AppLocalizationsEn extends AppLocalizations {
   String returnedNote(Object note) {
     return 'Sent back by the office: $note';
   }
+
+  @override
+  String get myCar => 'My car';
+
+  @override
+  String get carSince => 'In your custody since';
+
+  @override
+  String get lastReading => 'Last odometer reading';
+
+  @override
+  String get registrationExpiry => 'Registration expires';
+
+  @override
+  String get requestVehicleChange => 'Ask for another vehicle';
+
+  @override
+  String get vehicleChangeReason => 'Reason';
+
+  @override
+  String get vehicleChangePending => 'Your request for another vehicle is with the supervisor';
+
+  @override
+  String vehicleChangeRejected(Object note) {
+    return 'Your request for another vehicle was refused: $note';
+  }
+
+  @override
+  String get profileTitle => 'My details';
+
+  @override
+  String get employeeNumber => 'Employee no.';
+
+  @override
+  String get companyLabel => 'Company';
+
+  @override
+  String get platformLabel => 'Platform';
+
+  @override
+  String get bankLabel => 'Bank';
+
+  @override
+  String get myDocuments => 'My documents';
+
+  @override
+  String get docValid => 'Valid';
+
+  @override
+  String docExpiring(Object days) {
+    return 'Expires in $days days';
+  }
+
+  @override
+  String get docExpired => 'Expired';
+
+  @override
+  String get docMissing => 'Not on file';
+
+  @override
+  String docExpires(Object date) {
+    return 'Expires $date';
+  }
+
+  @override
+  String get uploadRenewal => 'Upload the renewed document';
+
+  @override
+  String get renewalPending => 'Renewal waiting for the office';
+
+  @override
+  String renewalRejected(Object note) {
+    return 'Renewal refused: $note';
+  }
+
+  @override
+  String get newExpiry => 'New expiry date';
+
+  @override
+  String get documentNumber => 'Document number (optional)';
+
+  @override
+  String get documentPhoto => 'Photo of the document';
+
+  @override
+  String get pickDate => 'Pick the date';
+
+  @override
+  String cashNearLimit(Object limit) {
+    return 'Your balance is close to the alert limit ($limit): hand in the cash soon.';
+  }
+
+  @override
+  String get movements => 'Movements';
+
+  @override
+  String get noMovements => 'No movements yet';
+
+  @override
+  String get moveCollection => 'Daily report cash';
+
+  @override
+  String get moveReceipt => 'Handed in with a receipt';
+
+  @override
+  String get moveAdjustment => 'Correction';
+
+  @override
+  String get moveReversal => 'Reversal';
+
+  @override
+  String get moveSettlement => 'End-of-service settlement';
+
+  @override
+  String get moveOpening => 'Opening balance';
 
   @override
   String get endDayTitle => 'End of day';

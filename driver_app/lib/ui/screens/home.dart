@@ -10,6 +10,7 @@ import '../widgets/common.dart';
 import 'accident.dart';
 import 'fines.dart';
 import 'maintenance.dart';
+import 'me.dart';
 import 'notifications.dart';
 import 'odometer.dart';
 import 'report.dart';
@@ -110,6 +111,7 @@ class HomeTab extends StatelessWidget {
         if (state.shows('accidents')) state.loadAccidents(),
         state.loadNotices(),
       ]);
+      await state.loadProfile();
     } on ApiError {
       // offline: the last data stays on screen
     }
@@ -146,57 +148,67 @@ class HomeTab extends StatelessWidget {
             const SizedBox(height: 12),
           ],
           Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: custody == null
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.directions_car_outlined, size: 32, color: AppColors.muted),
-                        const SizedBox(height: 8),
-                        Text(l.noCustody, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 4),
-                        Text(l.noCustodyHint, style: const TextStyle(color: AppColors.muted, height: 1.6)),
-                      ],
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(color: AppColors.text, borderRadius: BorderRadius.circular(8)),
-                              child: Text(
-                                '\u2066${custody.plate}\u2069',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1,
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              key: const Key('my-car'),
+              onTap: custody == null
+                  ? null
+                  : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MyCarScreen(state: state))),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: custody == null
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.directions_car_outlined, size: 32, color: AppColors.muted),
+                          const SizedBox(height: 8),
+                          Text(l.noCustody, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 4),
+                          Text(l.noCustodyHint, style: const TextStyle(color: AppColors.muted, height: 1.6)),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.text,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '\u2066${custody.plate}\u2069',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1,
+                                  ),
                                 ),
                               ),
-                            ),
-                            const Spacer(),
-                            Pill(on ? l.trackingOn : l.trackingOff, tone: on ? BannerTone.success : BannerTone.warn),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          l.custodySince(when(context, custody.startedAt)),
-                          style: const TextStyle(color: AppColors.muted),
-                        ),
-                        if (custody.lastKm != null)
+                              const Spacer(),
+                              Pill(on ? l.trackingOn : l.trackingOff, tone: on ? BannerTone.success : BannerTone.warn),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
                           Text(
-                            l.lastKm('\u2066${NumberFormat('#,###', 'en').format(custody.lastKm)}\u2069'),
+                            l.custodySince(when(context, custody.startedAt)),
                             style: const TextStyle(color: AppColors.muted),
                           ),
-                        if (waiting > 0) ...[
-                          const SizedBox(height: 6),
-                          Text(l.trackingWaiting('$waiting'), style: const TextStyle(color: AppColors.warning)),
+                          if (custody.lastKm != null)
+                            Text(
+                              l.lastKm('\u2066${NumberFormat('#,###', 'en').format(custody.lastKm)}\u2069'),
+                              style: const TextStyle(color: AppColors.muted),
+                            ),
+                          if (waiting > 0) ...[
+                            const SizedBox(height: 6),
+                            Text(l.trackingWaiting('$waiting'), style: const TextStyle(color: AppColors.warning)),
+                          ],
                         ],
-                      ],
-                    ),
+                      ),
+              ),
             ),
           ),
           const SizedBox(height: 14),
@@ -410,6 +422,13 @@ class CashTab extends StatelessWidget {
             if (cash.overLimit) ...[
               const SizedBox(height: 12),
               Banner2(text: l.cashOverLimit(money(cash.alertLimit, l.kwd)), tone: BannerTone.warn),
+            ] else if (cash.nearLimit) ...[
+              const SizedBox(height: 12),
+              Banner2(
+                key: const Key('cash-near-limit'),
+                text: l.cashNearLimit(money(cash.alertLimit, l.kwd)),
+                tone: BannerTone.warn,
+              ),
             ],
             SectionTitle(l.receipts),
             if (cash.receipts.isEmpty) Text(l.noReceipts, style: const TextStyle(color: AppColors.muted)),
@@ -443,6 +462,42 @@ class CashTab extends StatelessWidget {
                         ),
                 ),
               ),
+            SectionTitle(l.movements),
+            if (cash.lines.isEmpty) Text(l.noMovements, style: const TextStyle(color: AppColors.muted)),
+            for (final m in cash.lines)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(switch (m.kind) {
+                  'collection' => l.moveCollection,
+                  'receipt' || 'deposit' => l.moveReceipt,
+                  'adjustment' => l.moveAdjustment,
+                  'reversal' => l.moveReversal,
+                  'settlement' => l.moveSettlement,
+                  'opening' => l.moveOpening,
+                  _ => m.kind,
+                }),
+                subtitle: Text(
+                  [
+                    '\u2066${m.date}\u2069',
+                    if (m.status == 'pending') l.cashPending,
+                    if (m.status == 'rejected') l.status_rejected,
+                    ?m.reason,
+                  ].join(' · '),
+                ),
+                trailing: Text(
+                  '\u2066${m.amount.startsWith('-') ? '' : '+'}${m.amount}\u2069',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: m.status == 'rejected'
+                        ? AppColors.muted
+                        : m.amount.startsWith('-')
+                        ? AppColors.success
+                        : null,
+                    decoration: m.status == 'rejected' ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+              ),
           ],
         ],
       ),
@@ -460,9 +515,62 @@ class AccountTab extends StatelessWidget {
     final l = context.l;
     final t = state.tracking;
     final last = t['last_upload_at'] as String?;
+    final p = state.profile;
+    String named(Map<String, dynamic>? n) => n == null ? '—' : '${n[state.lang] ?? n['ar'] ?? '—'}';
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (p != null) ...[
+          SectionTitle(l.profileTitle),
+          Card(
+            key: const Key('profile'),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.badge_outlined),
+                  title: Text(named(p.name), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text('${l.employeeNumber}: \u2066${p.employeeNumber}\u2069'),
+                ),
+                for (final (label, value) in [
+                  (l.phoneLabel, p.text('phone')),
+                  (l.civilId, p.text('civil_id')),
+                  (l.companyLabel, named(p.named('company'))),
+                  (
+                    l.platformLabel,
+                    p.named('platform') == null
+                        ? null
+                        : '${named(p.named('platform'))}${p.text('platform_driver_id') == null ? '' : ' · \u2066${p.text('platform_driver_id')}\u2069'}',
+                  ),
+                  (
+                    l.bankLabel,
+                    p.text('bank_name') == null && p.text('iban_last4') == null
+                        ? null
+                        : '${p.text('bank_name') ?? ''} \u2066****${p.text('iban_last4') ?? ''}\u2069',
+                  ),
+                ])
+                  if (value != null)
+                    ListTile(
+                      dense: true,
+                      title: Text(label),
+                      trailing: Text(
+                        value.startsWith('+') || RegExp(r'^\d').hasMatch(value) ? '\u2066$value\u2069' : value,
+                      ),
+                    ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        Card(
+          child: ListTile(
+            key: const Key('my-documents'),
+            leading: const Icon(Icons.folder_shared_outlined),
+            title: Text(l.myDocuments),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => DocumentsScreen(state: state))),
+          ),
+        ),
+        const SizedBox(height: 12),
         Card(
           child: Column(
             children: [

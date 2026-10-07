@@ -8,7 +8,8 @@ from app.core.db import get_session
 from app.modules.cash import service as cash
 from app.modules.fleet import service as fleet
 from app.modules.identity import service as identity
-from app.modules.identity.service import Principal, get_principal, require_permission
+from app.modules.identity.service import DevicePrincipal, Principal, get_principal, require_device, require_permission
+from app.modules.payroll import service as payroll
 from app.modules.people import schemas, service
 
 router = APIRouter(prefix="/api/v1", tags=["people"])
@@ -170,3 +171,10 @@ def set_external_ref(
         actor_user_id=principal.user_id,
         **principal.scope,
     )
+
+
+@router.get("/driver/profile", response_model=schemas.ProfileOut)
+def my_profile(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
+    """The driver's own record (BRD FR-APP-01)."""
+    out = service.profile(db, device.employee_id)
+    return out | {"platform": payroll.platform_name(db, out.pop("platform_id"))}

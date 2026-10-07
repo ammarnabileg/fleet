@@ -21,7 +21,7 @@ from app.core.events import emit
 from app.modules.audit import service as audit
 from app.modules.documents import service as documents
 from app.modules.files import service as files
-from app.modules.fleet.models import Custody, CustodyPhoto, OdometerReading, Vehicle
+from app.modules.fleet.models import Custody, CustodyPhoto, OdometerReading, Vehicle, VehicleChangeRequest
 from app.modules.notifications import service as notifications
 from app.modules.org import service as org
 from app.modules.people import service as people
@@ -785,6 +785,7 @@ def _end_custody(
         vehicle.status = "available"
     vehicle.version += 1
     notifications.resolve(db, f"driver_left:{custody.id}")
+    _close_change_request(db, custody, vehicle, actor_user_id)
     out = _custodies_out(db, [custody])[0]
     audit.record(
         db,
@@ -1229,3 +1230,170 @@ def drivers_started(db: Session, day) -> set[int]:
             )
         )
     )
+
+
+# ------------------------------------------------------------------ the driver's vehicle (BRD FR-APP-02, FR-ASG-04)
+
+
+def _change_out(r: VehicleChangeRequest | None, plates: dict | None = None, names: dict | None = None) -> dict | None:
+    if r is None:
+        return None
+    return {
+        "id": str(r.public_id),
+        "status": r.status,
+        "reason": r.reason,
+        "note": r.note,
+        "created_at": r.created_at,
+        "decided_at": r.decided_at,
+        "vehicle_plate": (plates or {}).get(r.vehicle_id),
+        "driver": (names or {}).get(r.employee_id),
+    }
+
+
+def driver_vehicle(db: Session, employee_id: int) -> dict:
+    """ "My car" in the app: the vehicle held, its last odometer reading, its registration's expiry, and the change
+    he asked for, if any."""
+    custody = db.scalar(select(Custody).where(Custody.driver_id == employee_id, Custody.ended_at.is_(None)))
+    if custody is None:
+        return {"vehicle": None, "change_request": None}
+    vehicle = db.get(Vehicle, custody.vehicle_id)
+    last = db.scalar(
+        select(OdometerReading)
+        .where(OdometerReading.vehicle_id == vehicle.id)
+        .order_by(OdometerReading.recorded_at.desc(), OdometerReading.id.desc())
+        .limit(1)
+    )
+    _, registration = documents.current_expiry(db, "registration", "vehicle", vehicle.id)
+    request = db.scalar(
+        select(VehicleChangeRequest)
+        .where(VehicleChangeRequest.custody_id == custody.id)
+        .order_by(VehicleChangeRequest.id.desc())
+        .limit(1)
+    )
+    return {
+        "vehicle": {
+            "plate_number": vehicle.plate_number,
+            "make": vehicle.make,
+            "model": vehicle.model,
+            "year": vehicle.year,
+            "color": vehicle.color,
+            "since": custody.started_at,
+            "last_odometer_km": last.effective_km if last else vehicle.last_odometer_km,
+            "last_reading_at": last.recorded_at if last else None,
+            "registration_expiry": registration,
+        },
+        "change_request": _change_out(request),
+    }
+
+
+def request_vehicle_change(db: Session, *, employee_id: int, device_id: int, reason: str) -> dict:
+    """The driver asks for another vehicle, with his reason; the supervisors see it (FR-ASG-04)."""
+    custody = db.scalar(
+        select(Custody).where(Custody.driver_id == employee_id, Custody.ended_at.is_(None)).with_for_update()
+    )
+    if custody is None:
+        raise AppError(409, "no_open_custody")
+    request = VehicleChangeRequest(
+        employee_id=employee_id,
+        company_id=custody.company_id,
+        custody_id=custody.id,
+        vehicle_id=custody.vehicle_id,
+        reason=reason,
+        created_by_device=device_id,
+    )
+    try:
+        with db.begin_nested():
+            db.add(request)
+            db.flush()
+    except IntegrityError as exc:
+        if violated_constraint(exc) == "vehicle_change_requests_one_pending_idx":
+            raise AppError(409, "vehicle_change_exists") from None
+        raise
+    driver = people.ref(db, employee_id)
+    vehicle = db.get(Vehicle, custody.vehicle_id)
+    notifications.raise_alert(
+        db,
+        "vehicle_change_requested",
+        company_id=custody.company_id,
+        entity_type="vehicle",
+        entity_id=vehicle.public_id,
+        params={"driver": driver.name, "plate": vehicle.plate_number, "reason": reason},
+        dedupe_key=f"vehicle_change:{request.id}",
+    )
+    audit.record(
+        db,
+        action="vehicle_change.requested",
+        entity_type="vehicle",
+        entity_id=vehicle.public_id,
+        actor_type="device",
+        company_id=custody.company_id,
+        after={"driver": str(driver.public_id), "reason": reason},
+    )
+    db.commit()
+    return driver_vehicle(db, employee_id)
+
+
+def vehicle_change_requests(db: Session, *, status: str | None = "pending", all_companies: bool, company_ids) -> list:
+    q = select(VehicleChangeRequest).order_by(VehicleChangeRequest.created_at)
+    if status:
+        q = q.where(VehicleChangeRequest.status == status)
+    if not all_companies:
+        q = q.where(VehicleChangeRequest.company_id.in_(list(company_ids)))
+    rows = list(db.scalars(q.limit(500)))
+    plates = plate_numbers(db, {r.vehicle_id for r in rows})
+    names = people.names(db, {r.employee_id for r in rows})
+    out = []
+    for r in rows:
+        item = _change_out(r, plates, names)
+        item["vehicle_id"] = str(db.get(Vehicle, r.vehicle_id).public_id)
+        out.append(item)
+    return out
+
+
+def _decide_change(db: Session, r: VehicleChangeRequest, status: str, actor_user_id: int, note: str | None) -> None:
+    r.status, r.decided_by, r.decided_at, r.note = status, actor_user_id, utcnow(), note
+    notifications.resolve(db, f"vehicle_change:{r.id}")
+    plate = db.get(Vehicle, r.vehicle_id).plate_number
+    if status == "done":
+        notifications.notify_driver(db, r.employee_id, "vehicle_change_done", params={"plate": plate})
+    else:
+        notifications.notify_driver(
+            db, r.employee_id, "vehicle_change_rejected", params={"plate": plate, "reason": note or ""}
+        )
+
+
+def _close_change_request(db: Session, custody: Custody, vehicle: Vehicle, actor_user_id: int) -> None:
+    """The vehicle returned: the change the driver asked for is done."""
+    pending = db.scalar(
+        select(VehicleChangeRequest).where(
+            VehicleChangeRequest.custody_id == custody.id, VehicleChangeRequest.status == "pending"
+        )
+    )
+    if pending is not None:
+        _decide_change(db, pending, "done", actor_user_id, None)
+
+
+def close_vehicle_change(
+    db: Session, public_id, *, done: bool, note: str | None, actor_user_id: int, all_companies: bool, company_ids
+) -> dict:
+    """The supervisor closes the request: done (handled another way), or refused with the note the driver reads."""
+    r = db.scalar(select(VehicleChangeRequest).where(VehicleChangeRequest.public_id == public_id).with_for_update())
+    if r is None or not (all_companies or r.company_id in set(company_ids)):
+        raise AppError(404, "vehicle_change_not_found")
+    if r.status != "pending":
+        raise AppError(409, "vehicle_change_decided")
+    if not done and not note:
+        raise AppError(422, "reason_required")
+    _decide_change(db, r, "done" if done else "rejected", actor_user_id, note)
+    audit.record(
+        db,
+        action="vehicle_change.done" if done else "vehicle_change.rejected",
+        entity_type="vehicle",
+        entity_id=db.get(Vehicle, r.vehicle_id).public_id,
+        actor_user_id=actor_user_id,
+        company_id=r.company_id,
+        after={"note": note},
+    )
+    db.commit()
+    plates = plate_numbers(db, {r.vehicle_id})
+    return _change_out(r, plates, people.names(db, {r.employee_id}))

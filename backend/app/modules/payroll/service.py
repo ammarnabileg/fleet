@@ -345,3 +345,8 @@ def deductions_for_posting(db: Session, first: date, last: date) -> list[dict]:
     from app.modules.payroll import runs
 
     return runs.deductions_for_posting(db, first, last)
+
+
+def platform_name(db: Session, platform_id: int | None) -> dict | None:
+    p = db.get(Platform, platform_id) if platform_id else None
+    return p.name if p else None

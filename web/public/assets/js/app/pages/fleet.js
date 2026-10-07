@@ -148,7 +148,17 @@
   BT.pages['custody'] = function (p, q) {
     A.setTitle('العُهد والتسليم');
     var v = A.view();
-    BT.render(v, h`${A.head('من يحمل كل سيارة الآن', 'التسليم والاستلام بقراءة العداد وصورته وصور الحالة، والعهد الطارئة تنتظر المراجعة', api.can('custody.assign') ? A.btn('تسليم سيارة لسائق', { icon: 'key-round', cls: 'btn-primary', action: 'handover-new' }) : '')}<div class="card"><div id="cus-table"></div></div>`);
+    BT.render(v, h`${A.head('من يحمل كل سيارة الآن', 'التسليم والاستلام بقراءة العداد وصورته وصور الحالة، والعهد الطارئة تنتظر المراجعة', api.can('custody.assign') ? A.btn('تسليم سيارة لسائق', { icon: 'key-round', cls: 'btn-primary', action: 'handover-new' }) : '')}<div id="cus-changes"></div><div class="card"><div id="cus-table"></div></div>`);
+    if (api.can('custody.assign')) A.pendingBox(document.getElementById('cus-changes'), {
+      key: 'vehicle-changes', url: '/vehicle-change-requests', title: 'طلبات تغيير السيارة من السائقين',
+      hint: 'استلام السيارة من السائق يغلق طلبه تلقائياً؛ أو أغلقه هنا',
+      row: function (x) { return h`${A.person(x.driver)} ${BT.plate(x.vehicle_plate)} <span class="muted fs-sm">${fmt.dt(x.created_at)}</span><div class="fs-sm">السبب: ${x.reason}</div>`; },
+      actions: [
+        { label: 'تم التغيير', cls: 'btn-primary', title: 'إغلاق الطلب', message: 'يُغلق الطلب على أنه نُفّذ، ويُبلَّغ السائق.', done: 'أُغلق الطلب', run: function (x) { return api.post('/vehicle-change-requests/' + x.id + '/done', {}); } },
+        { label: 'رفض', tone: 'danger', title: 'رفض طلب تغيير السيارة', message: 'يصل السبب للسائق في التطبيق.', reason: { label: 'السبب' }, done: 'رُفض الطلب', run: function (x, reason) { return api.post('/vehicle-change-requests/' + x.id + '/reject', { note: reason }); } }
+      ],
+      after: function () { t.refresh(); }
+    });
     var t = BT.table(document.getElementById('cus-table'), {
       fetch: function (s) { return api.get('/custodies', { open: s.chip === 'open' || null, needs_review: s.chip === 'review' || null, limit: s.limit, offset: s.offset }); },
       chips: { value: q.view || 'open', all: 'السجل كاملاً', options: [{ v: 'open', t: 'المفتوحة' }, { v: 'review', t: 'تحتاج مراجعة' }] },

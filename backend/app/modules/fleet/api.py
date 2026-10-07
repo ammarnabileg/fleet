@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Path, Query
 from pydantic import AwareDatetime
@@ -249,4 +249,48 @@ def driver_reading(
         recorded_at=body.recorded_at,
         lat=body.lat,
         lng=body.lng,
+    )
+
+
+# ---- "my car" and the change of vehicle the driver asks for (BRD FR-APP-02, FR-ASG-04)
+
+
+@router.get("/driver/vehicle", response_model=schemas.MyVehicleOut)
+def my_vehicle(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
+    return service.driver_vehicle(db, device.employee_id)
+
+
+@router.post("/driver/vehicle-change-requests", response_model=schemas.MyVehicleOut, status_code=201)
+def ask_vehicle_change(
+    body: schemas.VehicleChangeIn, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
+):
+    return service.request_vehicle_change(
+        db, employee_id=device.employee_id, device_id=device.device_id, reason=body.reason
+    )
+
+
+@router.get("/vehicle-change-requests", response_model=list[schemas.VehicleChangeOut])
+def vehicle_change_requests(
+    status: str | None = "pending",
+    principal: Principal = Depends(require_permission("custody.view")),
+    db: Session = Depends(get_session),
+):
+    return service.vehicle_change_requests(db, status=status or None, **principal.scope)
+
+
+@router.post("/vehicle-change-requests/{public_id}/{decision}", response_model=schemas.VehicleChangeOut)
+def close_vehicle_change(
+    public_id: uuid.UUID,
+    decision: Literal["done", "reject"],
+    body: schemas.CloseChangeIn,
+    principal: Principal = Depends(require_permission("custody.assign")),
+    db: Session = Depends(get_session),
+):
+    return service.close_vehicle_change(
+        db,
+        public_id,
+        done=decision == "done",
+        note=body.note,
+        actor_user_id=principal.user_id,
+        **principal.scope,
     )

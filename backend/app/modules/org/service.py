@@ -343,3 +343,10 @@ def update_branch(db: Session, public_id, *, version: int, changes: dict, actor_
     )
     db.commit()
     return after
+
+
+def labels(db: Session, company_id: int, branch_id: int | None) -> tuple[dict | None, dict | None]:
+    """The company's and branch's names (as shown to the driver in his profile)."""
+    company = db.get(Company, company_id)
+    branch = db.get(Branch, branch_id) if branch_id else None
+    return (company.name if company else None, branch.name if branch else None)

@@ -65,3 +65,37 @@ class Document(Base):
     is_current: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     created_by: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Renewal(Base):
+    """A renewed document the driver sends from the app (BRD FR-APP-05): it becomes his current document once the
+    office has checked it against the photo."""
+
+    __tablename__ = "renewals"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'approved', 'rejected')", name="status"),
+        Index(
+            "renewals_one_pending_idx",
+            "employee_id",
+            "type_code",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+        ),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    company_id: Mapped[int] = mapped_column(BigInteger)
+    type_code: Mapped[str] = mapped_column(Text, ForeignKey("documents.document_types.code"))
+    number: Mapped[str | None] = mapped_column(Text)
+    expiry_date: Mapped[date] = mapped_column(Date)
+    file_sha256: Mapped[str] = mapped_column(Text, ForeignKey("files.files.sha256"))
+    status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_by_device: Mapped[int | None] = mapped_column(BigInteger)
+    decided_by: Mapped[int | None] = mapped_column(BigInteger)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    note: Mapped[str | None] = mapped_column(Text)
+    document_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("documents.documents.id"))

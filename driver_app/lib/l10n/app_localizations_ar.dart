@@ -52,7 +52,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get signInHint => 'أدخل رقم جوالك المسجل لدى الشركة. سيصلك رمز الدخول على واتساب.';
 
   @override
-  String get phoneLabel => 'رقم الجوال';
+  String get phoneLabel => 'الهاتف';
 
   @override
   String get phoneInvalid => '8 أرقام كويتية، أو رقم دولي يبدأ بـ +';
@@ -346,6 +346,121 @@ class AppLocalizationsAr extends AppLocalizations {
   String returnedNote(Object note) {
     return 'أعاده المكتب للتصحيح: $note';
   }
+
+  @override
+  String get myCar => 'سيارتي';
+
+  @override
+  String get carSince => 'في عهدتك منذ';
+
+  @override
+  String get lastReading => 'آخر قراءة عداد';
+
+  @override
+  String get registrationExpiry => 'انتهاء الاستمارة';
+
+  @override
+  String get requestVehicleChange => 'طلب تغيير السيارة';
+
+  @override
+  String get vehicleChangeReason => 'سبب الطلب';
+
+  @override
+  String get vehicleChangePending => 'طلبك تغيير السيارة لدى المشرف';
+
+  @override
+  String vehicleChangeRejected(Object note) {
+    return 'رُفض طلب تغيير السيارة: $note';
+  }
+
+  @override
+  String get profileTitle => 'بياناتي';
+
+  @override
+  String get employeeNumber => 'الرقم الوظيفي';
+
+  @override
+  String get companyLabel => 'الشركة';
+
+  @override
+  String get platformLabel => 'المنصة';
+
+  @override
+  String get bankLabel => 'البنك';
+
+  @override
+  String get myDocuments => 'مستنداتي';
+
+  @override
+  String get docValid => 'سارٍ';
+
+  @override
+  String docExpiring(Object days) {
+    return 'ينتهي خلال $days يوم';
+  }
+
+  @override
+  String get docExpired => 'منتهٍ';
+
+  @override
+  String get docMissing => 'غير مسجل';
+
+  @override
+  String docExpires(Object date) {
+    return 'ينتهي $date';
+  }
+
+  @override
+  String get uploadRenewal => 'رفع المستند المجدد';
+
+  @override
+  String get renewalPending => 'التجديد بانتظار مراجعة المكتب';
+
+  @override
+  String renewalRejected(Object note) {
+    return 'رُفض التجديد: $note';
+  }
+
+  @override
+  String get newExpiry => 'تاريخ الانتهاء الجديد';
+
+  @override
+  String get documentNumber => 'رقم المستند (اختياري)';
+
+  @override
+  String get documentPhoto => 'صورة المستند';
+
+  @override
+  String get pickDate => 'اختر التاريخ';
+
+  @override
+  String cashNearLimit(Object limit) {
+    return 'رصيدك يقترب من حد التنبيه ($limit): سلّم الكاش قريباً.';
+  }
+
+  @override
+  String get movements => 'الحركات';
+
+  @override
+  String get noMovements => 'لا توجد حركات بعد';
+
+  @override
+  String get moveCollection => 'كاش تقرير يومي';
+
+  @override
+  String get moveReceipt => 'تسليم بإيصال';
+
+  @override
+  String get moveAdjustment => 'تسوية';
+
+  @override
+  String get moveReversal => 'عكس قيد';
+
+  @override
+  String get moveSettlement => 'تسوية نهاية الخدمة';
+
+  @override
+  String get moveOpening => 'رصيد افتتاحي';
 
   @override
   String get endDayTitle => 'نهاية اليوم';

@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -27,15 +28,21 @@ def _driver(db: Session, raw: str, principal: Principal) -> people.EmployeeRef:
 # ---- driver app
 
 
+NEAR_LIMIT = Decimal("0.8")  # the driver is warned from 80% of the alert limit
+
+
 @router.get("/driver/cash", response_model=schemas.DriverCashOut, dependencies=[Depends(org.screen("cash"))])
 def my_cash(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
     b = service.driver_balance(db, device.employee_id)
+    limit = org.get_section(db, "cash").driver_balance_alert
     return {
         "posted": b.posted,
         "pending": b.pending,
         "total": b.total,
-        "alert_limit": org.get_section(db, "cash").driver_balance_alert,
+        "alert_limit": limit,
+        "near_limit": NEAR_LIMIT * limit <= b.total <= limit,  # warned before the office is (FR-APP-03)
         "receipts": service.receipts_for_driver(db, device.employee_id),
+        "lines": service.statement(db, people.ref(db, device.employee_id), limit=30)["lines"],
     }
 
 

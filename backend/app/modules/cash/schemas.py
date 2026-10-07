@@ -123,4 +123,6 @@ class DriverCashOut(BaseModel):
     pending: Decimal
     total: Decimal
     alert_limit: Decimal
+    near_limit: bool  # from 80% of the limit up to it; above it the office is alerted
     receipts: list[ReceiptOut]
+    lines: list[StatementLine]  # his movements, newest first (FR-APP-03)

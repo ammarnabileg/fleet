@@ -233,6 +233,38 @@ void main() {
       final corrected = state.reports.single;
       expect((corrected.orders, corrected.cash, corrected.status), (22, '17.500', 'submitted'));
 
+      // ---- his profile, his car and a change asked for, his cash movements, a renewed document (FR-APP-01..05)
+      await state.loadProfile();
+      expect(state.profile!.employeeNumber, 'C$n');
+      expect(state.profile!.named('company'), isNotNull);
+      await state.loadVehicle();
+      expect((state.myVehicle!.vehicle!['plate_number'], state.myVehicle!.request), ('77/$n', null));
+      await state.requestVehicleChange('المكيف لا يعمل');
+      expect(state.myVehicle!.requestPending, isTrue);
+      await state.loadCash();
+      expect(state.cash!.lines.first.kind, 'collection');
+      expect(state.cash!.lines.first.status, 'pending');
+      await admin.call('POST', '/documents', {
+        'owner_type': 'employee',
+        'owner_id': driver['id'],
+        'type_code': 'residence',
+        'expiry_date': DateTime.now().add(const Duration(days: 10)).toIso8601String().substring(0, 10),
+        'file_sha256': await admin.upload(await jpeg('residence')),
+      });
+      await state.loadDocuments();
+      final residence = state.documents.firstWhere((d) => d.typeCode == 'residence');
+      expect((residence.state, residence.daysLeft, residence.renewable), ('expiring', 10, true));
+      expect(
+        await state.sendRenewal(
+          typeCode: 'residence',
+          expiry: DateTime.now().add(const Duration(days: 400)).toIso8601String().substring(0, 10),
+          number: 'R-$n',
+          filePath: (await jpeg('renewal')).path,
+        ),
+        SendResult.sent,
+      );
+      expect(state.documents.firstWhere((d) => d.typeCode == 'residence').renewalPending, isTrue);
+
       // ---- maintenance: a request for the vehicle held, with two camera photos; the office sees it with them
       final p1 = await jpeg('mnt1');
       final p2 = await jpeg('mnt2');

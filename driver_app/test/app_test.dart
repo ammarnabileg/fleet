@@ -658,6 +658,234 @@ void main() {
     expect(w.server.calls('/api/v1/driver/cash/receipts/r1/confirm'), hasLength(1));
   });
 
+  testWidgets('cash: his movements, and a warning before the limit', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/cash',
+      (r) => (
+        200,
+        {
+          'posted': '50.000',
+          'pending': '14.000',
+          'total': '64.000',
+          'alert_limit': '80.000',
+          'near_limit': true,
+          'receipts': [],
+          'lines': [
+            {
+              'journal_id': 'j2',
+              'kind': 'collection',
+              'status': 'pending',
+              'amount': '14.000',
+              'business_date': '2026-10-04',
+              'reason': null,
+              'source_type': 'daily_report',
+              'created_at': '2026-10-04T20:00:00Z',
+            },
+            {
+              'journal_id': 'j1',
+              'kind': 'adjustment',
+              'status': 'posted',
+              'amount': '-6.000',
+              'business_date': '2026-10-03',
+              'reason': 'فرق عد',
+              'source_type': 'manual',
+              'created_at': '2026-10-03T20:00:00Z',
+            },
+          ],
+        },
+      ),
+    );
+    await pumpApp(tester, w);
+    await tester.tap(find.text('الكاش').last);
+    await settle(tester);
+    expect(find.byKey(const Key('cash-near-limit')), findsOneWidget);
+    expect(find.textContaining('80.000'), findsWidgets);
+    await tester.scrollUntilVisible(find.text('تسوية'), 200, scrollable: find.byType(Scrollable).first);
+    expect(find.text('كاش تقرير يومي'), findsOneWidget);
+    expect(find.textContaining('بانتظار المراجعة'), findsWidgets);
+    expect(find.textContaining('فرق عد'), findsOneWidget);
+    expect(find.text('\u2066+14.000\u2069'), findsOneWidget);
+    expect(find.text('\u2066-6.000\u2069'), findsOneWidget);
+    await shot(tester, '33-cash-movements');
+  });
+
+  testWidgets('his profile, without the full IBAN', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/profile',
+      (r) => (
+        200,
+        {
+          'name': {'ar': 'سالم العتيبي', 'en': 'Salem'},
+          'employee_number': 'D-120',
+          'phone': '+96550001234',
+          'civil_id': '290010112345',
+          'nationality': null,
+          'job_title': null,
+          'hire_date': null,
+          'company': {'ar': 'شركة النقل', 'en': 'Transport Co'},
+          'branch': null,
+          'platform': {'ar': 'منصة س', 'en': 'X'},
+          'platform_driver_id': 'KT-77',
+          'bank_name': 'الوطني',
+          'iban_last4': '0101',
+          'payment_method': 'bank',
+        },
+      ),
+    );
+    await pumpApp(tester, w);
+    await tester.tap(find.text('الحساب').last);
+    await settle(tester);
+    expect(find.byKey(const Key('profile')), findsOneWidget);
+    expect(find.text('سالم العتيبي'), findsOneWidget);
+    expect(find.textContaining('290010112345'), findsOneWidget);
+    expect(find.textContaining('KT-77'), findsOneWidget);
+    expect(find.textContaining('****0101'), findsOneWidget);
+    await shot(tester, '34-profile');
+  });
+
+  testWidgets('my car: the vehicle and its last reading, then another asked for with the reason', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    Map<String, dynamic> car(Map<String, dynamic>? request) => {
+      'vehicle': {
+        'plate_number': '18/23456',
+        'make': 'Kia',
+        'model': 'Pegas',
+        'year': 2023,
+        'color': 'أبيض',
+        'since': '2026-10-02T05:00:00Z',
+        'last_odometer_km': 45210,
+        'last_reading_at': '2026-10-04T05:55:00Z',
+        'registration_expiry': '2027-03-01',
+      },
+      'change_request': request,
+    };
+    w.server.on('GET', '/api/v1/driver/vehicle', (r) => (200, car(null)));
+    w.server.on(
+      'POST',
+      '/api/v1/driver/vehicle-change-requests',
+      (r) => (
+        201,
+        car({
+          'id': 'v1',
+          'status': 'pending',
+          'reason': 'المكيف لا يعمل',
+          'note': null,
+          'created_at': '2026-10-04T08:00:00Z',
+          'decided_at': null,
+        }),
+      ),
+    );
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('my-car')));
+    await settle(tester);
+    expect(find.textContaining('Kia · Pegas · 2023'), findsOneWidget);
+    expect(find.textContaining('45,210'), findsOneWidget);
+    expect(find.textContaining('2027-03-01'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('ask-change')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('send-change')));
+    await settle(tester);
+    expect(w.server.calls('/api/v1/driver/vehicle-change-requests'), isEmpty, reason: 'the reason is required');
+    await tester.enterText(find.byKey(const Key('change-reason')), 'المكيف لا يعمل');
+    await tester.tap(find.byKey(const Key('send-change')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/vehicle-change-requests').single.body) as Map;
+    expect(body, {'reason': 'المكيف لا يعمل'});
+    expect(find.byKey(const Key('change-pending')), findsOneWidget);
+    expect(find.byKey(const Key('ask-change')), findsNothing);
+    await shot(tester, '35-my-car');
+  });
+
+  testWidgets('documents: their expiry, and a renewal from the phone checked by the office', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final img = await tester.runAsync(testImage);
+    Photos.gallery = () async => TakenPhoto(img!, DateTime.now());
+    Map<String, dynamic> doc(String code, String ar, String state, {int? days, Map<String, dynamic>? renewal}) => {
+      'type_code': code,
+      'type_name': {'ar': ar, 'en': code},
+      'number': state == 'missing' ? null : 'N-1',
+      'expiry_date': state == 'missing' ? null : '2026-10-17',
+      'days_left': days,
+      'state': state,
+      'renewable': true,
+      'renewal': renewal,
+    };
+    var sent = false;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/documents',
+      (r) => (
+        200,
+        [
+          doc(
+            'residence',
+            'الإقامة',
+            'expiring',
+            days: 10,
+            renewal: sent
+                ? {
+                    'id': 'rn1',
+                    'type_code': 'residence',
+                    'type_name': null,
+                    'number': 'RES-2',
+                    'expiry_date': '2027-10-01',
+                    'status': 'pending',
+                    'created_at': '2026-10-04T08:00:00Z',
+                    'decided_at': null,
+                    'note': null,
+                  }
+                : null,
+          ),
+          doc('driving_license', 'رخصة القيادة', 'missing'),
+        ],
+      ),
+    );
+    w.server.on('POST', '/api/v1/driver/files', (r) => (201, {'sha256': 'f' * 64}));
+    w.server.on('POST', '/api/v1/driver/documents/renewals', (r) {
+      sent = true;
+      return (201, {'id': 'rn1', 'status': 'pending'});
+    });
+    await pumpApp(tester, w);
+    await tester.tap(find.text('الحساب').last);
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('my-documents')));
+    await settle(tester);
+    expect(find.text('ينتهي خلال 10 يوم'), findsOneWidget);
+    expect(find.text('غير مسجل'), findsOneWidget);
+    await shot(tester, '36-documents');
+    await tester.tap(find.byKey(const Key('renew-residence')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('send-renewal')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/documents/renewals'), isEmpty, reason: 'the new expiry date is required');
+    await tester.tap(find.byKey(const Key('renewal-expiry')));
+    await settle(tester);
+    final ok = MaterialLocalizations.of(tester.element(find.byType(DatePickerDialog))).okButtonLabel;
+    await tester.tap(find.text(ok));
+    await settle(tester);
+    await tester.enterText(find.byKey(const Key('renewal-number')), 'RES-2');
+    await tester.tap(find.byKey(const Key('renewal-photo')));
+    await idle(tester);
+    await tester.tap(find.byKey(const Key('send-renewal')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/files').single.url.queryParameters['source'], 'upload');
+    final body = jsonDecode(w.server.calls('/api/v1/driver/documents/renewals').single.body) as Map;
+    final inAYear = DateTime.now().add(const Duration(days: 365));
+    expect((body['type_code'], body['number'], body['file_sha256']), ('residence', 'RES-2', 'f' * 64));
+    expect(body['expiry_date'], inAYear.toIso8601String().substring(0, 10));
+    expect(find.text('تم الإرسال'), findsOneWidget);
+    await tester.tap(find.text('تم'));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('my-documents')));
+    await idle(tester);
+    expect(find.text('التجديد بانتظار مراجعة المكتب'), findsOneWidget);
+    expect(find.byKey(const Key('renew-residence')), findsNothing, reason: 'one waiting renewal at a time');
+  });
+
   testWidgets('self-registration: details, documents, vehicle photos from the camera, then review', (tester) async {
     final w = (await tester.runAsync(
       () => world(

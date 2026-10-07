@@ -138,3 +138,20 @@ class ExternalRefIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     external_id: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+
+
+class ProfileOut(BaseModel):
+    name: dict
+    employee_number: str
+    phone: str | None
+    civil_id: str | None
+    nationality: str | None
+    job_title: str | None
+    hire_date: date | None
+    company: dict | None
+    branch: dict | None
+    platform: dict | None
+    platform_driver_id: str | None
+    bank_name: str | None
+    iban_last4: str | None
+    payment_method: str | None

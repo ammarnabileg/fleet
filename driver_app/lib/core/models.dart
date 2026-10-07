@@ -54,6 +54,8 @@ class Cash {
     required this.total,
     required this.alertLimit,
     required this.receipts,
+    this.nearLimit = false,
+    this.lines = const [],
   });
 
   factory Cash.fromJson(Map<String, dynamic> j) => Cash(
@@ -62,6 +64,8 @@ class Cash {
     total: j['total'] as String,
     alertLimit: j['alert_limit'] as String,
     receipts: [for (final r in j['receipts'] as List) Receipt.fromJson(r as Map<String, dynamic>)],
+    nearLimit: j['near_limit'] as bool? ?? false,
+    lines: [for (final x in (j['lines'] as List?) ?? const []) CashLine.fromJson(x as Map<String, dynamic>)],
   );
 
   final String posted;
@@ -69,6 +73,8 @@ class Cash {
   final String total;
   final String alertLimit;
   final List<Receipt> receipts;
+  final bool nearLimit; // close to the alert limit: warned before the office is
+  final List<CashLine> lines; // his movements, newest first
 
   bool get overLimit => (double.tryParse(total) ?? 0) > (double.tryParse(alertLimit) ?? double.infinity);
 }
@@ -604,4 +610,67 @@ class Notices {
 
   final int unread;
   final List<DriverNotice> items;
+}
+
+/// One movement of the driver's cash account (FR-APP-03): a report's collection, a receipt, a correction.
+class CashLine {
+  CashLine({required this.kind, required this.status, required this.amount, required this.date, this.reason});
+
+  factory CashLine.fromJson(Map<String, dynamic> j) => CashLine(
+    kind: j['kind'] as String,
+    status: j['status'] as String,
+    amount: j['amount'] as String,
+    date: j['business_date'] as String,
+    reason: j['reason'] as String?,
+  );
+
+  final String kind; // collection | receipt | adjustment | reversal | settlement | opening
+  final String status; // pending | posted | rejected
+  final String amount; // + the driver owes more, - less
+  final String date;
+  final String? reason;
+}
+
+/// The driver's own record (FR-APP-01).
+class Profile {
+  Profile(this.raw);
+
+  final Map<String, dynamic> raw;
+
+  Map<String, dynamic> get name => Map<String, dynamic>.from(raw['name'] as Map);
+  String get employeeNumber => raw['employee_number'] as String;
+  String? text(String key) => raw[key] as String?;
+  Map<String, dynamic>? named(String key) => raw[key] == null ? null : Map<String, dynamic>.from(raw[key] as Map);
+}
+
+/// "My car" (FR-APP-02) and the change of vehicle he asked for (FR-ASG-04).
+class MyVehicle {
+  MyVehicle({this.vehicle, this.request});
+
+  factory MyVehicle.fromJson(Map<String, dynamic> j) => MyVehicle(
+    vehicle: j['vehicle'] == null ? null : Map<String, dynamic>.from(j['vehicle'] as Map),
+    request: j['change_request'] == null ? null : Map<String, dynamic>.from(j['change_request'] as Map),
+  );
+
+  final Map<String, dynamic>? vehicle;
+  final Map<String, dynamic>? request;
+
+  bool get requestPending => request?['status'] == 'pending';
+}
+
+/// One of his documents and the renewal he sent for it (FR-APP-05).
+class DriverDocument {
+  DriverDocument(this.raw);
+
+  final Map<String, dynamic> raw;
+
+  String get typeCode => raw['type_code'] as String;
+  Map<String, dynamic> get typeName => Map<String, dynamic>.from(raw['type_name'] as Map);
+  String? get number => raw['number'] as String?;
+  String? get expiry => raw['expiry_date'] as String?;
+  int? get daysLeft => (raw['days_left'] as num?)?.toInt();
+  String get state => raw['state'] as String; // valid | expiring | expired | missing
+  bool get renewable => raw['renewable'] == true;
+  Map<String, dynamic>? get renewal => raw['renewal'] == null ? null : Map<String, dynamic>.from(raw['renewal'] as Map);
+  bool get renewalPending => renewal?['status'] == 'pending';
 }

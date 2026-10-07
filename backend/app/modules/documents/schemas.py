@@ -42,3 +42,42 @@ class DocumentOut(BaseModel):
     is_current: bool
     created_at: datetime
     owner_name: dict | str | None = None  # in the expiring list: whose document it is
+
+
+class RenewalIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type_code: str = Field(max_length=40)
+    number: Annotated[str, StringConstraints(strip_whitespace=True, max_length=60)] | None = None
+    expiry_date: date
+    file_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+
+
+class RenewalOut(BaseModel):
+    id: str
+    type_code: str
+    type_name: dict | None
+    driver: dict | None = None
+    number: str | None
+    expiry_date: date
+    status: str  # pending | approved | rejected
+    created_at: datetime
+    decided_at: datetime | None
+    note: str | None
+
+
+class DriverDocumentOut(BaseModel):
+    type_code: str
+    type_name: dict
+    number: str | None
+    expiry_date: date | None
+    days_left: int | None
+    state: str  # valid | expiring | expired | missing
+    renewable: bool
+    renewal: RenewalOut | None
+
+
+class DecisionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)] | None = None

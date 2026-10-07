@@ -161,6 +161,27 @@
       }
     });
   };
+  /* صندوق طلبات تنتظر قراراً أعلى الصفحة (يختفي إن لم يوجد شيء): لكل طلب سطر وأزرار بتأكيد (وسبب إن لزم) */
+  A.pendingBox = function (box, o) {
+    var reload = function () { A.pendingBox(box, o); if (o.after) o.after(); A.refreshCounts(); };
+    return api.get(o.url).then(function (list) {
+      if (!document.contains(box)) return;
+      if (!list.length) { BT.render(box, ''); return; }
+      BT.render(box, h`<div class="card mb-16" data-pending="${o.key}"><div class="card-h"><b>${o.title}</b> <span class="muted fs-sm">${o.hint || ''}</span></div><div class="card-b">${list.map(function (x) {
+        return h`<div class="between mb-12" data-pending-id="${x.id}"><div class="flex-1">${o.row(x)}</div><div class="nowrap">${o.actions.map(function (a, i) { return h`<button type="button" class="btn btn-sm ${a.cls || 'btn-outline'}" data-act="${i}">${a.label}</button> `; })}</div></div>`;
+      })}</div></div>`);
+      box.querySelectorAll('[data-pending-id]').forEach(function (rowEl) {
+        var item = list.find(function (x) { return x.id === rowEl.getAttribute('data-pending-id'); });
+        rowEl.querySelectorAll('[data-act]').forEach(function (b) {
+          var a = o.actions[+b.getAttribute('data-act')];
+          b.addEventListener('click', function () {
+            A.confirmRun({ title: a.title, message: a.message, confirmText: a.label, tone: a.tone || 'success', reason: a.reason,
+              run: function (reason) { return a.run(item, reason); }, done: a.done, after: reload });
+          });
+        });
+      });
+    }, function () { BT.render(box, ''); });
+  };
   /* إجراء بتأكيد (وسبب إن لزم) */
   A.confirmRun = function (o) {
     return BT.confirm(o).then(function (r) {
