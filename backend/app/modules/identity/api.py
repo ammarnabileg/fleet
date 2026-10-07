@@ -276,6 +276,16 @@ def driver_logout(
     service.logout_device(db, device)
 
 
+@router.post("/driver/push-token", status_code=204)
+def push_token(
+    body: schemas.PushTokenIn,
+    device: service.DevicePrincipal = Depends(service.require_device),
+    db: Session = Depends(get_session),
+):
+    """The Firebase token the app got on this phone, and its language: notices are pushed to it."""
+    service.set_push_token(db, device.device_id, body.token, body.lang)
+
+
 # ---- driver devices administration
 
 

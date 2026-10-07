@@ -19,6 +19,7 @@ celery = Celery(
         "app.modules.accidents.tasks",
         "app.modules.finance.tasks",
         "app.modules.approvals.tasks",
+        "app.modules.notifications.tasks",
     ],
 )
 
@@ -47,5 +48,6 @@ celery.conf.beat_schedule = {
     "police-reports": {"task": "accidents.scan_police_reports", "schedule": crontab(hour=9, minute=15)},
     "finance-entries": {"task": "finance.post_entries", "schedule": crontab(hour=3, minute=30)},
     "approval-escalation": {"task": "approvals.escalate", "schedule": crontab(minute="*/15")},
+    "driver-push": {"task": "notifications.push", "schedule": 30.0},  # does nothing until push is switched on
     "files-to-r2": {"task": "files.copy_to_r2", "schedule": 600.0},  # does nothing until R2 is switched on
 }

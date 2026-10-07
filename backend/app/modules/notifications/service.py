@@ -272,3 +272,63 @@ def mark_read(db: Session, employee_id: int, ids: Iterable | None) -> int:
     n = db.execute(q.values(read_at=func.now())).rowcount
     db.commit()
     return n
+
+
+PUSH_WINDOW_HOURS = 48  # older notices stay in the app's list only: a backlog is not pushed once push is switched on
+
+
+def push_pending(db: Session, *, limit: int = 200) -> int:
+    """Pushes the notices not pushed yet to the drivers' phones (beat, every half minute). Nothing until push is set up
+    in the control panel; a phone that has not registered yet keeps its notices waiting (within the window); a token
+    Firebase no longer knows is forgotten. A failure of Firebase itself stops the pass: the next one tries again."""
+    import logging
+    from datetime import timedelta
+
+    from app.core import push
+    from app.core.clock import utcnow
+    from app.modules.identity import service as identity
+    from app.modules.integrations import service as integrations
+
+    sender = integrations.pusher(db)
+    if sender is None:
+        return 0
+    rows = list(
+        db.scalars(
+            select(DriverNotice)
+            .where(
+                DriverNotice.pushed_at.is_(None),
+                DriverNotice.created_at > utcnow() - timedelta(hours=PUSH_WINDOW_HOURS),
+            )
+            .order_by(DriverNotice.id)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+    )
+    targets = identity.push_targets(db, {n.employee_id for n in rows})
+    default = i18n.default_language(db).code
+    sent = 0
+    for n in rows:
+        target = targets.get(n.employee_id)
+        if target is None:
+            continue  # not registered (yet): it waits
+        device_id, token, lang = target
+        lang = lang or default
+        try:
+            sender.send(
+                token,
+                title=i18n.t(db, lang, "messages.notice_title"),
+                body=notice_text(db, n, lang, default),
+                data={"id": str(n.public_id), "kind": n.kind, "entity_type": n.entity_type or "",
+                      "entity_id": n.entity_id or ""},
+            )  # fmt: skip
+        except push.InvalidToken:
+            identity.forget_push_token(db, device_id)
+            targets.pop(n.employee_id, None)
+            continue
+        except push.PushError as exc:
+            logging.getLogger("fleet.push").warning("push stopped: %s", exc)
+            break
+        n.pushed_at = func.now()
+        sent += 1
+    db.commit()
+    return sent

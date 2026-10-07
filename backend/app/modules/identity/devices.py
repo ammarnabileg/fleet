@@ -159,6 +159,7 @@ def _revoke_tokens(db: Session, *, device_id: int | None = None, family: uuid.UU
 
 def _revoke_device(db: Session, device: Device, reason: str) -> None:
     device.revoked_at, device.revoked_reason = utcnow(), reason
+    device.push_token = None  # a phone no longer his gets nothing
     _revoke_tokens(db, device_id=device.id)
 
 
@@ -454,6 +455,7 @@ def require_device(request: Request, db: Session = Depends(get_session)) -> Devi
 
 def logout_device(db: Session, principal: DevicePrincipal) -> None:
     _revoke_tokens(db, device_id=principal.device_id)
+    db.execute(update(Device).where(Device.id == principal.device_id).values(push_token=None))  # signed out: silent
     db.commit()
 
 
@@ -545,6 +547,34 @@ def record_device_status(db: Session, device_id: int, data: dict) -> None:
 def device_status(db: Session, device_id: int) -> dict | None:
     s = db.get(DeviceStatus, device_id)
     return None if s is None else {f: getattr(s, f) for f in STATUS_FIELDS} | {"reported_at": s.reported_at}
+
+
+def set_push_token(db: Session, device_id: int, token: str, lang: str | None) -> None:
+    """The Firebase token the app got on this phone (it changes now and then; the latest wins)."""
+    device = db.get(Device, device_id, with_for_update=True)
+    device.push_token, device.push_lang, device.push_token_at = token, lang, utcnow()
+    db.commit()
+
+
+def push_targets(db: Session, employee_ids) -> dict[int, tuple[int, str, str | None]]:
+    """For each employee with a phone that registered for push: (device id, token, language)."""
+    ids = list(employee_ids)
+    if not ids:
+        return {}
+    q = select(Device.employee_id, Device.id, Device.push_token, Device.push_lang).where(
+        Device.employee_id.in_(ids), Device.revoked_at.is_(None), Device.push_token.is_not(None)
+    )
+    return {e: (d, t, lang) for e, d, t, lang in db.execute(q)}
+
+
+def push_phones(db: Session) -> int:
+    """How many drivers' phones registered for push (the integrations page shows it)."""
+    return db.scalar(select(func.count()).where(Device.revoked_at.is_(None), Device.push_token.is_not(None))) or 0
+
+
+def forget_push_token(db: Session, device_id: int) -> None:
+    """Firebase says the token is gone (the app was removed or reinstalled): no more tries until the app sends one."""
+    db.execute(update(Device).where(Device.id == device_id).values(push_token=None))
 
 
 def last_seen(db: Session, employee_ids) -> dict[int, datetime]:

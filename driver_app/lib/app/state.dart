@@ -23,12 +23,21 @@ class PhoneHooks {
     required this.startTracking,
     required this.stopTracking,
     required this.deviceMeta,
+    this.pushToken,
   });
 
   final Future<bool> Function() permissionsOk;
   final Future<void> Function() startTracking;
   final Future<void> Function() stopTracking;
   final Future<Map<String, String?>> Function() deviceMeta;
+
+  /// The phone's push token for the server's Firebase values (null: refused, or no push on this build).
+  final Future<String?> Function(
+    Map<String, dynamic> config, {
+    required void Function(String token) onRefresh,
+    required void Function() onMessage,
+  })?
+  pushToken;
 }
 
 /// The app's single source of truth for the screens.
@@ -119,6 +128,7 @@ class AppState extends ChangeNotifier {
     await db.put('lang', value);
     await catalog.load(api, value);
     notifyListeners();
+    unawaited(registerPush()); // pushes are written in the app's language
   }
 
   // ---------------------------------------------------------------- sign in
@@ -135,9 +145,13 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Firebase's public values for this app, once the office switched push on (GET /driver/app-config).
+  Map<String, dynamic>? pushConfig;
+
   bool _applyConfig(String? raw) {
     if (raw == null) return false;
     final c = jsonDecode(raw) as Map<String, dynamic>;
+    pushConfig = c['push'] as Map<String, dynamic>?;
     final codes = c['phone_codes'] != false;
     final hidden = {for (final s in c['hidden_screens'] as List? ?? const []) s as String};
     final s = c['splash'] as Map<String, dynamic>?;
@@ -283,6 +297,7 @@ class AppState extends ChangeNotifier {
     }
     await platform.stopTracking();
     await tokens.clear();
+    await db.put('push_token', null); // the server forgot it: the next sign-in sends it again
     _reset();
     _set(Phase.signedOut);
     unawaited(loadAppConfig());
@@ -330,6 +345,7 @@ class AppState extends ChangeNotifier {
       ]);
       await _readLocal();
       _set(Phase.ready);
+      unawaited(registerPush());
     } on SessionEnded {
       // already sent to sign-in
     } on ApiError catch (e) {
@@ -373,6 +389,29 @@ class AppState extends ChangeNotifier {
   Future<void> loadAccidents() async => accidents = [
     for (final a in await api.get('/driver/accidents') as List) Accident.fromJson(a as Map<String, dynamic>),
   ];
+
+  /// Gives the server this phone's push token (again when it or the language changes), once push is on.
+  Future<void> registerPush({bool force = false}) async {
+    final config = pushConfig, hook = platform.pushToken;
+    if (config == null || hook == null || !await tokens.hasSession()) return;
+    try {
+      final token = await hook(
+        config,
+        onRefresh: (t) => unawaited(_sendPushToken(t)),
+        onMessage: () => unawaited(_quietly(loadNotices)),
+      );
+      if (token == null) return;
+      if (!force && await db.get('push_token') == '$token|$lang') return;
+      await _sendPushToken(token);
+    } catch (_) {
+      // Firebase unreachable or the server older: notices still show in the app
+    }
+  }
+
+  Future<void> _sendPushToken(String token) async {
+    await api.post('/driver/push-token', body: {'token': token, 'lang': lang});
+    await db.put('push_token', '$token|$lang');
+  }
 
   Future<void> loadNotices() async {
     notices = Notices.fromJson(await api.get('/driver/notifications') as Map<String, dynamic>);

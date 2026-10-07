@@ -157,10 +157,18 @@ class SplashOut(BaseModel):
     seconds: int
 
 
+class PushClientOut(BaseModel):
+    project_id: str
+    app_id: str
+    api_key: str
+    sender_id: str
+
+
 class DriverAppConfigOut(BaseModel):
     phone_codes: bool  # false: the civil ID and a password only
     hidden_screens: list[str]
     splash: SplashOut | None
+    push: PushClientOut | None = None
 
 
 class AppScreensOut(BaseModel):

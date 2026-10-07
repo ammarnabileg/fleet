@@ -535,7 +535,8 @@
     "onboarding_approved": "{name}, your registration is approved. You can start working from the app.",
     "onboarding_rejected": "{name}, your registration needs a correction: {reason}\nOpen the app, fix it and send it again.",
     "scheme_approved": "{name}, your request was approved: from {month} your scheme is {scheme}.",
-    "scheme_rejected": "{name}, your scheme change was not approved: {reason}"
+    "scheme_rejected": "{name}, your scheme change was not approved: {reason}",
+    "notice_title": "New notification"
   },
   "vehicle_status": {
     "available": "Available",

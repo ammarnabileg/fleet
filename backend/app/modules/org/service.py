@@ -91,12 +91,15 @@ def splash_file(db: Session) -> files.FileInfo | None:
 
 def driver_app_config(db: Session) -> dict:
     """What the app asks before and after sign-in: how the driver signs in, the screens hidden, the splash screen."""
+    from app.modules.integrations import service as integrations
+
     app = get_section(db, "driver_app")
     image = splash_file(db)
     return {
         "phone_codes": phone_codes(db),
         "hidden_screens": app.hidden_screens,
         "splash": {"image": image.sha256, "color": app.splash_color, "seconds": app.splash_seconds} if image else None,
+        "push": integrations.push_client(db),  # Firebase's public values for this app, once push is on
     }
 
 

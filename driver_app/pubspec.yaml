@@ -11,6 +11,8 @@ dependencies:
   battery_plus: ^7.1.2
   camera: ^0.12.1
   device_info_plus: ^13.3.0
+  firebase_core: ^4.15.0
+  firebase_messaging: ^16.7.0
   flutter:
     sdk: flutter
   flutter_background_service: ^5.1.0

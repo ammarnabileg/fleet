@@ -25,14 +25,18 @@ from app.modules.identity.devices import (  # noqa: F401  (driver devices, used 
     check_messaging_channel,
     create_activation_link,
     device_status,
+    forget_push_token,
     list_devices,
     logout_device,
+    push_phones,
+    push_targets,
     record_device_status,
     refresh_tokens,
     request_otp,
     require_device,
     revoke_device,
     revoke_employee_devices,
+    set_push_token,
     verify_otp,
 )
 from app.modules.identity.models import Role, RolePermission, User, UserCompany, UserRole

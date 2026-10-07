@@ -40,13 +40,29 @@ class WhatsappConfig(_Config):
     instance: Instance | None = None
 
 
+AppId = _text(r"^1:[0-9]{6,20}:android:[0-9a-f]{8,40}$")
+ClientKey = _text(r"^[A-Za-z0-9_-]{20,60}$")
+SenderId = _text(r"^[0-9]{6,20}$")
+
+
+class PushConfig(_Config):
+    """Firebase Cloud Messaging: the Android app's client values from the Firebase console (Project settings > Your
+    apps), sent to the app so it registers without a rebuild, and the service account key the server sends with."""
+
+    enabled: bool = False
+    app_id: AppId | None = None
+    api_key: ClientKey | None = None  # the client API key: public, it only identifies the app to Firebase
+    sender_id: SenderId | None = None
+
+
 # kind -> (settings model, secret names)
 KINDS: dict[str, tuple[type[_Config], tuple[str, ...]]] = {
     "storage": (StorageConfig, ("secret_access_key",)),
     "whatsapp": (WhatsappConfig, ("api_key",)),
+    "push": (PushConfig, ("service_account",)),
 }
 
-Secret = Annotated[str, StringConstraints(strip_whitespace=True, min_length=8, max_length=512)]
+Secret = Annotated[str, StringConstraints(strip_whitespace=True, min_length=8, max_length=8192)]  # a JSON key fits
 
 
 class ConnectionIn(BaseModel):

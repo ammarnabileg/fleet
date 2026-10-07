@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.modules.files import service as files
+from app.modules.identity import service as identity
 from app.modules.identity.service import Principal, require_permission
 from app.modules.integrations import schemas, service
 
@@ -14,6 +15,8 @@ MANAGE = "integrations.manage"
 def _status(db: Session, kind: str) -> dict:
     if kind == "storage":
         return {"files": files.counts(db)}  # files on the disk are copied to R2 in the background once it is on
+    if kind == "push":
+        return {"phones": identity.push_phones(db)}  # drivers' phones registered for push
     return {"server_mode": get_settings().messaging_provider}  # what is used while WhatsApp is off here
 
 

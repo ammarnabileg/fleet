@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'app/push.dart';
 import 'app/state.dart';
 import 'core/db.dart';
 import 'core/device.dart';
@@ -33,6 +34,7 @@ Future<void> main() async {
       },
       stopTracking: () async => TrackingService.stop(),
       deviceMeta: DeviceIdentity.meta,
+      pushToken: FirebasePush.token,
     ),
   );
   final links = AppLinks();

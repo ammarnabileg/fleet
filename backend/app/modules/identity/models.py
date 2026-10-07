@@ -130,6 +130,9 @@ class Device(Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_reason: Mapped[str | None] = mapped_column(Text)
+    push_token: Mapped[str | None] = mapped_column(Text)
+    push_lang: Mapped[str | None] = mapped_column(Text)
+    push_token_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class DeviceToken(Base):

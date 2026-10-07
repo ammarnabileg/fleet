@@ -332,3 +332,10 @@ class ClaimStatusOut(BaseModel):
     used_at: datetime | None
     used_phone: str | None
     own_password_set_at: datetime | None  # without phone codes: he chose his own password then
+
+
+class PushTokenIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: Annotated[str, StringConstraints(strip_whitespace=True, min_length=20, max_length=4096)]
+    lang: Annotated[str, StringConstraints(pattern=r"^[a-z]{2,3}$")] | None = None

@@ -7,7 +7,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-from app.core import crypto, messaging
+from app.core import crypto, messaging, push
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.storage import LocalStorage, R2Storage, StorageError
@@ -121,6 +121,8 @@ def _missing(kind: str, loaded: Loaded, *, always: bool = False) -> list[str]:
     c = loaded.config
     if kind == "storage":
         need = {"account_id": c.account_id, "bucket": c.bucket, "access_key_id": c.access_key_id}
+    elif kind == "push":
+        need = {"app_id": c.app_id, "api_key": c.api_key, "sender_id": c.sender_id}
     else:
         need = {"url": c.url, "instance": c.instance}
     need |= {n: loaded.secrets.get(n) for n in schemas.KINDS[kind][1]}
@@ -149,6 +151,15 @@ def _evolution(loaded: Loaded) -> messaging.EvolutionProvider:
     return messaging.EvolutionProvider(c.url, loaded.secrets["api_key"], c.instance)
 
 
+def _fcm_transport(loaded: Loaded):
+    """The HTTP transport for Google; None is the real network (tests put a fake here)."""
+    return None
+
+
+def _fcm(loaded: Loaded) -> push.FcmSender:
+    return push.FcmSender(loaded.secrets["service_account"], transport=_fcm_transport(loaded))
+
+
 def _try(kind: str, loaded: Loaded) -> str | None:
     """None when the service answers as it should; otherwise what went wrong, for the administrator."""
     if not _on(kind, loaded.config):
@@ -156,9 +167,11 @@ def _try(kind: str, loaded: Loaded) -> str | None:
     try:
         if kind == "storage":
             _r2(loaded).check()
+        elif kind == "push":
+            _fcm(loaded).check()
         else:
             _evolution(loaded).connection_state()
-    except (StorageError, messaging.DeliveryError) as exc:
+    except (StorageError, messaging.DeliveryError, push.PushError) as exc:
         return str(exc)[:300]
     return None
 
@@ -299,3 +312,24 @@ def messenger(db: Session) -> messaging.LogProvider | messaging.EvolutionProvide
     if loaded.config.enabled and not _missing("whatsapp", loaded):
         return _cached_build("whatsapp", loaded, _evolution)
     return messaging.provider()
+
+
+def pusher(db: Session) -> push.FcmSender | None:
+    """FCM as set up in the control panel; None until it is switched on there (notices then wait in the app)."""
+    loaded = load(db, "push")
+    if not loaded.config.enabled or _missing("push", loaded):
+        return None
+    return _cached_build("push", loaded, _fcm)
+
+
+def push_client(db: Session) -> dict | None:
+    """What the app needs to register with Firebase (public values), once push is switched on."""
+    loaded = load(db, "push")
+    if not loaded.config.enabled or _missing("push", loaded):
+        return None
+    c = loaded.config
+    try:
+        project = push.parse_service_account(loaded.secrets["service_account"])["project_id"]
+    except push.PushError:
+        return None
+    return {"project_id": project, "app_id": c.app_id, "api_key": c.api_key, "sender_id": c.sender_id}

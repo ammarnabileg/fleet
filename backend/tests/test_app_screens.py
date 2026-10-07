@@ -43,7 +43,7 @@ def driver(admin_client, client, company):
 
 
 def test_every_screen_shows_until_the_office_hides_it_and_the_server_refuses_it_then(admin_client, client, driver):
-    assert client.get(CONFIG).json() == {"phone_codes": True, "hidden_screens": [], "splash": None}
+    assert client.get(CONFIG).json() == {"phone_codes": True, "hidden_screens": [], "splash": None, "push": None}
     listed = admin_client.get("/api/v1/app-screens").json()
     assert set(listed["screens"]) == set(SCREENS) and {"sign_in", "day"} <= set(listed["locked"])
     for key, path in SCREENS.items():

@@ -51,6 +51,12 @@ Future<World> world({
   List<Map<String, dynamic>>? maintenance,
   List<Map<String, dynamic>>? accidents,
   List<Map<String, dynamic>>? fines,
+  Future<String?> Function(
+    Map<String, dynamic> config, {
+    required void Function(String token) onRefresh,
+    required void Function() onMessage,
+  })?
+  pushToken,
 }) async {
   final db = await testDb();
   final server = FakeServer();
@@ -66,6 +72,7 @@ Future<World> world({
       startTracking: () async {},
       stopTracking: () async {},
       deviceMeta: () async => {'platform': 'android', 'model': 'Test phone', 'app_version': '0.1.0'},
+      pushToken: pushToken,
     ),
   );
   server.on(
@@ -1379,5 +1386,55 @@ void main() {
     await tester.binding.handlePopRoute(); // the phone's back button
     await settle(tester);
     expect(find.descendant(of: bell, matching: find.text('2')), findsNothing); // read: the badge is gone
+  });
+
+  testWidgets('push: once the office switches it on, the phone gives its token once, again in a new language', (
+    tester,
+  ) async {
+    void Function()? arrived;
+    var asked = 0;
+    final w = (await tester.runAsync(
+      () => world(
+        pushToken: (config, {required onRefresh, required onMessage}) async {
+          expect(config['project_id'], 'fleet-test');
+          asked++;
+          arrived = onMessage;
+          return 'fcm-token-1';
+        },
+      ),
+    ))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/app-config',
+      (r) => (
+        200,
+        {
+          'phone_codes': true,
+          'hidden_screens': [],
+          'splash': null,
+          'push': {'project_id': 'fleet-test', 'app_id': '1:1:android:a', 'api_key': 'k', 'sender_id': '1'},
+        },
+      ),
+    );
+    var unread = 0;
+    w.server.on('GET', '/api/v1/driver/notifications', (r) => (200, {'unread': unread, 'items': []}));
+    w.server.on('POST', '/api/v1/driver/push-token', (r) => (204, null));
+    await pumpApp(tester, w);
+    await idle(tester);
+    final sent = w.server.calls('/api/v1/driver/push-token');
+    expect(sent, hasLength(1));
+    expect(jsonDecode(sent.single.body), {'token': 'fcm-token-1', 'lang': 'ar'});
+    await tester.runAsync(() => w.state.refresh());
+    await idle(tester);
+    expect(asked, 2);
+    expect(w.server.calls('/api/v1/driver/push-token'), hasLength(1), reason: 'the same token is not sent twice');
+    await tester.runAsync(() => w.state.setLang('en'));
+    await idle(tester);
+    expect(jsonDecode(w.server.calls('/api/v1/driver/push-token').last.body)['lang'], 'en');
+    // a push while the app is open: the badge follows
+    unread = 1;
+    arrived!();
+    await idle(tester);
+    expect(find.descendant(of: find.byKey(const Key('notifications')), matching: find.text('1')), findsOneWidget);
   });
 }

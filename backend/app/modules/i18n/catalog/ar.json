@@ -535,7 +535,8 @@
     "onboarding_approved": "{name}، تم اعتماد بياناتك. يمكنك بدء العمل من التطبيق.",
     "onboarding_rejected": "{name}، بياناتك تحتاج تصحيحاً: {reason}\nافتح التطبيق وعدّلها ثم أرسلها من جديد.",
     "scheme_approved": "{name}، تمت الموافقة على طلبك: نظامك من {month} هو {scheme}.",
-    "scheme_rejected": "{name}، لم تتم الموافقة على طلب تغيير نظامك: {reason}"
+    "scheme_rejected": "{name}، لم تتم الموافقة على طلب تغيير نظامك: {reason}",
+    "notice_title": "إشعار جديد"
   },
   "vehicle_status": {
     "available": "متاحة",
