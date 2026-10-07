@@ -1,15 +1,41 @@
 name: fleet
 
+# Every setting is a ${VARIABLE} here, read from the deploy platform's variables (Coolify lists them on its
+# Environment Variables screen) or from deploy/.env when run by hand. ${VAR:?...} stops the deploy with that message
+# while the value is missing. Passwords go inside URLs: letters and digits only (openssl rand -hex 24).
+
 x-logging: &logging
   driver: json-file
   options:
     max-size: "20m"
     max-file: "5"
 
+x-app-env: &app-env
+  APP_ENV: production
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (openssl rand -hex 32)}
+  DATABASE_URL: postgresql+psycopg://fleet_app:${FLEET_APP_DB_PASSWORD:?set FLEET_APP_DB_PASSWORD}@postgres:5432/fleet
+  CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD}@redis-queue:6379/0
+  CACHE_REDIS_URL: redis://:${REDIS_PASSWORD}@redis-cache:6379/0
+  LIVE_BROKER: redis
+  PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL, the address drivers open (https://...)}
+  FILES_DIR: /data/files
+  MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-10}
+  MESSAGING_PROVIDER: ${MESSAGING_PROVIDER:-panel}
+  EVOLUTION_API_URL: ${EVOLUTION_API_URL:-}
+  EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
+  EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-}
+  RATE_SIGN_IN_PER_15MIN: ${RATE_SIGN_IN_PER_15MIN:-60}
+  RATE_OTP_SEND_PER_HOUR: ${RATE_OTP_SEND_PER_HOUR:-30}
+  RATE_OTP_CHECK_PER_15MIN: ${RATE_OTP_CHECK_PER_15MIN:-60}
+  RATE_UPLOADS_PER_HOUR: ${RATE_UPLOADS_PER_HOUR:-600}
+  RATE_LIMIT_EXEMPT: ${RATE_LIMIT_EXEMPT:-}
+  HR_INTEGRATION_MODE: ${HR_INTEGRATION_MODE:-off}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+
 x-app: &app
   image: ${APP_IMAGE:-fleet-backend:dev}
   build: ../backend
-  env_file: .env
+  environment: *app-env
   restart: unless-stopped
   logging: *logging
   volumes:
@@ -30,7 +56,7 @@ services:
     logging: *logging
     expose: ["80"]
     volumes:
-      - ${MAPS_DIR:-./maps}:/srv/maps:ro   # the Kuwait map file (maps/update-map.sh)
+      - ${MAPS_DIR:-/srv/fleet-maps}:/srv/maps:ro   # the Kuwait map file (maps/update-map.sh); missing: no base map
     depends_on:
       api:
         condition: service_healthy
@@ -38,11 +64,13 @@ services:
       resources:
         limits: { cpus: "0.5", memory: 256m }
 
+  # runs the migrations as the owner, then exits (a platform may show it as "exited": that is its job done)
   migrate:
     <<: *app
     restart: "no"
     environment:
-      DATABASE_URL: ${MIGRATIONS_DATABASE_URL}
+      <<: *app-env
+      DATABASE_URL: postgresql+psycopg://fleet_owner:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/fleet
     command: ["alembic", "upgrade", "head"]
     depends_on:
       postgres:
@@ -53,7 +81,7 @@ services:
     # the client's address from X-Forwarded-For, trusting only the proxy on the private network: with "*" uvicorn
     # takes the first address in the header, which the client writes himself, and the limits by address mean nothing
     command: ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000",
-              "--workers", "4", "--proxy-headers",
+              "--workers", "${API_WORKERS:-4}", "--proxy-headers",
               "--forwarded-allow-ips", "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1"]
     expose: ["8000"]
     depends_on: *app-deps
@@ -93,19 +121,25 @@ services:
       POSTGRES_DB: fleet
       POSTGRES_USER: fleet_owner
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      PGBACKREST_REPO1_S3_KEY: ${PGBACKREST_REPO1_S3_KEY}
-      PGBACKREST_REPO1_S3_KEY_SECRET: ${PGBACKREST_REPO1_S3_KEY_SECRET}
-      PGBACKREST_REPO1_CIPHER_PASS: ${PGBACKREST_REPO1_CIPHER_PASS}
+      FLEET_APP_DB_PASSWORD: ${FLEET_APP_DB_PASSWORD}   # creates the app's login on the first start (initdb/)
+      # pgBackRest reads PGBACKREST_* over its config file: the backup bucket comes from here
+      PGBACKREST_REPO1_S3_ENDPOINT: ${PGBACKREST_REPO1_S3_ENDPOINT:-}
+      PGBACKREST_REPO1_S3_BUCKET: ${PGBACKREST_REPO1_S3_BUCKET:-}
+      PGBACKREST_REPO1_S3_REGION: ${PGBACKREST_REPO1_S3_REGION:-us-east-1}
+      PGBACKREST_REPO1_PATH: ${PGBACKREST_REPO1_PATH:-/fleet}
+      PGBACKREST_REPO1_S3_KEY: ${PGBACKREST_REPO1_S3_KEY:-}
+      PGBACKREST_REPO1_S3_KEY_SECRET: ${PGBACKREST_REPO1_S3_KEY_SECRET:-}
+      PGBACKREST_REPO1_CIPHER_PASS: ${PGBACKREST_REPO1_CIPHER_PASS:-}
     command:
       - postgres
       - -c
-      - shared_buffers=4GB
+      - shared_buffers=${PG_SHARED_BUFFERS:-1GB}           # about a quarter of the server's memory
       - -c
-      - effective_cache_size=8GB
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-3GB}  # about three quarters
       - -c
       - work_mem=32MB
       - -c
-      - maintenance_work_mem=512MB
+      - maintenance_work_mem=256MB
       - -c
       - max_connections=100
       - -c
@@ -115,7 +149,9 @@ services:
       - -c
       - archive_mode=on
       - -c
-      - archive_command=pgbackrest --stanza=fleet archive-push %p
+      # no archiving until the backup bucket is set: a failing archive_command keeps every WAL file and fills the
+      # disk. With the bucket set: PG_ARCHIVE_COMMAND=pgbackrest --stanza=fleet archive-push %p (backup-and-restore.sh)
+      - archive_command=${PG_ARCHIVE_COMMAND:-/bin/true}
       - -c
       - archive_timeout=60
       - -c
@@ -126,7 +162,6 @@ services:
       - timezone=UTC
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./postgres/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fleet_owner -d fleet"]
       interval: 10s
@@ -134,7 +169,7 @@ services:
       retries: 5
     deploy:
       resources:
-        limits: { cpus: "3", memory: 6g }
+        limits: { cpus: "3", memory: "${PG_MEMORY_LIMIT:-4g}" }
 
   redis-queue:                # Celery broker + rate limits: never evict, persist every second
     image: redis:7-alpine

@@ -69,13 +69,26 @@ python -m app.ops.export_all --out /backups/export.zip --with-files   # التص
 uvicorn app.main:create_app --factory --reload      # التوثيق: http://localhost:8000/api/docs
 ```
 
-## النشر (Coolify)
+## النشر على Coolify (v4)
 
-1. مورد Docker Compose من `deploy/docker-compose.yml`، والدومين على خدمة `web` فقط.
-2. الأسرار من `deploy/.env.example` في شاشة متغيرات البيئة.
-3. بعد أول تشغيل: `bootstrap` ثم `apply_settings` (أعلاه) داخل حاوية `api`، ثم أوامر النسخ في `deploy/backup-and-restore.sh`.
-4. مستخدم التطبيق `fleet_app` يُنشأ مرة واحدة بكلمة مرور، وكل ترحيل يمنحه صلاحياته تلقائياً.
-5. الخريطة: على الخادم `MAPS_DIR=/srv/fleet-maps deploy/maps/update-map.sh` (يحتاج أداة [go-pmtiles](https://github.com/protomaps/go-pmtiles/releases))، ثم شهرياً بـ cron. نفس `MAPS_DIR` في متغيرات البيئة: مجلد خارج الكود فلا تمسحه إعادة النشر.
+جُرّب كاملاً بنفس ملف `deploy/docker-compose.yml` على Docker محلياً: الحاويات الثمانية تقوم، الترحيلات تعمل بصلاحية المالك، مستخدم التطبيق `fleet_app` يُنشأ وحده، الدخول عبر nginx يعمل، والعامل والجدولة يعملان، وإعادة النشر تحفظ البيانات.
+
+**قبل البدء:** سجل DNS من نوع A للدومين يشير لعنوان الخادم، والمنفذان 80 و443 مفتوحان (Coolify يصدر شهادة HTTPS وحده). ذاكرة 8 GB تكفي للبداية.
+
+1. **New Resource ← Docker Compose** من مستودع Git خاص (GitHub App أو Deploy Key) على `ammarnabileg/fleet`:
+   - الفرع: `main` بعد الدمج (أو فرع الـ PR للتجربة).
+   - Base Directory: `/`
+   - Docker Compose Location: `/deploy/docker-compose.yml`
+2. **الدومين على خدمة `web` فقط:** `https://<الدومين>` (المنفذ 80 داخل الحاوية). لا دومين لـ `api` ولا لغيرها: الـ API يمر عبر nginx فقط.
+3. **متغيرات البيئة:** الخمسة المطلوبة في `deploy/.env.example` (`SECRET_KEY` و`POSTGRES_PASSWORD` و`FLEET_APP_DB_PASSWORD` و`REDIS_PASSWORD` و`PUBLIC_URL`)، وكلمات المرور حروف وأرقام فقط (`openssl rand -hex 24`) لأنها تدخل في عناوين الاتصال. احفظ `SECRET_KEY` في مكان آمن: يشفّر مفاتيح التكاملات، وتغييره يعني إدخالها من جديد. ناقص واحد منها يوقف النشر برسالة تسميه.
+4. **Deploy.** أول مرة تُبنى ثلاث صور (دقائق). `migrate` يشغّل الترحيلات ثم يخرج بـ 0، وقد يعرضه Coolify «Exited»: هذا عمله.
+5. **أول مدير:** من Terminal حاوية `api` في Coolify:
+   `ADMIN_PASSWORD='<كلمة قوية>' python -m app.ops.bootstrap --username admin --full-name "<الاسم>"`
+   ثم الدخول من `https://<الدومين>/login.html`. اسم العميل والألوان وباقي الإعدادات من صفحة الإعدادات في اللوحة.
+6. **ما يبقى مطفأً حتى يُضبط:** واتساب (صفحة التكاملات، أو متغيرات `EVOLUTION_*` مع `MESSAGING_PROVIDER=whatsapp`)، وCloudflare R2، وFirebase. بدون واتساب لا تصل رموز الدخول ولا روابط التفعيل: أطفئ «رموز الهاتف» من الإعدادات (دخول السائق) ليدخل السائقون بالرقم المدني وكلمة المرور المبدئية ثم كلمتهم.
+7. **الخريطة:** على الخادم نفسه `MAPS_DIR=/srv/fleet-maps deploy/maps/update-map.sh` (يحتاج [go-pmtiles](https://github.com/protomaps/go-pmtiles/releases))، ثم شهرياً بـ cron. حتى يُنشأ الملف تظهر الخريطة الحية والمسارات بلا خلفية، وكل شيء آخر يعمل.
+8. **النسخ الاحتياطي:** متغيرات `PGBACKREST_*` ثم `PG_ARCHIVE_COMMAND=pgbackrest --stanza=fleet archive-push %p` وإعادة النشر، ثم مرة واحدة من Terminal حاوية `postgres`: `pgbackrest --stanza=fleet stanza-create`، والجدولة في Scheduled Tasks (الأوامر في `deploy/backup-and-restore.sh`). **قبل ذلك لا نسخ احتياطية**: الأرشفة مطفأة عمداً لأن أمر أرشفة يفشل يحتفظ بكل ملفات WAL ويملأ القرص.
+9. **تطبيق السائق:** متغير المستودع `DRIVER_API_URL` في GitHub (Settings ← Variables) = `https://<الدومين>`، فيُبنى الـ APK في CI متصلاً به (artifact `driver-app-debug-apk`). بدونه يتصل بعنوان المثال.
 
 ## M2: العمل اليومي والكاش (الخادم)
 
