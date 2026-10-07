@@ -77,10 +77,11 @@ uvicorn app.main:create_app --factory --reload      # التوثيق: http://loc
 
 1. **New Resource ← Docker Compose** من مستودع Git خاص (GitHub App أو Deploy Key) على `ammarnabileg/fleet`:
    - الفرع: `main` بعد الدمج (أو فرع الـ PR للتجربة).
-   - Base Directory: `/`
-   - Docker Compose Location: `/deploy/docker-compose.yml`
+   - Base Directory: `/deploy`
+   - Docker Compose Location: `/docker-compose.yml`
+   - (Coolify يحسب المسارات النسبية في الملف، `../backend` و`./postgres`، من الـ Base Directory لا من مكان الملف: مع `/` يفشل البناء بـ `path "/artifacts/backend" not found`)
 2. **الدومين على خدمة `web` فقط:** `https://<الدومين>` (المنفذ 80 داخل الحاوية). لا دومين لـ `api` ولا لغيرها: الـ API يمر عبر nginx فقط.
-3. **متغيرات البيئة:** الخمسة المطلوبة في `deploy/.env.example` (`SECRET_KEY` و`POSTGRES_PASSWORD` و`FLEET_APP_DB_PASSWORD` و`REDIS_PASSWORD` و`PUBLIC_URL`)، وكلمات المرور حروف وأرقام فقط (`openssl rand -hex 24`) لأنها تدخل في عناوين الاتصال. احفظ `SECRET_KEY` في مكان آمن: يشفّر مفاتيح التكاملات، وتغييره يعني إدخالها من جديد. ناقص واحد منها يوقف النشر برسالة تسميه.
+3. **متغيرات البيئة:** الخمسة المطلوبة في `deploy/.env.example` (`SECRET_KEY` و`POSTGRES_PASSWORD` و`FLEET_APP_DB_PASSWORD` و`REDIS_PASSWORD` و`PUBLIC_URL`)، وكلمات المرور حروف وأرقام فقط (`openssl rand -hex 24`) لأنها تدخل في عناوين الاتصال. احفظ `SECRET_KEY` في مكان آمن: يشفّر مفاتيح التكاملات، وتغييره يعني إدخالها من جديد. ناقص واحد منها يوقف النشر برسالة تسميه. أطفئ «Build time» لكلمات السر و`SECRET_KEY` (تكفيها «Runtime»): Coolify يمرر المتغيرات المفعّل فيها وقت البناء إلى أمر البناء.
 4. **Deploy.** أول مرة تُبنى ثلاث صور (دقائق). `migrate` يشغّل الترحيلات ثم يخرج بـ 0، وقد يعرضه Coolify «Exited»: هذا عمله.
 5. **أول مدير:** من Terminal حاوية `api` في Coolify:
    `ADMIN_PASSWORD='<كلمة قوية>' python -m app.ops.bootstrap --username admin --full-name "<الاسم>"`
