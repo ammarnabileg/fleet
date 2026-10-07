@@ -286,6 +286,66 @@ void main() {
       final request = await admin.call('GET', '/maintenance/requests/${office.single['id']}');
       expect((request['photos'] as List).length, 2);
 
+      // ---- fuel: a fill with the invoice and the odometer from the camera; this vehicle's model has no reference, so
+      // it waits for the accountant, who approves it with the reason, and the app shows it approved
+      await state.loadFuel();
+      expect(state.fuel!.vehicle!.plate, '77/$n');
+      expect(
+        await state.sendFuel(
+          filledAt: DateTime.now(),
+          litres: '30.5',
+          amount: '3.200',
+          fuelType: 'super_95',
+          station: 'Contract station',
+          km: 30215,
+          invoicePath: (await jpeg('invoice')).path,
+          odometerPath: (await jpeg('fuel-odo')).path,
+        ),
+        SendResult.sent,
+      );
+      final myFill = state.fuel!.fills.single;
+      expect((myFill.status, myFill.litres, myFill.amount, myFill.fuelType), ('pending', '30.50', '3.200', 'super_95'));
+      final held = (await admin.call('GET', '/fuel/fills?vehicle_id=${vehicle['id']}') as List).single;
+      expect((held['flags'] as List), contains('no_model'));
+      expect((held['source'], held['station'], held['driver']['id']), ('app', 'Contract station', driver['id']));
+      await admin.call('POST', '/fuel/fills/${held['id']}/approve', {'note': 'Contract: the model comes later'});
+      await state.loadFuel();
+      expect(state.fuel!.fills.single.status, 'approved');
+
+      // ---- a work violation: recorded and approved by the office, objected to from the app, overturned finally
+      final types = await admin.call('GET', '/violations/types') as List;
+      final late = types.firstWhere((t) => t['code'] == 'order_late');
+      final vio = await admin.call('POST', '/violations', {
+        'employee_id': driver['id'],
+        'type_id': late['id'],
+        'occurred_at': DateTime.now().toUtc().subtract(const Duration(minutes: 20)).toIso8601String(),
+        'description': 'Order 40 minutes late',
+        'reference': 'T-$n',
+      });
+      await state.loadViolations();
+      expect(state.violations, isEmpty, reason: 'under review: not his yet');
+      await admin.call('POST', '/violations/${vio['id']}/approve', {'amount': '2.500'});
+      await state.loadViolations();
+      final mineV = state.violations.single;
+      expect((mineV.status, mineV.amount, mineV.canObject, mineV.reference), ('approved', '2.500', true, 'T-$n'));
+      expect(
+        await state.sendObjection(
+          violationId: mineV.id,
+          text: 'The restaurant was late',
+          filePath: (await jpeg('objection')).path,
+        ),
+        SendResult.sent,
+      );
+      expect(state.violations.single.status, 'objected');
+      final objected = await admin.call('GET', '/violations/${vio['id']}');
+      expect((objected['objection'], objected['objection_sha256'] != null), ('The restaurant was late', true));
+      await admin.call('POST', '/violations/${vio['id']}/decide', {'uphold': false, 'note': 'Restaurant log confirms'});
+      await state.loadViolations();
+      expect(
+        (state.violations.single.status, state.violations.single.finalNote),
+        ('overturned', 'Restaurant log confirms'),
+      );
+
       // ---- accident: three camera photos now, the police report later; a center estimates, the office decides the
       // driver is liable: 150.000 in 3 installments, which the driver sees in the app
       final shots = [

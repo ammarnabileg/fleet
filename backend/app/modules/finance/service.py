@@ -317,7 +317,7 @@ def _expense_out(db: Session, rows: list[Expense]) -> list[dict]:
     return out
 
 
-def _audit(db: Session, action: str, e: Expense, *, actor_user_id: int, after: dict | None = None) -> None:
+def _audit(db: Session, action: str, e: Expense, *, actor_user_id: int | None, after: dict | None = None) -> None:
     audit.record(
         db,
         action=f"finance.expense.{action}",
@@ -373,6 +373,51 @@ def create_expense(db: Session, data: dict, *, actor_user_id: int, all_companies
     _audit(db, "created", expense, actor_user_id=actor_user_id)
     db.commit()
     return _expense_out(db, [expense])[0]
+
+
+def record_fuel(
+    db: Session,
+    *,
+    company_id: int,
+    vehicle_id: int,
+    employee_id: int | None,
+    amount: Decimal,
+    litres: Decimal,
+    expense_date: date,
+    station: str | None,
+    reference: str,
+    invoice_sha256: str,
+    payment_method: str,
+    actor_user_id: int | None,
+) -> int:
+    """An approved fuel fill as an approved fuel expense (BRD FR-FUL): the fuel module's checks and its accountant
+    were its approval, so no expense workflow applies. None as the actor: approved by the checks alone. In the
+    caller's transaction; returns the expense's id."""
+    t = db.scalar(select(ExpenseType).where(ExpenseType.code == "fuel"))
+    if t is None or not t.active:
+        raise AppError(409, "fuel_expense_type_missing")
+    expense = Expense(
+        company_id=company_id,
+        type_id=t.id,
+        expense_date=expense_date,
+        amount=amount,
+        quantity=litres,
+        payment_method=payment_method,
+        supplier=station,
+        reference_no=reference,
+        vehicle_id=vehicle_id,
+        employee_id=employee_id,
+        created_by=actor_user_id,
+        status="approved",
+        decided_by=actor_user_id,
+        decided_at=utcnow(),
+    )
+    db.add(expense)
+    db.flush()
+    db.add(ExpenseFile(expense_id=expense.id, sha256=invoice_sha256, position=0))
+    db.refresh(expense)
+    _audit(db, "created", expense, actor_user_id=actor_user_id, after={"from": reference})
+    return expense.id
 
 
 def list_expenses(

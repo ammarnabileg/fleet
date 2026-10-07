@@ -59,6 +59,10 @@ class Outbox {
     'police_report': ('/driver/accidents/{accident_id}/police-report', 'upload', {'police_report_exists'}, 'POST'),
     // the month's screenshots from the platform's app (from the gallery)
     'statement': ('/driver/statements', 'upload', {'statement_exists'}, 'POST'),
+    // a fill: the invoice and the odometer from the camera (a retry sends the same invoice, already recorded)
+    'fuel': ('/driver/fuel', 'camera', {'fuel_fill_exists'}, 'POST'),
+    // his objection to a violation, with an optional screenshot (a retry finds it sent)
+    'violation_objection': ('/driver/violations/{violation_id}/objection', 'upload', {'objection_exists'}, 'POST'),
   };
   static const _claimTimeout = Duration(minutes: 2);
 

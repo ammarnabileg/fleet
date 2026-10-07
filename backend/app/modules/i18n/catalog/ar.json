@@ -91,7 +91,13 @@
     "vehicles.view": "عرض السيارات",
     "employees.onboarding": "مراجعة واعتماد التسجيل الذاتي للسائقين",
     "payroll.schemes": "أنظمة الدفع وطلبات تغييرها",
-    "daily_reports.escalations": "تصعيد التقارير المتأخرة (للمدير)"
+    "daily_reports.escalations": "تصعيد التقارير المتأخرة (للمدير)",
+    "fuel.view": "عرض الوقود",
+    "fuel.manage": "تسجيل التعبئات والأسعار ومراجع الطرازات",
+    "fuel.approve": "اعتماد تعبئات الوقود المخالفة",
+    "violations.view": "عرض مخالفات العمل",
+    "violations.manage": "تسجيل مخالفات العمل",
+    "violations.approve": "مراجعة المخالفات والبت في الاعتراضات"
   },
   "modules": {
     "accidents": "الحوادث",
@@ -125,7 +131,9 @@
     "tracking": "التتبع",
     "treasury": "الخزينة",
     "users": "المستخدمون",
-    "vehicles": "السيارات"
+    "vehicles": "السيارات",
+    "fuel": "الوقود",
+    "violations": "مخالفات العمل"
   },
   "errors": {
     "account_closed": "حساب الكاش لهذا السائق مُقفل بعد التسوية",
@@ -431,7 +439,26 @@
     "delegation_not_found": "التفويض غير موجود",
     "correction_at_last_step": "تصحيح مبلغ الكاش يكون في آخر خطوة اعتماد",
     "mfa_code_invalid": "رمز تطبيق المصادقة غير صحيح",
-    "deduction_decided": "تم البت في هذا الخصم من قبل"
+    "deduction_decided": "تم البت في هذا الخصم من قبل",
+    "fuel_fill_not_found": "التعبئة غير موجودة",
+    "fuel_fill_exists": "فاتورة الوقود هذه مسجلة من قبل",
+    "fuel_fill_decided": "تم البت في هذه التعبئة من قبل",
+    "fuel_price_exists": "يوجد سعر لهذا الوقود من نفس التاريخ؛ أضف سعراً من يوم آخر",
+    "fuel_model_exists": "هذا الطراز مسجل من قبل",
+    "fuel_model_not_found": "الطراز غير موجود",
+    "fuel_expense_type_missing": "نوع مصروف الوقود غير موجود أو موقوف في المالية",
+    "odometer_photo_required": "صورة العداد مطلوبة",
+    "violation_not_found": "المخالفة غير موجودة",
+    "violation_type_not_found": "نوع المخالفة غير موجود أو موقوف",
+    "violation_cause_not_found": "السبب غير موجود",
+    "violation_type_exists": "يوجد نوع بهذا الرمز",
+    "violation_cause_exists": "يوجد سبب بهذا الرمز",
+    "violation_not_pending": "المخالفة ليست بانتظار المراجعة",
+    "violation_not_objected": "لا يوجد اعتراض ينتظر القرار",
+    "violation_not_objectable": "لا يمكن الاعتراض على هذه المخالفة",
+    "objection_exists": "أُرسل اعتراضك من قبل",
+    "objection_too_late": "انتهت مهلة الاعتراض",
+    "violation_type_fixed": "لا يتغير رمز النوع ولا مصدره بعد إنشائه"
   },
   "settings": {
     "branding": "الهوية",
@@ -484,7 +511,16 @@
     "driver_app.splash_image": "صورة شاشة البداية",
     "driver_app.splash_color": "لون الخلفية حول الصورة",
     "driver_app.splash_seconds": "مدة الظهور (ثانية)",
-    "payroll.absence_deduction": "خصم أيام الغياب والإجازة بدون راتب — قرار العميل"
+    "payroll.absence_deduction": "خصم أيام الغياب والإجازة بدون راتب — قرار العميل",
+    "fuel": "الوقود",
+    "fuel.price_tolerance_percent": "تفاوت السعر المقبول عن السعر الرسمي (%)",
+    "fuel.consumption_alert_percent": "تنبيه الاستهلاك فوق مرجع الطراز بنسبة (%)",
+    "fuel.expense_payment": "تسجيل التعبئة في المالية (آجل للمحطة أو من الخزينة)",
+    "violations": "مخالفات العمل",
+    "violations.objection_hours": "مهلة اعتراض السائق (ساعات)",
+    "violations.signal_loss_count": "عدد مرات انقطاع الإشارة التي تفتح مخالفة للمراجعة (0 = لا تفتح)",
+    "violations.signal_loss_days": "خلال (أيام)",
+    "tracking.speed_limit_kmh": "تنبيه تجاوز السرعة فوق (كم/س، 0 = بلا تنبيه)"
   },
   "common": {
     "active": "نشط",
@@ -553,7 +589,12 @@
     "daily_report_change_requested": "{driver} يطلب تعديل تقرير {date}",
     "vehicle_change_requested": "{driver} يطلب تغيير السيارة {plate}: {reason}",
     "document_renewal_submitted": "{driver} أرسل {document} مجدداً حتى {date}: راجعه واعتمده",
-    "daily_report_missing": "{driver} بدأ يومه {date} ولم يرسل تقريره"
+    "daily_report_missing": "{driver} بدأ يومه {date} ولم يرسل تقريره",
+    "fuel_review": "تعبئة وقود #{number} ({plate}) تنتظر المراجعة: {checks}",
+    "fuel_consumption_high": "استهلاك {plate} في التعبئة #{number}: {consumption} لتر/100 كم والمرجع {reference}",
+    "violation_review": "مخالفة #{number} على {driver} ({type}) بانتظار المراجعة",
+    "violation_objected": "اعترض {driver} على المخالفة #{number}: بانتظار القرار النهائي",
+    "speeding": "{driver} تجاوز السرعة: {speed} كم/س بالسيارة {plate}"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
@@ -831,7 +872,9 @@
     "day": "بداية اليوم ونهايته (العداد والعهدة والتتبع)",
     "onboarding": "التسجيل الذاتي (يُضبط من إعدادات التسجيل الذاتي)",
     "permissions": "أذونات الهاتف (الموقع والكاميرا)",
-    "schemes": "أنظمة الدفع وطلب التغيير"
+    "schemes": "أنظمة الدفع وطلب التغيير",
+    "fuel": "تعبئة الوقود",
+    "violations": "مخالفات العمل"
   },
   "daily_field": {
     "orders": "عدد الطلبات",
@@ -1019,7 +1062,13 @@
     "expense": "مصروف",
     "expense_type": "نوع مصروف",
     "workflow": "مسار اعتماد",
-    "delegation": "تفويض"
+    "delegation": "تفويض",
+    "fuel_fill": "تعبئة وقود",
+    "fuel_price": "سعر وقود",
+    "fuel_model": "طراز (وقود)",
+    "violation": "مخالفة عمل",
+    "violation_type": "نوع مخالفة",
+    "violation_cause": "سبب استبعاد"
   },
   "audit_actor": {
     "user": "مستخدم",
@@ -1197,6 +1246,50 @@
     "document_expired": "{document} انتهى في {date}. جدّده فوراً وسلّم النسخة للمكتب.",
     "scheme_request_approved": "اعتُمد طلبك: نظام الدفع {scheme} من شهر {month}.",
     "scheme_request_rejected": "رُفض طلب تغيير نظام الدفع إلى {scheme}: {reason}",
-    "report_missing": "بدأت يومك {date} ولم ترسل تقريرك بعد. أرسله الآن من التطبيق."
+    "report_missing": "بدأت يومك {date} ولم ترسل تقريرك بعد. أرسله الآن من التطبيق.",
+    "fuel_rejected": "رُفضت تعبئة الوقود #{number}: {reason}",
+    "violation_approved": "سُجّلت عليك المخالفة #{number} ({type})، الغرامة {amount} د.ك. يمكنك الاعتراض من التطبيق خلال {hours} ساعة.",
+    "violation_upheld": "رُفض اعتراضك على المخالفة #{number}: {reason}",
+    "violation_overturned": "قُبل اعتراضك وأُلغيت المخالفة #{number}: {reason}"
+  },
+  "fuel_type": {
+    "premium_91": "ممتاز 91",
+    "super_95": "خصوصي 95",
+    "ultra_98": "ألترا 98",
+    "diesel": "ديزل"
+  },
+  "fuel_flag": {
+    "over_tank": "أكثر من سعة الخزان",
+    "price_mismatch": "المبلغ لا يطابق السعر الرسمي",
+    "wrong_fuel_type": "نوع وقود لا يناسب السيارة",
+    "odometer_backwards": "العداد أقل من آخر قراءة",
+    "odometer_jump": "مسافة غير منطقية منذ آخر قراءة",
+    "no_model": "لا مرجع لطراز السيارة",
+    "no_price": "لا سعر رسمي لهذا اليوم"
+  },
+  "fuel_status": {
+    "pending": "بانتظار المراجعة",
+    "approved": "معتمدة",
+    "rejected": "مرفوضة"
+  },
+  "violation_text": {
+    "mock_location": "رُفضت مواقع من تطبيق تزييف الموقع على هاتف السائق",
+    "signal_loss": "انقطعت الإشارة {count} مرات خلال {days} أيام أثناء الدوام"
+  },
+  "violation_status": {
+    "pending": "بانتظار المراجعة",
+    "approved": "معتمدة",
+    "excluded": "مستبعدة",
+    "objected": "معترض عليها",
+    "upheld": "نهائية: رُفض الاعتراض",
+    "overturned": "نهائية: قُبل الاعتراض"
+  },
+  "violation_source": {
+    "attendance": "الحضور",
+    "cash": "الكاش",
+    "orders": "الطلبات",
+    "complaints": "الشكاوى",
+    "accidents": "الحوادث",
+    "tracking": "التتبع"
   }
 }

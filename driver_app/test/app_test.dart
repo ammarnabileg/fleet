@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:fleet_driver/app/state.dart';
 import 'package:fleet_driver/core/api.dart';
+import 'package:fleet_driver/core/outbox.dart';
 import 'package:fleet_driver/core/tokens.dart';
 import 'package:fleet_driver/main.dart';
 import 'package:fleet_driver/ui/photos.dart';
@@ -1061,6 +1062,214 @@ void main() {
     expect(find.text('تم الإرسال'), findsOneWidget);
   });
 
+  testWidgets('fuel: the invoice and the odometer from the camera, the model\'s fuels only, and the review shown', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final shots = (await tester.runAsync(() async {
+      final invoice = await testImage();
+      return [invoice, (await File(invoice).copy(invoice.replaceFirst('odo.jpg', 'meter.jpg'))).path];
+    }))!;
+    final taken = DateTime.utc(2026, 10, 4, 7, 15);
+    var shot_ = 0;
+    Photos.camera = (_) async => TakenPhoto(shots[shot_++], taken);
+    final sent = <String, String>{}; // what each upload carried, by the sha the server gave it
+    var n = 0;
+    w.server.on('POST', '/api/v1/driver/files', (r) {
+      final sha = '${++n}' * 64;
+      sent[sha] = RegExp(r'filename="([^"]+)"').firstMatch(latin1.decode(r.bodyBytes))?.group(1) ?? '';
+      return (201, {'sha256': sha, 'size_bytes': 10, 'content_type': 'image/jpeg'});
+    });
+    Map<String, dynamic> fill(int number, String status, {String? reason}) => {
+      'id': 'f$number',
+      'number': number,
+      'filled_at': '2026-10-04T07:15:00Z',
+      'litres': '48.00',
+      'amount': '5.520',
+      'fuel_type': 'ultra_98',
+      'status': status,
+      'reason': reason,
+    };
+    var fills = [fill(6, 'rejected', reason: 'السيارة لا تأخذ ديزل')];
+    w.server.on(
+      'GET',
+      '/api/v1/driver/fuel',
+      (r) => (
+        200,
+        {
+          'vehicle': {
+            'plate_number': '18/23456',
+            'fuel_types': ['super_95', 'ultra_98'],
+            'tank_litres': '42.0',
+            'last_km': 45100,
+          },
+          'fills': fills,
+        },
+      ),
+    );
+    w.server.on('POST', '/api/v1/driver/fuel', (r) {
+      fills = [fill(7, 'pending'), ...fills];
+      return (201, fill(7, 'pending'));
+    });
+    await pumpApp(tester, w);
+    await tester.ensureVisible(find.byKey(const Key('fuel')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('fuel')));
+    await idle(tester);
+    expect(find.textContaining('الخزان \u206642\u2069 لتر'), findsOneWidget);
+    expect(find.textContaining('رُفضت: السيارة لا تأخذ ديزل'), findsOneWidget);
+
+    await tester.ensureVisible(find.byKey(const Key('fuel-send')));
+    await tester.tap(find.byKey(const Key('fuel-send')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/fuel', method: 'POST'), isEmpty, reason: 'litres, amount and km required');
+    expect(find.text('اكتب رقمًا أكبر من صفر'), findsNWidgets(2));
+
+    await tester.ensureVisible(find.byKey(const Key('fuel-type')));
+    await tester.tap(find.byKey(const Key('fuel-type')));
+    await settle(tester);
+    expect(find.text('ديزل'), findsNothing, reason: 'only the fuels of this model');
+    await tester.tap(find.text('ألترا 98').last);
+    await settle(tester);
+    await tester.enterText(find.byKey(const Key('fuel-litres')), '48');
+    await tester.enterText(find.byKey(const Key('fuel-amount')), '5.52');
+    await tester.enterText(find.byKey(const Key('fuel-km')), '45000');
+    await idle(tester);
+    expect(find.textContaining('أقل من آخر قراءة'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('fuel-km')), '45230');
+    await tester.enterText(find.byKey(const Key('fuel-station')), ' KNPC الشويخ ');
+    await idle(tester);
+    expect(find.textContaining('أقل من آخر قراءة'), findsNothing);
+    await tester.ensureVisible(find.byKey(const Key('fuel-send')));
+    await tester.tap(find.byKey(const Key('fuel-send')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/fuel', method: 'POST'), isEmpty, reason: 'both photos required');
+    expect(find.text('صوّر الفاتورة والعداد'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('fuel-invoice')));
+    await tester.tap(find.byKey(const Key('fuel-invoice')));
+    await idle(tester);
+    await tester.tap(find.byKey(const Key('fuel-odometer')));
+    await idle(tester);
+    await shot(tester, '40-fuel');
+    await tester.ensureVisible(find.byKey(const Key('fuel-send')));
+    await tester.tap(find.byKey(const Key('fuel-send')));
+    await idle(tester);
+
+    expect(w.server.calls('/api/v1/driver/files').map((r) => r.url.queryParameters['source']), ['camera', 'camera']);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/fuel', method: 'POST').single.body) as Map;
+    expect(
+      (body['litres'], body['amount'], body['fuel_type'], body['odometer_km'], body['station']),
+      ('48', '5.52', 'ultra_98', 45230, 'KNPC الشويخ'),
+    );
+    expect((body['invoice_sha256'], body['odometer_sha256']), ('1' * 64, '2' * 64));
+    expect(
+      (sent[body['invoice_sha256']], sent[body['odometer_sha256']]),
+      (shots[0].split('/').last, shots[1].split('/').last),
+      reason: 'the invoice photo as the invoice, the odometer photo as the odometer',
+    );
+    expect(body['filled_at'], '2026-10-04T07:15:00.000Z', reason: 'when the invoice was photographed');
+    expect(find.text('تم الإرسال'), findsOneWidget);
+    await tester.tap(find.text('تم'));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('fuel')));
+    await idle(tester);
+    expect(find.text('تعبئة #7'), findsOneWidget);
+    expect(find.text('بانتظار المراجعة'), findsOneWidget);
+
+    // the first answer lost: the retry finds the same invoice recorded, and that is a success
+    w.server.on('POST', '/api/v1/driver/fuel', (r) => (409, {'code': 'fuel_fill_exists'}));
+    final again = await tester.runAsync(() async {
+      final (invoice, odometer) = (await testImage(), await testImage()); // the first ones were sent and removed
+      return w.state.sendFuel(
+        filledAt: taken,
+        litres: '48',
+        amount: '5.52',
+        fuelType: 'ultra_98',
+        km: 45230,
+        invoicePath: invoice,
+        odometerPath: odometer,
+      );
+    });
+    expect(again, SendResult.sent);
+  });
+
+  testWidgets('work violations: the penalty or a warning, an objection before the deadline, the final decision', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final shot_ = await tester.runAsync(testImage);
+    Photos.gallery = () async => TakenPhoto(shot_!, DateTime.now());
+    final deadline = DateTime.now().toUtc().add(const Duration(hours: 30));
+    Map<String, dynamic> vio(int n, String status, {String? amount, bool canObject = false, String? note}) => {
+      'id': 'v$n',
+      'number': n,
+      'type_name': {'ar': 'تأخر توصيل طلب', 'en': 'Late delivery'},
+      'occurred_at': '2026-10-05T18:20:00Z',
+      'description': 'طلب تأخر 40 دقيقة',
+      'reference': 'T-$n',
+      'amount': amount,
+      'status': status,
+      'objection_deadline': deadline.toIso8601String(),
+      'can_object': canObject,
+      'objection': status == 'approved' ? null : 'المطعم تأخر',
+      'final_note': note,
+    };
+    var objected = false;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/violations',
+      (r) => (
+        200,
+        [
+          objected ? vio(12, 'objected', amount: '5.000') : vio(12, 'approved', amount: '5.000', canObject: true),
+          vio(11, 'approved', amount: '0.000'),
+          vio(10, 'overturned', amount: '3.000', note: 'ثبت أن العميل ألغى'),
+        ],
+      ),
+    );
+    w.server.on('POST', '/api/v1/driver/files', (r) => (201, {'sha256': 'e' * 64}));
+    w.server.on('POST', '/api/v1/driver/violations/v12/objection', (r) {
+      objected = true;
+      return (201, vio(12, 'objected', amount: '5.000'));
+    });
+    await pumpApp(tester, w);
+    await tester.ensureVisible(find.byKey(const Key('violations')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('violations')));
+    await idle(tester);
+    expect(find.text('مخالفة #12 · تأخر توصيل طلب'), findsOneWidget);
+    expect(find.textContaining('الغرامة: \u20665.000\u2069 د.ك'), findsOneWidget);
+    expect(find.textContaining('إنذار بلا غرامة'), findsOneWidget, reason: 'a zero penalty is a warning');
+    expect(find.textContaining('القرار: ثبت أن العميل ألغى'), findsOneWidget);
+    expect(find.byKey(const Key('object-11')), findsNothing, reason: 'only before the deadline, while approved');
+    await shot(tester, '41-violations');
+    await tester.tap(find.byKey(const Key('object-12')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('send-objection')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/violations/v12/objection'), isEmpty, reason: 'the reason is required');
+    await tester.enterText(find.byKey(const Key('objection-text')), '  المطعم أخّر الطلب 35 دقيقة  ');
+    await tester.tap(find.byKey(const Key('objection-file')));
+    await idle(tester);
+    await tester.tap(find.byKey(const Key('send-objection')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/files').single.url.queryParameters['source'], 'upload');
+    final body = jsonDecode(w.server.calls('/api/v1/driver/violations/v12/objection').single.body) as Map;
+    expect(body, {'text': 'المطعم أخّر الطلب 35 دقيقة', 'file_sha256': 'e' * 64});
+    expect(find.text('تم الإرسال'), findsOneWidget);
+    await tester.tap(find.text('تم'));
+    await settle(tester);
+    await tester.ensureVisible(find.byKey(const Key('violations')));
+    await tester.tap(find.byKey(const Key('violations')));
+    await idle(tester);
+    expect(find.text('اعتراضك قيد القرار'), findsOneWidget);
+    expect(find.byKey(const Key('object-12')), findsNothing);
+
+    // the first answer lost: the retry finds the objection sent, and that is a success
+    w.server.on('POST', '/api/v1/driver/violations/v12/objection', (r) => (409, {'code': 'objection_exists'}));
+    expect(await tester.runAsync(() => w.state.sendObjection(violationId: 'v12', text: 'مرة أخرى')), SendResult.sent);
+  });
+
   testWidgets('a vehicle ready at the center is announced on the home screen with where to collect it', (tester) async {
     final w = (await tester.runAsync(
       () => world(
@@ -1582,14 +1791,24 @@ void main() {
       (r) => (200, {'phone_codes': true, 'hidden_screens': hidden, 'splash': null}),
     );
     await pumpApp(tester, w);
-    for (final k in ['daily-report', 'maintenance', 'accident', 'fines', 'statement', 'payslips', 'schemes']) {
+    for (final k in [
+      'daily-report',
+      'maintenance',
+      'accident',
+      'fines',
+      'fuel',
+      'violations',
+      'statement',
+      'payslips',
+      'schemes',
+    ]) {
       expect(find.byKey(Key(k)), findsOneWidget, reason: k);
     }
     expect(find.text('الكاش'), findsWidgets);
-    hidden = ['cash', 'maintenance', 'fines', 'payslips', 'schemes'];
+    hidden = ['cash', 'maintenance', 'fines', 'fuel', 'violations', 'payslips', 'schemes'];
     await tester.runAsync(() => w.state.refresh());
     await idle(tester);
-    for (final k in ['maintenance', 'fines', 'payslips', 'schemes']) {
+    for (final k in ['maintenance', 'fines', 'fuel', 'violations', 'payslips', 'schemes']) {
       expect(find.byKey(Key(k)), findsNothing, reason: k);
     }
     for (final k in ['daily-report', 'accident', 'statement', 'start-day']) {

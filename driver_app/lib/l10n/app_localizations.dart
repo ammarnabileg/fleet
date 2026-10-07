@@ -2239,6 +2239,282 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'لا توجد إشعارات بعد'**
   String get noticesNone;
+
+  /// No description provided for @fuel.
+  ///
+  /// In ar, this message translates to:
+  /// **'تعبئة الوقود'**
+  String get fuel;
+
+  /// No description provided for @fuelTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'الوقود'**
+  String get fuelTitle;
+
+  /// No description provided for @kind_fuel.
+  ///
+  /// In ar, this message translates to:
+  /// **'تعبئة وقود'**
+  String get kind_fuel;
+
+  /// No description provided for @fuelNew.
+  ///
+  /// In ar, this message translates to:
+  /// **'تعبئة جديدة'**
+  String get fuelNew;
+
+  /// No description provided for @fuelIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'اكتب ما في الفاتورة وصوّر الفاتورة والعداد من الكاميرا. التعبئة السليمة تُعتمد فورًا، وما يخالف سعة الخزان أو السعر الرسمي أو العداد يراجعه المحاسب.'**
+  String get fuelIntro;
+
+  /// No description provided for @fuelNoVehicle.
+  ///
+  /// In ar, this message translates to:
+  /// **'تُسجَّل التعبئة للسيارة التي في عهدتك. لا توجد سيارة معك الآن.'**
+  String get fuelNoVehicle;
+
+  /// No description provided for @fuelTank.
+  ///
+  /// In ar, this message translates to:
+  /// **'الخزان {litres} لتر'**
+  String fuelTank(String litres);
+
+  /// No description provided for @fuelType.
+  ///
+  /// In ar, this message translates to:
+  /// **'نوع الوقود'**
+  String get fuelType;
+
+  /// No description provided for @fuelLitres.
+  ///
+  /// In ar, this message translates to:
+  /// **'اللترات'**
+  String get fuelLitres;
+
+  /// No description provided for @fuelAmount.
+  ///
+  /// In ar, this message translates to:
+  /// **'المبلغ (د.ك)'**
+  String get fuelAmount;
+
+  /// No description provided for @fuelStation.
+  ///
+  /// In ar, this message translates to:
+  /// **'المحطة (اختياري)'**
+  String get fuelStation;
+
+  /// No description provided for @fuelInvoicePhoto.
+  ///
+  /// In ar, this message translates to:
+  /// **'صورة الفاتورة'**
+  String get fuelInvoicePhoto;
+
+  /// No description provided for @fuelPhotosRequired.
+  ///
+  /// In ar, this message translates to:
+  /// **'صوّر الفاتورة والعداد'**
+  String get fuelPhotosRequired;
+
+  /// No description provided for @fuelNumberInvalid.
+  ///
+  /// In ar, this message translates to:
+  /// **'اكتب رقمًا أكبر من صفر'**
+  String get fuelNumberInvalid;
+
+  /// No description provided for @fuelMine.
+  ///
+  /// In ar, this message translates to:
+  /// **'تعبئاتي'**
+  String get fuelMine;
+
+  /// No description provided for @fuelNone.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد تعبئات'**
+  String get fuelNone;
+
+  /// No description provided for @fuelFillNo.
+  ///
+  /// In ar, this message translates to:
+  /// **'تعبئة #{number}'**
+  String fuelFillNo(String number);
+
+  /// No description provided for @fuelLine.
+  ///
+  /// In ar, this message translates to:
+  /// **'{litres} لتر · {amount} د.ك'**
+  String fuelLine(String litres, String amount);
+
+  /// No description provided for @fuelRejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'رُفضت: {reason}'**
+  String fuelRejected(String reason);
+
+  /// No description provided for @fuelType_premium_91.
+  ///
+  /// In ar, this message translates to:
+  /// **'ممتاز 91'**
+  String get fuelType_premium_91;
+
+  /// No description provided for @fuelType_super_95.
+  ///
+  /// In ar, this message translates to:
+  /// **'خصوصي 95'**
+  String get fuelType_super_95;
+
+  /// No description provided for @fuelType_ultra_98.
+  ///
+  /// In ar, this message translates to:
+  /// **'ألترا 98'**
+  String get fuelType_ultra_98;
+
+  /// No description provided for @fuelType_diesel.
+  ///
+  /// In ar, this message translates to:
+  /// **'ديزل'**
+  String get fuelType_diesel;
+
+  /// No description provided for @fuelStatus_approved.
+  ///
+  /// In ar, this message translates to:
+  /// **'معتمدة'**
+  String get fuelStatus_approved;
+
+  /// No description provided for @fuelStatus_pending.
+  ///
+  /// In ar, this message translates to:
+  /// **'بانتظار المراجعة'**
+  String get fuelStatus_pending;
+
+  /// No description provided for @fuelStatus_rejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'مرفوضة'**
+  String get fuelStatus_rejected;
+
+  /// No description provided for @violations.
+  ///
+  /// In ar, this message translates to:
+  /// **'مخالفات العمل'**
+  String get violations;
+
+  /// No description provided for @violationsTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'مخالفات العمل'**
+  String get violationsTitle;
+
+  /// No description provided for @violationsIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'المخالفات التي اعتمدها المكتب عليك. تستطيع الاعتراض على المخالفة حتى نهاية مهلتها، والقرار النهائي يصلك هنا وفي الإشعارات. الغرامة لا تُخصم قبل أن تصبح نهائية.'**
+  String get violationsIntro;
+
+  /// No description provided for @violationsNone.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد مخالفات عليك'**
+  String get violationsNone;
+
+  /// No description provided for @kind_objection.
+  ///
+  /// In ar, this message translates to:
+  /// **'اعتراض على مخالفة'**
+  String get kind_objection;
+
+  /// No description provided for @vioTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'مخالفة #{number} · {type}'**
+  String vioTitle(String number, String type);
+
+  /// No description provided for @vioReference.
+  ///
+  /// In ar, this message translates to:
+  /// **'المرجع: {reference}'**
+  String vioReference(String reference);
+
+  /// No description provided for @vioPenalty.
+  ///
+  /// In ar, this message translates to:
+  /// **'الغرامة: {amount} د.ك'**
+  String vioPenalty(String amount);
+
+  /// No description provided for @vioWarning.
+  ///
+  /// In ar, this message translates to:
+  /// **'إنذار بلا غرامة'**
+  String get vioWarning;
+
+  /// No description provided for @vioYourObjection.
+  ///
+  /// In ar, this message translates to:
+  /// **'اعتراضك: {text}'**
+  String vioYourObjection(String text);
+
+  /// No description provided for @vioDecision.
+  ///
+  /// In ar, this message translates to:
+  /// **'القرار: {reason}'**
+  String vioDecision(String reason);
+
+  /// No description provided for @vioObjectUntil.
+  ///
+  /// In ar, this message translates to:
+  /// **'يمكنك الاعتراض حتى {time}'**
+  String vioObjectUntil(String time);
+
+  /// No description provided for @vioObject.
+  ///
+  /// In ar, this message translates to:
+  /// **'اعتراض'**
+  String get vioObject;
+
+  /// No description provided for @vioObjectIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'اكتب لماذا المخالفة ليست عليك (مثلاً: العميل ألغى الطلب، أو المطعم تأخر). أرفق لقطة شاشة إن كانت عندك.'**
+  String get vioObjectIntro;
+
+  /// No description provided for @vioObjectionText.
+  ///
+  /// In ar, this message translates to:
+  /// **'سبب الاعتراض'**
+  String get vioObjectionText;
+
+  /// No description provided for @vioObjectionFile.
+  ///
+  /// In ar, this message translates to:
+  /// **'لقطة شاشة (اختياري)'**
+  String get vioObjectionFile;
+
+  /// No description provided for @vioStatus_approved.
+  ///
+  /// In ar, this message translates to:
+  /// **'معتمدة'**
+  String get vioStatus_approved;
+
+  /// No description provided for @vioStatus_objected.
+  ///
+  /// In ar, this message translates to:
+  /// **'اعتراضك قيد القرار'**
+  String get vioStatus_objected;
+
+  /// No description provided for @vioStatus_upheld.
+  ///
+  /// In ar, this message translates to:
+  /// **'نهائية'**
+  String get vioStatus_upheld;
+
+  /// No description provided for @vioStatus_overturned.
+  ///
+  /// In ar, this message translates to:
+  /// **'أُلغيت'**
+  String get vioStatus_overturned;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

@@ -68,8 +68,10 @@ def test_mock_location_alerts_once_a_day(admin_client, client, on_duty):
     t = now() - timedelta(minutes=2)
     send(client, on_duty["headers"], [point(1, t, is_mock=True)])
     send(client, on_duty["headers"], [point(2, t + timedelta(seconds=5), is_mock=True)])
-    alerts = admin_client.get("/api/v1/alerts").json()
-    assert [a["kind"] for a in alerts] == ["mock_location"] and alerts[0]["severity"] == "critical"
+    alerts = {a["kind"]: a for a in admin_client.get("/api/v1/alerts").json()}
+    assert len(admin_client.get("/api/v1/alerts").json()) == 2  # each once
+    assert alerts["mock_location"]["severity"] == "critical"
+    assert "violation_review" in alerts  # TRK-M-02: the attempt is also a violation waiting for review
 
 
 def test_a_wrong_phone_clock_is_corrected(client, on_duty, db):

@@ -3,7 +3,7 @@
 const { test, expect, settled } = require('./fixtures');
 
 const PAGES = [
-  'dashboard', 'tracking', 'alerts', 'vehicles', 'custody', 'odometer', 'daily', 'maintenance', 'accidents', 'fines',
+  'dashboard', 'tracking', 'alerts', 'vehicles', 'custody', 'odometer', 'daily', 'maintenance', 'accidents', 'fines', 'fuel', 'violations',
   'cash', 'finance', 'deductions', 'payroll', 'employees', 'attendance', 'reports', 'approvals', 'import', 'settings',
   'integrations', 'audit',
 ];

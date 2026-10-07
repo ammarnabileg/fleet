@@ -15,6 +15,8 @@ SCREENS = {
     "maintenance": "/api/v1/driver/maintenance",
     "accidents": "/api/v1/driver/accidents",
     "fines": "/api/v1/driver/fines",
+    "fuel": "/api/v1/driver/fuel",
+    "violations": "/api/v1/driver/violations",
     "statement": "/api/v1/driver/statements",
     "payslips": "/api/v1/driver/payslips",
     "schemes": "/api/v1/driver/schemes",
@@ -26,6 +28,8 @@ SENDS = [  # what the driver sends from each screen
     "/api/v1/driver/maintenance",
     "/api/v1/driver/accidents",
     f"/api/v1/driver/accidents/{SOME}/police-report",
+    "/api/v1/driver/fuel",
+    f"/api/v1/driver/violations/{SOME}/objection",
     "/api/v1/driver/statements",
     "/api/v1/driver/scheme-requests",
 ]

@@ -1201,4 +1201,165 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get noticesNone => 'لا توجد إشعارات بعد';
+
+  @override
+  String get fuel => 'تعبئة الوقود';
+
+  @override
+  String get fuelTitle => 'الوقود';
+
+  @override
+  String get kind_fuel => 'تعبئة وقود';
+
+  @override
+  String get fuelNew => 'تعبئة جديدة';
+
+  @override
+  String get fuelIntro =>
+      'اكتب ما في الفاتورة وصوّر الفاتورة والعداد من الكاميرا. التعبئة السليمة تُعتمد فورًا، وما يخالف سعة الخزان أو السعر الرسمي أو العداد يراجعه المحاسب.';
+
+  @override
+  String get fuelNoVehicle => 'تُسجَّل التعبئة للسيارة التي في عهدتك. لا توجد سيارة معك الآن.';
+
+  @override
+  String fuelTank(String litres) {
+    return 'الخزان $litres لتر';
+  }
+
+  @override
+  String get fuelType => 'نوع الوقود';
+
+  @override
+  String get fuelLitres => 'اللترات';
+
+  @override
+  String get fuelAmount => 'المبلغ (د.ك)';
+
+  @override
+  String get fuelStation => 'المحطة (اختياري)';
+
+  @override
+  String get fuelInvoicePhoto => 'صورة الفاتورة';
+
+  @override
+  String get fuelPhotosRequired => 'صوّر الفاتورة والعداد';
+
+  @override
+  String get fuelNumberInvalid => 'اكتب رقمًا أكبر من صفر';
+
+  @override
+  String get fuelMine => 'تعبئاتي';
+
+  @override
+  String get fuelNone => 'لا توجد تعبئات';
+
+  @override
+  String fuelFillNo(String number) {
+    return 'تعبئة #$number';
+  }
+
+  @override
+  String fuelLine(String litres, String amount) {
+    return '$litres لتر · $amount د.ك';
+  }
+
+  @override
+  String fuelRejected(String reason) {
+    return 'رُفضت: $reason';
+  }
+
+  @override
+  String get fuelType_premium_91 => 'ممتاز 91';
+
+  @override
+  String get fuelType_super_95 => 'خصوصي 95';
+
+  @override
+  String get fuelType_ultra_98 => 'ألترا 98';
+
+  @override
+  String get fuelType_diesel => 'ديزل';
+
+  @override
+  String get fuelStatus_approved => 'معتمدة';
+
+  @override
+  String get fuelStatus_pending => 'بانتظار المراجعة';
+
+  @override
+  String get fuelStatus_rejected => 'مرفوضة';
+
+  @override
+  String get violations => 'مخالفات العمل';
+
+  @override
+  String get violationsTitle => 'مخالفات العمل';
+
+  @override
+  String get violationsIntro =>
+      'المخالفات التي اعتمدها المكتب عليك. تستطيع الاعتراض على المخالفة حتى نهاية مهلتها، والقرار النهائي يصلك هنا وفي الإشعارات. الغرامة لا تُخصم قبل أن تصبح نهائية.';
+
+  @override
+  String get violationsNone => 'لا توجد مخالفات عليك';
+
+  @override
+  String get kind_objection => 'اعتراض على مخالفة';
+
+  @override
+  String vioTitle(String number, String type) {
+    return 'مخالفة #$number · $type';
+  }
+
+  @override
+  String vioReference(String reference) {
+    return 'المرجع: $reference';
+  }
+
+  @override
+  String vioPenalty(String amount) {
+    return 'الغرامة: $amount د.ك';
+  }
+
+  @override
+  String get vioWarning => 'إنذار بلا غرامة';
+
+  @override
+  String vioYourObjection(String text) {
+    return 'اعتراضك: $text';
+  }
+
+  @override
+  String vioDecision(String reason) {
+    return 'القرار: $reason';
+  }
+
+  @override
+  String vioObjectUntil(String time) {
+    return 'يمكنك الاعتراض حتى $time';
+  }
+
+  @override
+  String get vioObject => 'اعتراض';
+
+  @override
+  String get vioObjectIntro =>
+      'اكتب لماذا المخالفة ليست عليك (مثلاً: العميل ألغى الطلب، أو المطعم تأخر). أرفق لقطة شاشة إن كانت عندك.';
+
+  @override
+  String get vioObjectionText => 'سبب الاعتراض';
+
+  @override
+  String get vioObjectionFile => 'لقطة شاشة (اختياري)';
+
+  @override
+  String get vioStatus_approved => 'معتمدة';
+
+  @override
+  String get vioStatus_objected => 'اعتراضك قيد القرار';
+
+  @override
+  String get vioStatus_upheld => 'نهائية';
+
+  @override
+  String get vioStatus_overturned => 'أُلغيت';
 }

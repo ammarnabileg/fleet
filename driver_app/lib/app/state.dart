@@ -74,6 +74,8 @@ class AppState extends ChangeNotifier {
   List<MaintenanceRequest> maintenance = [];
   List<Accident> accidents = [];
   List<Fine> fines = [];
+  DriverFuel? fuel;
+  List<DriverViolation> violations = [];
   PlatformStatus? statements;
   List<Payslip> payslips = [];
   DriverSchemes? schemes;
@@ -339,6 +341,8 @@ class AppState extends ChangeNotifier {
     maintenance = [];
     accidents = [];
     fines = [];
+    fuel = null;
+    violations = [];
     statements = null;
     payslips = [];
     schemes = null;
@@ -485,6 +489,12 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadFines() async =>
       fines = [for (final f in await api.get('/driver/fines') as List) Fine.fromJson(f as Map<String, dynamic>)];
+
+  Future<void> loadFuel() async => fuel = DriverFuel.fromJson(await api.get('/driver/fuel') as Map<String, dynamic>);
+
+  Future<void> loadViolations() async => violations = [
+    for (final v in await api.get('/driver/violations') as List) DriverViolation.fromJson(v as Map<String, dynamic>),
+  ];
 
   Future<void> loadStatements() async =>
       statements = PlatformStatus.fromJson(await api.get('/driver/statements') as Map<String, dynamic>);
@@ -685,6 +695,43 @@ class AppState extends ChangeNotifier {
       {for (var i = 0; i < screenshotPaths.length; i++) 'screenshots.$i': screenshotPaths[i]},
     );
     return _sendNow(id, after: loadStatements);
+  }
+
+  /// A fill for the vehicle he holds, at [filledAt] (when the invoice was photographed): the invoice and the
+  /// odometer from the app's camera. The office's checks decide whether it is approved at once or reviewed.
+  Future<SendResult> sendFuel({
+    required DateTime filledAt,
+    required String litres,
+    required String amount,
+    required String fuelType,
+    String? station,
+    required int km,
+    required String invoicePath,
+    required String odometerPath,
+  }) async {
+    final id = await outbox.add(
+      'fuel',
+      {
+        'filled_at': filledAt.toUtc().toIso8601String(),
+        'litres': litres,
+        'amount': amount,
+        'fuel_type': fuelType,
+        'station': station,
+        'odometer_km': km,
+      },
+      {'invoice_sha256': invoicePath, 'odometer_sha256': odometerPath},
+    );
+    return _sendNow(id, after: loadFuel);
+  }
+
+  /// His objection to an approved violation, before its deadline, with a screenshot if he has one.
+  Future<SendResult> sendObjection({required String violationId, required String text, String? filePath}) async {
+    final id = await outbox.add(
+      'violation_objection',
+      {'violation_id': violationId, 'text': text},
+      {'file_sha256': ?filePath},
+    );
+    return _sendNow(id, after: loadViolations);
   }
 
   Future<SendResult> _sendNow(int id, {required Future<void> Function() after}) async {
