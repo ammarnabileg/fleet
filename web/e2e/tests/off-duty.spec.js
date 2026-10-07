@@ -28,6 +28,7 @@ test('the route marks the driver\'s own time, and hides it from who may not see 
   await reading('end_day', 20090, 90);
   await points([60, 29.34], [50, 29.35]); // after it
   const url = `/admin.html#/tracking?route=${vehicle.id}`;
+  admin.allow(/\/maps\//); // the map extract is not in the repository (deploy/maps/update-map.sh on the server)
 
   await admin.goto(url);
   await settled(admin);
