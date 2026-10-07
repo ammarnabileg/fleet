@@ -67,7 +67,7 @@
     function show(t) {
       if (drawn[t]) return;
       drawn[t] = true;
-      if (t === 'list') listTable();
+      if (t === 'list') listTable(q.status);
       if (t === 'docs') {
         docsPanel(document.getElementById('doc-panel'));
         if (api.can('documents.manage')) renewals(document.getElementById('doc-renewals'));
@@ -79,11 +79,11 @@
     show(tab);
   };
 
-  function listTable() {
+  function listTable(status) {
     var el = document.getElementById('emp-table');
     loadStatuses().then(null, function () { return []; }).then(function () {
-      var filters = { status: '', company: '' };
-      var tools = h`<select class="select" data-f="status" aria-label="الحالة"><option value="">كل الحالات</option>${(statuses || []).map(function (s) { return h`<option value="${s.code}">${api.name(s.name)}</option>`; })}</select>
+      var filters = { status: status || '', company: '' }; // from the dashboard: one status at a time (FR-DSH-06)
+      var tools = h`<select class="select" data-f="status" aria-label="الحالة"><option value="">كل الحالات</option>${(statuses || []).map(function (s) { return h`<option value="${s.code}" ${s.code === filters.status ? raw('selected') : ''}>${api.name(s.name)}</option>`; })}</select>
         ${api.companies.length > 1 ? h`<select class="select" data-f="company" aria-label="الشركة"><option value="">كل الشركات</option>${api.companyOptions().map(function (c) { return h`<option value="${c.v}">${c.t}</option>`; })}</select>` : ''}`;
       var t = BT.table(el, {
         fetch: function (s) {

@@ -10,6 +10,7 @@
 
   var TABS = [
     ['daily', 'العمل اليومي', function () { return api.can('reports.view') || api.can('cash.view'); }],
+    ['fleet', 'الأسطول', function () { return api.can('reports.view') && api.can('vehicles.view'); }],
     ['km', 'الكيلومترات', function () { return api.can('reports.view') && api.can('odometer.view'); }],
     ['cash', 'الكاش والخزينة', function () { return api.can('reports.view') && api.can('cash.view'); }],
     ['maintenance', 'الصيانة', function () { return api.can('reports.view') && api.can('maintenance.view'); }],
@@ -29,7 +30,7 @@
     var drawn = {};
     function show(t) {
       if (drawn[t]) return; drawn[t] = true;
-      ({ daily: dailyPanel, km: kmPanel, cash: cashPanel, maintenance: maintenancePanel, accidents: accidentsPanel, payroll: payrollPanel })[t](v.querySelector('[data-p="' + t + '"]'));
+      ({ daily: dailyPanel, fleet: fleetPanel, km: kmPanel, cash: cashPanel, maintenance: maintenancePanel, accidents: accidentsPanel, payroll: payrollPanel })[t](v.querySelector('[data-p="' + t + '"]'));
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/reports?tab=' + e.detail); });
     show(tab);
@@ -147,7 +148,8 @@
 
   /* ================= العمل اليومي ================= */
   function dailyPanel(el) {
-    BT.render(el, h`${api.can('reports.view') ? h`<div class="card">${rangeForm({ days: 6, filters: ['company', 'branch', 'driver'] })}<div class="hint mb-12">ملخص السائقين خلال فترة حتى 93 يوماً.</div><div data-sum></div></div>` : ''}
+    var sections = [{ v: 'drivers', t: 'حسب السائق' }, { v: 'days', t: 'حسب اليوم' }, { v: 'companies', t: 'حسب الشركة' }];
+    BT.render(el, h`${api.can('reports.view') ? h`<div class="card">${rangeForm({ days: 6, filters: ['company', 'branch', 'driver'], sections: sections })}<div class="hint mb-12">التقارير المرسلة والمتأخرة (أُرسلت بعد يومها) والمرفوضة، والطلبات والكاش، حسب السائق واليوم والشركة. حتى 93 يوماً.</div><div data-sum></div></div>` : ''}
       ${api.can('cash.view') && api.can('reports.export') ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('wallet', 16)} أرصدة الكاش لكل السائقين</div><div class="ms-auto flex gap-8"><button type="button" class="btn btn-sm btn-outline" data-bal="xlsx">${icon('sheet', 14)} Excel</button><button type="button" class="btn btn-sm btn-ghost" data-bal="csv">CSV</button></div></div><div class="hint">نفس أرقام صفحة الكاش، للتسليم إلى المحاسبة.</div></div>` : ''}`);
     BT.$$('[data-bal]', el).forEach(function (b) { b.onclick = function () { var ext = b.getAttribute('data-bal'); A.downloadFile('/reports/cash-balances', { format: ext }, 'cash-balances.' + ext); }; });
     if (!api.can('reports.view')) return;
@@ -159,20 +161,74 @@
       money('reported_cash', 'الكاش المُبلّغ'),
       money('approved_cash', 'المعتمد'),
       { key: 'waiting', label: 'بانتظار', num: true },
-      { key: 'rejected', label: 'مرفوض', num: true }
+      { key: 'rejected', label: 'مرفوض', num: true },
+      { key: 'late', label: 'متأخر', num: true, render: function (r) { return r.late ? h`<span class="t-warning fw-700">${fmt.int(r.late)}</span>` : '0'; }, print: function (r) { return r.late; } }
     ];
-    wireRange(el, { path: '/reports/daily-summary', name: 'daily-summary', title: 'تقرير العمل اليومي', load: function (q) {
+    var groupCols = function (first) {
+      return [first,
+        { key: 'sent', label: 'مرسلة', num: true },
+        { key: 'late', label: 'متأخرة', num: true },
+        { key: 'rejected', label: 'مرفوضة', num: true },
+        { key: 'orders', label: 'الطلبات', num: true, render: function (r) { return fmt.int(r.orders); } },
+        money('reported_cash', 'الكاش المُبلّغ'), money('approved_cash', 'المعتمد')];
+    };
+    var dayCols = groupCols({ key: 'day', label: 'اليوم', render: function (r) { return h`<span class="num">${fmt.date(r.day)}</span>`; }, print: function (r) { return fmt.date(r.day); } });
+    var coCols = groupCols({ key: 'name', label: 'الشركة', render: function (r) { return api.name(r.name); }, print: function (r) { return api.name(r.name); } });
+    wireRange(el, { path: '/reports/daily-summary', name: 'daily-summary', title: 'تقرير العمل اليومي', sections: sections, load: function (q) {
       A.load(sumEl, api.get('/reports/daily-summary', q), function (d) {
-        el._print = function () { return [{ title: 'السائقون', columns: cols, rows: d.rows }]; };
+        el._print = function () { return [{ title: 'السائقون', columns: cols, rows: d.rows }, { title: 'حسب اليوم', columns: dayCols, rows: d.by_day }, { title: 'حسب الشركة', columns: coCols, rows: d.by_company }]; };
         setTimeout(function () {
           table(sumEl.querySelector('[data-t]'), d.rows, cols, {
             pageSize: 25, sort: { key: 'orders', dir: 'desc' },
             search: { placeholder: 'السائق أو الرقم الوظيفي…', text: function (r) { return api.name(r.driver.name) + ' ' + r.employee_number; } },
             empty: { icon: 'chart-column', title: 'لا توجد تقارير في هذه الفترة' }
           });
+          table(sumEl.querySelector('[data-days]'), d.by_day, dayCols, { pageSize: 31, empty: { icon: 'calendar', title: 'لا توجد أيام' } });
+          table(sumEl.querySelector('[data-cos]'), d.by_company, coCols, { empty: { icon: 'building-2', title: 'لا توجد تقارير' } });
         });
         var T = d.totals || {};
-        return h`<div class="kpis">${BT.kpi({ label: 'الطلبات', value: fmt.int(T.orders), dot: 'o' })}${BT.kpi({ label: 'الكاش المُبلّغ', value: fmt.money(T.reported_cash), dot: 'b' })}${BT.kpi({ label: 'الكاش المعتمد', value: fmt.money(T.approved_cash), dot: 'g' })}${BT.kpi({ label: 'سائقون', value: fmt.int(d.rows.length), dot: 'p' })}</div><div data-t></div>`;
+        return h`<div class="kpis">${BT.kpi({ label: 'الطلبات', value: fmt.int(T.orders), dot: 'o' })}${BT.kpi({ label: 'الكاش المُبلّغ', value: fmt.money(T.reported_cash), dot: 'b' })}${BT.kpi({ label: 'الكاش المعتمد', value: fmt.money(T.approved_cash), dot: 'g' })}${BT.kpi({ label: 'متأخرة / مرفوضة', value: h`${fmt.int(T.late)}<small> / ${fmt.int(T.rejected)}</small>`, sub: 'أُرسلت بعد يومها · رُفضت', dot: 'r', tone: T.late ? 'warning' : null })}</div>
+          <div class="section-t mt-12">حسب السائق</div><div data-t></div>
+          <div class="grid-2 mt-16"><div><div class="section-t">حسب اليوم</div><div data-days></div></div><div><div class="section-t">حسب الشركة</div><div data-cos></div></div></div>`;
+      }).catch(function () {});
+    } });
+  }
+
+  /* ================= الأسطول (FR-RPT-01) ================= */
+  function fleetPanel(el) {
+    var sections = [{ v: 'vehicles', t: 'حسب السيارة' }, { v: 'days', t: 'حسب اليوم' }];
+    BT.render(el, h`<div class="card">${rangeForm({ days: 29, filters: ['company', 'branch', 'vehicle'], sections: sections })}
+      <div class="hint mb-12">حالات السيارات الآن، والسيارات بلا سائق، وأيام كل سيارة في عهدة سائق خلال الفترة (أي جزء من يوم بتوقيت الكويت يُحسب يوماً)، ونسبة الاستخدام اليومي. السيارات الموقوفة لا تدخل النسبة. حتى 93 يوماً.</div><div data-out></div></div>`);
+    var out = el.querySelector('[data-out]');
+    var pct = function (v) { return v == null ? '—' : v + '%'; };
+    var vcols = [
+      vehicleCol(),
+      { key: 'status', label: 'الحالة', render: function (r) { return A.pill('vehicle_status', r.status); }, print: function (r) { return api.t('vehicle_status', r.status); } },
+      driverCol('driver', 'السائق الآن'),
+      { key: 'days_held', label: 'أيام في العهدة', num: true },
+      { key: 'use_percent', label: 'الاستخدام', num: true, sort: function (r) { return r.use_percent == null ? -1 : Number(r.use_percent); }, render: function (r) { return pct(r.use_percent); }, print: function (r) { return pct(r.use_percent); } }
+    ];
+    var dcols = [
+      { key: 'day', label: 'اليوم', render: function (r) { return h`<span class="num">${fmt.date(r.day)}</span>`; }, print: function (r) { return fmt.date(r.day); } },
+      { key: 'in_use', label: 'في العهدة', num: true },
+      { key: 'vehicles', label: 'من السيارات', num: true },
+      { key: 'rate', label: 'النسبة', num: true, sort: false, render: function (r) { return r.vehicles ? Math.round(r.in_use * 1000 / r.vehicles) / 10 + '%' : '—'; } }
+    ];
+    wireRange(el, { path: '/reports/fleet', name: 'fleet', title: 'تقرير الأسطول', sections: sections, load: function (q) {
+      A.load(out, api.get('/reports/fleet', q), function (d) {
+        var S = d.statuses, total = Object.keys(S).reduce(function (s, k) { return s + S[k]; }, 0);
+        el._print = function () { return [{ title: 'حسب السيارة', columns: vcols, rows: d.by_vehicle }, { title: 'حسب اليوم', columns: dcols, rows: d.by_day }]; };
+        setTimeout(function () {
+          table(out.querySelector('[data-veh]'), d.by_vehicle, vcols, { sort: { key: 'use_percent', dir: 'asc' }, search: { placeholder: 'اللوحة…', text: function (r) { return r.vehicle.plate_number; } }, empty: { icon: 'car', title: 'لا توجد سيارات' } });
+          table(out.querySelector('[data-days]'), d.by_day, dcols, { pageSize: 31, empty: { icon: 'calendar', title: 'لا توجد أيام' } });
+        });
+        return h`<div class="kpis" data-fleet-kpis>
+            ${BT.kpi({ label: 'السيارات', value: fmt.int(total), sub: fmt.int(S.assigned) + ' في العهدة · ' + fmt.int(S.available) + ' متاحة · ' + fmt.int(S.maintenance) + ' صيانة · ' + fmt.int(S.accident) + ' حادث · ' + fmt.int(S.inactive) + ' موقوفة', dot: 'b' })}
+            ${BT.kpi({ label: 'بلا سائق الآن', value: fmt.int(d.without_driver), sub: 'في الخدمة ولا عهدة لها', dot: 'o', tone: d.without_driver ? 'warning' : null })}
+            ${BT.kpi({ label: 'نسبة الاستخدام اليومي', value: pct(d.use_percent), sub: 'أيام العهدة من أيام السيارات في الخدمة', dot: 'g' })}
+          </div>
+          <div class="section-t mt-12">حسب السيارة</div><div data-veh></div>
+          <div class="section-t mt-16">حسب اليوم</div><div data-days></div>`;
       }).catch(function () {});
     } });
   }

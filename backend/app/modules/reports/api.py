@@ -76,7 +76,7 @@ def _plate(v: dict | None) -> str:
 
 @router.get("/dashboard", response_model=schemas.Dashboard, response_model_exclude_none=True)
 def dashboard(principal: Principal = Depends(require_permission("dashboard.view")), db: Session = Depends(get_session)):
-    return service.dashboard(db, permissions=principal.permissions, **principal.scope)
+    return service.dashboard(db, permissions=principal.permissions, user_id=principal.user_id, **principal.scope)
 
 
 @router.get("/reports/daily-summary", response_model=schemas.SummaryOut)
@@ -84,6 +84,7 @@ def daily_summary(
     date_from: date,
     date_to: date,
     format: Format = "json",
+    section: Literal["drivers", "days", "companies"] = "drivers",
     p: filters.FilterParams = Depends(filters.params),
     accept_language: Annotated[str | None, Header()] = None,
     principal: Principal = Depends(require_permission("reports.view")),
@@ -94,21 +95,87 @@ def daily_summary(
     if format == "json":
         return data
     out = Out(db, principal, accept_language)
-    header = ["employee_number", "driver", "days", "orders", "reported_cash", "approved_cash", "waiting", "rejected"]
-    rows = [
-        [
-            r["employee_number"],
-            out.name(r["driver"]["name"]),
-            r["days"],
-            r["orders"],
-            f"{r['reported_cash']:.3f}",
-            f"{r['approved_cash']:.3f}",
-            r["waiting"],
-            r["rejected"],
+    if section == "drivers":
+        header = [
+            "employee_number",
+            "driver",
+            "days",
+            "orders",
+            "reported_cash",
+            "approved_cash",
+            "waiting",
+            "rejected",
+            "late",
         ]
-        for r in data["rows"]
-    ]
-    return out.send(format, f"daily-summary-{date_from}-{date_to}", "daily", header, rows)
+        rows = [
+            [
+                r["employee_number"],
+                out.name(r["driver"]["name"]),
+                r["days"],
+                r["orders"],
+                f"{r['reported_cash']:.3f}",
+                f"{r['approved_cash']:.3f}",
+                r["waiting"],
+                r["rejected"],
+                r["late"],
+            ]
+            for r in data["rows"]
+        ]
+    else:
+        first = "day" if section == "days" else "company"
+        header = [first, "sent", "late", "rejected", "orders", "reported_cash", "approved_cash"]
+        source = data["by_day"] if section == "days" else data["by_company"]
+        rows = [
+            [
+                str(r["day"]) if section == "days" else out.name(r["name"] or {}),
+                r["sent"],
+                r["late"],
+                r["rejected"],
+                r["orders"],
+                _money(r["reported_cash"]),
+                _money(r["approved_cash"]),
+            ]
+            for r in source
+        ]
+    return out.send(format, f"daily-{section}-{date_from}-{date_to}", "daily", header, rows)
+
+
+@router.get("/reports/fleet", response_model=schemas.FleetReport)
+def fleet_report(
+    date_from: date,
+    date_to: date,
+    format: Format = "json",
+    section: Literal["vehicles", "days"] = "vehicles",
+    p: filters.FilterParams = Depends(filters.params),
+    accept_language: Annotated[str | None, Header()] = None,
+    principal: Principal = Depends(require_permission("reports.view")),
+    db: Session = Depends(get_session),
+):
+    """The vehicles by status, those with no driver, and their daily use over the period (FR-RPT-01)."""
+    _needs(principal, "vehicles.view")
+    scope, f = _scope(db, principal, p)
+    data = service.fleet_report(db, date_from=date_from, date_to=date_to, filters=f, **scope)
+    if format == "json":
+        return data
+    out = Out(db, principal, accept_language)
+    if section == "vehicles":
+        header = ["plate", "make", "model", "status", "driver", "days_held", "use_percent"]
+        rows = [
+            [
+                _plate(r["vehicle"]),
+                r["vehicle"]["make"] or "",
+                r["vehicle"]["model"] or "",
+                i18n.t(db, out.lang, f"vehicle_status.{r['status']}"),
+                out.name(r["driver"]["name"]) if r["driver"] else "",
+                r["days_held"],
+                _tenths(r["use_percent"]),
+            ]
+            for r in data["by_vehicle"]
+        ]
+    else:
+        header = ["day", "in_use", "vehicles"]
+        rows = [[str(r["day"]), r["in_use"], r["vehicles"]] for r in data["by_day"]]
+    return out.send(format, f"fleet-{section}-{date_from}-{date_to}", "fleet", header, rows)
 
 
 @router.get("/reports/cash-balances")

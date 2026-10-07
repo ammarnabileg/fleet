@@ -20,6 +20,10 @@ class Dashboard(BaseModel):
     accidents: dict[str, int] | None = None
     fines: dict[str, int | str] | None = None
     week: list[dict] | None = None  # the last seven days' reports, orders and cash, oldest first
+    alerts_oldest: datetime | None = None  # the longest open alert (FR-DSH-07)
+    approvals: dict | None = None  # waiting for this user's decision, and since when
+    hr: dict | None = None  # employees by status, this month's payroll (FR-DSH-06)
+    by_company: list[dict] | None = None  # one row per company when the user sees several (FR-CMP-03)
 
 
 class PersonRef(BaseModel):
@@ -37,6 +41,7 @@ class SummaryRow(BaseModel):
     approved_cash: Decimal
     waiting: int
     rejected: int
+    late: int  # sent after their own day
 
 
 class SummaryOut(BaseModel):
@@ -44,6 +49,8 @@ class SummaryOut(BaseModel):
     to: date
     rows: list[SummaryRow]
     totals: dict
+    by_day: list[dict]  # sent, late, rejected, orders and cash per day of the period (FR-RPT-02)
+    by_company: list[dict]
 
     model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
 
@@ -266,3 +273,25 @@ class PayrollReport(BaseModel):
     runs: list[PayrollRunLine]
     totals: dict
     carried: list[CarriedLine]
+
+
+class FleetVehicle(BaseModel):
+    vehicle: dict
+    status: str
+    driver: PersonRef | None
+    days_held: int
+    use_percent: Decimal | None
+
+
+class FleetReport(BaseModel):
+    """FR-RPT-01: statuses, vehicles with no driver, daily use."""
+
+    from_: date = Field(alias="from")
+    to: date
+    statuses: dict[str, int]
+    without_driver: int
+    use_percent: Decimal | None
+    by_vehicle: list[FleetVehicle]
+    by_day: list[dict]
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)

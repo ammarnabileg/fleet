@@ -118,6 +118,30 @@ test('reports: filtered to a vehicle or a driver, exported to Excel, printed', a
   await daily.locator('button[type=submit]').click();
   await expect(daily.locator('[data-t] tbody tr')).toHaveCount(1);
   await expect(daily.locator('[data-t] tbody tr').first()).toContainText('21');
+  // by day (the 7 days of the period) and by company, the same driver's figures
+  await expect(daily.locator('[data-days] tbody tr')).toHaveCount(7);
+  await expect(daily.locator('[data-cos] tbody tr')).toHaveCount(1);
+  await expect(daily.locator('[data-cos] tbody tr').first()).toContainText('21');
+  await daily.locator('[name=section]').selectOption('days');
+  const days = await download(admin, daily.locator('[data-export=xlsx]'));
+  expect(days.name).toMatch(/^daily-summary-days-/);
+  expect(days.rows[0].slice(0, 3)).toEqual(['اليوم', 'مرسلة', 'متأخرة']);
+  expect(days.rows.length).toBe(8);
+
+  // ---- fleet: the vehicle held three days of the thirty, now with no driver
+  await admin.goto('/admin.html#/reports?tab=fleet');
+  await settled(admin);
+  const fleet = admin.locator('[data-p=fleet]');
+  await fleet.locator('[name=vehicle]').fill(await option(fleet.locator('[name=vehicle]'), s.plate));
+  await fleet.locator('button[type=submit]').click();
+  const fleetRows = fleet.locator('[data-veh] tbody tr');
+  await expect(fleetRows).toHaveCount(1);
+  await expect(fleetRows.first()).toContainText(s.plate);
+  await expect(fleetRows.first()).toContainText('10.0%');
+  await expect(fleet.locator('.kpi', { hasText: 'بلا سائق الآن' }).locator('.v')).toHaveText('1');
+  const fleetFile = await download(admin, fleet.locator('[data-export=xlsx]'));
+  expect(fleetFile.name).toMatch(/^fleet-vehicles-/);
+  expect([fleetFile.rows[1][0], ...fleetFile.rows[1].slice(-2)]).toEqual([s.plate, 3, 10]); // days held, use %
 
   // ---- payroll by month: opens, and its Excel downloads
   await admin.goto('/admin.html#/reports?tab=payroll');

@@ -15,18 +15,20 @@ from app.core.clock import KUWAIT, today, utcnow
 from app.core.errors import AppError
 from app.modules.accidents import service as accidents
 from app.modules.accidents.models import Accident
+from app.modules.approvals import service as approvals
+from app.modules.cash import service as cash_service
 from app.modules.cash.models import Account, Journal, JournalLine, Receipt
 from app.modules.daily_ops.models import Report
 from app.modules.documents.models import Document
 from app.modules.fines import service as fines
-from app.modules.fleet.models import Custody, Vehicle
+from app.modules.fleet.models import Custody, OdometerReading, Vehicle
 from app.modules.maintenance import service as maintenance
 from app.modules.maintenance.models import Center, Invoice, InvoiceItem
 from app.modules.maintenance.models import Request as MntRequest
 from app.modules.notifications.models import Alert
 from app.modules.org import service as org
-from app.modules.payroll.models import Deduction
-from app.modules.people.models import Employee
+from app.modules.payroll.models import Deduction, Run
+from app.modules.people.models import Employee, EmploymentStatus
 from app.modules.reports.filters import Filters
 from app.modules.tracking.models import LastPosition
 
@@ -51,10 +53,18 @@ def _vehicle_ok(column, filters: Filters):
 # ------------------------------------------------------------------ dashboard
 
 
-def dashboard(db: Session, *, permissions: frozenset[str], all_companies: bool, company_ids: Iterable[int]) -> dict:
+def dashboard(
+    db: Session,
+    *,
+    permissions: frozenset[str],
+    all_companies: bool,
+    company_ids: Iterable[int],
+    user_id: int | None = None,
+) -> dict:
     company_ids = list(company_ids)
     out: dict = {"as_of": utcnow()}
     has = permissions.__contains__
+    started_today = _started_today(db, all_companies, company_ids)
 
     if has("vehicles.view"):
         rows = db.execute(
@@ -76,6 +86,30 @@ def dashboard(db: Session, *, permissions: frozenset[str], all_companies: bool, 
             .where(Custody.ended_at.is_(None), _in_scope(Custody.company_id, all_companies, company_ids))
         ).one()
         out["drivers"] = {"on_duty": on_duty, "signal_lost": lost if has("tracking.live") else None}
+        # FR-DSH-02: the drivers, at work, with no vehicle, who started the day
+        total, working, held = db.execute(
+            select(
+                func.count(),
+                func.count().filter(EmploymentStatus.is_working.is_(True)),
+                func.count().filter(
+                    EmploymentStatus.is_working.is_(True),
+                    Employee.id.in_(select(Custody.driver_id).where(Custody.ended_at.is_(None))),
+                ),
+            )
+            .select_from(Employee)
+            .join(EmploymentStatus, EmploymentStatus.code == Employee.status_code)
+            .where(
+                Employee.is_driver.is_(True),
+                EmploymentStatus.is_terminal.is_(False),
+                _in_scope(Employee.company_id, all_companies, company_ids),
+            )
+        ).one()
+        out["drivers"] |= {
+            "total": total,
+            "working": working,
+            "without_vehicle": working - held,
+            "started_today": len(started_today),
+        }
 
     if has("daily_reports.view"):
         day = today()
@@ -113,7 +147,17 @@ def dashboard(db: Session, *, permissions: frozenset[str], all_companies: bool, 
             dict(zip(("day", "reports", "orders", "cash"), (d, *by_day.get(d, (0, 0, ZERO))), strict=True))
             for d in (first + timedelta(days=i) for i in range(7))
         ]
+        reported_today = set(
+            db.scalars(
+                select(Report.employee_id).where(scope, Report.business_date == day, Report.status != "rejected")
+            )
+        )
+        approved_today = db.scalar(
+            select(func.count()).where(scope, Report.business_date == day, Report.status == "approved")
+        )
         out["daily_reports"] = {
+            "today_approved": approved_today,
+            "today_missing": len(started_today - reported_today),  # started the day, no report yet (FR-DSH-03)
             "today_sent": sent,
             "today_orders": int(orders),
             "today_cash": Decimal(cash_),
@@ -138,11 +182,12 @@ def dashboard(db: Session, *, permissions: frozenset[str], all_companies: bool, 
             .subquery()
         )
         limit = org.get_section(db, "cash").driver_balance_alert
-        posted, pending, over = db.execute(
+        posted, pending, over, holding = db.execute(
             select(
                 func.coalesce(func.sum(per_driver.c.posted), 0),
                 func.coalesce(func.sum(per_driver.c.pending), 0),
                 func.count().filter(per_driver.c.posted + per_driver.c.pending > limit),
+                func.count().filter(per_driver.c.posted + per_driver.c.pending > 0),
             )
         ).one()
         deposited = db.scalar(
@@ -155,9 +200,16 @@ def dashboard(db: Session, *, permissions: frozenset[str], all_companies: bool, 
             "unapproved": Decimal(pending),
             "approved": Decimal(posted),
             "over_limit": over,
+            "drivers_holding": holding,  # drivers with cash to hand in (FR-DSH-02)
             "deposited_today": Decimal(deposited),
             "limit": limit,
         }
+        if has("treasury.view"):  # FR-DSH-04: what the branches' treasuries hold, and the bank
+            boxes = cash_service.treasury(db)
+            out["cash"] |= {
+                "treasury": sum((Decimal(b["treasury"]) for b in boxes), ZERO),
+                "bank": sum((Decimal(b["bank"]) for b in boxes), ZERO),
+            }
 
     if has("documents.view"):
         horizon = today() + timedelta(days=org.get_section(db, "documents").expiry_alert_days)
@@ -182,15 +234,135 @@ def dashboard(db: Session, *, permissions: frozenset[str], all_companies: bool, 
     if has("accidents.view"):
         out["accidents"] = accidents.counts(db, all_companies=all_companies, company_ids=company_ids)
 
+    if has("employees.view"):
+        out["hr"] = _hr(db, all_companies, company_ids, payroll=has("payroll.view"))
+
+    if has("approvals.view") and user_id is not None:  # FR-DSH-07: the decisions waiting for this user
+        waiting = approvals.inbox(db, actor_user_id=user_id, all_companies=all_companies, company_ids=company_ids)
+        out["approvals"] = {
+            "waiting": len(waiting),
+            "oldest": min((r["step_since"] for r in waiting), default=None),
+        }
+
     visible = Alert.permission.in_(list(permissions))
     alert_scope = literal(True) if all_companies else or_(Alert.company_id.is_(None), Alert.company_id.in_(company_ids))
-    rows = db.execute(
-        select(Alert.severity, func.count())
-        .where(visible, alert_scope, Alert.acknowledged_at.is_(None))
-        .group_by(Alert.severity)
-    ).all()
+    open_alerts = (visible, alert_scope, Alert.acknowledged_at.is_(None))
+    rows = db.execute(select(Alert.severity, func.count()).where(*open_alerts).group_by(Alert.severity)).all()
     out["alerts"] = {"critical": 0, "warning": 0, "info": 0} | dict(rows)
+    out["alerts_oldest"] = db.scalar(select(func.min(Alert.created_at)).where(*open_alerts))
+
+    companies = org.list_companies(db, all_companies=all_companies, company_ids=company_ids)
+    figures = ("vehicles.view", "custody.view", "tracking.live", "daily_reports.view", "cash.view")
+    if len(companies) > 1 and any(has(p) for p in figures):  # FR-CMP-03: every company, the figures kept apart
+        out["by_company"] = _by_company(db, companies, has)
     return out
+
+
+def _started_today(db: Session, all_companies: bool, company_ids: list[int]) -> set[int]:
+    return set(
+        db.scalars(
+            select(OdometerReading.driver_id)
+            .join(Employee, Employee.id == OdometerReading.driver_id)
+            .where(
+                OdometerReading.kind == "start_day",
+                OdometerReading.business_date == today(),
+                _in_scope(Employee.company_id, all_companies, company_ids),
+            )
+        )
+    )
+
+
+def _hr(db: Session, all_companies: bool, company_ids: list[int], *, payroll: bool) -> dict:
+    """FR-DSH-06: the employees by status (at work, under visa procedure, resigned…), and this month's payroll."""
+    rows = db.execute(
+        select(EmploymentStatus.code, EmploymentStatus.name, func.count(Employee.id))
+        .outerjoin(
+            Employee,
+            and_(
+                Employee.status_code == EmploymentStatus.code,
+                _in_scope(Employee.company_id, all_companies, company_ids),
+            ),
+        )
+        .where(EmploymentStatus.is_active.is_(True))
+        .group_by(EmploymentStatus.code, EmploymentStatus.name, EmploymentStatus.sort_order)
+        .order_by(EmploymentStatus.sort_order)
+    ).all()
+    out: dict = {"statuses": [{"code": c, "name": n, "count": k} for c, n, k in rows]}
+    if payroll:
+        month = today().replace(day=1)
+        runs = dict(
+            db.execute(
+                select(Run.status, func.count())
+                .where(Run.month == month, _in_scope(Run.company_id, all_companies, company_ids))
+                .group_by(Run.status)
+            ).all()
+        )
+        companies = len(org.list_companies(db, all_companies=all_companies, company_ids=company_ids))
+        out["payroll"] = {"month": month, "draft": 0, "approved": 0, "paid": 0} | runs
+        out["payroll"]["not_started"] = companies - sum(runs.values())
+    return out
+
+
+def _by_company(db: Session, companies: list[dict], has) -> list[dict]:
+    ids = [c["id"] for c in companies]
+    rows = {c["id"]: {"company_id": c["id"], "name": c["name"]} for c in companies}
+
+    def put(key: str, pairs) -> None:
+        for company_id, value in pairs:
+            if company_id in rows:
+                rows[company_id][key] = value
+
+    def zero(*keys, value=0) -> None:  # a company with nothing today shows 0, not a blank
+        for row in rows.values():
+            row.update(dict.fromkeys(keys, value))
+
+    if has("vehicles.view"):
+        zero("vehicles", "vehicles_assigned")
+        for company_id, total, assigned in db.execute(
+            select(Vehicle.company_id, func.count(), func.count().filter(Vehicle.status == "assigned"))
+            .where(Vehicle.company_id.in_(ids))
+            .group_by(Vehicle.company_id)
+        ):
+            rows[company_id] |= {"vehicles": total, "vehicles_assigned": assigned}
+    if has("custody.view") or has("tracking.live"):
+        zero("on_duty")
+        put(
+            "on_duty",
+            db.execute(
+                select(Custody.company_id, func.count())
+                .where(Custody.ended_at.is_(None), Custody.company_id.in_(ids))
+                .group_by(Custody.company_id)
+            ),
+        )
+    if has("daily_reports.view"):
+        zero("reports_today", "orders_today")
+        for company_id, sent, orders in db.execute(
+            select(Report.company_id, func.count(), func.coalesce(func.sum(Report.orders_count), 0))
+            .where(Report.business_date == today(), Report.status != "rejected", Report.company_id.in_(ids))
+            .group_by(Report.company_id)
+        ):
+            rows[company_id] |= {"reports_today": sent, "orders_today": int(orders)}
+    if has("cash.view"):
+        zero("cash_held", value=ZERO)
+        put(
+            "cash_held",
+            (
+                (company_id, Decimal(amount))
+                for company_id, amount in db.execute(
+                    select(Employee.company_id, func.coalesce(func.sum(JournalLine.amount), 0))
+                    .join(Account, Account.driver_id == Employee.id)
+                    .join(JournalLine, JournalLine.account_id == Account.id)
+                    .join(Journal, Journal.id == JournalLine.journal_id)
+                    .where(
+                        Account.kind == "driver",
+                        Journal.status.in_(("posted", "pending")),
+                        Employee.company_id.in_(ids),
+                    )
+                    .group_by(Employee.company_id)
+                )
+            ),
+        )
+    return list(rows.values())
 
 
 # ------------------------------------------------------------------ reports
@@ -227,6 +399,7 @@ def daily_summary(
             func.coalesce(func.sum(Report.approved_cash).filter(Report.status == "approved"), 0).label("approved_cash"),
             func.count().filter(Report.status == "submitted").label("waiting"),
             func.count().filter(Report.status == "rejected").label("rejected"),
+            func.count().filter(live, _late()).label("late"),
         )
         .join(Employee, Employee.id == Report.employee_id)
         .where(
@@ -249,14 +422,144 @@ def daily_summary(
             "approved_cash": Decimal(r.approved_cash),
             "waiting": r.waiting,
             "rejected": r.rejected,
+            "late": r.late,
         }
         for r in rows
     ]
     totals = {
         k: sum((x[k] for x in out), Decimal(0) if "cash" in k else 0)
-        for k in ("days", "orders", "reported_cash", "approved_cash", "waiting", "rejected")
+        for k in ("days", "orders", "reported_cash", "approved_cash", "waiting", "rejected", "late")
     }
-    return {"from": date_from, "to": date_to, "rows": out, "totals": totals}
+    where = (
+        Report.business_date.between(date_from, date_to),
+        _in_scope(Report.company_id, all_companies, company_ids),
+        Report.employee_id == filters.driver_id if filters.driver_id is not None else literal(True),
+        Report.employee_id.in_(select(Employee.id).where(Employee.branch_id == filters.branch_id))
+        if filters.branch_id is not None
+        else literal(True),
+    )
+
+    def grouped(key):  # FR-RPT-02: sent, late and refused, orders and cash, by day or by company
+        return db.execute(
+            select(
+                key,
+                func.count().filter(live),
+                func.count().filter(live, _late()),
+                func.count().filter(Report.status == "rejected"),
+                func.coalesce(func.sum(Report.orders_count).filter(live), 0),
+                func.coalesce(func.sum(Report.cash_amount).filter(live), 0),
+                func.coalesce(func.sum(Report.approved_cash).filter(Report.status == "approved"), 0),
+            )
+            .where(*where)
+            .group_by(key)
+            .order_by(key)
+        ).all()
+
+    fields = ("sent", "late", "rejected", "orders", "reported_cash", "approved_cash")
+    by_day = {
+        d: dict(zip(fields, (n, lt, rj, int(o), Decimal(c), Decimal(a)), strict=True))
+        for d, n, lt, rj, o, c, a in grouped(Report.business_date)
+    }
+    empty = dict.fromkeys(fields, 0) | {"reported_cash": ZERO, "approved_cash": ZERO}
+    days = [date_from + timedelta(days=i) for i in range((date_to - date_from).days + 1)]
+    names = {c["id"]: c["name"] for c in org.list_companies(db, all_companies=all_companies, company_ids=company_ids)}
+    return {
+        "from": date_from,
+        "to": date_to,
+        "rows": out,
+        "totals": totals,
+        "by_day": [{"day": d} | by_day.get(d, empty) for d in days],
+        "by_company": [
+            {"company_id": k, "name": names.get(k)}
+            | dict(zip(fields, (n, lt, rj, int(o), Decimal(c), Decimal(a)), strict=True))
+            for k, n, lt, rj, o, c, a in grouped(Report.company_id)
+        ],
+    }
+
+
+def _late():
+    """Sent after its own business day (BRD BR-04)."""
+    return func.date(func.timezone("Asia/Kuwait", Report.submitted_at)) > Report.business_date
+
+
+def fleet_report(
+    db: Session,
+    *,
+    date_from: date,
+    date_to: date,
+    filters: Filters = Filters(),
+    all_companies: bool,
+    company_ids: Iterable[int],
+) -> dict:
+    """FR-RPT-01: the vehicles by status and those with no driver now; over the period, each vehicle's days held by a
+    driver (any part of a Kuwait day counts) and its daily use, and per day how many vehicles were out. Vehicles out of
+    service (inactive) are left out of the use rate."""
+    _range(date_from, date_to)
+    company_ids = list(company_ids)
+    vehicles = list(
+        db.scalars(
+            select(Vehicle)
+            .where(_in_scope(Vehicle.company_id, all_companies, company_ids), _vehicle_ok(Vehicle.id, filters))
+            .order_by(Vehicle.plate_number)
+        )
+    )
+    ids = [v.id for v in vehicles]
+    start, end = _period(date_from, date_to)
+    custodies = list(
+        db.scalars(
+            select(Custody).where(
+                Custody.vehicle_id.in_(ids),
+                Custody.started_at < end,
+                or_(Custody.ended_at.is_(None), Custody.ended_at > start),
+            )
+        )
+    )
+    now = utcnow()
+    held: dict[int, set] = {i: set() for i in ids}
+    for c in custodies:
+        first = max(c.started_at.astimezone(KUWAIT).date(), date_from)
+        last = min((c.ended_at or now).astimezone(KUWAIT).date(), date_to)
+        while first <= last:
+            held[c.vehicle_id].add(first)
+            first += timedelta(days=1)
+    open_custody = {c.vehicle_id: c.driver_id for c in custodies if c.ended_at is None}
+    drivers = _people(db, open_custody.values())
+    period_days = (min(date_to, today()) - date_from).days + 1
+    period_days = max(period_days, 1)
+    in_service = [v for v in vehicles if v.status != "inactive"]
+    by_vehicle = [
+        {
+            "vehicle": {"id": str(v.public_id), "plate_number": v.plate_number, "make": v.make, "model": v.model},
+            "status": v.status,
+            "driver": drivers.get(open_custody.get(v.id)),
+            "days_held": len(held[v.id]),
+            "use_percent": round(Decimal(len(held[v.id]) * 100) / period_days, 1) if v.status != "inactive" else None,
+        }
+        for v in vehicles
+    ]
+    days = [date_from + timedelta(days=i) for i in range((date_to - date_from).days + 1)]
+    by_day = [
+        {
+            "day": d,
+            "in_use": sum(1 for v in in_service if d in held[v.id]),
+            "vehicles": len(in_service),
+        }
+        for d in days
+        if d <= today()
+    ]
+    statuses = {"available": 0, "assigned": 0, "maintenance": 0, "accident": 0, "inactive": 0}
+    for v in vehicles:
+        statuses[v.status] = statuses.get(v.status, 0) + 1
+    used = sum(len(held[v.id]) for v in in_service)
+    return {
+        "from": date_from,
+        "to": date_to,
+        "statuses": statuses,
+        "without_driver": sum(1 for v in in_service if v.id not in open_custody),
+        "use_percent": round(Decimal(used * 100) / (len(in_service) * period_days), 1) if in_service else None,
+        "by_vehicle": by_vehicle,
+        "by_day": by_day,
+    }
 
 
 def name_in(name: dict, lang: str, default: str) -> str:

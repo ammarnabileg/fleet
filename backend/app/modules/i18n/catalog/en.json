@@ -856,6 +856,13 @@
     "cancelled": "Cancelled by the driver"
   },
   "report_column": {
+    "late": "Late",
+    "sent": "Sent",
+    "day": "Day",
+    "days_held": "Days held",
+    "use_percent": "Use %",
+    "in_use": "In use",
+    "vehicles": "Vehicles",
     "employee_number": "Employee no.",
     "driver": "Driver",
     "days": "Days",
@@ -939,6 +946,7 @@
     "deducted": "Deducted"
   },
   "report_title": {
+    "fleet": "Fleet",
     "daily": "Daily work",
     "cash_balances": "Cash balances",
     "maintenance": "Maintenance",

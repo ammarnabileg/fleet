@@ -856,6 +856,13 @@
     "cancelled": "ألغاه السائق"
   },
   "report_column": {
+    "late": "متأخرة",
+    "sent": "مرسلة",
+    "day": "اليوم",
+    "days_held": "أيام في العهدة",
+    "use_percent": "نسبة الاستخدام %",
+    "in_use": "في العهدة",
+    "vehicles": "السيارات",
     "employee_number": "الرقم الوظيفي",
     "driver": "السائق",
     "days": "الأيام",
@@ -939,6 +946,7 @@
     "deducted": "المخصوم"
   },
   "report_title": {
+    "fleet": "الأسطول",
     "daily": "العمل اليومي",
     "cash_balances": "أرصدة الكاش",
     "maintenance": "الصيانة",

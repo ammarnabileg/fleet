@@ -36,3 +36,27 @@ test('the last seven days on the dashboard are the API\'s, orders then cash, and
   await expect(rows.last()).toContainText(String(week[6].orders));
   await expect(rows.last()).toContainText(Number(week[6].cash).toFixed(3));
 });
+
+test('the drivers, the employees by status and each company apart, each opening its list', async ({ admin, api }) => {
+  const n = uid();
+  const company = await api.post('/companies', { name: { ar: 'شركة الأرقام ' + n, en: 'Figures company ' + n } });
+  await api.post('/employees', {
+    employee_number: 'F' + uid(), name: { ar: 'سائق بلا سيارة ' + n, en: 'No car ' + n }, company_id: company.id, is_driver: true, phone: phone(),
+  });
+  const d = await api.get('/dashboard');
+  expect(d.drivers.without_vehicle).toBeGreaterThanOrEqual(1);
+  const mine = d.by_company.find((c) => c.company_id === company.id);
+  expect([mine.on_duty, mine.reports_today, mine.cash_held]).toEqual([0, 0, '0.000']);
+
+  await admin.goto('/admin.html#/dashboard');
+  await settled(admin);
+  await expect(admin.locator('[data-drivers]')).toContainText('بلا سيارة');
+  await expect(admin.locator('[data-drivers]')).toContainText(String(d.drivers.without_vehicle));
+  await expect(admin.locator(`[data-by-company] tr[data-company="${company.id}"]`)).toContainText('شركة الأرقام ' + n);
+  const active = admin.locator('[data-hr] [data-status=active]');
+  await expect(active).toContainText(String(d.hr.statuses.find((s) => s.code === 'active').count));
+  await active.click();
+  await expect(admin).toHaveURL(/#\/employees\?status=active/);
+  await settled(admin);
+  await expect(admin.locator('#view [data-f=status]')).toHaveValue('active');
+});
