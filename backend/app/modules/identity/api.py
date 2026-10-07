@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.errors import AppError
-from app.core.ratelimit import limited
+from app.core.ratelimit import failures_limited, limited
 from app.modules.i18n import service as i18n
 from app.modules.identity import claims, link_queue, schemas, service
 from app.modules.identity.service import Principal, get_principal, require_permission
@@ -33,7 +33,7 @@ def _client(request: Request) -> dict:
     return {"ip": request.client.host if request.client else None, "user_agent": request.headers.get("user-agent")}
 
 
-@router.post("/auth/login", response_model=schemas.LoginOut, dependencies=[Depends(limited("sign_in"))])
+@router.post("/auth/login", response_model=schemas.LoginOut, dependencies=[Depends(failures_limited("sign_in"))])
 def login(body: schemas.LoginIn, request: Request, response: Response, db: Session = Depends(get_session)):
     result = service.login(db, body.username, body.password, **_client(request))
     _set_cookie(response, result.token)
@@ -42,7 +42,7 @@ def login(body: schemas.LoginIn, request: Request, response: Response, db: Sessi
     )
 
 
-@router.post("/auth/mfa/verify", response_model=schemas.LoginOut, dependencies=[Depends(limited("sign_in"))])
+@router.post("/auth/mfa/verify", response_model=schemas.LoginOut, dependencies=[Depends(failures_limited("sign_in"))])
 def verify_mfa(body: schemas.CodeIn, request: Request, response: Response, db: Session = Depends(get_session)):
     result = service.verify_mfa(db, request.cookies.get(service.SESSION_COOKIE), body.code, **_client(request))
     _set_cookie(response, result.token)
@@ -178,7 +178,9 @@ def request_otp(body: schemas.OtpRequestIn, request: Request, db: Session = Depe
     return {"status": "sent"}
 
 
-@router.post("/driver/auth/verify", response_model=schemas.TokensOut, dependencies=[Depends(limited("otp_check"))])
+@router.post(
+    "/driver/auth/verify", response_model=schemas.TokensOut, dependencies=[Depends(failures_limited("otp_check"))]
+)
 def verify_otp(body: schemas.OtpVerifyIn, db: Session = Depends(get_session)):
     return service.verify_otp(
         db,
@@ -191,7 +193,9 @@ def verify_otp(body: schemas.OtpVerifyIn, db: Session = Depends(get_session)):
     )
 
 
-@router.post("/driver/auth/activate", response_model=schemas.TokensOut, dependencies=[Depends(limited("sign_in"))])
+@router.post(
+    "/driver/auth/activate", response_model=schemas.TokensOut, dependencies=[Depends(failures_limited("sign_in"))]
+)
 def activate(body: schemas.ActivateIn, db: Session = Depends(get_session)):
     """The app opens the activation link: the token (from after the "#") binds this phone, no OTP needed."""
     return service.activate(
@@ -244,7 +248,7 @@ def claim_phone(body: schemas.ClaimPhoneIn, db: Session = Depends(get_session)):
 
 
 @router.post(
-    "/driver/auth/claim/verify", response_model=schemas.TokensOut, dependencies=[Depends(limited("otp_check"))]
+    "/driver/auth/claim/verify", response_model=schemas.TokensOut, dependencies=[Depends(failures_limited("otp_check"))]
 )
 def claim_verify(body: schemas.ClaimVerifyIn, db: Session = Depends(get_session)):
     """The code: the phone is his, this phone is bound, and the self-registration (documents, IBAN) follows."""

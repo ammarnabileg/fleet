@@ -1,6 +1,7 @@
-"""Request limits by client address (BRD section 8): a wrong password counts as much as a right one, every API
-worker shares the count, an address listed as exempt (the office on sign-up day) is never limited, the window passes,
-and uploads are counted per user or device rather than per address."""
+"""Request limits by client address (BRD section 8): a guess counts only when it fails, so an office signing in all
+day is never stopped while a script guessing is, right password included, once over the limit; a WhatsApp code sent
+counts every time; an address listed as exempt (the office on sign-up day) is never limited; the window passes; and
+uploads are counted per user or device rather than per address."""
 
 from datetime import timedelta
 
@@ -18,6 +19,7 @@ def tight(monkeypatch):
     s = get_settings()
     monkeypatch.setattr(s, "rate_sign_in_per_15min", 3)
     monkeypatch.setattr(s, "rate_uploads_per_hour", 2)
+    monkeypatch.setattr(s, "rate_otp_send_per_hour", 2)
     return s
 
 
@@ -25,8 +27,10 @@ def _login(client, password):
     return client.post("/api/v1/auth/login", json={"username": "admin", "password": password})
 
 
-def test_sign_in_is_limited_by_address_wrong_passwords_included(app, superuser, tight, monkeypatch):
+def test_failed_sign_ins_are_limited_by_address_and_right_ones_are_not(app, superuser, tight, monkeypatch):
     office = TestClient(app, client=("203.0.113.7", 50000))
+    for _ in range(6):  # twice the limit: signing in is not guessing
+        assert _login(office, PASSWORD).status_code == 200
     for _ in range(3):
         assert _login(office, "not the password").status_code == 401  # counted, though the request failed
     r = _login(office, PASSWORD)
@@ -60,3 +64,10 @@ def test_uploads_are_counted_per_user_not_per_address(app, superuser, admin_clie
     clerk = TestClient(app)  # the same address as the admin
     login(clerk, "clerk")
     assert up(clerk).status_code == 201
+
+
+def test_every_code_sent_counts(app, tight):
+    phone = TestClient(app, client=("203.0.113.9", 50000))
+    body = {"phone": "+96550000001", "device_uid": "device-1"}
+    codes = [phone.post("/api/v1/driver/auth/otp", json=body).status_code for _ in range(3)]
+    assert codes[2] == 429 and 429 not in codes[:2]  # sent or refused by the switch, each one counts
