@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.clock import today, utcnow
 from app.core.db import violated_constraint
 from app.core.errors import AppError
+from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
 from app.modules.files import service as files
 from app.modules.finance import posting
@@ -367,6 +368,8 @@ def create_expense(db: Session, data: dict, *, actor_user_id: int, all_companies
     db.flush()
     for n, sha in enumerate(dict.fromkeys(data.get("files", []))):
         db.add(ExpenseFile(expense_id=expense.id, sha256=sha, position=n))
+    db.refresh(expense)
+    approvals.submitted(db, "expense", **_approval(expense), actor_user_id=actor_user_id)
     _audit(db, "created", expense, actor_user_id=actor_user_id)
     db.commit()
     return _expense_out(db, [expense])[0]
@@ -419,12 +422,27 @@ def expense_file(db: Session, public_id, sha256: str, **scope) -> files.FileInfo
     return files.get(db, sha256)
 
 
+def _approval(expense: Expense) -> dict:
+    return {
+        "document_id": expense.id,
+        "document_key": expense.public_id,
+        "document_ref": f"EXP-{expense.number}",
+        "company_id": expense.company_id,
+        "amount": expense.amount,
+    }
+
+
 def decide_expense(db: Session, public_id, *, approve: bool, note: str | None, actor_user_id: int, **scope) -> dict:
     expense = _get(db, public_id, lock=True, **scope)
     if expense.status != "pending":
         raise AppError(409, "expense_not_pending", status=expense.status)
     if not approve and not note:
         raise AppError(422, "reason_required")
+    if not approvals.gate(
+        db, "expense", **_approval(expense), actor_user_id=actor_user_id, approve=approve, reason=note
+    ):
+        db.commit()  # this step recorded; the expense waits for the next one
+        return _expense_out(db, [expense])[0]
     expense.status = "approved" if approve else "rejected"
     expense.decided_by, expense.decided_at, expense.decision_note = actor_user_id, utcnow(), note
     expense.version += 1
@@ -441,6 +459,7 @@ def cancel_expense(db: Session, public_id, *, reason: str, actor_user_id: int, *
         raise AppError(409, "expense_not_cancellable", status=expense.status)
     expense.status, expense.cancel_reason = "cancelled", reason  # an approved one keeps who approved it, and when
     expense.version += 1
+    approvals.withdrawn(db, "expense", [expense.id])
     _audit(db, "cancelled", expense, actor_user_id=actor_user_id, after={"reason": reason})
     db.commit()
     return _expense_out(db, [expense])[0]

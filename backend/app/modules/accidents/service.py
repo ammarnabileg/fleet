@@ -30,6 +30,7 @@ from app.core.db import violated_constraint
 from app.core.errors import AppError
 from app.core.events import emit
 from app.modules.accidents.models import Accident, AccidentEvent, AccidentPhoto
+from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
 from app.modules.files import service as files
 from app.modules.fleet import service as fleet
@@ -117,6 +118,18 @@ def _items_total(items: list[dict]) -> Decimal:
 
 def _alert_params(db: Session, a: Accident) -> dict:
     return {"plate": fleet.plate_numbers(db, [a.vehicle_id]).get(a.vehicle_id, ""), "number": a.number}
+
+
+def _approval(db: Session, a: Accident) -> dict:
+    """Its damage estimate, as the approval workflows know it."""
+    ref = f"ACC-{a.number} {fleet.plate_numbers(db, [a.vehicle_id]).get(a.vehicle_id, '')}".strip()
+    return {
+        "document_id": a.id,
+        "document_key": a.public_id,
+        "document_ref": ref,
+        "company_id": a.company_id,
+        "amount": a.estimate_total,
+    }
 
 
 def _resolve_all(db: Session, a: Accident) -> None:
@@ -543,6 +556,11 @@ def decide_estimate(db: Session, public_id, *, approve: bool, reason: str | None
         raise AppError(409, "estimate_not_pending")
     if not approve and not reason:
         raise AppError(422, "reason_required")
+    if not approvals.gate(
+        db, "accident_estimate", **_approval(db, a), actor_user_id=actor_user_id, approve=approve, reason=reason
+    ):
+        db.commit()  # this step recorded; the estimate waits for the next one
+        return _detail(db, a)
     a.estimate_status = "approved" if approve else "rejected"
     a.estimate_decided_by, a.estimate_decided_at, a.estimate_reason = actor_user_id, utcnow(), reason
     _event(db, a, "estimate_approved" if approve else "estimate_rejected", by_user=actor_user_id, note=reason)
@@ -654,6 +672,7 @@ def close(db: Session, public_id, *, note: str | None, actor_user_id: int, **sco
         raise AppError(409, "outcome_required")
     a.status, a.closed_at = "closed", utcnow()
     fleet.clear_accident(db, a.vehicle_id)
+    approvals.withdrawn(db, "accident_estimate", [a.id])
     _resolve_all(db, a)
     _event(db, a, "closed", by_user=actor_user_id, note=note)
     _audit(db, "accident.closed", a, actor_user_id=actor_user_id)
@@ -671,6 +690,7 @@ def cancel(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
         raise AppError(409, "repair_exists")
     a.status, a.cancel_reason = "cancelled", reason
     fleet.clear_accident(db, a.vehicle_id)
+    approvals.withdrawn(db, "accident_estimate", [a.id])
     _resolve_all(db, a)
     _event(db, a, "cancelled", by_user=actor_user_id, note=reason)
     _audit(db, "accident.cancelled", a, actor_user_id=actor_user_id, after={"reason": reason})
@@ -741,6 +761,7 @@ def submit_estimate(db: Session, public_id, *, user_id: int, data: dict) -> dict
     a.seen_at = a.seen_at or utcnow()
     _add_photos(db, a, data.get("photos") or [])
     _event(db, a, "estimate_submitted", by_user=user_id, note=str(total))
+    approvals.submitted(db, "accident_estimate", **_approval(db, a), actor_user_id=user_id)
     center = maintenance.centers_brief(db, [a.center_id])[a.center_id]
     notifications.raise_alert(
         db,

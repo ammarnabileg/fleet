@@ -400,7 +400,19 @@
     "entry_not_approved": "Only an approved entry is reversed; a draft is discarded and made again",
     "entry_already_reversed": "The entry is reversed already, or is a reversal",
     "all_companies_required": "The ledger is the whole business's: it needs access to every company",
-    "unknown_account_role": "Unknown role: {role}"
+    "unknown_account_role": "Unknown role: {role}",
+    "process_not_found": "Approval process not found",
+    "step_needs_one_approver": "Step {position}: choose one role or one person to approve it",
+    "step_escalation_incomplete": "Step {position}: escalation needs both the hours and the role",
+    "step_role_not_allowed": "Step {position}: the maintenance centers role cannot approve office documents",
+    "not_your_step": "This step ({step}) is not yours: the document waits for someone else",
+    "approver_repeated": "You approved an earlier step of this document: one person approves one step only",
+    "approval_not_found": "Approval request not found",
+    "approval_closed": "This approval request is closed",
+    "delegate_self": "You cannot delegate to yourself",
+    "delegation_in_past": "This delegation period has already ended",
+    "delegation_not_found": "Delegation not found",
+    "correction_at_last_step": "The cash amount is corrected at the last approval step"
   },
   "settings": {
     "branding": "Branding",
@@ -513,7 +525,8 @@
     "accident_injuries": "Accident with injuries: vehicle {plate} (no. {number}), driver {driver}",
     "accident_estimate_submitted": "{center} sent the damage estimate for accident {number} ({plate}): {amount}",
     "accident_awaiting_police_report": "Accident {number} ({plate}) has no police report after {days} days",
-    "fine_no_driver": "Fine {number} on vehicle {plate} at {at}: nobody held the vehicle at that time"
+    "fine_no_driver": "Fine {number} on vehicle {plate} at {at}: nobody held the vehicle at that time",
+    "approval_escalated": "The approval of {ref} has waited more than {hours} hours: it is now open to the escalation role"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -960,7 +973,13 @@
     "settings": "Settings",
     "receipt": "Cash receipt",
     "leave": "Leave",
-    "integration": "Integration"
+    "integration": "Integration",
+    "account": "Account",
+    "entry": "Journal entry",
+    "expense": "Expense",
+    "expense_type": "Expense type",
+    "workflow": "Approval workflow",
+    "delegation": "Delegation"
   },
   "audit_actor": {
     "user": "User",
@@ -1058,5 +1077,38 @@
     "maintenance_expense": "Maintenance expense",
     "traffic_fines_expense": "Traffic fines expense",
     "cash_writeoff": "Driver cash written off"
+  },
+  "approval_process": {
+    "daily_report": "Daily reports",
+    "maintenance_request": "Maintenance requests",
+    "maintenance_quote": "Maintenance quotes",
+    "maintenance_invoice": "Maintenance invoices",
+    "accident_estimate": "Accident damage estimates",
+    "expense": "Expenses",
+    "payroll_run": "Payroll runs"
+  },
+  "approval_status": {
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "cancelled": "Cancelled"
+  },
+  "approval_decision": {
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "escalated": "Escalated"
+  },
+  "approval_cancel": {
+    "withdrawn": "The document was cancelled",
+    "amount_changed": "The amount changed, so approval started over",
+    "workflow_off": "The workflow was switched off",
+    "resubmitted": "The document was sent again",
+    "recomputed": "The run was recomputed"
+  },
+  "delegation_status": {
+    "active": "Active",
+    "upcoming": "Upcoming",
+    "ended": "Ended",
+    "cancelled": "Cancelled"
   }
 }

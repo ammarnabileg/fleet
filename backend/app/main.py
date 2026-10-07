@@ -8,6 +8,7 @@ from app.core import errors, messaging, middleware
 from app.core.config import get_settings
 from app.core.db import new_session
 from app.modules.accidents.api import router as accidents_router
+from app.modules.approvals.api import router as approvals_router
 from app.modules.attendance.api import router as attendance_router
 from app.modules.audit.api import router as audit_router
 from app.modules.cash.api import router as cash_router
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
         payroll_router,
         attendance_router,
         finance_router,
+        approvals_router,
         daily_ops_router,
         cash_router,
         reports_router,

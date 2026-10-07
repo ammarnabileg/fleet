@@ -16,6 +16,7 @@ from app.core.clock import today, utcnow
 from app.core.db import violated_constraint
 from app.core.errors import AppError
 from app.core.events import emit
+from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
 from app.modules.cash import service as cash
 from app.modules.daily_ops.models import Report
@@ -108,6 +109,7 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
     db.refresh(report)
     cash.submit_collection(db, driver, report_id=report.id, amount=amount, business_date=day, device_id=device_id)
     cash.check_balance_alert(db, driver)
+    approvals.submitted(db, "daily_report", **_approval(report, driver.name))
     audit.record(
         db,
         action="daily_report.submitted",
@@ -167,6 +169,16 @@ def screenshot(db: Session, public_id, **scope) -> files.FileInfo:
     return files.get(db, report.screenshot_sha256)
 
 
+def _approval(report: Report, driver_name: str) -> dict:
+    return {
+        "document_id": report.id,
+        "document_key": report.public_id,
+        "document_ref": f"{driver_name} {report.business_date.isoformat()}",
+        "company_id": report.company_id,
+        "amount": report.cash_amount,
+    }
+
+
 def approve(
     db: Session, public_id, *, cash_amount: Decimal | None, reason: str | None, actor_user_id: int, **scope
 ) -> dict:
@@ -177,6 +189,13 @@ def approve(
     if approved != report.cash_amount and not reason:
         raise AppError(422, "reason_required")  # a correction always says why (spec T-LED-02)
     driver = people.ref(db, report.employee_id)
+    if not approvals.gate(
+        db, "daily_report", **_approval(report, driver.name), actor_user_id=actor_user_id, reason=reason
+    ):
+        if approved != report.cash_amount:
+            raise AppError(409, "correction_at_last_step")  # the cash is corrected by whoever approves it last
+        db.commit()
+        return _many(db, [report])[0]
     cash.approve_collection(
         db,
         driver,
@@ -221,12 +240,16 @@ def reject(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
     report = _row(db, public_id, lock=True, **scope)
     if report.status != "submitted":
         raise AppError(409, "report_not_submitted")
+    driver = people.ref(db, report.employee_id)
+    approvals.gate(
+        db, "daily_report", **_approval(report, driver.name), actor_user_id=actor_user_id, approve=False, reason=reason
+    )
     cash.reject_collection(db, report_id=report.id, actor_user_id=actor_user_id)
     report.status, report.review_note = "rejected", reason
     report.reviewed_by, report.reviewed_at = actor_user_id, utcnow()
     report.version += 1
     notifications.resolve(db, f"daily_report_overdue:{report.id}")
-    cash.check_balance_alert(db, people.ref(db, report.employee_id))
+    cash.check_balance_alert(db, driver)
     audit.record(
         db,
         action="daily_report.rejected",

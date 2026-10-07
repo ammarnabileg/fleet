@@ -702,6 +702,51 @@ def user_options(db: Session) -> list[dict]:
     return [{"id": str(p), "name": f"{n} ({u})"} for p, n, u in rows]
 
 
+def role_id_by_code(db: Session, code: str) -> int:
+    found = db.scalar(select(Role.id).where(Role.code == code))
+    if found is None:
+        raise AppError(404, "role_not_found", code=code)
+    return found
+
+
+def role_refs(db: Session, ids: Iterable[int]) -> dict[int, dict]:
+    ids = {i for i in ids if i is not None}
+    if not ids:
+        return {}
+    return {r.id: {"code": r.code, "name": r.name} for r in db.scalars(select(Role).where(Role.id.in_(ids)))}
+
+
+def role_options(db: Session) -> list[dict]:
+    """The office roles an approval step may name (not the maintenance centers' own)."""
+    rows = db.scalars(select(Role).where(Role.code != PORTAL_ROLE).order_by(Role.code))
+    return [{"code": r.code, "name": r.name} for r in rows]
+
+
+def holders(db: Session, role_ids: Iterable[int]) -> dict[int, set[int]]:
+    """The active users holding each role (approval workflows: who may decide a step)."""
+    out: dict[int, set[int]] = {r: set() for r in role_ids}
+    if out:
+        for role_id, user_id in db.execute(
+            select(UserRole.role_id, UserRole.user_id)
+            .join(User, User.id == UserRole.user_id)
+            .where(UserRole.role_id.in_(list(out)), User.is_active.is_(True))
+        ):
+            out[role_id].add(user_id)
+    return out
+
+
+def user_refs(db: Session, ids: Iterable[int]) -> dict[int, dict]:
+    ids = {i for i in ids if i is not None}
+    if not ids:
+        return {}
+    return {
+        i: {"id": str(p), "name": f"{n} ({u})"}
+        for i, p, n, u in db.execute(
+            select(User.id, User.public_id, User.full_name, User.username).where(User.id.in_(ids))
+        )
+    }
+
+
 def user_names(db: Session, ids: Iterable[int]) -> dict[int, str]:
     """Display names for other modules (the audit log shows who acted)."""
     ids = {i for i in ids if i is not None}

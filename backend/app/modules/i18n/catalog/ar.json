@@ -400,7 +400,19 @@
     "entry_not_approved": "يُعكس القيد المعتمد فقط؛ المسودة تُحذف وتُنشأ من جديد",
     "entry_already_reversed": "القيد معكوس من قبل، أو هو قيد عكسي",
     "all_companies_required": "القيود للشركة كلها: تحتاج صلاحية على كل الشركات",
-    "unknown_account_role": "دور غير معروف: {role}"
+    "unknown_account_role": "دور غير معروف: {role}",
+    "process_not_found": "المسار غير موجود",
+    "step_needs_one_approver": "الخطوة {position}: اختر دورًا أو شخصًا واحدًا يعتمدها",
+    "step_escalation_incomplete": "الخطوة {position}: التصعيد يحتاج عدد الساعات والدور معًا",
+    "step_role_not_allowed": "الخطوة {position}: دور مراكز الصيانة لا يعتمد مستندات المكتب",
+    "not_your_step": "هذه الخطوة ({step}) ليست لك: ينتظر المستند اعتماد غيرك",
+    "approver_repeated": "اعتمدت خطوة سابقة لهذا المستند: يعتمد كل شخص خطوة واحدة فقط",
+    "approval_not_found": "طلب الاعتماد غير موجود",
+    "approval_closed": "طلب الاعتماد مغلق",
+    "delegate_self": "لا يمكن التفويض للنفس",
+    "delegation_in_past": "فترة التفويض انتهت بالفعل",
+    "delegation_not_found": "التفويض غير موجود",
+    "correction_at_last_step": "تصحيح مبلغ الكاش يكون في آخر خطوة اعتماد"
   },
   "settings": {
     "branding": "الهوية",
@@ -513,7 +525,8 @@
     "accident_injuries": "حادث بإصابات للسيارة {plate} (رقم {number}) — السائق: {driver}",
     "accident_estimate_submitted": "{center} أرسل تقدير أضرار الحادث {number} ({plate}): {amount}",
     "accident_awaiting_police_report": "الحادث {number} ({plate}) بدون محضر شرطة منذ {days} يوم",
-    "fine_no_driver": "المخالفة {number} على السيارة {plate} في {at}: لم تكن مسلّمة لأي سائق في ذلك الوقت"
+    "fine_no_driver": "المخالفة {number} على السيارة {plate} في {at}: لم تكن مسلّمة لأي سائق في ذلك الوقت",
+    "approval_escalated": "اعتماد {ref} انتظر أكثر من {hours} ساعة: صار متاحًا لدور التصعيد"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
@@ -960,7 +973,13 @@
     "settings": "إعدادات",
     "receipt": "إيصال كاش",
     "leave": "إجازة",
-    "integration": "تكامل"
+    "integration": "تكامل",
+    "account": "حساب",
+    "entry": "قيد محاسبي",
+    "expense": "مصروف",
+    "expense_type": "نوع مصروف",
+    "workflow": "مسار اعتماد",
+    "delegation": "تفويض"
   },
   "audit_actor": {
     "user": "مستخدم",
@@ -1058,5 +1077,38 @@
     "maintenance_expense": "مصروف الصيانة",
     "traffic_fines_expense": "مصروف المخالفات",
     "cash_writeoff": "كاش سائقين مشطوب"
+  },
+  "approval_process": {
+    "daily_report": "التقارير اليومية",
+    "maintenance_request": "طلبات الصيانة",
+    "maintenance_quote": "عروض أسعار الصيانة",
+    "maintenance_invoice": "فواتير الصيانة",
+    "accident_estimate": "تقديرات أضرار الحوادث",
+    "expense": "المصروفات",
+    "payroll_run": "مسيرات الرواتب"
+  },
+  "approval_status": {
+    "pending": "قيد الاعتماد",
+    "approved": "معتمد",
+    "rejected": "مرفوض",
+    "cancelled": "ملغى"
+  },
+  "approval_decision": {
+    "approved": "اعتمد",
+    "rejected": "رفض",
+    "escalated": "تصعيد"
+  },
+  "approval_cancel": {
+    "withdrawn": "أُلغي المستند",
+    "amount_changed": "تغيّر المبلغ فبدأ الاعتماد من جديد",
+    "workflow_off": "أُوقف المسار",
+    "resubmitted": "أُرسل المستند من جديد",
+    "recomputed": "أُعيد حساب المسير"
+  },
+  "delegation_status": {
+    "active": "سارٍ",
+    "upcoming": "قادم",
+    "ended": "انتهى",
+    "cancelled": "ملغى"
   }
 }

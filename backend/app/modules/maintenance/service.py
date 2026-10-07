@@ -24,6 +24,7 @@ from app.core.clock import today, utcnow
 from app.core.db import violated_constraint
 from app.core.errors import AppError
 from app.core.events import emit
+from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
 from app.modules.files import service as files
 from app.modules.fleet import service as fleet
@@ -132,6 +133,36 @@ def _add_photos(db: Session, r: Request, stage: str, shas: Iterable[str]) -> Non
 
 def _alert_params(db: Session, r: Request) -> dict:
     return {"plate": fleet.plate_numbers(db, [r.vehicle_id]).get(r.vehicle_id, ""), "number": r.number}
+
+
+def _approval(db: Session, r: Request, quote: Quote | None = None) -> dict:
+    """The request, or its quote, as the approval workflows know it."""
+    ref = f"MNT-{r.number} {fleet.plate_numbers(db, [r.vehicle_id]).get(r.vehicle_id, '')}".strip()
+    if quote is not None:
+        return {
+            "document_id": quote.id,
+            "document_key": quote.public_id,
+            "document_ref": ref,
+            "company_id": r.company_id,
+            "amount": quote.amount,
+        }
+    return {
+        "document_id": r.id,
+        "document_key": r.public_id,
+        "document_ref": ref,
+        "company_id": r.company_id,
+        "amount": Decimal(0),
+    }
+
+
+def _invoice_approval(inv: Invoice) -> dict:
+    return {
+        "document_id": inv.id,
+        "document_key": inv.public_id,
+        "document_ref": f"INV-{inv.number}",
+        "company_id": inv.company_id,
+        "amount": inv.total,
+    }
 
 
 # ------------------------------------------------------------------ output
@@ -534,6 +565,7 @@ def create_request(db: Session, data: dict, *, actor_user_id: int, **scope) -> d
             params=params,
             dedupe_key=f"mnt_request:{r.id}",
         )
+        approvals.submitted(db, "maintenance_request", **_approval(db, r), actor_user_id=actor_user_id)
     _audit(db, "maintenance.requested", r, actor_user_id=actor_user_id, after={"emergency": r.emergency})
     _emit(db, "maintenance.request.created", r, vehicle_id=str(vehicle.public_id), emergency=r.emergency)
     db.commit()
@@ -572,6 +604,7 @@ def driver_request(db: Session, *, employee_id: int, device_id: int, data: dict)
         params=_alert_params(db, r),
         dedupe_key=f"mnt_request:{r.id}",
     )
+    approvals.submitted(db, "maintenance_request", **_approval(db, r))
     _audit(db, "maintenance.requested", r, actor_type="device")
     _emit(db, "maintenance.request.created", r, emergency=False)
     db.commit()
@@ -636,6 +669,9 @@ def approve(db: Session, public_id, *, note: str | None, actor_user_id: int, **s
     r = _get(db, public_id, lock=True, **scope)
     if r.status != "requested":
         raise AppError(409, "request_not_pending", status=r.status)
+    if not approvals.gate(db, "maintenance_request", **_approval(db, r), actor_user_id=actor_user_id, reason=note):
+        db.commit()  # this step recorded; the request waits for the next one
+        return _detail(db, r)
     r.decided_by, r.decided_at, r.decision_note = actor_user_id, utcnow(), note
     _event(db, r, "approved", by_user=actor_user_id, note=note)
     notifications.resolve(db, f"mnt_request:{r.id}")
@@ -649,6 +685,9 @@ def reject(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
     r = _get(db, public_id, lock=True, **scope)
     if r.status != "requested":
         raise AppError(409, "request_not_pending", status=r.status)
+    approvals.gate(
+        db, "maintenance_request", **_approval(db, r), actor_user_id=actor_user_id, approve=False, reason=reason
+    )
     r.decided_by, r.decided_at, r.decision_note = actor_user_id, utcnow(), reason
     _event(db, r, "rejected", by_user=actor_user_id, note=reason)
     notifications.resolve(db, f"mnt_request:{r.id}")
@@ -695,6 +734,7 @@ def cancel(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
         raise AppError(409, "request_cannot_cancel", status=r.status)
     r.cancel_reason = reason
     _event(db, r, "cancelled", by_user=actor_user_id, note=reason)
+    approvals.withdrawn(db, "maintenance_request", [r.id])
     notifications.resolve(db, f"mnt_request:{r.id}")
     _audit(db, "maintenance.cancelled", r, actor_user_id=actor_user_id, after={"reason": reason})
     db.commit()
@@ -747,6 +787,11 @@ def decide_quote(db: Session, public_id, *, approve: bool, reason: str | None, a
         raise AppError(409, "quote_not_pending")
     if not approve and not reason:
         raise AppError(422, "reason_required")
+    if not approvals.gate(
+        db, "maintenance_quote", **_approval(db, r, q), actor_user_id=actor_user_id, approve=approve, reason=reason
+    ):
+        db.commit()  # this step recorded; the quote waits for the next one
+        return _detail(db, r)
     q.status = "approved" if approve else "rejected"
     q.decided_by, q.decided_at, q.reason = actor_user_id, utcnow(), reason
     if approve:
@@ -878,6 +923,8 @@ def submit_quote(db: Session, public_id, *, user_id: int, data: dict) -> dict:
             _event(db, r, "in_repair", by_user=user_id, note=":quote_within_limit")
     else:
         _event(db, r, "quote_pending", by_user=user_id)
+        db.refresh(q)
+        approvals.submitted(db, "maintenance_quote", **_approval(db, r, q), actor_user_id=user_id)
         notifications.raise_alert(
             db,
             "maintenance_quote_pending",
@@ -1032,6 +1079,7 @@ def _new_invoice(
                 unit_price=it["unit_price"],
             )
         )
+    approvals.submitted(db, "maintenance_invoice", **_invoice_approval(inv), actor_user_id=actor)
     base = {"center": center.name, "number": inv.number, "total": str(total)}
     notifications.raise_alert(
         db,
@@ -1152,6 +1200,11 @@ def decide_invoice(db: Session, public_id, *, approve: bool, reason: str | None,
         raise AppError(409, "invoice_not_pending")
     if not approve and not reason:
         raise AppError(422, "reason_required")
+    if not approvals.gate(
+        db, "maintenance_invoice", **_invoice_approval(inv), actor_user_id=actor_user_id, approve=approve, reason=reason
+    ):
+        db.commit()  # this step recorded; the invoice waits for the next one
+        return _invoices_out(db, [inv])[0]
     r = db.scalar(select(Request).where(Request.id == inv.request_id).with_for_update()) if inv.request_id else None
     inv.status = "approved" if approve else "rejected"
     inv.decided_by, inv.decided_at, inv.reason = actor_user_id, utcnow(), reason

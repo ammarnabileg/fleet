@@ -311,6 +311,18 @@ def create_manual(db: Session, data: dict, *, actor_user_id: int, **scope) -> di
 # ------------------------------------------------------------------ for finance
 
 
+def approve_run(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
+    from app.modules.payroll import runs
+
+    return runs.approve(db, public_id, actor_user_id=actor_user_id, **scope)
+
+
+def send_back_run(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) -> dict:
+    from app.modules.payroll import runs
+
+    return runs.send_back(db, public_id, reason=reason, actor_user_id=actor_user_id, **scope)
+
+
 def runs_for_posting(db: Session, first: date, last: date) -> dict[str, list[dict]]:
     from app.modules.payroll import runs
 

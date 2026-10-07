@@ -93,7 +93,7 @@ test('an expense from registration to its entry, reversed, exported, and the boo
   await admin.goto('/admin.html#/finance?tab=chart');
   await settled(admin);
   await admin.locator('[data-acc-new]').click();
-  const code = String(7000 + (Number(n) % 1000));
+  const code = '7' + n; // unique across runs on the same database (the slow-mode run reuses it)
   await top().locator('[name=code]').fill(code);
   await top().locator('[name=type]').selectOption('expense');
   await top().locator('[name=name_ar]').fill('حساب ' + n);

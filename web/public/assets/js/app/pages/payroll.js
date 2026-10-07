@@ -204,7 +204,7 @@
           <div class="table-wrap"><table class="t compact"><thead><tr><th>الموظف</th><th class="num">المستحق</th><th class="num">الخصومات</th><th class="num">الصافي</th><th>ملاحظات</th></tr></thead><tbody>${lines.map(function (l) {
             return h`<tr class="clickable" data-line="${l.employee.id}"><td>${A.person(l.employee, l.cells.platform_driver_id || '')}</td><td class="num">${amt(l.gross)}</td><td class="num">${amt(l.deductions)}</td><td class="num"><b>${amt(l.net)}</b></td><td>${flagPills(l.flags)}</td></tr>`;
           })}</tbody></table></div></div>`;
-      })}`;
+      })}<div class="card"><div class="card-b" id="run-approvals"></div></div>`;
   }
   function lineView(run, line, list) {
     var platform = (list || []).find(function (p) { return p.id === line.platform_id; });
@@ -249,12 +249,18 @@
   }
   function wireRun(v, run, list) {
     var reload = function () { A.refreshIfAt('payroll/run/' + run.id); };
+    var trail = document.getElementById('run-approvals');
+    if (A.approvalHistory) A.approvalHistory(trail, 'payroll_run', run.id);
     BT.on(v, 'click', '[data-line]', function (e, tr) { var l = run.lines.find(function (x) { return x.employee.id === tr.getAttribute('data-line'); }); if (l) lineView(run, l, list); });
     function act(id, fn) { var b = v.querySelector('#' + id); if (b) b.onclick = fn; }
     act('run-recompute', function (e) { var b = e.currentTarget; b.classList.add('is-loading'); api.post('/payroll/runs/' + run.id + '/recompute').then(function () { BT.toast('أُعيد الحساب'); reload(); }, function (err) { b.classList.remove('is-loading'); api.fail(err); }); });
     act('run-export', function () { A.download('/payroll/runs/' + run.id + '/export'); });
     act('run-approve', function () {
-      A.confirmRun({ title: 'اعتماد كشف الرواتب', message: 'يُعاد الحساب مرة أخيرة ثم يُقفل الكشف وكشوف المنصات لهذا الشهر، ويصبح كشف الراتب ظاهراً لكل سائق في التطبيق.', confirmText: 'اعتماد', tone: 'success', run: function () { return api.post('/payroll/runs/' + run.id + '/approve'); }, done: 'اعتُمد كشف الرواتب' }).then(function (res) { if (res !== null) reload(); });
+      A.confirmRun({ title: 'اعتماد كشف الرواتب', message: 'يُعاد الحساب مرة أخيرة ثم يُقفل الكشف وكشوف المنصات لهذا الشهر، ويصبح كشف الراتب ظاهراً لكل سائق في التطبيق.', confirmText: 'اعتماد', tone: 'success', run: function () { return api.post('/payroll/runs/' + run.id + '/approve'); } }).then(function (res) {
+        if (!res) return;
+        BT.toast(res.status === 'draft' ? 'سُجّل اعتمادك' : 'اعتُمد كشف الرواتب', res.status === 'draft' ? { sub: 'بانتظار الخطوة التالية من مسار الاعتماد' } : undefined);
+        reload();
+      });
     });
     act('run-reopen', function () {
       A.confirmRun({ title: 'إعادة فتح الكشف', message: 'يعود مسودة وتُفتح كشوف المنصات للشهر. يُسجَّل السبب في سجل التدقيق.', confirmText: 'إعادة فتح', tone: 'danger', reason: { label: 'السبب', required: true }, run: function (reason) { return api.post('/payroll/runs/' + run.id + '/reopen', { reason: reason }); }, done: 'أُعيد فتح الكشف', after: reload });

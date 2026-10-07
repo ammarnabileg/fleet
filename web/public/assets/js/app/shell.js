@@ -32,7 +32,8 @@
       { key: 'payroll', icon: 'banknote', label: 'الرواتب', any: ['payroll.view', 'settings.update'], count: 'payroll' },
       { key: 'employees', icon: 'users', label: 'الموظفون والسائقون', any: ['employees.view'], count: 'onboarding' },
       { key: 'attendance', icon: 'calendar-x', label: 'الغياب والإجازات', any: ['leaves.view'], count: 'leaves' },
-      { key: 'reports', icon: 'chart-column', label: 'التقارير', any: ['reports.view', 'cash.view'] }
+      { key: 'reports', icon: 'chart-column', label: 'التقارير', any: ['reports.view', 'cash.view'] },
+      { key: 'approvals', icon: 'list-checks', label: 'مسارات الاعتماد', any: ['approvals.view'], count: 'approvals', hot: true }
     ] },
     { sec: 'الإدارة', items: [
       { key: 'import', icon: 'file-spreadsheet', label: 'استيراد البيانات', all: IMPORT_PERMS },
@@ -188,6 +189,7 @@
     if (api.can('fines.manage') || api.can('deductions.manage')) jobs.push(api.get('/fines', { status: 'open', limit: 200 }).then(function (r) { A.counts.fines = r.length; }, function () {}));
     if (api.can('accidents.view')) jobs.push(api.get('/accidents', { stage: api.can('accidents.approve') ? 'reported,estimate_pending,awaiting_outcome' : 'reported,estimate_pending', limit: 200 }).then(function (r) { A.counts.accidents = r.length; }, function () {}));
     if (api.can('finance.approve')) jobs.push(api.get('/finance/expenses', { status: 'pending', limit: 200 }).then(function (r) { A.counts.expenses = r.length; }, function () {}));
+    if (api.can('approvals.view')) jobs.push(api.get('/approvals/inbox').then(function (r) { A.counts.approvals = r.length; }, function () {}));
     if (api.can('leaves.approve')) jobs.push(api.get('/leaves', { status: 'pending', limit: 200 }).then(function (r) { A.counts.leaves = r.length; }, function () {}));
     if (api.can('employees.onboarding')) jobs.push(api.get('/onboarding', { status: 'submitted', limit: 200 }).then(function (r) { A.counts.onboarding = r.length; }, function () {}));
     if (api.can('payroll.prepare')) jobs.push(api.get('/payroll/statements/counts').then(function (r) { A.counts.statements = r.submitted; }, function () {}));

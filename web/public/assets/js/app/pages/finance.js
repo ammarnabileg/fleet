@@ -143,9 +143,9 @@
         btns.push({ label: 'رفض', cls: 'btn-outline', icon: 'x', close: false, onClick: act(rejectExpense) });
         btns.push({ label: 'اعتماد', cls: 'btn-primary', icon: 'check', close: false, onClick: act(approveExpense) });
       }
-      BT.drawer.open({
+      var d = BT.drawer.open({
         title: h`مصروف <span class="num">#${e.number}</span> · ${amt(e.amount)}`, subtitle: api.name(e.type.name) + ' · ' + fmt.date(e.expense_date), icon: 'receipt', size: 'lg',
-        body: BT.kv([
+        body: h`${BT.kv([
           ['الحالة', expenseStatus(e)],
           ['الشركة', api.company(e.company_id)],
           ['النوع', api.name(e.type.name)],
@@ -162,13 +162,16 @@
           ['التسجيل', (e.created_by || '') + ' · ' + fmt.dt(e.created_at)],
           e.decided_at ? ['القرار', (e.decided_by || '') + ' · ' + fmt.dt(e.decided_at) + (e.decision_note ? ' · ' + e.decision_note : '')] : null,
           e.cancel_reason ? ['سبب الإلغاء', e.cancel_reason] : null
-        ].filter(Boolean)),
+        ].filter(Boolean))}<div data-approvals></div>`,
         buttons: btns
       });
+      if (A.approvalHistory) A.approvalHistory(d.body.querySelector('[data-approvals]'), 'expense', e.id);
     }, api.fail);
   }
   function approveExpense(e, done) {
-    A.confirmRun({ title: 'اعتماد المصروف', message: 'يدخل القيود عند التوليد التالي.', confirmText: 'اعتماد', tone: 'success', run: function () { return api.post('/finance/expenses/' + e.id + '/approve', {}); }, done: 'اعتُمد المصروف', after: done });
+    A.confirmRun({ title: 'اعتماد المصروف', message: 'يدخل القيود عند التوليد التالي.', confirmText: 'اعتماد', tone: 'success', run: function () { return api.post('/finance/expenses/' + e.id + '/approve', {}); }, after: function (res) {
+      BT.toast(res.status === 'pending' ? 'سُجّل اعتمادك' : 'اعتُمد المصروف', res.status === 'pending' ? { sub: 'بانتظار الخطوة التالية من مسار الاعتماد' } : undefined); done(res);
+    } });
   }
   function rejectExpense(e, done) {
     A.confirmRun({ title: 'رفض المصروف', confirmText: 'رفض', tone: 'danger', reason: { label: 'السبب', required: true }, run: function (reason) { return api.post('/finance/expenses/' + e.id + '/reject', { note: reason }); }, done: 'رُفض المصروف', after: done });

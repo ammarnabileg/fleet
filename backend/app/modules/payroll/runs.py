@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 from app.core.clock import today, utcnow
 from app.core.errors import AppError
 from app.core.events import emit
+from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
 from app.modules.identity import service as identity
 from app.modules.org import service as org
@@ -442,6 +443,7 @@ def prepare(db: Session, *, company_id: int, month: date, actor_user_id: int, al
     db.add(run)
     db.flush()
     _fill(db, run)
+    approvals.submitted(db, "payroll_run", **_approval(run), actor_user_id=actor_user_id)
     audit.record(
         db,
         action="payroll.prepared",
@@ -463,8 +465,19 @@ def recompute(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
     run.prepared_by, run.prepared_at = actor_user_id, utcnow()
     run.version += 1
     _fill(db, run)
+    approvals.submitted(db, "payroll_run", **_approval(run), actor_user_id=actor_user_id, note="recomputed")
     db.commit()
     return detail(db, public_id, **scope)
+
+
+def _approval(run: Run) -> dict:
+    return {
+        "document_id": run.id,
+        "document_key": run.public_id,
+        "document_ref": f"PAY-{run.month:%Y-%m}",
+        "company_id": run.company_id,
+        "amount": Decimal(run.totals["net"]),
+    }
 
 
 def approve(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
@@ -484,6 +497,9 @@ def approve(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
     if blocking:
         db.commit()  # the recomputed lines show what blocks
         raise AppError(409, "run_has_blocking", count=blocking)
+    if not approvals.gate(db, "payroll_run", **_approval(run), actor_user_id=actor_user_id):
+        db.commit()  # this step recorded; the run waits for the next one
+        return detail(db, public_id, **scope)
     run.status, run.approved_by, run.approved_at = "approved", actor_user_id, utcnow()
     run.version += 1
     audit.record(
@@ -510,6 +526,25 @@ def approve(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
     return detail(db, public_id, **scope)
 
 
+def send_back(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) -> dict:
+    """Refused at a step of its approval workflow: it stays a draft, to be corrected and approved again."""
+    run = _run(db, public_id, lock=True, **scope)
+    if run.status != "draft":
+        raise AppError(409, "run_not_draft")
+    approvals.gate(db, "payroll_run", **_approval(run), actor_user_id=actor_user_id, approve=False, reason=reason)
+    audit.record(
+        db,
+        action="payroll.sent_back",
+        entity_type="payroll_run",
+        entity_id=run.public_id,
+        actor_user_id=actor_user_id,
+        company_id=run.company_id,
+        after={"month": run.month, "reason": reason},
+    )
+    db.commit()
+    return detail(db, public_id, **scope)
+
+
 def reopen(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) -> dict:
     run = _run(db, public_id, lock=True, **scope)
     if run.status != "approved":
@@ -519,6 +554,7 @@ def reopen(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
     run.status, run.approved_by, run.approved_at = "draft", None, None
     run.reopened += 1
     run.version += 1
+    approvals.submitted(db, "payroll_run", **_approval(run), actor_user_id=actor_user_id)  # to be approved again
     audit.record(
         db,
         action="payroll.reopened",
