@@ -9,11 +9,11 @@
 
   /* حقل اختيار بالبحث (datalist): يعيد المعرّف من النص المختار */
   A._pick = {};
-  A.picker = function (o) { // {name, label, required, items:[{id, label}], value}
+  A.picker = function (o) { // {name, label, required | optional, items:[{id, label}], value}
     var id = BT.uid('dl');
     A._pick[o.name] = o.items;
     var current = o.value ? (o.items.find(function (x) { return x.id === o.value; }) || {}).label : '';
-    return h`<div class="field${o.full ? ' full' : ''}"><label for="f-${o.name}">${o.label}${o.required ? raw('<span class="req">*</span>') : ''}</label><input class="input" id="f-${o.name}" name="${o.name}" list="${id}" autocomplete="off"${o.required ? raw(' required') : ''} value="${current || ''}" placeholder="${o.placeholder || 'اكتب للبحث…'}" data-validate="picked" data-pick="${o.name}"><datalist id="${id}">${o.items.map(function (x) { return h`<option value="${x.label}"></option>`; })}</datalist>${o.hint ? h`<div class="hint">${o.hint}</div>` : ''}<div class="err-msg"></div></div>`;
+    return h`<div class="field${o.full ? ' full' : ''}"><label for="f-${o.name}">${o.label}${o.required ? raw('<span class="req">*</span>') : o.optional ? raw(' <span class="opt">(اختياري)</span>') : ''}</label><input class="input" id="f-${o.name}" name="${o.name}" list="${id}" autocomplete="off"${o.required ? raw(' required') : ''} value="${current || ''}" placeholder="${o.placeholder || 'اكتب للبحث…'}" data-validate="picked" data-pick="${o.name}"><datalist id="${id}">${o.items.map(function (x) { return h`<option value="${x.label}"></option>`; })}</datalist>${o.hint ? h`<div class="hint">${o.hint}</div>` : ''}<div class="err-msg"></div></div>`;
   };
   A.picked = function (name, text) { var x = (A._pick[name] || []).find(function (i) { return i.label === text; }); return x ? x.id : null; };
   BT.validators.picked = function (v, el) { return A.picked(el.getAttribute('data-pick'), v) ? '' : 'اختر من القائمة'; };

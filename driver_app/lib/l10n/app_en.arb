@@ -363,12 +363,20 @@
   "nationalityPick": "Choose your nationality",
   "searchArEn": "Search in Arabic or English",
   "noMatches": "No matches",
-  "ibanInvalid": "This IBAN is not valid: copy it exactly from your bank's app",
+  "ibanInvalid": "A character in this IBAN is wrong (its check digits do not match): copy it from your bank's app",
   "obFieldsInvalid": "Check these fields: {fields}",
   "@obFieldsInvalid": {
     "placeholders": {
       "fields": {
         "type": "String"
+      }
+    }
+  },
+  "ibanLengthKw": "A Kuwaiti IBAN has 30 characters starting with KW; this one has {count}",
+  "@ibanLengthKw": {
+    "placeholders": {
+      "count": {
+        "type": "int"
       }
     }
   }

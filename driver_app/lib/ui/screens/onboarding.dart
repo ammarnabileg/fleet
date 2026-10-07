@@ -218,7 +218,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final iban = draft['iban'] as String?;
     setState(() {
       _civilError = !_locked('civil_id') && civil != null && !_civilOk.hasMatch(civil) ? l.civilIdInvalid : null;
-      _ibanError = !_locked('iban') && iban != null && !ibanOk(iban) ? l.ibanInvalid : null;
+      _ibanError = _locked('iban') || iban == null || ibanOk(iban)
+          ? null
+          : iban.startsWith('KW') && iban.length != 30
+          ? l.ibanLengthKw(iban.length) // the usual slip: a character missing or one too many
+          : l.ibanInvalid;
     });
     return _civilError == null && _ibanError == null;
   }
@@ -394,7 +398,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         enabled: !_locked('iban'),
         textDirection: TextDirection.ltr,
         textCapitalization: TextCapitalization.characters,
-        inputFormatters: [const LatinDigits(), LengthLimitingTextInputFormatter(42)], // banks show it in groups of 4
+        inputFormatters: const [IbanFormatter()],
         onChanged: (_) => _ibanError == null ? null : setState(() => _ibanError = null),
         decoration: InputDecoration(
           labelText: l.iban,

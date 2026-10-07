@@ -24,6 +24,7 @@ from app.modules.documents import service as documents
 from app.modules.files import service as files
 from app.modules.fleet import service as fleet
 from app.modules.i18n import service as i18n
+from app.modules.identity import service as identity
 from app.modules.integrations import service as integrations
 from app.modules.notifications import service as notifications
 from app.modules.onboarding.models import Submission
@@ -91,11 +92,13 @@ def _file_refs(data: dict) -> list[tuple[str, bool]]:
     return refs
 
 
-def _check_files(db: Session, data: dict, device_id: int) -> None:
-    """Only files this phone uploaded; vehicle and odometer photos from the app's camera."""
+def _check_files(db: Session, data: dict, employee_id: int) -> None:
+    """Only files the driver uploaded, from this phone or one he used before (the draft outlives a reinstalled app or
+    a new phone); vehicle and odometer photos from the app's camera."""
+    mine = identity.device_ids_of(db, employee_id)
     for sha, camera in _file_refs(data):
         info = files.get(db, sha)
-        if info.uploaded_by_device != device_id:
+        if info.uploaded_by_device not in mine:
             raise AppError(422, "file_not_yours")
         if camera and (info.source != "camera" or info.content_type not in files.IMAGES):
             raise AppError(422, "photo_not_from_camera")
@@ -108,14 +111,14 @@ def _without_locked(db: Session, employee_id: int, data: dict) -> dict:
     return {k: v for k, v in data.items() if k not in locked}
 
 
-def save_draft(db: Session, employee_id: int, device_id: int, data: dict) -> dict:
+def save_draft(db: Session, employee_id: int, data: dict) -> dict:
     submission = _get(db, employee_id, lock=True)
     if submission is None or submission.status not in OPEN:
         raise AppError(409, "onboarding_not_open")
     data = _without_locked(db, employee_id, data)
     if data.get("nationality") and not people.is_nationality(data["nationality"]):
         raise AppError(422, "nationality_unknown")  # chosen from the list, never typed
-    _check_files(db, data, device_id)
+    _check_files(db, data, employee_id)
     submission.data, submission.status = data, "draft"
     submission.version += 1
     submission.updated_at = func.now()
@@ -149,7 +152,7 @@ def _missing(db: Session, data: dict, driver: people.EmployeeRef) -> list[str]:
     return sorted(set(missing))
 
 
-def submit(db: Session, employee_id: int, device_id: int) -> dict:
+def submit(db: Session, employee_id: int) -> dict:
     submission = _get(db, employee_id, lock=True)
     if submission is None or submission.status not in OPEN:
         raise AppError(409, "onboarding_not_open")
@@ -157,7 +160,7 @@ def submit(db: Session, employee_id: int, device_id: int) -> dict:
     missing = _missing(db, data, people.ref(db, employee_id))
     if missing:
         raise AppError(422, "onboarding_incomplete", missing=", ".join(missing))
-    _check_files(db, data, device_id)
+    _check_files(db, data, employee_id)
     vehicle = None if data.get("no_vehicle") else data.get("vehicle")
     if vehicle:  # tell the driver now, not days later at review
         found = fleet.vehicle_by_plate(db, vehicle["plate_number"])

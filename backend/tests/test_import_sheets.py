@@ -229,6 +229,21 @@ def test_an_iban_is_checked_and_needs_the_salary_permission(admin_client, new_cl
     assert c2.post(f"{P}/preview", files={"file": ("x.xlsx", good, "x")}).status_code == 403
 
 
+def test_a_nationality_as_the_sheet_writes_it_becomes_the_lists(admin_client, company):
+    data = client_workbook(employees=[(1, int(ALI), "علي", "سائق", "هندي"), (2, int(OMAR), "عمر", "سائق", "Egyptian")])
+    plan = plan_from(preview(admin_client, data), company["id"])
+    plan["sheets"] = [s for s in plan["sheets"] if s["kind"] == "employees"]
+    plan["sheets"][0]["columns"]["nationality"] = 4
+    assert run(admin_client, data, plan, apply=True).json()["applied"]
+    staff = {
+        e["civil_id"]: e["nationality"] for e in admin_client.get("/api/v1/employees", params={"limit": 50}).json()
+    }
+    assert (staff[ALI], staff[OMAR]) == ("الهند", "مصر")
+    bad = client_workbook(employees=[(1, int(SARA), "سارة", "مدير", "مريخية")])
+    errors = run(admin_client, bad, plan).json()["errors"]
+    assert [(e["code"], e["params"]["value"]) for e in errors] == [("nationality_not_matched", "مريخية")]
+
+
 def test_drivers_without_a_phone_get_the_initial_password(admin_client, client, new_client, company, owner_db):
     from sqlalchemy import text
 

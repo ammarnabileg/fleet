@@ -248,7 +248,12 @@ void main() {
         'owner_type': 'employee',
         'owner_id': driver['id'],
         'type_code': 'residence',
-        'expiry_date': DateTime.now().add(const Duration(days: 10)).toIso8601String().substring(0, 10),
+        // in 10 days by Kuwait's calendar, as the server counts (UTC+3: from 21:00 UTC it is already tomorrow there)
+        'expiry_date': DateTime.now()
+            .toUtc()
+            .add(const Duration(days: 10, hours: 3))
+            .toIso8601String()
+            .substring(0, 10),
         'file_sha256': await admin.upload(await jpeg('residence')),
       });
       await state.loadDocuments();

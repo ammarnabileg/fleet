@@ -1,5 +1,7 @@
-"""Nationalities the driver picks from (the app lists them; nothing is typed). Sovereign states and Palestine,
-named after CLDR (ar, en); the employee record keeps the Arabic name, as the office writes it."""
+"""Nationalities picked from a list (the driver's app and the control panel; nothing is typed). Sovereign states and
+Palestine, named after CLDR (ar, en); the employee record keeps the Arabic name, as the office writes it."""
+
+import unicodedata
 
 COUNTRIES: tuple[tuple[str, str, str], ...] = (  # ISO 3166-1 code, Arabic, English
     ("AD", "أندورا", "Andorra"),
@@ -207,4 +209,105 @@ def nationalities() -> list[dict]:
 
 
 def is_nationality(value: str) -> bool:
-    return any(value == ar for _, ar, _ in COUNTRIES)
+    return value in _VALUES
+
+
+# What HR sheets write instead of the country's name, where the regular Arabic form (below) does not give it
+_ALIASES = {
+    "بنغالي": "BD",
+    "بنجالي": "BD",
+    "بنجلاديشي": "BD",
+    "بنجلاديش": "BD",
+    "سيريلانكي": "LK",
+    "سعودي": "SA",
+    "اماراتي": "AE",
+    "امريكي": "US",
+    "بريطاني": "GB",
+    "افغاني": "AF",
+    "نمساوي": "AT",
+    "indian": "IN",
+    "egyptian": "EG",
+    "pakistani": "PK",
+    "bangladeshi": "BD",
+    "bengali": "BD",
+    "nepali": "NP",
+    "nepalese": "NP",
+    "sri lankan": "LK",
+    "filipino": "PH",
+    "syrian": "SY",
+    "jordanian": "JO",
+    "lebanese": "LB",
+    "kuwaiti": "KW",
+    "saudi": "SA",
+    "emirati": "AE",
+    "iraqi": "IQ",
+    "iranian": "IR",
+    "afghan": "AF",
+    "sudanese": "SD",
+    "yemeni": "YE",
+    "palestinian": "PS",
+    "ethiopian": "ET",
+    "kenyan": "KE",
+    "ugandan": "UG",
+    "indonesian": "ID",
+    "chinese": "CN",
+    "american": "US",
+    "british": "GB",
+    "turkish": "TR",
+    "moroccan": "MA",
+    "tunisian": "TN",
+    "algerian": "DZ",
+    "omani": "OM",
+    "qatari": "QA",
+    "bahraini": "BH",
+    "nigerian": "NG",
+    "ghanaian": "GH",
+}
+
+
+def _fold(text: str) -> str:
+    """One spelling: no diacritics or tatweel, one alef (hamza forms), taa marbuta as haa, alef maqsura as yaa,
+    lower case, single spaces."""
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(c for c in text if not unicodedata.combining(c) and c != chr(0x0640))
+    return " ".join(text.replace("ة", "ه").replace("ى", "ي").lower().split())
+
+
+def _demonym(ar: str) -> str | None:
+    """The regular Arabic adjective: الهند → هندي, سوريا → سوري, سريلانكا → سريلانكي."""
+    name = _fold(ar)
+    if " " in name:
+        return None
+    name = name.removeprefix("ال")
+    for end in ("يا", "ا", "ه"):
+        if name.endswith(end):
+            name = name[: -len(end)]
+            break
+    return name + "ي"
+
+
+def _index() -> dict[str, str]:
+    by_code = {code: ar for code, ar, _ in COUNTRIES}
+    index: dict[str, str] = {}
+    demonyms: dict[str, set[str]] = {}
+    for _, ar, en in COUNTRIES:
+        for key in (_fold(ar), _fold(ar).removeprefix("ال"), _fold(en)):
+            index[key] = ar
+        if adjective := _demonym(ar):
+            demonyms.setdefault(adjective, set()).add(ar)
+    index |= {k: next(iter(v)) for k, v in demonyms.items() if len(v) == 1 and k not in index}  # never a guess
+    index |= {_fold(alias): by_code[code] for alias, code in _ALIASES.items()}
+    return index
+
+
+_VALUES = {ar for _, ar, _ in COUNTRIES}
+_INDEX = _index()
+
+
+def match(text: str) -> str | None:
+    """The list's value for what a sheet says: the country's name in Arabic or English, or its adjective ("هندي",
+    "مصرية", "Indian"). None when it is not clear."""
+    key = _fold(text)
+    if key.endswith("يه"):  # the feminine adjective: هندية → هندي
+        key = key[:-1]
+    return _INDEX.get(key)

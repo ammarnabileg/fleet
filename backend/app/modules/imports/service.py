@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import today
 from app.core.errors import AppError
-from app.core.types import iban_ok
+from app.core.types import clean_iban, iban_ok
 from app.modules.audit import service as audit
 from app.modules.cash import service as cash
 from app.modules.documents import service as documents
@@ -408,7 +408,9 @@ def _mapped_person(db: Session, sheet: str, number: int, row: dict, ctx: dict) -
     if job:
         data["job_title"] = job
     if _cell(row, "nationality"):
-        data["nationality"] = _cell(row, "nationality")
+        data["nationality"] = people.match_nationality(_cell(row, "nationality"))  # "هندي", "India" → الهند
+        if data["nationality"] is None:
+            raise _RowError("nationality_not_matched", value=_cell(row, "nationality"))
     phone = None
     if _cell(row, "phone"):
         phone = wb.parse_phone(row["phone"])
@@ -416,7 +418,7 @@ def _mapped_person(db: Session, sheet: str, number: int, row: dict, ctx: dict) -
             raise _RowError("invalid_phone", value=_cell(row, "phone"))
         data["phone"] = phone
     if _cell(row, "iban"):
-        iban = _cell(row, "iban").replace(" ", "").upper()
+        iban = clean_iban(_cell(row, "iban"))
         if not iban_ok(iban):
             raise _RowError("invalid_iban", value=iban)
         if ctx["can_set_salary"]:

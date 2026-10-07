@@ -235,6 +235,15 @@ def test_files_must_come_from_this_phone_and_vehicle_photos_from_its_camera(admi
     assert r.status_code == 415  # the camera gives images only
 
 
+def test_the_draft_survives_a_reinstalled_app_or_a_new_phone(admin_client, client, setup):
+    h = setup["h"]
+    draft = full_draft(client, h, "45678")
+    save(client, h, draft)  # photos taken on the first install
+    h2, _ = activate(admin_client, client, setup["driver"])  # the app reinstalled: a new device, the old one revoked
+    assert save(client, h2, draft)["data"]["vehicle"]["photos"] == draft["vehicle"]["photos"]
+    assert client.post("/api/v1/driver/onboarding/submit", headers=h2).status_code == 200
+
+
 def test_the_vehicle_is_checked_when_the_driver_submits(admin_client, client, setup, company):
     h = setup["h"]
     save(client, h, full_draft(client, h, "99 999"))

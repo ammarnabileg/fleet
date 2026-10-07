@@ -761,12 +761,20 @@
   "nationalityPick": "اختر الجنسية",
   "searchArEn": "ابحث بالعربي أو الإنجليزي",
   "noMatches": "لا توجد نتائج",
-  "ibanInvalid": "رقم الآيبان غير صحيح: انسخه كما هو من تطبيق البنك",
+  "ibanInvalid": "في الآيبان حرف أو رقم غلط (أرقام التحقق لا تطابق): انسخه من تطبيق البنك",
   "obFieldsInvalid": "راجع هذه الخانات: {fields}",
   "@obFieldsInvalid": {
     "placeholders": {
       "fields": {
         "type": "String"
+      }
+    }
+  },
+  "ibanLengthKw": "الآيبان الكويتي 30 خانة تبدأ بـ KW، والمكتوب هنا {count}",
+  "@ibanLengthKw": {
+    "placeholders": {
+      "count": {
+        "type": "int"
       }
     }
   }

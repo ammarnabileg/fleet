@@ -40,6 +40,23 @@ String latinDigits(String text) => text.replaceAllMapped(RegExp('[٠-٩۰-۹]'),
   return String.fromCharCode(0x30 + c - (c >= 0x06F0 ? 0x06F0 : 0x0660));
 });
 
+/// The IBAN as typed or pasted: only its letters and digits, upper case (a banking app's copy brings spaces, dashes
+/// and invisible direction marks), at most 34 characters.
+class IbanFormatter extends TextInputFormatter {
+  const IbanFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    var text = latinDigits(newValue.text).toUpperCase().replaceAll(RegExp('[^A-Z0-9]'), '');
+    if (text.length > 34) text = text.substring(0, 34);
+    if (text == newValue.text) return newValue;
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
 class LatinDigits extends TextInputFormatter {
   const LatinDigits();
 

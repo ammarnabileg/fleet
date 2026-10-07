@@ -42,6 +42,12 @@ class StatusUpdateIn(BaseModel):
     sort_order: int | None = Field(None, ge=0, le=10000)
 
 
+class NationalityOut(BaseModel):
+    value: str  # what the record keeps
+    ar: str
+    en: str
+
+
 class EmployeeIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

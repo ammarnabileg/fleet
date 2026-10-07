@@ -26,12 +26,12 @@ def save_draft(
     body: schemas.Draft, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
 ):
     """Saved as the driver goes; gaps are fine until he submits."""
-    return service.save_draft(db, device.employee_id, device.device_id, body.model_dump(mode="json"))
+    return service.save_draft(db, device.employee_id, body.model_dump(mode="json"))
 
 
 @router.post("/driver/onboarding/submit", response_model=schemas.DriverView)
 def submit(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
-    return service.submit(db, device.employee_id, device.device_id)
+    return service.submit(db, device.employee_id)
 
 
 # ---- review

@@ -1224,10 +1224,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noMatches => 'No matches';
 
   @override
-  String get ibanInvalid => 'This IBAN is not valid: copy it exactly from your bank\'s app';
+  String get ibanInvalid =>
+      'A character in this IBAN is wrong (its check digits do not match): copy it from your bank\'s app';
 
   @override
   String obFieldsInvalid(String fields) {
     return 'Check these fields: $fields';
+  }
+
+  @override
+  String ibanLengthKw(int count) {
+    return 'A Kuwaiti IBAN has 30 characters starting with KW; this one has $count';
   }
 }

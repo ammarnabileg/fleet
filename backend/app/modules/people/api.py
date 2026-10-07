@@ -21,6 +21,12 @@ def list_statuses(_: Principal = Depends(get_principal), db: Session = Depends(g
     return service.list_statuses(db)
 
 
+@router.get("/nationalities", response_model=list[schemas.NationalityOut])
+def list_nationalities(_: Principal = Depends(get_principal)):
+    """The list the employee form picks from (the same one the driver's app shows)."""
+    return service.nationalities()
+
+
 @router.post("/employment-statuses", response_model=schemas.StatusOut, status_code=201)
 def create_status(
     body: schemas.StatusIn,

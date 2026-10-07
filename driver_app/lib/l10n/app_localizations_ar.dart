@@ -1218,10 +1218,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get noMatches => 'لا توجد نتائج';
 
   @override
-  String get ibanInvalid => 'رقم الآيبان غير صحيح: انسخه كما هو من تطبيق البنك';
+  String get ibanInvalid => 'في الآيبان حرف أو رقم غلط (أرقام التحقق لا تطابق): انسخه من تطبيق البنك';
 
   @override
   String obFieldsInvalid(String fields) {
     return 'راجع هذه الخانات: $fields';
+  }
+
+  @override
+  String ibanLengthKw(int count) {
+    return 'الآيبان الكويتي 30 خانة تبدأ بـ KW، والمكتوب هنا $count';
   }
 }

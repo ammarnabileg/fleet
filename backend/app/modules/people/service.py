@@ -295,6 +295,7 @@ def create_employee(
     if not can_set_salary and any(data.get(f) is not None for f in SALARY_FIELDS):
         raise AppError(403, "permission_denied", permission="employees.view_salary")
     _check_company(db, data["company_id"], **scope)
+    _check_nationality(data.get("nationality"))
     data = {**data, "name": i18n.validate_localized(db, data["name"])}
     data["branch_id"] = data.get("branch_id") or org.default_branch_id(db)
     _check_branch(db, data["branch_id"])
@@ -342,6 +343,7 @@ def update_employee(
     if salary_changes and not can_set_salary:
         raise AppError(403, "permission_denied", permission="employees.view_salary")
     before = _snapshot(employee)
+    _check_nationality(changes.get("nationality"), employee.nationality)
     if "name" in changes:
         changes["name"] = i18n.validate_localized(db, changes["name"])
     if "company_id" in changes and changes["company_id"] != employee.company_id:
@@ -487,6 +489,17 @@ def nationalities() -> list[dict]:
 
 def is_nationality(value: str) -> bool:
     return countries.is_nationality(value)
+
+
+def match_nationality(text: str) -> str | None:
+    """The list's value for a nationality as a sheet writes it ("هندي", "India"), or None."""
+    return countries.match(text)
+
+
+def _check_nationality(value: str | None, current: str | None = None) -> None:
+    """Picked from the list; a value already on the record before the list stays until someone changes it."""
+    if value and value != current and not countries.is_nationality(value):
+        raise AppError(422, "nationality_unknown")
 
 
 def registration_known(db: Session, employee_id: int) -> dict:

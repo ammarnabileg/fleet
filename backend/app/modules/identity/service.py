@@ -39,7 +39,7 @@ from app.modules.identity.devices import (  # noqa: F401  (driver devices, used 
     set_push_token,
     verify_otp,
 )
-from app.modules.identity.models import Role, RolePermission, User, UserCompany, UserRole
+from app.modules.identity.models import Device, Role, RolePermission, User, UserCompany, UserRole
 from app.modules.identity.models import Session as UserSession
 from app.modules.org import service as org
 
@@ -690,6 +690,11 @@ def update_role(db: Session, principal: Principal, code: str, *, version: int, c
     )
     db.commit()
     return after
+
+
+def device_ids_of(db: Session, employee_id: int) -> set[int]:
+    """Every phone the driver has used, signed out or replaced ones too (what it uploaded is still his)."""
+    return set(db.scalars(select(Device.id).where(Device.employee_id == employee_id)))
 
 
 def user_id(db: Session, public_id) -> int:

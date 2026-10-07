@@ -224,6 +224,7 @@
     "nothing_to_review": "Nothing to review",
     "onboarding_incomplete": "Missing: {missing}",
     "onboarding_not_found": "Registration not found",
+    "nationality_not_matched": "Nationality “{value}” is not in the list: write the country (such as India or الهند) or leave it empty",
     "nationality_unknown": "Choose the nationality from the list",
     "onboarding_not_open": "Your data is under review and cannot be changed now",
     "onboarding_not_submitted": "This registration is not waiting for review",

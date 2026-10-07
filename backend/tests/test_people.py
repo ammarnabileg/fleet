@@ -140,3 +140,33 @@ def test_search_by_number_name_or_phone(admin_client, company):
         found = admin_client.get("/api/v1/employees", params={"q": q}).json()
         assert [e["id"] for e in found] == [d["id"]], q
     assert admin_client.get("/api/v1/employees", params={"q": "%"}).json() == []
+
+
+def test_the_nationality_is_picked_from_the_list(admin_client, new_client, company, db):
+    listed = admin_client.get("/api/v1/nationalities").json()
+    assert {"value": "الهند", "ar": "الهند", "en": "India"} in listed and len(listed) > 190
+    assert new_client().get("/api/v1/nationalities").status_code == 401
+    base = {"employee_number": "N1", "name": name("ن", "N"), "company_id": company["id"]}
+    r = admin_client.post("/api/v1/employees", json=base | {"nationality": "هندي"})  # typed, not picked
+    assert r.status_code == 422 and r.json()["code"] == "nationality_unknown"
+    e = make_employee(admin_client, company["id"], nationality="الهند")
+    db.execute(
+        text("UPDATE people.employees SET nationality = 'هندي' WHERE employee_number = :n"), {"n": e["employee_number"]}
+    )
+    db.commit()  # written before the list
+    e = admin_client.get(f"/api/v1/employees/{e['id']}").json()
+    r = admin_client.patch(
+        f"/api/v1/employees/{e['id']}", json={"version": e["version"], "nationality": "هندي", "department": "x"}
+    )
+    assert r.status_code == 200 and r.json()["nationality"] == "هندي"  # kept until someone changes it
+    r = admin_client.patch(f"/api/v1/employees/{e['id']}", json={"version": r.json()["version"], "nationality": "مصري"})
+    assert r.status_code == 422 and r.json()["code"] == "nationality_unknown"
+    r = admin_client.patch(f"/api/v1/employees/{e['id']}", json={"version": e["version"] + 1, "nationality": "مصر"})
+    assert r.status_code == 200 and r.json()["nationality"] == "مصر"
+
+
+def test_an_iban_copied_from_a_banking_app_is_cleaned(admin_client, company):
+    lrm, nbsp = chr(0x200E), chr(0xA0)
+    copied = f"{lrm}kw81{nbsp}CBKU-0000 0000 0000 1234 5601 01{lrm}"
+    e = make_employee(admin_client, company["id"], iban=copied)
+    assert e["iban"] == "KW81CBKU0000000000001234560101"

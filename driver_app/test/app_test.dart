@@ -957,7 +957,10 @@ void main() {
     expect(find.byKey(const Key('nat-Egypt')), findsNothing);
     await tester.tap(find.byKey(const Key('nat-India')));
     await settle(tester);
-    await tester.enterText(find.byKey(const Key('iban')), 'kw81 cbku 0000 0000 0000 1234 5601 01');
+    // as a banking app copies it: invisible direction marks, a no-break space, dashes
+    final lrm = String.fromCharCode(0x200E), nbsp = String.fromCharCode(0xA0);
+    await tester.enterText(find.byKey(const Key('iban')), '${lrm}kw81${nbsp}cbku-0000 0000 0000 1234 5601 01$lrm');
+    expect(tester.widget<TextField>(find.byKey(const Key('iban'))).controller!.text, 'KW81CBKU0000000000001234560101');
     await tester.enterText(find.byKey(const Key('bank')), 'بنك الكويت الوطني');
     await shot(tester, '09-onboarding-data');
     Future<void> next() async {
@@ -1116,9 +1119,13 @@ void main() {
     await tester.tap(find.byKey(const Key('ob-next')));
     await idle(tester);
     expect(find.text('الرقم المدني 12 رقماً'), findsOneWidget);
-    expect(find.text('رقم الآيبان غير صحيح: انسخه كما هو من تطبيق البنك'), findsOneWidget);
+    expect(find.text('في الآيبان حرف أو رقم غلط (أرقام التحقق لا تطابق): انسخه من تطبيق البنك'), findsOneWidget);
     expect(w.server.calls('/api/v1/driver/onboarding', method: 'PUT'), isEmpty, reason: 'nothing sent');
     await shot(tester, '38-onboarding-field-errors');
+    await tester.enterText(find.byKey(const Key('iban')), 'KW81CBKU000000000000123456010'); // one character short
+    await tester.tap(find.byKey(const Key('ob-next')));
+    await idle(tester);
+    expect(find.text('الآيبان الكويتي 30 خانة تبدأ بـ KW، والمكتوب هنا 29'), findsOneWidget);
     await tester.enterText(find.byKey(const Key('civil')), '290010112399');
     await tester.enterText(find.byKey(const Key('iban')), 'KW81CBKU0000000000001234560101');
     await tester.tap(find.byKey(const Key('ob-next')));

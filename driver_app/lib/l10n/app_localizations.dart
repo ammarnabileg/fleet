@@ -2273,7 +2273,7 @@ abstract class AppLocalizations {
   /// No description provided for @ibanInvalid.
   ///
   /// In ar, this message translates to:
-  /// **'رقم الآيبان غير صحيح: انسخه كما هو من تطبيق البنك'**
+  /// **'في الآيبان حرف أو رقم غلط (أرقام التحقق لا تطابق): انسخه من تطبيق البنك'**
   String get ibanInvalid;
 
   /// No description provided for @obFieldsInvalid.
@@ -2281,6 +2281,12 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'راجع هذه الخانات: {fields}'**
   String obFieldsInvalid(String fields);
+
+  /// No description provided for @ibanLengthKw.
+  ///
+  /// In ar, this message translates to:
+  /// **'الآيبان الكويتي 30 خانة تبدأ بـ KW، والمكتوب هنا {count}'**
+  String ibanLengthKw(int count);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

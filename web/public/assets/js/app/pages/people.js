@@ -399,10 +399,19 @@
   }
 
   /* ================= إضافة / تعديل موظف ================= */
+  /* the nationality list, the same one the driver's app shows (read once) */
+  var nationalities = null;
+  A.nationalities = function () { return nationalities ? Promise.resolve(nationalities) : api.get('/nationalities').then(function (r) { nationalities = r; return r; }); };
+  function nationalityItems(current) {
+    var items = nationalities.map(function (n) { return { id: n.value, label: n.ar + ' — ' + n.en }; });
+    if (current && !items.some(function (x) { return x.id === current; })) items.unshift({ id: current, label: current }); // written before the list: kept until changed
+    return items;
+  }
+
   BT.actions['employee-new'] = function () { A.employeeForm(null, function (e) { if (A.refreshEmployees) A.refreshEmployees(); A.employee(e.id); }); };
   A.employeeForm = function (e, after) {
     var salary = api.can('employees.view_salary'), plats = [];
-    Promise.all([loadStatuses(), A.platforms ? A.platforms().catch(function () { return []; }) : []]).then(function (r) {
+    Promise.all([loadStatuses(), A.platforms ? A.platforms().catch(function () { return []; }) : [], A.nationalities()]).then(function (r) {
       plats = r[1] || [];
       var editing = !!e;
       e = e || { name: {}, is_driver: true, company_id: (api.companyOptions()[0] || {}).v, branch_id: api.defaultBranch() };
@@ -418,7 +427,7 @@
           ${BT.f.input({ name: 'civil_id', label: 'الرقم المدني', optional: true, value: e.civil_id, validate: 'civilId', maxlength: 12 })}
           ${BT.f.select({ name: 'company_id', label: 'الشركة (على أوراقها)', required: true, value: e.company_id, options: api.companyOptions(), placeholder: false })}
           ${BT.f.select({ name: 'branch_id', label: 'الفرع', required: true, value: e.branch_id, options: api.branchOptions(), placeholder: false })}
-          ${BT.f.input({ name: 'nationality', label: 'الجنسية', optional: true, value: e.nationality })}
+          ${A.picker({ name: 'nationality', label: 'الجنسية', optional: true, value: e.nationality, items: nationalityItems(e.nationality), placeholder: 'اكتب للبحث: الهند أو India…' })}
           ${BT.f.date({ name: 'hire_date', label: 'تاريخ الالتحاق', optional: true, value: e.hire_date })}
           ${BT.f.input({ name: 'department', label: 'القسم', optional: true, value: e.department })}
           ${BT.f.input({ name: 'job_title', label: 'الوظيفة', optional: true, value: e.job_title })}
@@ -431,7 +440,7 @@
           var body = {
             employee_number: v.employee_number.trim(), name: Object.assign({}, e.name, { ar: v.name_ar.trim(), en: v.name_en.trim() }),
             is_driver: !!v.is_driver, phone: A.phoneE164(v.phone), civil_id: v.civil_id || null,
-            company_id: +v.company_id, branch_id: +v.branch_id, nationality: v.nationality || null, hire_date: v.hire_date || null,
+            company_id: +v.company_id, branch_id: +v.branch_id, nationality: v.nationality ? A.picked('nationality', v.nationality) : null, hire_date: v.hire_date || null,
             department: v.department || null, job_title: v.job_title || null,
             platform_id: v.platform_id ? +v.platform_id : null, platform_driver_id: v.platform_driver_id ? v.platform_driver_id.trim() : null
           };
