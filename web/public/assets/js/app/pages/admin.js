@@ -523,9 +523,9 @@
     function entity(code) { var t = api.t('audit_entity', code); return t && t.indexOf('audit_entity.') !== 0 ? t : code; }
     function actor(e) { return e.actor_type === 'user' ? (e.actor_name || '#' + e.actor_user_id) : api.t('audit_actor', e.actor_type); }
     function query() { var q = {}; Object.keys(filters).forEach(function (k) { if (filters[k]) q[k] = filters[k]; }); return q; }
-    BT.render(v, h`${A.head('سجل التدقيق', 'من غيّر ماذا ومتى ومن أي عنوان: لا يُعدَّل ولا يُحذف', h`<div class="btn-group">
+    BT.render(v, h`${A.head('سجل التدقيق', 'من غيّر ماذا ومتى ومن أي عنوان: لا يُعدَّل ولا يُحذف', api.can('audit.export') ? h`<div class="btn-group">
         <button type="button" class="btn btn-outline" data-audit-export="xlsx">${icon('file-spreadsheet', 16)} Excel</button>
-        <button type="button" class="btn btn-ghost" data-audit-export="csv">CSV</button></div>`)}
+        <button type="button" class="btn btn-ghost" data-audit-export="csv">CSV</button></div>` : '')}
       <div class="card"><div id="audit-table"></div></div>`);
     A.load(document.getElementById('audit-table'), api.get('/audit/users'), function () { return ''; }).then(function (users) {
       var el = document.getElementById('audit-table');

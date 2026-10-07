@@ -69,7 +69,7 @@ def export_audit(
     filters: dict = Depends(_filters),
     format: Literal["xlsx", "csv"] = "xlsx",
     accept_language: str | None = Header(None),
-    principal: Principal = Depends(require_permission("audit.view")),
+    principal: Principal = Depends(require_permission("audit.export")),
     db: Session = Depends(get_session),
 ):
     """The matching events as Excel in the user's language, or CSV with the column keys for other systems."""

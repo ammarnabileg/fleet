@@ -123,7 +123,7 @@ def test_search_by_who_by_kuwait_days_and_by_action_then_export(admin_client, ne
     assert ",employee," in csv_rows.splitlines()[1]
 
     # a company-limited auditor exports his companies only; and an export too large is refused, not cut short
-    make_user(admin_client, "auditor_b", permissions=["audit.view"], company_ids=[b])
+    make_user(admin_client, "auditor_b", permissions=["audit.view", "audit.export"], company_ids=[b])
     c = new_client()
     login(c, "auditor_b")
     r = c.get("/api/v1/audit/export", params=span | {"format": "csv"})
@@ -133,7 +133,13 @@ def test_search_by_who_by_kuwait_days_and_by_action_then_export(admin_client, ne
     monkeypatch.setattr(audit_service, "EXPORT_MAX", 2)
     r = admin_client.get("/api/v1/audit/export", params=span)
     assert r.status_code == 422 and r.json()["code"] == "export_too_large"
-    # who may: audit.view
+    # who may: audit.view to search, audit.export to export
+    make_user(admin_client, "viewer", permissions=["audit.view"])
+    c = new_client()
+    login(c, "viewer")
+    assert c.get("/api/v1/audit", params=span).status_code == 200
+    r = c.get("/api/v1/audit/export", params=span)
+    assert r.status_code == 403 and r.json()["params"]["permission"] == "audit.export"
     make_user(admin_client, "no_audit", permissions=["employees.view"])
     c = new_client()
     login(c, "no_audit")
