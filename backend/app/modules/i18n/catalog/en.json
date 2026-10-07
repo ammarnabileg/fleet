@@ -224,6 +224,7 @@
     "nothing_to_review": "Nothing to review",
     "onboarding_incomplete": "Missing: {missing}",
     "onboarding_not_found": "Registration not found",
+    "nationality_unknown": "Choose the nationality from the list",
     "onboarding_not_open": "Your data is under review and cannot be changed now",
     "onboarding_not_submitted": "This registration is not waiting for review",
     "opening_balance_exists": "The driver already has a different opening balance: use an adjustment",

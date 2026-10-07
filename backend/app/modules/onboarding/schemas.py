@@ -59,7 +59,26 @@ class DocumentTypeOut(BaseModel):
     requires_expiry: bool
 
 
+class Known(BaseModel):
+    name: dict[str, str]
+    employee_number: str
+    phone: str | None
+    civil_id: str | None
+    nationality: str | None
+    bank_name: str | None
+    iban_last4: str | None
+    locked: list[str]  # filled by the office: shown, not editable
+
+
+class Nationality(BaseModel):
+    value: str  # what is saved
+    ar: str
+    en: str
+
+
 class DriverView(BaseModel):
+    known: Known
+    nationalities: list[Nationality]
     required: bool  # the app shows the registration screens
     status: str  # none / draft / submitted / approved / rejected
     data: dict

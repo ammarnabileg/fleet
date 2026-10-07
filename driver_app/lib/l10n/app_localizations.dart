@@ -2239,6 +2239,48 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'لا توجد إشعارات بعد'**
   String get noticesNone;
+
+  /// No description provided for @nameLabel.
+  ///
+  /// In ar, this message translates to:
+  /// **'الاسم'**
+  String get nameLabel;
+
+  /// No description provided for @obOnFile.
+  ///
+  /// In ar, this message translates to:
+  /// **'الخانات المقفولة مسجّلة لدى الشركة. لو فيها خطأ كلّم المكتب يعدّلها.'**
+  String get obOnFile;
+
+  /// No description provided for @nationalityPick.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختر الجنسية'**
+  String get nationalityPick;
+
+  /// No description provided for @searchArEn.
+  ///
+  /// In ar, this message translates to:
+  /// **'ابحث بالعربي أو الإنجليزي'**
+  String get searchArEn;
+
+  /// No description provided for @noMatches.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد نتائج'**
+  String get noMatches;
+
+  /// No description provided for @ibanInvalid.
+  ///
+  /// In ar, this message translates to:
+  /// **'رقم الآيبان غير صحيح: انسخه كما هو من تطبيق البنك'**
+  String get ibanInvalid;
+
+  /// No description provided for @obFieldsInvalid.
+  ///
+  /// In ar, this message translates to:
+  /// **'راجع هذه الخانات: {fields}'**
+  String obFieldsInvalid(String fields);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

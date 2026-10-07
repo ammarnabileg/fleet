@@ -394,6 +394,8 @@ void main() {
         'company_id': company,
         'is_driver': true,
         'phone': '+9656${n.toString().padLeft(7, '0')}',
+        'iban': 'KW81CBKU0000000000001234560101', // the office has his bank already
+        'bank_name': 'NBK',
       });
       await admin.call('PUT', '/employees/${driver['id']}/app-access', {'app_access': 'active'});
       final vehicle = await admin.call('POST', '/vehicles', {
@@ -412,14 +414,22 @@ void main() {
       await state.activate(AppState.activationToken(Uri.parse(link['url'] as String))!);
       expect(state.phase, Phase.onboarding);
       final ob = state.onboarding!;
+      // what the office has comes back locked (the IBAN by its last four digits), the nationality list with it
+      expect(
+        (ob.known.label('ar'), ob.known.employeeNumber, ob.known.ibanLast4, ob.known.bankName),
+        ('سائق جديد', 'R$n', '0101', 'NBK'),
+      );
+      expect(ob.known.locked, ['iban', 'bank_name']);
+      final india = ob.nationalities.firstWhere((x) => x.en == 'India');
 
       // the payload exactly as the registration screen builds it
       Future<String> up(String name, String source) async =>
           (await state.api.upload((await jpeg(name)).path, source: source))['sha256'] as String;
       final draft = {
         'civil_id': '2900101${n.toString().padLeft(5, '0').substring(0, 5)}',
-        'nationality': 'India',
-        if (ob.requireBank) ...{'iban': 'KW81CBKU0000000000001234560101', 'bank_name': 'NBK'},
+        'nationality': india.value,
+        'iban': null, // locked: the screen sends nothing for them
+        'bank_name': null,
         'documents': [
           for (final code in ob.requiredDocuments)
             {
@@ -449,6 +459,7 @@ void main() {
       expect(mine['plate_number'], '88/$n');
       final detail = await admin.call('GET', '/onboarding/${mine['id']}');
       expect((detail['vehicle']['found'], detail['vehicle']['id']), (true, vehicle['id']));
+      expect(detail['data']['nationality'], india.value);
     },
     skip: backend == null ? 'set BACKEND_URL to run against a real backend' : null,
     timeout: const Timeout(Duration(minutes: 2)),

@@ -62,6 +62,8 @@ def for_driver(db: Session, employee_id: int) -> dict:
     types = {t["code"]: t for t in documents.list_types(db) if t["applies_to"] == "employee"}
     schemes = payroll.offered_schemes(db, people.ref(db, employee_id).platform_id)
     return {
+        "known": people.registration_known(db, employee_id),
+        "nationalities": people.nationalities(),
         "schemes": schemes,
         "scheme_required": bool(schemes),
         "required": submission is not None and submission.status in OPEN,
@@ -99,10 +101,20 @@ def _check_files(db: Session, data: dict, device_id: int) -> None:
             raise AppError(422, "photo_not_from_camera")
 
 
+def _without_locked(db: Session, employee_id: int, data: dict) -> dict:
+    """The office's values win: what is already on his record is not his to change (approval fills empty fields only,
+    and the reviewer should not see a value that will not apply)."""
+    locked = people.registration_known(db, employee_id)["locked"]
+    return {k: v for k, v in data.items() if k not in locked}
+
+
 def save_draft(db: Session, employee_id: int, device_id: int, data: dict) -> dict:
     submission = _get(db, employee_id, lock=True)
     if submission is None or submission.status not in OPEN:
         raise AppError(409, "onboarding_not_open")
+    data = _without_locked(db, employee_id, data)
+    if data.get("nationality") and not people.is_nationality(data["nationality"]):
+        raise AppError(422, "nationality_unknown")  # chosen from the list, never typed
     _check_files(db, data, device_id)
     submission.data, submission.status = data, "draft"
     submission.version += 1
@@ -113,6 +125,7 @@ def save_draft(db: Session, employee_id: int, device_id: int, data: dict) -> dic
 
 def _missing(db: Session, data: dict, driver: people.EmployeeRef) -> list[str]:
     settings = org.get_section(db, "onboarding")
+    locked = people.registration_known(db, driver.id)["locked"]
     types = documents.employee_type_codes(db)
     docs = {d["type_code"]: d for d in data.get("documents") or ()}
     for code in docs:
@@ -124,7 +137,7 @@ def _missing(db: Session, data: dict, driver: people.EmployeeRef) -> list[str]:
             missing.append(f"document.{code}")
     missing += [f"document.{code}" for code in settings.required_documents if code in types and code not in docs]
     if settings.require_bank:
-        missing += [f for f in ("iban", "bank_name") if not data.get(f)]
+        missing += [f for f in ("iban", "bank_name") if not data.get(f) and f not in locked]
     offered = {s["id"] for s in payroll.offered_schemes(db, driver.platform_id)}
     if offered and data.get("scheme_id") not in offered:
         missing.append("scheme")  # his platform's schemes: he chooses one (the office decides at the review)
@@ -140,7 +153,7 @@ def submit(db: Session, employee_id: int, device_id: int) -> dict:
     submission = _get(db, employee_id, lock=True)
     if submission is None or submission.status not in OPEN:
         raise AppError(409, "onboarding_not_open")
-    data = submission.data
+    data = submission.data = _without_locked(db, employee_id, submission.data)  # the office may have filled some since
     missing = _missing(db, data, people.ref(db, employee_id))
     if missing:
         raise AppError(422, "onboarding_incomplete", missing=", ".join(missing))
@@ -228,7 +241,10 @@ def list_submissions(
 def detail(db: Session, public_id, **scope) -> dict:
     s = _row(db, public_id, **scope)
     driver = people.ref(db, s.employee_id)
-    out = _out(s, people.names(db, [s.employee_id])) | {"phone": driver.phone, "data": s.data, "vehicle": None}
+    # the reviewer sees what the record will hold: the office's values where the driver had nothing to fill
+    known = people.registration_known(db, s.employee_id)
+    data = s.data | {f: known[f] for f in ("civil_id", "nationality", "bank_name") if f in known["locked"]}
+    out = _out(s, people.names(db, [s.employee_id])) | {"phone": driver.phone, "data": data, "vehicle": None}
     vehicle = None if s.data.get("no_vehicle") else s.data.get("vehicle")
     if vehicle and vehicle.get("plate_number"):
         found = fleet.vehicle_by_plate(db, vehicle["plate_number"])

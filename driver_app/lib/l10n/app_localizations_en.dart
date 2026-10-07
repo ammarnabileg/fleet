@@ -1207,4 +1207,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noticesNone => 'No notifications yet';
+
+  @override
+  String get nameLabel => 'Name';
+
+  @override
+  String get obOnFile => 'Locked fields are on file with the company. If one is wrong, ask the office to correct it.';
+
+  @override
+  String get nationalityPick => 'Choose your nationality';
+
+  @override
+  String get searchArEn => 'Search in Arabic or English';
+
+  @override
+  String get noMatches => 'No matches';
+
+  @override
+  String get ibanInvalid => 'This IBAN is not valid: copy it exactly from your bank\'s app';
+
+  @override
+  String obFieldsInvalid(String fields) {
+    return 'Check these fields: $fields';
+  }
 }

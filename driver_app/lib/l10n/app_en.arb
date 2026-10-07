@@ -14,7 +14,7 @@
   "km": "km",
   "signInTitle": "Sign in",
   "signInHint": "Enter your phone number registered with the company. The sign-in code arrives on WhatsApp.",
-  "phoneLabel": "Phone number",
+  "phoneLabel": "Phone",
   "phoneInvalid": "8 Kuwaiti digits, or an international number starting with +",
   "sendCode": "Send code",
   "activationTip": "If you received an activation link on WhatsApp, open it on this phone: no code needed.",
@@ -117,8 +117,6 @@
   "vehicleChangeRejected": "Your request for another vehicle was refused: {note}",
   "profileTitle": "My details",
   "employeeNumber": "Employee no.",
-  "phoneLabel": "Phone",
-  "civilId": "Civil ID",
   "companyLabel": "Company",
   "platformLabel": "Platform",
   "bankLabel": "Bank",
@@ -359,5 +357,19 @@
   "payWhyMarks": "{marks} attendance marks",
   "payWhyUncovered": "Penalties above the month's pay are not taken: the month never goes below zero",
   "noticesTitle": "Notifications",
-  "noticesNone": "No notifications yet"
+  "noticesNone": "No notifications yet",
+  "nameLabel": "Name",
+  "obOnFile": "Locked fields are on file with the company. If one is wrong, ask the office to correct it.",
+  "nationalityPick": "Choose your nationality",
+  "searchArEn": "Search in Arabic or English",
+  "noMatches": "No matches",
+  "ibanInvalid": "This IBAN is not valid: copy it exactly from your bank's app",
+  "obFieldsInvalid": "Check these fields: {fields}",
+  "@obFieldsInvalid": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  }
 }

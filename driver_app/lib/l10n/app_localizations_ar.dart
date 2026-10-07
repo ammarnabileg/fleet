@@ -1201,4 +1201,27 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get noticesNone => 'لا توجد إشعارات بعد';
+
+  @override
+  String get nameLabel => 'الاسم';
+
+  @override
+  String get obOnFile => 'الخانات المقفولة مسجّلة لدى الشركة. لو فيها خطأ كلّم المكتب يعدّلها.';
+
+  @override
+  String get nationalityPick => 'اختر الجنسية';
+
+  @override
+  String get searchArEn => 'ابحث بالعربي أو الإنجليزي';
+
+  @override
+  String get noMatches => 'لا توجد نتائج';
+
+  @override
+  String get ibanInvalid => 'رقم الآيبان غير صحيح: انسخه كما هو من تطبيق البنك';
+
+  @override
+  String obFieldsInvalid(String fields) {
+    return 'راجع هذه الخانات: $fields';
+  }
 }

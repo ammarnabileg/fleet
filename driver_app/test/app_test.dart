@@ -38,6 +38,12 @@ Future<String> testImage() async {
   return f.path;
 }
 
+const nationalities = [
+  {'value': 'الهند', 'ar': 'الهند', 'en': 'India'},
+  {'value': 'مصر', 'ar': 'مصر', 'en': 'Egypt'},
+  {'value': 'باكستان', 'ar': 'باكستان', 'en': 'Pakistan'},
+];
+
 class World {
   World(this.state, this.server);
   final AppState state;
@@ -904,6 +910,7 @@ void main() {
               'requires_expiry': false,
             },
           ],
+          'nationalities': nationalities,
         },
       ),
     ))!;
@@ -936,13 +943,20 @@ void main() {
               'requires_expiry': false,
             },
           ],
+          'nationalities': nationalities,
         },
       );
     });
     await pumpApp(tester, w);
     expect(find.textContaining('صورة الإقامة غير واضحة'), findsOneWidget);
-    await tester.enterText(find.byKey(const Key('civil')), '290010112345');
-    await tester.enterText(find.byKey(const Key('nationality')), 'India');
+    await tester.enterText(find.byKey(const Key('civil')), '٢٩٠٠١٠١١٢٣٤٥'); // Arabic digits become 0-9
+    await tester.tap(find.byKey(const Key('nationality'))); // picked from the server's list, never typed
+    await settle(tester);
+    await tester.enterText(find.byKey(const Key('nationality-search')), 'ind');
+    await settle(tester);
+    expect(find.byKey(const Key('nat-Egypt')), findsNothing);
+    await tester.tap(find.byKey(const Key('nat-India')));
+    await settle(tester);
     await tester.enterText(find.byKey(const Key('iban')), 'kw81 cbku 0000 0000 0000 1234 5601 01');
     await tester.enterText(find.byKey(const Key('bank')), 'بنك الكويت الوطني');
     await shot(tester, '09-onboarding-data');
@@ -975,7 +989,7 @@ void main() {
     await shot(tester, '11-onboarding-vehicle');
     await next();
     await shot(tester, '12-onboarding-review');
-    expect(saved!['civil_id'], '290010112345');
+    expect((saved!['civil_id'], saved!['nationality']), ('290010112345', 'الهند'));
     expect((saved!['iban'], saved!['bank_name']), ('KW81CBKU0000000000001234560101', 'بنك الكويت الوطني'));
     final docs = saved!['documents'] as List;
     expect((docs.single['front_sha256'] as String).length, 64);
@@ -996,6 +1010,123 @@ void main() {
       find.descendant(of: find.byKey(const Key('ob-submit')), matching: find.byType(FilledButton)),
     );
     expect(submit.onPressed, isNotNull, reason: 'everything required is there');
+  });
+
+  testWidgets('self-registration: what the office has on file is shown locked and never sent', (tester) async {
+    final ob = {
+      'required': true,
+      'status': 'draft',
+      // an old draft with his own values: none of them is shown or sent once the office has the field
+      'data': {'civil_id': '2900101123', 'nationality': 'باكستان', 'bank_name': 'بنك آخر'},
+      'review_note': null,
+      'require_bank': true,
+      'required_documents': [],
+      'vehicle_photos': [],
+      'document_types': [],
+      'nationalities': nationalities,
+      'known': {
+        'name': {'ar': 'أحمد علي', 'en': 'Ahmed Ali'},
+        'employee_number': 'E-17',
+        'phone': '+96550000017',
+        'civil_id': '288020212345',
+        'nationality': 'مصر',
+        'bank_name': 'بنك الخليج',
+        'iban_last4': '0101',
+        'locked': ['civil_id', 'nationality', 'iban', 'bank_name'],
+      },
+    };
+    final w = (await tester.runAsync(() => world(onboarding: ob)))!;
+    Map<String, dynamic>? saved;
+    w.server.on('PUT', '/api/v1/driver/onboarding', (r) {
+      saved = jsonDecode(r.body) as Map<String, dynamic>;
+      return (200, {...ob, 'data': saved});
+    });
+    await pumpApp(tester, w);
+    TextField field(String key) => tester.widget<TextField>(
+      find.descendant(of: find.byKey(Key(key)), matching: find.byType(TextField), matchRoot: true).first,
+    );
+    for (final (key, value) in [
+      ('known-name', 'أحمد علي'),
+      ('known-number', 'E-17'),
+      ('known-phone', '+96550000017'),
+      ('civil', '288020212345'),
+      ('nationality', 'مصر'),
+      ('iban', '•••• 0101'),
+      ('bank', 'بنك الخليج'),
+    ]) {
+      final f = field(key);
+      expect((f.enabled, f.controller!.text), (false, value), reason: key);
+    }
+    await shot(tester, '37-onboarding-on-file');
+    await tester.tap(find.byKey(const Key('nationality')));
+    await settle(tester);
+    expect(find.byKey(const Key('nationality-search')), findsNothing, reason: 'locked: no list');
+    await tester.tap(find.byKey(const Key('ob-next')));
+    await idle(tester);
+    expect(
+      [
+        for (final f in ['civil_id', 'nationality', 'iban', 'bank_name']) saved![f],
+      ],
+      [null, null, null, null],
+      reason: 'the office\'s values stay on the server',
+    );
+    for (var i = 0; i < 2; i++) {
+      await tester.tap(find.byKey(const Key('ob-next')));
+      await idle(tester);
+    }
+    expect(find.text('أكمل: السيارة'), findsOneWidget, reason: 'nothing on file is asked again');
+    expect(find.textContaining('288020212345'), findsWidgets);
+  });
+
+  testWidgets('self-registration: a wrong civil ID or IBAN is pointed at before sending; a refusal names the field', (
+    tester,
+  ) async {
+    final ob = {
+      'required': true,
+      'status': 'draft',
+      'data': {'nationality': 'هندي'},
+      'review_note': null,
+      'require_bank': true,
+      'required_documents': [],
+      'vehicle_photos': [],
+      'document_types': [],
+      'nationalities': nationalities,
+    };
+    final w = (await tester.runAsync(() => world(onboarding: ob)))!;
+    w.server.on(
+      'PUT',
+      '/api/v1/driver/onboarding',
+      (r) => (
+        422,
+        {
+          'code': 'validation_error',
+          'errors': [
+            {
+              'loc': ['body', 'bank_name'],
+              'msg': 'String should have at most 60 characters',
+              'type': 'string_too_long',
+            },
+          ],
+        },
+      ),
+    );
+    await pumpApp(tester, w);
+    await tester.enterText(find.byKey(const Key('civil')), '29001011239'); // 11 digits
+    await tester.enterText(find.byKey(const Key('iban')), 'KW81CBKU0000000000001234560102'); // a check digit off
+    await tester.tap(find.byKey(const Key('ob-next')));
+    await idle(tester);
+    expect(find.text('الرقم المدني 12 رقماً'), findsOneWidget);
+    expect(find.text('رقم الآيبان غير صحيح: انسخه كما هو من تطبيق البنك'), findsOneWidget);
+    expect(w.server.calls('/api/v1/driver/onboarding', method: 'PUT'), isEmpty, reason: 'nothing sent');
+    await shot(tester, '38-onboarding-field-errors');
+    await tester.enterText(find.byKey(const Key('civil')), '290010112399');
+    await tester.enterText(find.byKey(const Key('iban')), 'KW81CBKU0000000000001234560101');
+    await tester.tap(find.byKey(const Key('ob-next')));
+    await idle(tester);
+    expect(find.text('الرقم المدني 12 رقماً'), findsNothing);
+    expect(find.text('راجع هذه الخانات: اسم البنك'), findsOneWidget);
+    final sent = jsonDecode(w.server.calls('/api/v1/driver/onboarding', method: 'PUT').single.body) as Map;
+    expect(sent['nationality'], isNull, reason: 'typed before the list: he picks it again');
   });
 
   test('activation links: the token after "#" (App Link) or "?t=" (fallback page); anything else ignored', () {

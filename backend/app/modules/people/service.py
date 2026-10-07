@@ -20,6 +20,7 @@ from app.core.events import emit
 from app.modules.audit import service as audit
 from app.modules.i18n import service as i18n
 from app.modules.org import service as org
+from app.modules.people import countries
 from app.modules.people.models import Employee, EmploymentStatus, ExternalRef, StatusHistory
 
 FIELDS = (
@@ -452,15 +453,18 @@ def set_app_access(db: Session, public_id, *, value: str, actor_user_id: int, co
     return _out(employee, status, False)
 
 
+SELF_FIELDS = ("civil_id", "nationality", "iban", "bank_name")  # what a driver may fill in at self-registration
+
+
 def apply_self_registration(db: Session, employee_id: int, changes: dict, *, actor_user_id: int) -> None:
-    """Civil ID, nationality and bank details from an approved self-registration, in the caller's transaction (the
-    audit log records that the bank details changed, never their value)."""
+    """Civil ID, nationality and bank details from an approved self-registration, in the caller's transaction, into
+    the fields still empty (the audit log records that the bank details changed, never their value)."""
     employee = db.scalar(select(Employee).where(Employee.id == employee_id).with_for_update())
     before = _snapshot(employee)
-    for field in ("civil_id", "nationality", "iban", "bank_name"):
-        if changes.get(field):
-            setattr(employee, field, changes[field])
-    if changes.get("iban"):
+    filled = [f for f in SELF_FIELDS if changes.get(f) and not getattr(employee, f)]  # what the office set stays
+    for field in filled:
+        setattr(employee, field, changes[field])
+    if "iban" in filled:
         employee.payment_method = employee.payment_method or "bank"
     employee.version += 1
     employee.updated_at = func.now()
@@ -473,8 +477,32 @@ def apply_self_registration(db: Session, employee_id: int, changes: dict, *, act
         actor_user_id=actor_user_id,
         company_id=employee.company_id,
         before=before,
-        after={**_snapshot(employee), "bank_details_set": bool(changes.get("iban"))},
+        after={**_snapshot(employee), "bank_details_set": "iban" in filled},
     )
+
+
+def nationalities() -> list[dict]:
+    return countries.nationalities()
+
+
+def is_nationality(value: str) -> bool:
+    return countries.is_nationality(value)
+
+
+def registration_known(db: Session, employee_id: int) -> dict:
+    """What the office already has on the driver's record: the app shows it locked (the IBAN's last four digits only),
+    and only the empty fields are his to fill."""
+    e = db.get(Employee, employee_id)
+    return {
+        "name": e.name,
+        "employee_number": e.employee_number,
+        "phone": e.phone,
+        "civil_id": e.civil_id,
+        "nationality": e.nationality,
+        "bank_name": e.bank_name,
+        "iban_last4": e.iban[-4:] if e.iban else None,
+        "locked": [f for f in SELF_FIELDS if getattr(e, f)],
+    }
 
 
 def status_history(db: Session, public_id, **scope) -> list[dict]:

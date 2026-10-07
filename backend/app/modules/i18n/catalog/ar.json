@@ -224,6 +224,7 @@
     "nothing_to_review": "لا يوجد ما يحتاج مراجعة",
     "onboarding_incomplete": "ناقص: {missing}",
     "onboarding_not_found": "طلب التسجيل غير موجود",
+    "nationality_unknown": "اختر الجنسية من القائمة",
     "onboarding_not_open": "البيانات أُرسلت للمراجعة ولا يمكن تعديلها الآن",
     "onboarding_not_submitted": "هذا الطلب ليس بانتظار المراجعة",
     "opening_balance_exists": "للسائق رصيد افتتاحي مختلف مسجل بالفعل: استخدم تسوية",

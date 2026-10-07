@@ -14,7 +14,7 @@
   "km": "كم",
   "signInTitle": "تسجيل الدخول",
   "signInHint": "أدخل رقم جوالك المسجل لدى الشركة. سيصلك رمز الدخول على واتساب.",
-  "phoneLabel": "رقم الجوال",
+  "phoneLabel": "الهاتف",
   "phoneInvalid": "8 أرقام كويتية، أو رقم دولي يبدأ بـ +",
   "sendCode": "إرسال الرمز",
   "activationTip": "إذا وصلك رابط التفعيل على واتساب، افتحه من هذا الهاتف ولن تحتاج رمزاً.",
@@ -166,8 +166,6 @@
   "vehicleChangeRejected": "رُفض طلب تغيير السيارة: {note}",
   "profileTitle": "بياناتي",
   "employeeNumber": "الرقم الوظيفي",
-  "phoneLabel": "الهاتف",
-  "civilId": "الرقم المدني",
   "companyLabel": "الشركة",
   "platformLabel": "المنصة",
   "bankLabel": "البنك",
@@ -757,5 +755,19 @@
   },
   "payWhyUncovered": "العقوبات أكبر من المستحق، والشهر لا ينزل تحت الصفر: هذا الباقي لم يُخصم",
   "noticesTitle": "الإشعارات",
-  "noticesNone": "لا توجد إشعارات بعد"
+  "noticesNone": "لا توجد إشعارات بعد",
+  "nameLabel": "الاسم",
+  "obOnFile": "الخانات المقفولة مسجّلة لدى الشركة. لو فيها خطأ كلّم المكتب يعدّلها.",
+  "nationalityPick": "اختر الجنسية",
+  "searchArEn": "ابحث بالعربي أو الإنجليزي",
+  "noMatches": "لا توجد نتائج",
+  "ibanInvalid": "رقم الآيبان غير صحيح: انسخه كما هو من تطبيق البنك",
+  "obFieldsInvalid": "راجع هذه الخانات: {fields}",
+  "@obFieldsInvalid": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  }
 }

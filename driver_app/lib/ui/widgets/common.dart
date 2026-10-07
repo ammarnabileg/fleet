@@ -1,8 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../app/state.dart';
+import '../../core/errors.dart';
 import '../../l10n/app_localizations.dart';
 import '../theme.dart';
 
@@ -14,14 +16,38 @@ extension L10nX on BuildContext {
 String errorText(BuildContext context, AppState state, Object error) =>
     state.message(error, network: context.l.networkError, generic: context.l.genericError);
 
-void showError(BuildContext context, AppState state, Object error) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(errorText(context, state, error)),
-      backgroundColor: AppColors.danger,
-      behavior: SnackBarBehavior.floating,
-    ),
-  );
+void showError(BuildContext context, AppState state, Object error) =>
+    showErrorText(context, errorText(context, state, error));
+
+void showErrorText(BuildContext context, String text) {
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(text), backgroundColor: AppColors.danger, behavior: SnackBarBehavior.floating));
+}
+
+/// The fields a 422 `validation_error` names (the last part of each `loc`), so the screen can say which one.
+List<String> invalidFields(Object error) {
+  if (error is! ApiError || error.code != 'validation_error') return const [];
+  return [
+    for (final e in error.body['errors'] as List? ?? const [])
+      if ((e as Map)['loc'] case [..., final String field]) field,
+  ];
+}
+
+/// Arabic-Indic digits (٠-٩, and the ۰-۹ some keyboards type) become 0-9: the server takes Latin digits only.
+String latinDigits(String text) => text.replaceAllMapped(RegExp('[٠-٩۰-۹]'), (m) {
+  final c = m[0]!.codeUnitAt(0);
+  return String.fromCharCode(0x30 + c - (c >= 0x06F0 ? 0x06F0 : 0x0660));
+});
+
+class LatinDigits extends TextInputFormatter {
+  const LatinDigits();
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final text = latinDigits(newValue.text);
+    return text == newValue.text ? newValue : newValue.copyWith(text: text); // same length: the cursor stays
+  }
 }
 
 class Banner2 extends StatelessWidget {

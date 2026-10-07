@@ -42,7 +42,7 @@ def up(client, headers, *, source="camera", data=None):
 def full_draft(client, h, plate, *, km=40_000, positions=("front", "back", "left", "right")):
     return {
         "civil_id": "290010112399",
-        "nationality": "India",
+        "nationality": "الهند",
         "iban": "KW81CBKU0000000000001234560101",
         "bank_name": "بنك الكويت الوطني",
         "documents": [
@@ -108,7 +108,7 @@ def test_the_whole_registration_from_link_to_approval(admin_client, client, setu
     r = admin_client.post(f"/api/v1/onboarding/{sid}/approve")
     assert r.status_code == 200 and r.json()["status"] == "approved"
     emp = admin_client.get(f"/api/v1/employees/{d['id']}").json()
-    assert (emp["civil_id"], emp["nationality"]) == ("290010112399", "India")
+    assert (emp["civil_id"], emp["nationality"]) == ("290010112399", "الهند")
     assert (emp["iban"], emp["bank_name"], emp["payment_method"]) == (
         "KW81CBKU0000000000001234560101",
         "بنك الكويت الوطني",
@@ -149,6 +149,66 @@ def test_submit_lists_what_is_missing(client, setup):
     )
     bad = full_draft(client, h, "45678") | {"iban": "KW81CBKU0000000000001234560102"}  # a check digit off
     assert client.put("/api/v1/driver/onboarding", json=bad, headers=h).status_code == 422
+
+
+def test_the_driver_sees_what_the_office_has_and_picks_his_nationality_from_the_list(client, setup):
+    h, d = setup["h"], setup["driver"]
+    view = client.get("/api/v1/driver/onboarding", headers=h).json()
+    assert view["known"]["name"] == d["name"] and view["known"]["phone"] == d["phone"]
+    assert view["known"]["locked"] == [] and view["known"]["civil_id"] is None
+    assert {"value": "الهند", "ar": "الهند", "en": "India"} in view["nationalities"]
+    assert len(view["nationalities"]) > 190
+    r = client.put("/api/v1/driver/onboarding", json={"nationality": "هندي"}, headers=h)  # typed, not chosen
+    assert r.status_code == 422 and r.json()["code"] == "nationality_unknown"
+    assert save(client, h, {"nationality": "باكستان"})["data"]["nationality"] == "باكستان"
+
+
+def test_what_the_office_entered_is_shown_locked_and_kept(admin_client, client, company):
+    d = make_driver(
+        admin_client,
+        company["id"],
+        civil_id="288020212345",
+        iban="KW81CBKU0000000000001234560101",
+        bank_name="بنك الخليج",
+    )
+    vehicle = make_vehicle(admin_client, company["id"], km=39_000)
+    h, _ = activate(admin_client, client, d)
+    known = client.get("/api/v1/driver/onboarding", headers=h).json()["known"]
+    assert known["locked"] == ["civil_id", "iban", "bank_name"]
+    assert (known["civil_id"], known["bank_name"], known["iban_last4"]) == ("288020212345", "بنك الخليج", "0101")
+    assert "iban" not in known  # never the whole IBAN on the phone
+    draft = full_draft(client, h, vehicle["plate_number"]) | {"iban": "KW97CBKU0000000000001234560201"}
+    data = save(client, h, draft)["data"]  # the driver's own values for the locked fields are dropped
+    assert [data.get(f) for f in ("civil_id", "iban", "bank_name", "nationality")] == [None, None, None, "الهند"]
+    assert client.post("/api/v1/driver/onboarding/submit", headers=h).status_code == 200  # the bank is on file
+    sid = submission_id(admin_client)
+    shown = admin_client.get(f"/api/v1/onboarding/{sid}").json()["data"]  # the reviewer sees the values on file
+    assert (shown["civil_id"], shown["bank_name"], shown["nationality"]) == ("288020212345", "بنك الخليج", "الهند")
+    assert admin_client.post(f"/api/v1/onboarding/{sid}/approve").status_code == 200
+    emp = admin_client.get(f"/api/v1/employees/{d['id']}").json()
+    assert (emp["civil_id"], emp["iban"], emp["bank_name"]) == (
+        "288020212345",
+        "KW81CBKU0000000000001234560101",
+        "بنك الخليج",
+    )
+    assert emp["nationality"] == "الهند"  # the one field that was empty
+
+
+def test_a_field_the_office_fills_later_is_not_overwritten(admin_client, client, setup):
+    h, d = setup["h"], setup["driver"]
+
+    def office_sets(**fields):
+        version = admin_client.get(f"/api/v1/employees/{d['id']}").json()["version"]
+        r = admin_client.patch(f"/api/v1/employees/{d['id']}", json={"version": version, **fields})
+        assert r.status_code == 200, r.text
+
+    save(client, h, full_draft(client, h, "45678"))
+    office_sets(civil_id="277030312345")  # after his draft: dropped when he submits
+    assert client.post("/api/v1/driver/onboarding/submit", headers=h).json()["data"].get("civil_id") is None
+    office_sets(nationality="مصر")  # while under review: approval fills empty fields only
+    assert admin_client.post(f"/api/v1/onboarding/{submission_id(admin_client)}/approve").status_code == 200
+    emp = admin_client.get(f"/api/v1/employees/{d['id']}").json()
+    assert (emp["civil_id"], emp["nationality"], emp["bank_name"]) == ("277030312345", "مصر", "بنك الكويت الوطني")
 
 
 def test_files_must_come_from_this_phone_and_vehicle_photos_from_its_camera(admin_client, client, setup, company):

@@ -136,6 +136,58 @@ class DocType {
   String label(String lang) => name[lang] ?? name['en'] ?? name.values.first;
 }
 
+/// What the office already has on the driver's record: the registration shows it locked, and only the empty fields
+/// are his to fill (the server drops anything he sends for a locked one). The IBAN comes as its last four digits.
+class KnownRecord {
+  const KnownRecord({
+    this.name = const {},
+    this.employeeNumber,
+    this.phone,
+    this.civilId,
+    this.nationality,
+    this.bankName,
+    this.ibanLast4,
+    this.locked = const [],
+  });
+
+  factory KnownRecord.fromJson(Map<String, dynamic> j) => KnownRecord(
+    name: Map<String, String>.from(j['name'] as Map? ?? const {}),
+    employeeNumber: j['employee_number'] as String?,
+    phone: j['phone'] as String?,
+    civilId: j['civil_id'] as String?,
+    nationality: j['nationality'] as String?,
+    bankName: j['bank_name'] as String?,
+    ibanLast4: j['iban_last4'] as String?,
+    locked: List<String>.from(j['locked'] as List? ?? const []),
+  );
+
+  final Map<String, String> name;
+  final String? employeeNumber;
+  final String? phone;
+  final String? civilId;
+  final String? nationality;
+  final String? bankName;
+  final String? ibanLast4;
+  final List<String> locked; // civil_id, nationality, iban, bank_name: filled by the office
+
+  bool has(String field) => locked.contains(field);
+  String? label(String lang) => name[lang] ?? name['ar'] ?? name.values.firstOrNull;
+}
+
+/// One entry of the nationality list the server sends: the driver picks, never types; [value] is what is saved.
+class Nationality {
+  const Nationality({required this.value, required this.ar, required this.en});
+
+  factory Nationality.fromJson(Map<String, dynamic> j) =>
+      Nationality(value: j['value'] as String, ar: j['ar'] as String, en: j['en'] as String);
+
+  final String value;
+  final String ar;
+  final String en;
+
+  String label(String lang) => lang == 'en' ? en : ar;
+}
+
 /// The self-registration as the driver sees it (GET /driver/onboarding).
 class Onboarding {
   Onboarding({
@@ -149,6 +201,8 @@ class Onboarding {
     this.requireBank = false,
     this.schemes = const [],
     this.schemeRequired = false,
+    this.known = const KnownRecord(),
+    this.nationalities = const [],
   });
 
   factory Onboarding.fromJson(Map<String, dynamic> j) => Onboarding(
@@ -162,6 +216,10 @@ class Onboarding {
     requireBank: j['require_bank'] as bool? ?? false,
     schemes: [for (final s in j['schemes'] as List? ?? const []) PayScheme.fromJson(s as Map<String, dynamic>)],
     schemeRequired: j['scheme_required'] as bool? ?? false,
+    known: j['known'] == null ? const KnownRecord() : KnownRecord.fromJson(j['known'] as Map<String, dynamic>),
+    nationalities: [
+      for (final n in j['nationalities'] as List? ?? const []) Nationality.fromJson(n as Map<String, dynamic>),
+    ],
   );
 
   final bool required;
@@ -174,6 +232,11 @@ class Onboarding {
   final bool requireBank; // the IBAN and the bank name (salaries are paid by transfer)
   final List<PayScheme> schemes; // his platform's pay schemes, with their terms
   final bool schemeRequired; // choose one to submit
+  final KnownRecord known;
+  final List<Nationality> nationalities;
+
+  /// The list entry for a saved value (null for a value typed before the list, which he picks again).
+  Nationality? nationality(String? value) => nationalities.where((n) => n.value == value).firstOrNull;
 
   /// The server says "required" only while the driver may still edit (draft, or sent back with a reason).
   bool get mustFill => required;

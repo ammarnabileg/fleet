@@ -32,6 +32,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _plate = TextEditingController();
   final _km = TextEditingController();
   final _numbers = <String, TextEditingController>{};
+  String? _civilError;
+  String? _ibanError;
 
   Onboarding get ob => widget.state.onboarding!;
   AppState get state => widget.state;
@@ -59,10 +61,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'scheme_id': d['scheme_id'],
     };
     (draft['vehicle'] as Map)['photos'] ??= [];
-    _civil.text = draft['civil_id'] ?? '';
-    _nat.text = draft['nationality'] ?? '';
-    _iban.text = draft['iban'] ?? '';
-    _bank.text = draft['bank_name'] ?? '';
+    // what the office has is shown as it is on file (locked); the rest is his draft
+    final k = ob.known;
+    final picked = ob.nationality(draft['nationality'] as String?);
+    draft['nationality'] = picked?.value; // a value typed before the list is picked again
+    _civil.text = (k.has('civil_id') ? k.civilId : draft['civil_id']) ?? '';
+    _nat.text = k.has('nationality')
+        ? ob.nationality(k.nationality)?.label(state.lang) ?? k.nationality!
+        : picked?.label(state.lang) ?? '';
+    _iban.text = k.has('iban') ? '•••• ${k.ibanLast4}' : draft['iban'] ?? '';
+    _bank.text = (k.has('bank_name') ? k.bankName : draft['bank_name']) ?? '';
     _plate.text = (draft['vehicle'] as Map)['plate_number'] ?? '';
     _km.text = '${(draft['vehicle'] as Map)['odometer_km'] ?? ''}';
     for (final doc in docs) {
@@ -76,12 +84,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   List<Map<String, dynamic>> get docs => (draft['documents'] as List).cast<Map<String, dynamic>>();
   Map<String, dynamic> get vehicle => draft['vehicle'] as Map<String, dynamic>;
 
+  bool _locked(String field) => ob.known.has(field);
+
+  static final _civilOk = RegExp(r'^\d{12}$');
+
   void _collect() {
-    draft['civil_id'] = _civil.text.trim().isEmpty ? null : _civil.text.trim();
-    draft['nationality'] = _nat.text.trim().isEmpty ? null : _nat.text.trim();
-    final iban = _iban.text.replaceAll(' ', '').toUpperCase();
-    draft['iban'] = iban.isEmpty ? null : iban;
-    draft['bank_name'] = _bank.text.trim().isEmpty ? null : _bank.text.trim();
+    if (!_locked('civil_id')) draft['civil_id'] = _civil.text.trim().isEmpty ? null : _civil.text.trim();
+    if (!_locked('iban')) {
+      final iban = _iban.text.replaceAll(' ', '').toUpperCase();
+      draft['iban'] = iban.isEmpty ? null : iban;
+    }
+    if (!_locked('bank_name')) draft['bank_name'] = _bank.text.trim().isEmpty ? null : _bank.text.trim();
     vehicle['plate_number'] = _plate.text.trim().isEmpty ? null : _plate.text.trim();
     vehicle['odometer_km'] = int.tryParse(_km.text.trim());
     for (final doc in docs) {
@@ -92,11 +105,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Map<String, dynamic> _payload() {
     _collect();
+    // the locked fields are the office's (the server keeps its own values); a half-typed value is not sent
+    final civil = draft['civil_id'] as String?;
+    final iban = draft['iban'] as String?;
     return {
-      'civil_id': draft['civil_id'],
-      'nationality': draft['nationality'],
-      'iban': draft['iban'] != null && ibanOk(draft['iban'] as String) ? draft['iban'] : null,
-      'bank_name': draft['bank_name'],
+      'civil_id': !_locked('civil_id') && civil != null && _civilOk.hasMatch(civil) ? civil : null,
+      'nationality': _locked('nationality') ? null : draft['nationality'],
+      'iban': !_locked('iban') && iban != null && ibanOk(iban) ? iban : null,
+      'bank_name': _locked('bank_name') ? null : draft['bank_name'],
       'documents': docs,
       'no_vehicle': draft['no_vehicle'],
       'vehicle': draft['no_vehicle'] == true ? null : vehicle,
@@ -146,7 +162,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       setState(() => apply(sha));
       await _save();
     } catch (e) {
-      if (mounted) showError(context, state, e);
+      _failed(e);
     } finally {
       if (mounted) setState(() => _busy.remove(key));
     }
@@ -156,11 +172,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final l = context.l;
     _collect();
     final out = <String>[];
-    if (!RegExp(r'^\d{12}$').hasMatch(draft['civil_id'] ?? '')) out.add(l.civilId);
-    if ((draft['nationality'] ?? '').isEmpty) out.add(l.nationality);
+    if (!_locked('civil_id') && !_civilOk.hasMatch(draft['civil_id'] ?? '')) out.add(l.civilId);
+    if (!_locked('nationality') && draft['nationality'] == null) out.add(l.nationality);
     final iban = draft['iban'] as String?;
-    if ((ob.requireBank && iban == null) || (iban != null && !ibanOk(iban))) out.add(l.iban);
-    if (ob.requireBank && (draft['bank_name'] ?? '').isEmpty) out.add(l.bankName);
+    if (!_locked('iban') && ((ob.requireBank && iban == null) || (iban != null && !ibanOk(iban)))) out.add(l.iban);
+    if (!_locked('bank_name') && ob.requireBank && (draft['bank_name'] ?? '').isEmpty) out.add(l.bankName);
     if (ob.schemeRequired && _scheme == null) out.add(l.paySchemes);
     for (final doc in docs) {
       final t = ob.documentTypes.where((x) => x.code == doc['type_code']).firstOrNull;
@@ -190,17 +206,63 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       state.onboarding = Onboarding.fromJson(r as Map<String, dynamic>);
       await state.refresh();
     } catch (e) {
-      if (mounted) showError(context, state, e);
+      _failed(e);
     }
   }
 
+  /// The details step is checked here, field by field, before anything is sent.
+  bool _checkData() {
+    final l = context.l;
+    _collect();
+    final civil = draft['civil_id'] as String?;
+    final iban = draft['iban'] as String?;
+    setState(() {
+      _civilError = !_locked('civil_id') && civil != null && !_civilOk.hasMatch(civil) ? l.civilIdInvalid : null;
+      _ibanError = !_locked('iban') && iban != null && !ibanOk(iban) ? l.ibanInvalid : null;
+    });
+    return _civilError == null && _ibanError == null;
+  }
+
   Future<void> _next() async {
+    if (step == 0 && !_checkData()) return;
     try {
       await _save();
       setState(() => step++);
     } catch (e) {
-      if (mounted) showError(context, state, e);
+      _failed(e);
     }
+  }
+
+  /// Names the fields the server refused, rather than "some fields are not valid".
+  void _failed(Object e) {
+    if (!mounted) return;
+    final fields = invalidFields(e);
+    if (fields.isEmpty) return showError(context, state, e);
+    final l = context.l;
+    final names = {
+      'civil_id': l.civilId,
+      'nationality': l.nationality,
+      'iban': l.iban,
+      'bank_name': l.bankName,
+      'plate_number': l.plate,
+      'odometer_km': l.odometerKm,
+      'number': l.docNumber,
+      'expiry_date': l.docExpiry,
+    };
+    showErrorText(context, l.obFieldsInvalid({for (final f in fields) names[f] ?? f}.join('، ')));
+  }
+
+  Future<void> _pickNationality() async {
+    final picked = await showModalBottomSheet<Nationality>(
+      context: context,
+      isScrollControlled: true,
+      builder: (c) => NationalitySheet(items: ob.nationalities, lang: state.lang),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      draft['nationality'] = picked.value;
+      _nat.text = picked.label(state.lang);
+    });
   }
 
   @override
@@ -274,41 +336,81 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   List<Widget> _dataStep() {
     final l = context.l;
+    final k = ob.known;
+    const lock = Icon(Icons.lock_outline, size: 18);
+    // shown, not editable: what the office has on file
+    Widget onFile(String key, String label, String value, {bool ltr = false}) => Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TextFormField(
+        key: Key(key),
+        initialValue: value,
+        enabled: false,
+        textDirection: ltr ? TextDirection.ltr : null,
+        decoration: InputDecoration(labelText: label, suffixIcon: lock),
+      ),
+    );
     return [
       Text(l.obIntro, style: const TextStyle(color: AppColors.muted, height: 1.7)),
       const SizedBox(height: 18),
+      if (k.label(state.lang) case final name?) onFile('known-name', l.nameLabel, name),
+      if (k.employeeNumber case final number?) onFile('known-number', l.employeeNumber, number, ltr: true),
+      if (k.phone case final phone?) onFile('known-phone', l.phoneLabel, phone, ltr: true),
+      if (k.locked.isNotEmpty) ...[
+        Text(l.obOnFile, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+        const SizedBox(height: 12),
+      ],
       TextField(
         key: const Key('civil'),
         controller: _civil,
+        enabled: !_locked('civil_id'),
         keyboardType: TextInputType.number,
         textDirection: TextDirection.ltr,
-        maxLength: 12,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        decoration: InputDecoration(labelText: l.civilId),
+        maxLength: _locked('civil_id') ? null : 12,
+        inputFormatters: [const LatinDigits(), FilteringTextInputFormatter.digitsOnly],
+        onChanged: (_) => _civilError == null ? null : setState(() => _civilError = null),
+        decoration: InputDecoration(
+          labelText: l.civilId,
+          errorText: _civilError,
+          suffixIcon: _locked('civil_id') ? lock : null,
+        ),
       ),
       const SizedBox(height: 8),
       TextField(
         key: const Key('nationality'),
         controller: _nat,
-        decoration: InputDecoration(labelText: l.nationality),
+        enabled: !_locked('nationality'),
+        readOnly: true, // picked from the list, never typed
+        onTap: _pickNationality,
+        decoration: InputDecoration(
+          labelText: l.nationality,
+          hintText: l.nationalityPick,
+          suffixIcon: _locked('nationality') ? lock : const Icon(Icons.arrow_drop_down),
+        ),
       ),
       const SizedBox(height: 8),
       TextField(
         key: const Key('iban'),
         controller: _iban,
+        enabled: !_locked('iban'),
         textDirection: TextDirection.ltr,
         textCapitalization: TextCapitalization.characters,
-        inputFormatters: [LengthLimitingTextInputFormatter(42)], // banks show it in groups of 4
+        inputFormatters: [const LatinDigits(), LengthLimitingTextInputFormatter(42)], // banks show it in groups of 4
+        onChanged: (_) => _ibanError == null ? null : setState(() => _ibanError = null),
         decoration: InputDecoration(
           labelText: l.iban,
           hintText: 'KW00XXXX0000000000000000000000',
-          helperText: l.ibanHint,
+          helperText: _locked('iban') ? null : l.ibanHint,
+          errorText: _ibanError,
+          suffixIcon: _locked('iban') ? lock : null,
         ),
       ),
+      const SizedBox(height: 8),
       TextField(
         key: const Key('bank'),
         controller: _bank,
-        decoration: InputDecoration(labelText: l.bankName),
+        enabled: !_locked('bank_name'),
+        inputFormatters: [LengthLimitingTextInputFormatter(60)],
+        decoration: InputDecoration(labelText: l.bankName, suffixIcon: _locked('bank_name') ? lock : null),
       ),
       if (ob.schemes.isNotEmpty) ...[
         SectionTitle(l.schemeChoose),
@@ -366,6 +468,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     TextField(
                       controller: _numbers[code],
                       textDirection: TextDirection.ltr,
+                      inputFormatters: [const LatinDigits(), LengthLimitingTextInputFormatter(60)],
                       decoration: InputDecoration(labelText: l.docNumber),
                     ),
                     const SizedBox(height: 10),
@@ -417,6 +520,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           key: const Key('plate'),
           controller: _plate,
           textDirection: TextDirection.ltr,
+          inputFormatters: [const LatinDigits(), LengthLimitingTextInputFormatter(20)],
           decoration: InputDecoration(labelText: l.plate, helperText: l.plateHint),
         ),
         const SizedBox(height: 12),
@@ -438,7 +542,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 controller: _km,
                 keyboardType: TextInputType.number,
                 textDirection: TextDirection.ltr,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: [
+                  const LatinDigits(),
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(7),
+                ],
                 decoration: InputDecoration(labelText: l.odometerKm),
               ),
             ),
@@ -486,10 +594,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       Card(
         child: Column(
           children: [
-            ListTile(title: Text(l.civilId), trailing: Text('\u2066${draft['civil_id'] ?? '—'}\u2069')),
-            ListTile(title: Text(l.nationality), trailing: Text(draft['nationality'] ?? '—')),
-            ListTile(title: Text(l.iban), trailing: Text('\u2066${draft['iban'] ?? '—'}\u2069')),
-            ListTile(title: Text(l.bankName), trailing: Text(draft['bank_name'] ?? '—')),
+            ListTile(
+              title: Text(l.civilId),
+              trailing: Text('\u2066${(_locked('civil_id') ? ob.known.civilId : draft['civil_id']) ?? '—'}\u2069'),
+            ),
+            ListTile(title: Text(l.nationality), trailing: Text(_nat.text.isEmpty ? '—' : _nat.text)),
+            ListTile(
+              title: Text(l.iban),
+              trailing: Text('\u2066${_locked('iban') ? _iban.text : draft['iban'] ?? '—'}\u2069'),
+            ),
+            ListTile(
+              title: Text(l.bankName),
+              trailing: Text((_locked('bank_name') ? ob.known.bankName : draft['bank_name']) ?? '—'),
+            ),
             if (ob.schemes.isNotEmpty)
               ListTile(title: Text(l.paySchemes), trailing: Text(_scheme?.label(state.lang) ?? '—')),
             for (final doc in docs)
@@ -530,4 +647,78 @@ String positionLabel(BuildContext context, String pos) {
     'interior' => l.position_interior,
     _ => l.position_other,
   };
+}
+
+/// The nationality list, searchable in Arabic and English (the driver may not know how it is spelled in either).
+class NationalitySheet extends StatefulWidget {
+  const NationalitySheet({super.key, required this.items, required this.lang});
+
+  final List<Nationality> items;
+  final String lang;
+
+  @override
+  State<NationalitySheet> createState() => _NationalitySheetState();
+}
+
+class _NationalitySheetState extends State<NationalitySheet> {
+  String _query = '';
+
+  /// Forgiving search: hamza forms, taa marbuta and alef maqsura count as one letter, and case does not matter.
+  static String _fold(String s) =>
+      s.toLowerCase().replaceAll(RegExp('[أإآ]'), 'ا').replaceAll('ة', 'ه').replaceAll('ى', 'ي');
+
+  /// Sorted by the name the driver reads; Arabic names sort without their "ال".
+  late final List<Nationality> _sorted = [...widget.items]..sort((a, b) => _key(a).compareTo(_key(b)));
+
+  String _key(Nationality n) {
+    final name = _fold(n.label(widget.lang));
+    return widget.lang == 'en' ? name : name.replaceFirst(RegExp('^ال'), '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    final q = _fold(_query.trim());
+    final shown = q.isEmpty
+        ? _sorted
+        : _sorted.where((n) => _fold(n.ar).contains(q) || _fold(n.en).contains(q)).toList();
+    return FractionallySizedBox(
+      heightFactor: 0.85,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: TextField(
+                key: const Key('nationality-search'),
+                autofocus: true,
+                onChanged: (v) => setState(() => _query = v),
+                decoration: InputDecoration(
+                  labelText: l.nationalityPick,
+                  hintText: l.searchArEn,
+                  prefixIcon: const Icon(Icons.search),
+                ),
+              ),
+            ),
+            Expanded(
+              child: shown.isEmpty
+                  ? Center(
+                      child: Text(l.noMatches, style: const TextStyle(color: AppColors.muted)),
+                    )
+                  : ListView.builder(
+                      itemCount: shown.length,
+                      itemBuilder: (c, i) => ListTile(
+                        key: Key('nat-${shown[i].en}'),
+                        title: Text(shown[i].label(widget.lang)),
+                        subtitle: Text(widget.lang == 'en' ? shown[i].ar : shown[i].en),
+                        onTap: () => Navigator.pop(c, shown[i]),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
