@@ -1326,3 +1326,32 @@ def repair_summary(db: Session, request_id: int | None) -> dict | None:
         "invoices_pending": sum(1 for i in invoices if i.status == "pending"),
         "picked_up_at": r.picked_up_at,
     }
+
+
+# ------------------------------------------------------------------ for finance
+
+
+def invoices_for_posting(db: Session, first, last) -> dict[str, list[dict]]:
+    """Invoices approved, and invoices paid, on Kuwait days first..last: finance enters each once."""
+    approved_on = func.date(func.timezone("Asia/Kuwait", Invoice.decided_at))
+    paid_on = func.date(func.timezone("Asia/Kuwait", Invoice.paid_at))
+    base = select(Invoice, Center.name).join(Center, Center.id == Invoice.center_id)
+    approved = db.execute(
+        base.add_columns(approved_on).where(Invoice.status == "approved", approved_on.between(first, last))
+    ).all()
+    paid = db.execute(
+        base.add_columns(paid_on).where(Invoice.payment_status == "paid", paid_on.between(first, last))
+    ).all()
+
+    def out(i: Invoice, center: str, day) -> dict:
+        return {
+            "id": i.id,
+            "number": i.number,
+            "center": center,
+            "company_id": i.company_id,
+            "total": i.total,
+            "date": day,
+            "payment_ref": i.payment_ref,
+        }
+
+    return {"approved": [out(*r) for r in approved], "paid": [out(*r) for r in paid]}

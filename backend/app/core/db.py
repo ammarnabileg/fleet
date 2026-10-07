@@ -37,6 +37,7 @@ MIGRATED_SCHEMAS = {
     "fines",
     "payroll",
     "attendance",
+    "finance",
 }
 PARTITION = re.compile(r"^positions_\d{4}_\d{2}$")  # monthly partitions of tracking.positions, made at runtime
 

@@ -673,6 +673,14 @@ def cards(db: Session, ids: Iterable[int], *, all_companies: bool, company_ids: 
     }
 
 
+def company_ids_of(db: Session, ids: Iterable[int]) -> dict[int, int]:
+    """Each employee's company, for records that belong to an employee (finance's entries)."""
+    ids = set(ids)
+    if not ids:
+        return {}
+    return dict(db.execute(select(Employee.id, Employee.company_id).where(Employee.id.in_(ids))).tuples().all())
+
+
 def names(db: Session, ids: Iterable[int]) -> dict[int, dict]:
     ids = set(ids)
     if not ids:

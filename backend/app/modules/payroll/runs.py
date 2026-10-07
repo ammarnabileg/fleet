@@ -612,3 +612,79 @@ def payslips(db: Session, employee_id: int) -> list[dict]:
 def run_for_export(db: Session, public_id, **scope) -> tuple[Run, list[Line]]:
     run = _run(db, public_id, **scope)
     return run, list(db.scalars(select(Line).where(Line.run_id == run.id).order_by(Line.id)))
+
+
+# ------------------------------------------------------------------ for finance
+
+
+def _month_end(month: date) -> date:
+    nxt = date(month.year + (month.month == 12), month.month % 12 + 1, 1)
+    return date.fromordinal(nxt.toordinal() - 1)
+
+
+def runs_for_posting(db: Session, first: date, last: date) -> dict[str, list[dict]]:
+    """Approved runs whose month ends first..last (the month's salaries, net and installments taken), and runs paid
+    on Kuwait days first..last: finance enters each once. A run reopened since is no longer listed."""
+    approved = list(db.scalars(select(Run).where(Run.status.in_(("approved", "paid")), Run.month <= last)))
+    approved = [r for r in approved if first <= _month_end(r.month) <= last]
+    paid_on = func.date(func.timezone("Asia/Kuwait", Run.paid_at))
+    paid = db.execute(select(Run, paid_on).where(Run.status == "paid", paid_on.between(first, last))).all()
+    ids = {r.id for r in approved} | {r.id for r, _ in paid}
+    net: dict[int, Decimal] = {}
+    taken: dict[int, Decimal] = {}
+    if ids:
+        net = dict(
+            db.execute(select(Line.run_id, func.sum(Line.net)).where(Line.run_id.in_(ids)).group_by(Line.run_id)).all()
+        )
+        taken = dict(
+            db.execute(
+                select(Line.run_id, func.sum(LineDeduction.deducted))
+                .join(LineDeduction, LineDeduction.line_id == Line.id)
+                .where(Line.run_id.in_(ids))
+                .group_by(Line.run_id)
+            ).all()
+        )
+
+    def out(r: Run, day: date) -> dict:
+        return {
+            "id": r.id,
+            "company_id": r.company_id,
+            "month": r.month,
+            "date": day,
+            "net": net.get(r.id) or ZERO,
+            "installments": taken.get(r.id) or ZERO,
+            "payment_ref": r.payment_ref,
+        }
+
+    return {"approved": [out(r, _month_end(r.month)) for r in approved], "paid": [out(r, d) for r, d in paid]}
+
+
+def deductions_for_posting(db: Session, first: date, last: date) -> list[dict]:
+    """Deductions made on Kuwait days first..last, for what the employee owes: the total while it stands, what was
+    taken in approved payroll if it was cancelled since (nothing more will be)."""
+    made_on = func.date(func.timezone("Asia/Kuwait", Deduction.created_at))
+    rows = db.execute(select(Deduction, made_on).where(made_on.between(first, last))).all()
+    cancelled = [d.id for d, _ in rows if d.status == "cancelled"]
+    taken: dict[int, Decimal] = {}
+    if cancelled:
+        taken = dict(
+            db.execute(
+                select(LineDeduction.deduction_id, func.sum(LineDeduction.deducted))
+                .join(Line, Line.id == LineDeduction.line_id)
+                .join(Run, Run.id == Line.run_id)
+                .where(LineDeduction.deduction_id.in_(cancelled), Run.status.in_(("approved", "paid")))
+                .group_by(LineDeduction.deduction_id)
+            ).all()
+        )
+    return [
+        {
+            "id": d.id,
+            "employee_id": d.employee_id,
+            "company_id": d.company_id,
+            "source_type": d.source_type,
+            "reason": d.reason,
+            "amount": d.total if d.status == "approved" else (taken.get(d.id) or ZERO),
+            "date": day,
+        }
+        for d, day in rows
+    ]

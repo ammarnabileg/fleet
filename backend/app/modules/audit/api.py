@@ -113,6 +113,6 @@ def export_audit(
         body, media = sheets.to_csv(list(COLUMNS), rows), "text/csv; charset=utf-8"
     else:
         header = [text(f"audit_column.{c}", c) for c in COLUMNS]
-        body = sheets.to_xlsx(text("audit_column.title", "audit"), header, rows, rtl=lang == "ar")
+        body = sheets.to_xlsx(text("audit_column.title", "audit"), header, rows, rtl=lang == "ar", text_columns=(4, 6))
         media = XLSX
     return Response(body, media_type=media, headers={"Content-Disposition": f'attachment; filename="audit.{format}"'})

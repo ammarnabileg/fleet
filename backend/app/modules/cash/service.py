@@ -697,6 +697,39 @@ def treasury(db: Session) -> list[dict]:
 # ------------------------------------------------------------------ invariants (nightly)
 
 
+def posted_journals(db: Session, first: date, last: date) -> list[dict]:
+    """Posted journals of business dates first..last with their lines by account kind, for finance's entries: every
+    collection, receipt, bank deposit, adjustment, settlement, write-off, opening balance and reversal."""
+    journals = list(
+        db.scalars(
+            select(Journal)
+            .where(Journal.status == "posted", Journal.business_date.between(first, last))
+            .order_by(Journal.id)
+        )
+    )
+    if not journals:
+        return []
+    lines: dict[int, list[dict]] = {j.id: [] for j in journals}
+    for journal_id, amount, kind, driver_id, branch_id in db.execute(
+        select(JournalLine.journal_id, JournalLine.amount, Account.kind, Account.driver_id, Account.branch_id)
+        .join(Account, Account.id == JournalLine.account_id)
+        .where(JournalLine.journal_id.in_(list(lines)))
+        .order_by(JournalLine.journal_id, JournalLine.amount.desc())
+    ):
+        lines[journal_id].append({"kind": kind, "amount": amount, "driver_id": driver_id, "branch_id": branch_id})
+    return [
+        {
+            "id": j.id,
+            "public_id": str(j.public_id),
+            "kind": j.kind,
+            "date": j.business_date,
+            "reason": j.reason,
+            "lines": lines[j.id],
+        }
+        for j in journals
+    ]
+
+
 def check_invariants(db: Session) -> list[str]:
     """Spec 8.5: all posted lines sum to zero; no pending journal older than the review limit."""
     problems = []

@@ -40,7 +40,10 @@ def _cell(value):
     return text, "@"  # text stays text, even "=1+1"
 
 
-def to_xlsx(title: str, header: list[str], rows: Iterable[list], *, rtl: bool) -> bytes:
+def to_xlsx(
+    title: str, header: list[str], rows: Iterable[list], *, rtl: bool, text_columns: Iterable[int] = ()
+) -> bytes:
+    """`text_columns`: positions kept as text however they look, such as account codes ("0101" stays "0101")."""
     from openpyxl import Workbook
     from openpyxl.styles import Font
 
@@ -52,8 +55,9 @@ def to_xlsx(title: str, header: list[str], rows: Iterable[list], *, rtl: bool) -
     for c in ws[1]:
         c.font = Font(bold=True)
     widths = [len(h) for h in header]
+    keep = set(text_columns)
     for row in rows:
-        values = [_cell(v) for v in row]
+        values = [("" if v is None else str(v), "@") if i in keep else _cell(v) for i, v in enumerate(row)]
         ws.append([v for v, _ in values])
         for i, (v, number_format) in enumerate(values):
             cell = ws.cell(row=ws.max_row, column=i + 1)

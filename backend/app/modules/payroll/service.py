@@ -306,3 +306,18 @@ def create_manual(db: Session, data: dict, *, actor_user_id: int, **scope) -> di
     )
     db.commit()
     return deduction(db, deduction_id)
+
+
+# ------------------------------------------------------------------ for finance
+
+
+def runs_for_posting(db: Session, first: date, last: date) -> dict[str, list[dict]]:
+    from app.modules.payroll import runs
+
+    return runs.runs_for_posting(db, first, last)
+
+
+def deductions_for_posting(db: Session, first: date, last: date) -> list[dict]:
+    from app.modules.payroll import runs
+
+    return runs.deductions_for_posting(db, first, last)

@@ -333,3 +333,24 @@ def counts(db: Session, *, all_companies: bool, company_ids: Iterable[int]) -> d
     no_driver, _ = db.execute(base.where(Fine.status == "open", Fine.driver_id.is_(None))).one()
     unpaid_n, unpaid_total = db.execute(base.where(Fine.status != "cancelled", Fine.paid_at.is_(None))).one()
     return {"open": open_n, "no_driver": no_driver, "unpaid": unpaid_n, "unpaid_total": str(unpaid_total)}
+
+
+# ------------------------------------------------------------------ for finance
+
+
+def paid_for_posting(db: Session, first, last) -> list[dict]:
+    """Fines paid to the traffic department on Kuwait days first..last: finance enters each once."""
+    paid_on = func.date(func.timezone("Asia/Kuwait", Fine.paid_at))
+    rows = db.execute(select(Fine, paid_on).where(Fine.paid_at.is_not(None), paid_on.between(first, last))).all()
+    return [
+        {
+            "id": f.id,
+            "number": f.number,
+            "company_id": f.company_id,
+            "amount": f.amount,
+            "violation": f.violation,
+            "date": day,
+            "payment_ref": f.payment_ref,
+        }
+        for f, day in rows
+    ]

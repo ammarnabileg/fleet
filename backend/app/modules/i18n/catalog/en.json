@@ -382,7 +382,25 @@
     "mark_not_found": "This day has no mark",
     "invalid_mark": "Unknown mark",
     "too_many_requests": "Too many requests from this connection: try again in {minutes} minutes",
-    "export_too_large": "More than {max} events: narrow the period or the filters"
+    "export_too_large": "More than {max} rows to export: narrow the period or the filters",
+    "account_not_found": "Account not found",
+    "account_code_taken": "Account code {code} is taken",
+    "account_in_use": "The account has entries: its code and type cannot change (its name can)",
+    "account_in_role": "The account is used for {role}: point it elsewhere first",
+    "account_inactive": "Account {code} is closed",
+    "account_role_missing": "No account is set for {role} in the chart",
+    "expense_type_not_found": "Expense type not found",
+    "expense_type_code_taken": "Expense type code {code} is taken",
+    "expense_not_found": "Expense not found",
+    "expense_not_pending": "The expense is not waiting for approval",
+    "expense_not_cancellable": "A rejected, cancelled or paid expense cannot be cancelled",
+    "expense_not_payable": "The expense is not an approved unpaid supplier invoice",
+    "expense_company_mismatch": "The vehicle or employee belongs to another company",
+    "entry_not_found": "Entry not found",
+    "entry_not_approved": "Only an approved entry is reversed; a draft is discarded and made again",
+    "entry_already_reversed": "The entry is reversed already, or is a reversal",
+    "all_companies_required": "The ledger is the whole business's: it needs access to every company",
+    "unknown_account_role": "Unknown role: {role}"
   },
   "settings": {
     "branding": "Branding",
@@ -960,5 +978,85 @@
     "ip": "Address",
     "before": "Before",
     "after": "After"
+  },
+  "finance_source": {
+    "cash_journal": "Cash ledger: {kind} {reason}",
+    "expense": "Expense #{number}: {type} {supplier}",
+    "expense_payment": "Expense #{number} paid: {type} {supplier}",
+    "maintenance_invoice": "Maintenance invoice {number} — {center}",
+    "invoice_payment": "Maintenance invoice {number} paid — {center} {ref}",
+    "payroll_run": "Salaries for {month}",
+    "payroll_payment": "Salaries for {month} paid {ref}",
+    "deduction": "Deduction ({source}): {reason}",
+    "fine_payment": "Fine #{number} paid: {violation} {ref}",
+    "reversal": "Reverses entry #{number}: {reason}"
+  },
+  "entry_source": {
+    "cash_journal": "Cash ledger",
+    "expense": "Expense",
+    "expense_payment": "Expense payment",
+    "maintenance_invoice": "Maintenance invoice",
+    "invoice_payment": "Invoice payment",
+    "payroll_run": "Payroll",
+    "payroll_payment": "Salaries paid",
+    "deduction": "Deduction",
+    "fine_payment": "Fine paid",
+    "reversal": "Reversal"
+  },
+  "finance_column": {
+    "title": "Entries",
+    "number": "Entry",
+    "entry_date": "Date",
+    "account_code": "Account code",
+    "account_name": "Account",
+    "debit": "Debit",
+    "credit": "Credit",
+    "description": "Description",
+    "source_ref": "Reference",
+    "company": "Company",
+    "status": "Status"
+  },
+  "entry_status": {
+    "draft": "Draft",
+    "approved": "Approved"
+  },
+  "expense_status": {
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "cancelled": "Cancelled"
+  },
+  "expense_payment": {
+    "treasury": "Cash from the treasury",
+    "bank": "From the bank",
+    "payable": "Later (supplier invoice)"
+  },
+  "account_type": {
+    "asset": "Asset",
+    "liability": "Liability",
+    "equity": "Equity",
+    "income": "Income",
+    "expense": "Expense"
+  },
+  "finance_role": {
+    "treasury": "Treasury",
+    "bank": "Bank",
+    "driver_cash": "Cash held by drivers",
+    "employee_receivable": "Employee receivables (deductions)",
+    "payroll_recovery": "Cash recovered through payroll",
+    "deduction_advance": "Advances (paid from)",
+    "cod_clearing": "Due to platforms (cash on delivery)",
+    "suppliers_payable": "Suppliers and centers payable",
+    "salaries_payable": "Salaries payable",
+    "opening_equity": "Opening balances",
+    "deduction_accident": "Accident damage recovered",
+    "deduction_fine": "Fines recovered",
+    "deduction_sim": "SIM cards recovered",
+    "deduction_other": "Other recoveries",
+    "cash_adjustments": "Cash adjustments",
+    "salaries_expense": "Salaries expense",
+    "maintenance_expense": "Maintenance expense",
+    "traffic_fines_expense": "Traffic fines expense",
+    "cash_writeoff": "Driver cash written off"
   }
 }
