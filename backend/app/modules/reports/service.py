@@ -94,6 +94,25 @@ def dashboard(db: Session, *, permissions: frozenset[str], all_companies: bool, 
             )
         ).one()
         drivers_on_duty = out.get("drivers", {}).get("on_duty")
+        # the last seven days, today included, counted as today's figures are (reports not rejected, cash as reported)
+        first = day - timedelta(days=6)
+        by_day = {
+            d: (n, int(o), Decimal(c))
+            for d, n, o, c in db.execute(
+                select(
+                    Report.business_date,
+                    func.count(),
+                    func.coalesce(func.sum(Report.orders_count), 0),
+                    func.coalesce(func.sum(Report.cash_amount), 0),
+                )
+                .where(scope, Report.business_date.between(first, day), Report.status != "rejected")
+                .group_by(Report.business_date)
+            )
+        }
+        out["week"] = [
+            dict(zip(("day", "reports", "orders", "cash"), (d, *by_day.get(d, (0, 0, ZERO))), strict=True))
+            for d in (first + timedelta(days=i) for i in range(7))
+        ]
         out["daily_reports"] = {
             "today_sent": sent,
             "today_orders": int(orders),

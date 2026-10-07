@@ -381,7 +381,8 @@
     "day_in_future": "A day still to come cannot be marked",
     "mark_not_found": "This day has no mark",
     "invalid_mark": "Unknown mark",
-    "too_many_requests": "Too many requests from this connection: try again in {minutes} minutes"
+    "too_many_requests": "Too many requests from this connection: try again in {minutes} minutes",
+    "export_too_large": "More than {max} events: narrow the period or the filters"
   },
   "settings": {
     "branding": "Branding",
@@ -909,5 +910,55 @@
     "rest": "Day off",
     "no_vehicle": "No vehicle",
     "system_fault": "System fault"
+  },
+  "audit_entity": {
+    "employee": "Employee",
+    "user": "User",
+    "maintenance_request": "Maintenance request",
+    "maintenance_invoice": "Maintenance invoice",
+    "custody": "Custody",
+    "statement": "Platform statement",
+    "scheme_request": "Pay scheme request",
+    "payroll_run": "Payroll run",
+    "onboarding": "Driver onboarding",
+    "language": "Language",
+    "device": "Driver device",
+    "daily_report": "Daily report",
+    "accident": "Accident",
+    "journal": "Cash entry",
+    "vehicle": "Vehicle",
+    "scheme": "Pay scheme",
+    "role": "Role",
+    "platform": "Platform",
+    "odometer_reading": "Odometer reading",
+    "import": "Import",
+    "fine": "Traffic fine",
+    "employment_status": "Employment status",
+    "document": "Document",
+    "deduction": "Deduction",
+    "company": "Company",
+    "center": "Maintenance center",
+    "branch": "Branch",
+    "settings": "Settings",
+    "receipt": "Cash receipt",
+    "leave": "Leave",
+    "integration": "Integration"
+  },
+  "audit_actor": {
+    "user": "User",
+    "device": "Driver app",
+    "system": "System"
+  },
+  "audit_column": {
+    "title": "Audit log",
+    "occurred_at": "Time (Kuwait)",
+    "actor": "By",
+    "action": "Action",
+    "entity_type": "Record type",
+    "entity_id": "Record",
+    "company": "Company",
+    "ip": "Address",
+    "before": "Before",
+    "after": "After"
   }
 }

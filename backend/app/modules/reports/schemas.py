@@ -19,6 +19,7 @@ class Dashboard(BaseModel):
     maintenance: dict[str, int] | None = None
     accidents: dict[str, int] | None = None
     fines: dict[str, int | str] | None = None
+    week: list[dict] | None = None  # the last seven days' reports, orders and cash, oldest first
 
 
 class PersonRef(BaseModel):

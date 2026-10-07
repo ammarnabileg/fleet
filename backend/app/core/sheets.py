@@ -1,6 +1,6 @@
-"""A report's rows as CSV (column keys as headers, for other systems) or as Excel for people (BRD FR-RPT-08): headers
-in the user's language from the catalog (`report_column`), right to left in Arabic, numbers as numbers so the
-spreadsheet can total them, and text that a spreadsheet would run as a formula kept as text."""
+"""Rows as CSV (column keys as headers, for other systems) or as Excel for people (BRD FR-RPT-08, FR-AUD-03): headers
+in the user's language, right to left in Arabic, numbers as numbers so the spreadsheet can total them, and text that a
+spreadsheet would run as a formula kept as text. Shared by the reports and the audit log."""
 
 import csv
 import io

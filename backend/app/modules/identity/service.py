@@ -688,6 +688,20 @@ def update_role(db: Session, principal: Principal, code: str, *, version: int, c
     return after
 
 
+def user_id(db: Session, public_id) -> int:
+    """The internal id of a user given by its public id (404 if none)."""
+    found = db.scalar(select(User.id).where(User.public_id == public_id))
+    if found is None:
+        raise AppError(404, "user_not_found")
+    return found
+
+
+def user_options(db: Session) -> list[dict]:
+    """Every user, for picking who acted in the audit log (their names show there already)."""
+    rows = db.execute(select(User.public_id, User.full_name, User.username).order_by(User.full_name))
+    return [{"id": str(p), "name": f"{n} ({u})"} for p, n, u in rows]
+
+
 def user_names(db: Session, ids: Iterable[int]) -> dict[int, str]:
     """Display names for other modules (the audit log shows who acted)."""
     ids = {i for i in ids if i is not None}

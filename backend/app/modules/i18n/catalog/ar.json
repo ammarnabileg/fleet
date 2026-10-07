@@ -381,7 +381,8 @@
     "day_in_future": "لا يُصنَّف يوم لم يأتِ بعد",
     "mark_not_found": "لا يوجد تصنيف لهذا اليوم",
     "invalid_mark": "تصنيف غير معروف",
-    "too_many_requests": "طلبات كثيرة من هذا الاتصال: حاول بعد {minutes} دقيقة"
+    "too_many_requests": "طلبات كثيرة من هذا الاتصال: حاول بعد {minutes} دقيقة",
+    "export_too_large": "السجل أكبر من {max} حدث: ضيّق الفترة أو الفلاتر"
   },
   "settings": {
     "branding": "الهوية",
@@ -909,5 +910,55 @@
     "rest": "يوم راحة",
     "no_vehicle": "بلا سيارة",
     "system_fault": "عطل في النظام"
+  },
+  "audit_entity": {
+    "employee": "موظف",
+    "user": "مستخدم",
+    "maintenance_request": "طلب صيانة",
+    "maintenance_invoice": "فاتورة صيانة",
+    "custody": "عهدة",
+    "statement": "كشف منصة",
+    "scheme_request": "طلب تغيير نظام الدفع",
+    "payroll_run": "كشف رواتب",
+    "onboarding": "تسجيل سائق",
+    "language": "لغة",
+    "device": "جهاز سائق",
+    "daily_report": "تقرير يومي",
+    "accident": "حادث",
+    "journal": "قيد كاش",
+    "vehicle": "سيارة",
+    "scheme": "نظام دفع",
+    "role": "دور",
+    "platform": "منصة",
+    "odometer_reading": "قراءة عداد",
+    "import": "استيراد",
+    "fine": "مخالفة مرورية",
+    "employment_status": "حالة وظيفية",
+    "document": "مستند",
+    "deduction": "خصم",
+    "company": "شركة",
+    "center": "مركز صيانة",
+    "branch": "فرع",
+    "settings": "إعدادات",
+    "receipt": "إيصال كاش",
+    "leave": "إجازة",
+    "integration": "تكامل"
+  },
+  "audit_actor": {
+    "user": "مستخدم",
+    "device": "تطبيق السائق",
+    "system": "النظام"
+  },
+  "audit_column": {
+    "title": "سجل التدقيق",
+    "occurred_at": "الوقت (الكويت)",
+    "actor": "بواسطة",
+    "action": "الإجراء",
+    "entity_type": "نوع السجل",
+    "entity_id": "السجل",
+    "company": "الشركة",
+    "ip": "العنوان",
+    "before": "قبل",
+    "after": "بعد"
   }
 }

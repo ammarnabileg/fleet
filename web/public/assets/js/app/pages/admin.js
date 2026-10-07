@@ -516,38 +516,58 @@
   }
 
   /* ================= سجل التدقيق ================= */
+  /* البحث بمن قام بالإجراء ونوع السجل والفترة (أيام الكويت) والإجراء، والتصدير Excel أو CSV بنفس الفلاتر (FR-AUD-03) */
   BT.pages['audit'] = function () {
     A.setTitle('سجل التدقيق');
-    var v = A.view(), filters = { entity_type: '', action: '' }, cursors = [null];
-    BT.render(v, h`${A.head('سجل التدقيق', 'من غيّر ماذا ومتى ومن أي عنوان: لا يُعدَّل ولا يُحذف', '')}<div class="card"><div id="audit-table"></div></div>`);
-    (function () {
+    var v = A.view(), filters = { actor_id: '', entity_type: '', action: '', date_from: '', date_to: '' }, cursors = [null];
+    function entity(code) { var t = api.t('audit_entity', code); return t && t.indexOf('audit_entity.') !== 0 ? t : code; }
+    function actor(e) { return e.actor_type === 'user' ? (e.actor_name || '#' + e.actor_user_id) : api.t('audit_actor', e.actor_type); }
+    function query() { var q = {}; Object.keys(filters).forEach(function (k) { if (filters[k]) q[k] = filters[k]; }); return q; }
+    BT.render(v, h`${A.head('سجل التدقيق', 'من غيّر ماذا ومتى ومن أي عنوان: لا يُعدَّل ولا يُحذف', h`<div class="btn-group">
+        <button type="button" class="btn btn-outline" data-audit-export="xlsx">${icon('file-spreadsheet', 16)} Excel</button>
+        <button type="button" class="btn btn-ghost" data-audit-export="csv">CSV</button></div>`)}
+      <div class="card"><div id="audit-table"></div></div>`);
+    A.load(document.getElementById('audit-table'), api.get('/audit/users'), function () { return ''; }).then(function (users) {
       var el = document.getElementById('audit-table');
+      var types = Object.keys(api.cat.audit_entity || {}).sort(function (a, b) { return entity(a).localeCompare(entity(b), 'ar'); });
       var t = BT.table(el, {
         fetch: function (s) {
           var page = Math.round(s.offset / (s.limit - 1));
           if (page === 0) cursors = [null];
-          return api.get('/audit', { entity_type: filters.entity_type, action: filters.action, before_id: cursors[page], limit: s.limit }).then(function (rows) {
+          return api.get('/audit', Object.assign(query(), { before_id: cursors[page], limit: s.limit })).then(function (rows) {
             if (rows.length >= s.limit) cursors[page + 1] = rows[s.limit - 2].id;
             return rows;
           });
         },
-        tools: h`<input class="input" data-f="entity_type" placeholder="نوع السجل (employee، vehicle…)"><input class="input" data-f="action" placeholder="الإجراء (employee.updated…)">`,
+        tools: h`<select class="select" data-f="actor_id" aria-label="بواسطة"><option value="">كل المستخدمين</option>${users.map(function (u) { return h`<option value="${u.id}">${u.name}</option>`; })}</select>
+          <select class="select" data-f="entity_type" aria-label="نوع السجل"><option value="">كل السجلات</option>${types.map(function (c) { return h`<option value="${c}">${entity(c)}</option>`; })}</select>
+          <input class="input" type="date" data-f="date_from" aria-label="من" title="من">
+          <input class="input" type="date" data-f="date_to" aria-label="إلى" title="إلى">
+          <input class="input ltr" data-f="action" placeholder="الإجراء (employee.updated…)" aria-label="الإجراء">`,
         columns: [
           { key: 'occurred_at', label: 'الوقت', render: function (e) { return fmt.dt(e.occurred_at); } },
-          { key: 'actor', label: 'بواسطة', render: function (e) { return e.actor_type === 'user' ? (e.actor_name || '#' + e.actor_user_id) : BT.pill(e.actor_type === 'device' ? 'تطبيق السائق' : 'النظام', 'n'); } },
+          { key: 'actor', label: 'بواسطة', render: function (e) { return e.actor_type === 'user' ? actor(e) : BT.pill(actor(e), 'n'); } },
           { key: 'action', label: 'الإجراء', render: function (e) { return h`<span class="ltr fs-sm">${e.action}</span>`; } },
-          { key: 'entity', label: 'السجل', render: function (e) { return h`<span class="ltr fs-sm">${e.entity_type}${e.entity_id ? ' · ' + String(e.entity_id).slice(0, 8) : ''}</span>`; } },
+          { key: 'entity', label: 'السجل', render: function (e) { return h`${entity(e.entity_type)}${e.entity_id ? h`<span class="sub ltr">${String(e.entity_id).slice(0, 8)}</span>` : ''}`; } },
           { key: 'company', label: 'الشركة', render: function (e) { return e.company_id ? api.company(e.company_id) : '—'; } },
           { key: 'ip', label: 'العنوان', render: function (e) { return e.ip ? h`<span class="num ltr fs-sm">${e.ip}</span>` : '—'; } }
         ],
         rowClick: function (e) {
           var pre = function (o) { return o == null ? raw('<span class="muted">—</span>') : h`<pre class="ltr fs-sm" style="white-space:pre-wrap;word-break:break-word;background:var(--surface-2);padding:10px;border-radius:8px;max-height:320px;overflow:auto">${JSON.stringify(o, null, 2)}</pre>`; };
           BT.drawer.open({ title: e.action, subtitle: fmt.dt(e.occurred_at), icon: 'shield-check', size: 'lg', buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }],
-            body: h`${BT.kv([['السجل', h`<span class="ltr">${e.entity_type} ${e.entity_id || ''}</span>`], ['بواسطة', e.actor_name || (e.actor_type === 'device' ? 'تطبيق السائق' : e.actor_type === 'user' ? '#' + e.actor_user_id : 'النظام')], ['العنوان', e.ip || '—'], ['رقم الطلب', e.request_id ? h`<span class="ltr fs-sm">${e.request_id}</span>` : '—']])}<div class="section-t mt-16">قبل</div>${pre(e.before)}<div class="section-t mt-16">بعد</div>${pre(e.after)}` });
+            body: h`${BT.kv([['السجل', h`${entity(e.entity_type)} <span class="ltr fs-sm">${e.entity_id || ''}</span>`], ['بواسطة', actor(e)], ['العنوان', e.ip || '—'], ['رقم الطلب', e.request_id ? h`<span class="ltr fs-sm">${e.request_id}</span>` : '—']])}<div class="section-t mt-16">قبل</div>${pre(e.before)}<div class="section-t mt-16">بعد</div>${pre(e.after)}` });
         },
         empty: { icon: 'shield-check', title: 'لا توجد أحداث مطابقة' }
       });
-      BT.on(el, 'change', '[data-f]', function (e, inp) { filters[inp.getAttribute('data-f')] = inp.value.trim(); cursors = [null]; t.refresh(); });
-    })();
+      BT.on(el, 'change', '[data-f]', function (e, inp) {
+        var from = el.querySelector('[data-f=date_from]').value, to = el.querySelector('[data-f=date_to]').value;
+        if (from && to && to < from) { BT.toast('تاريخ النهاية قبل البداية', { type: 'error' }); return; }
+        filters[inp.getAttribute('data-f')] = inp.value.trim(); cursors = [null]; t.refresh();
+      });
+      BT.on(v, 'click', '[data-audit-export]', function (e, b) {
+        var ext = b.getAttribute('data-audit-export');
+        A.downloadFile('/audit/export', Object.assign(query(), { format: ext }), 'audit' + (filters.date_from ? '-' + filters.date_from : '') + (filters.date_to ? '-' + filters.date_to : '') + '.' + ext);
+      });
+    }).catch(function () {});
   };
 })();

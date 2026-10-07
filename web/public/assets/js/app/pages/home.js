@@ -60,9 +60,39 @@
       if (api.can('cash.collect')) quick.push(['#/cash?tab=receipts', 'hand-coins', 'استلام كاش بإيصال']);
       if (api.can('employees.onboarding')) quick.push(['#/employees?tab=reg', 'user-round-check', 'طلبات التسجيل']);
       var quickCard = quick.length ? h`<div class="card"><div class="card-h"><div class="card-t">${icon('list-checks', 17)} إجراءات سريعة</div></div><div class="list">${quick.map(function (x) { return h`<a class="li" href="${x[0]}"><span class="li-ic b">${icon(x[1], 16)}</span><div class="li-main"><div class="li-t">${x[2]}</div></div>${icon('chevron-left', 14)}</a>`; })}</div></div>` : '';
+      var weekCard = d.week ? h`<div class="card mb-16"><div class="card-h"><div><div class="card-t" data-week-title>الطلبات — آخر 7 أيام</div><div class="card-meta">من التقارير اليومية غير المرفوضة، كما تُحسب أرقام اليوم</div></div>
+          <div class="flex gap-8 items-center">${BT.tabs('dash-week', [['orders', 'الطلبات'], ['cash', 'الكاش المُبلّغ']], 'orders')}
+          <button type="button" class="icon-btn sm sq" data-week-table data-tip="عرض كجدول" aria-label="عرض كجدول">${icon('table-2', 16)}</button></div></div>
+        <div data-week-chart></div></div>` : '';
       return h`${A.head((hour < 12 ? 'صباح الخير' : 'مساء الخير') + '، ' + api.me.full_name.split(' ')[0], 'ملخص اليوم ' + fmt.dateLong(BT.config.today) + ' · آخر تحديث ' + fmt.time(d.as_of), A.btn('تحديث', { icon: 'refresh-cw', cls: 'btn-outline', action: 'reload' }))}
         ${rows}
+        ${weekCard}
         <div class="grid" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)">${alertCard}<div class="grid" style="gap:16px">${docCard}${quickCard}</div></div>`;
-    }).catch(function () {});
+    }).then(function (r) { if (r && r[0].week) week(v, r[0].week); }).catch(function () {});
   };
+
+  /* آخر 7 أيام: الطلبات أو الكاش المُبلّغ لكل يوم، ورسمٌ يُعرض جدولاً لمن يريد الأرقام */
+  function week(v, days) {
+    var el = v.querySelector('[data-week-chart]'), metric = 'orders';
+    if (!el) return;
+    function draw() {
+      var orders = metric === 'orders';
+      BT.chart.bars(el, {
+        name: orders ? 'الطلبات آخر 7 أيام' : 'الكاش المُبلّغ آخر 7 أيام',
+        labels: days.map(function (x) { return BT.date.dayName(x.day); }), sublabels: days.map(function (x) { return fmt.dm(x.day); }),
+        values: days.map(function (x) { return orders ? x.orders : Number(x.cash); }),
+        format: orders ? fmt.int : fmt.money, unitLabel: orders ? 'طلب' : BT.config.currency, height: 230
+      });
+      v.querySelector('[data-week-title]').textContent = orders ? 'الطلبات — آخر 7 أيام' : 'الكاش المُبلّغ (' + BT.config.currency + ') — آخر 7 أيام';
+    }
+    draw();
+    v.querySelector('[data-tabs="dash-week"]').addEventListener('bt:tab', function (e) { metric = e.detail; draw(); });
+    v.querySelector('[data-week-table]').addEventListener('click', function () {
+      BT.modal.open({
+        title: 'آخر 7 أيام', icon: 'table-2',
+        body: BT.chart.table(['اليوم', 'التقارير', 'الطلبات', 'الكاش المُبلّغ'], days.map(function (x) { return [BT.date.dayName(x.day) + ' ' + fmt.dm(x.day), fmt.int(x.reports), fmt.int(x.orders), fmt.money(x.cash)]; })),
+        buttons: [{ label: 'إغلاق', cls: 'btn-primary' }]
+      });
+    });
+  }
 })();

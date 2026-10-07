@@ -93,3 +93,44 @@ def test_daily_summary_and_csv_export(admin_client, client, new_client, companie
     assert r.status_code == 403 and r.json()["params"]["permission"] == "reports.export"
     long = {"date_from": str(today() - timedelta(days=200)), "date_to": str(today())}
     assert admin_client.get("/api/v1/reports/daily-summary", params=long).json()["code"] == "range_too_long"
+
+
+def test_the_dashboard_s_last_seven_days(admin_client, client, db, companies):
+    from sqlalchemy import text
+
+    a = companies["a"]["id"]
+    t = today()
+
+    def report(d, back, cash, orders):
+        h = bearer(bind_device(client, d["phone"]))
+        shot = client.post(
+            "/api/v1/driver/files",
+            params={"source": "upload"},
+            headers=h,
+            files={"file": ("s.jpg", jpeg(), "image/jpeg")},
+        ).json()["sha256"]
+        day = str(t - timedelta(days=min(back, 1)))
+        body = {"business_date": day, "orders_count": orders, "cash_amount": cash, "screenshot_sha256": shot}
+        r = client.post("/api/v1/driver/reports", headers=h, json=body)
+        assert r.status_code == 201, r.text
+        if back > 1:  # the app sends two days back at most: older ones are moved here
+            db.execute(
+                text("UPDATE daily_ops.reports SET business_date = :d WHERE public_id = :p"),
+                {"d": t - timedelta(days=back), "p": r.json()["id"]},
+            )
+            db.commit()
+        return r.json()
+
+    ali, omar, sami = (make_driver(admin_client, a) for _ in range(3))
+    report(ali, 0, "10.500", 12)
+    report(omar, 0, "4.250", 5)
+    report(ali, 6, "7.000", 9)  # the first of the seven days
+    report(omar, 7, "99.000", 99)  # before them
+    refused = report(sami, 1, "50.000", 50)
+    r = admin_client.post(f"/api/v1/daily-reports/{refused['id']}/reject", json={"reason": "wrong screenshot"})
+    assert r.status_code == 200, r.text
+    week = admin_client.get("/api/v1/dashboard").json()["week"]
+    assert [x["day"] for x in week] == [str(t - timedelta(days=n)) for n in range(6, -1, -1)]
+    assert [(x["reports"], x["orders"], x["cash"]) for x in week] == [(1, 9, "7.000")] + [(0, 0, "0.000")] * 5 + [
+        (2, 17, "14.750")
+    ]

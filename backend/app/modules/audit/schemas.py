@@ -20,3 +20,8 @@ class AuditEventOut(BaseModel):
     after: Any
     ip: str | None
     request_id: str | None
+
+
+class AuditUserOut(BaseModel):
+    id: str
+    name: str
