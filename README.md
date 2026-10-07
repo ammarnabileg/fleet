@@ -71,15 +71,15 @@ uvicorn app.main:create_app --factory --reload      # التوثيق: http://loc
 
 ## النشر على Coolify (v4)
 
-جُرّب كاملاً بنفس ملف `deploy/docker-compose.yml` على Docker محلياً: الحاويات الثمانية تقوم، الترحيلات تعمل بصلاحية المالك، مستخدم التطبيق `fleet_app` يُنشأ وحده، الدخول عبر nginx يعمل، والعامل والجدولة يعملان، وإعادة النشر تحفظ البيانات.
+جُرّب كاملاً بنفس ملف `docker-compose.yml` (في جذر المستودع) على Docker محلياً، وبنفس طريقة Coolify في تشغيله: الحاويات الثمانية تقوم، الترحيلات تعمل بصلاحية المالك، مستخدم التطبيق `fleet_app` يُنشأ وحده، الدخول عبر nginx يعمل، والعامل والجدولة يعملان، وإعادة النشر تحفظ البيانات.
 
 **قبل البدء:** سجل DNS من نوع A للدومين يشير لعنوان الخادم، والمنفذان 80 و443 مفتوحان (Coolify يصدر شهادة HTTPS وحده). ذاكرة 8 GB تكفي للبداية.
 
 1. **New Resource ← Docker Compose** من مستودع Git خاص (GitHub App أو Deploy Key) على `ammarnabileg/fleet`:
    - الفرع: `main` بعد الدمج (أو فرع الـ PR للتجربة).
-   - Base Directory: `/deploy`
+   - Base Directory: `/`
    - Docker Compose Location: `/docker-compose.yml`
-   - (Coolify يحسب المسارات النسبية في الملف، `../backend` و`./postgres`، من الـ Base Directory لا من مكان الملف: مع `/` يفشل البناء بـ `path "/artifacts/backend" not found`)
+   - (الملف في جذر المستودع لأن Coolify يشغّل compose من جذر المستودع أياً كان الـ Base Directory، فتُحسب مسارات البناء `./backend` و`./web` و`./deploy/postgres` من هناك)
 2. **الدومين على خدمة `web` فقط:** `https://<الدومين>` (المنفذ 80 داخل الحاوية). لا دومين لـ `api` ولا لغيرها: الـ API يمر عبر nginx فقط.
 3. **متغيرات البيئة:** الخمسة المطلوبة في `deploy/.env.example` (`SECRET_KEY` و`POSTGRES_PASSWORD` و`FLEET_APP_DB_PASSWORD` و`REDIS_PASSWORD` و`PUBLIC_URL`)، وكلمات المرور حروف وأرقام فقط (`openssl rand -hex 24`) لأنها تدخل في عناوين الاتصال. احفظ `SECRET_KEY` في مكان آمن: يشفّر مفاتيح التكاملات، وتغييره يعني إدخالها من جديد. ناقص واحد منها يوقف النشر برسالة تسميه. أطفئ «Build time» لكلمات السر و`SECRET_KEY` (تكفيها «Runtime»): Coolify يمرر المتغيرات المفعّل فيها وقت البناء إلى أمر البناء.
 4. **Deploy.** أول مرة تُبنى ثلاث صور (دقائق). `migrate` يشغّل الترحيلات ثم يخرج بـ 0، وقد يعرضه Coolify «Exited»: هذا عمله.

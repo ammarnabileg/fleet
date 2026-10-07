@@ -1,7 +1,9 @@
 name: fleet
 
+# At the repository's root: build paths are relative to it, which is also where a deploy platform runs compose from
+# (Coolify passes --project-directory <repository>, whatever its base directory). By hand: docker compose up -d here.
 # Every setting is a ${VARIABLE} here, read from the deploy platform's variables (Coolify lists them on its
-# Environment Variables screen) or from deploy/.env when run by hand. ${VAR:?...} stops the deploy with that message
+# Environment Variables screen) or from .env next to this file (copy deploy/.env.example). ${VAR:?...} stops the deploy with that message
 # while the value is missing. Passwords go inside URLs: letters and digits only (openssl rand -hex 24).
 
 x-logging: &logging
@@ -33,8 +35,8 @@ x-app-env: &app-env
   SENTRY_DSN: ${SENTRY_DSN:-}
 
 x-app: &app
-  image: ${APP_IMAGE:-fleet-backend:dev}
-  build: ../backend
+  # no fixed image name: two deployments on one server (staging, production) would overwrite each other's image
+  build: ./backend
   environment: *app-env
   restart: unless-stopped
   logging: *logging
@@ -51,7 +53,7 @@ x-app-deps: &app-deps
 
 services:
   web:
-    build: ../web
+    build: ./web
     restart: unless-stopped
     logging: *logging
     expose: ["80"]
@@ -113,7 +115,7 @@ services:
         limits: { cpus: "0.25", memory: 256m }
 
   postgres:
-    build: ./postgres
+    build: ./deploy/postgres
     restart: unless-stopped
     logging: *logging
     shm_size: 1g
