@@ -68,6 +68,7 @@ class AppState extends ChangeNotifier {
   PlatformStatus? statements;
   List<Payslip> payslips = [];
   DriverSchemes? schemes;
+  Notices? notices;
   List<OutboxItem> queued = [];
   Map<String, dynamic> tracking = {};
   Object? lastError;
@@ -305,6 +306,7 @@ class AppState extends ChangeNotifier {
     statements = null;
     payslips = [];
     schemes = null;
+    notices = null;
   }
 
   // ---------------------------------------------------------------- data
@@ -324,6 +326,7 @@ class AppState extends ChangeNotifier {
         if (shows('daily_report')) loadReports(),
         if (shows('maintenance')) _quietly(loadMaintenance),
         if (shows('accidents')) _quietly(loadAccidents),
+        _quietly(loadNotices),
       ]);
       await _readLocal();
       _set(Phase.ready);
@@ -370,6 +373,18 @@ class AppState extends ChangeNotifier {
   Future<void> loadAccidents() async => accidents = [
     for (final a in await api.get('/driver/accidents') as List) Accident.fromJson(a as Map<String, dynamic>),
   ];
+
+  Future<void> loadNotices() async {
+    notices = Notices.fromJson(await api.get('/driver/notifications') as Map<String, dynamic>);
+    notifyListeners();
+  }
+
+  /// Everything shown is now read: the badge goes, the list keeps them.
+  Future<void> readNotices() async {
+    if ((notices?.unread ?? 0) == 0) return;
+    await api.post('/driver/notifications/read');
+    await loadNotices();
+  }
 
   Future<void> loadFines() async =>
       fines = [for (final f in await api.get('/driver/fines') as List) Fine.fromJson(f as Map<String, dynamic>)];

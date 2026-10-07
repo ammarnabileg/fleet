@@ -618,6 +618,16 @@ def record_outcome(db: Session, public_id, *, data: dict, actor_user_id: int, **
     a.liability, a.liability_percent = liability, (percent if liability != "none" else None)
     a.outcome_note, a.outcome_by, a.outcome_at = data.get("note"), actor_user_id, utcnow()
     _event(db, a, "outcome", by_user=actor_user_id, note=data.get("note"))
+    if a.driver_id is not None:
+        notifications.notify_driver(
+            db,
+            a.driver_id,
+            "accident_no_liability" if amount is None else "accident_charged",
+            params={"number": a.number}
+            | ({} if amount is None else {"amount": f"{amount:.3f}", "installments": data["installments"]}),
+            entity_type="accident",
+            entity_id=a.public_id,
+        )
     _audit(
         db,
         "accident.outcome",

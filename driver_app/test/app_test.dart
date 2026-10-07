@@ -1334,4 +1334,50 @@ void main() {
     expect(find.byKey(const Key('start-day')), findsOneWidget);
     expect(w.server.calls('/api/v1/driver/splash/$sha').length, 1, reason: 'kept on the phone, not fetched again');
   });
+
+  testWidgets('notifications: a badge with the unread count, the list in the app language, read once opened', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    var unread = 2;
+    Map<String, dynamic> notice(String id, String kind, String message, bool read) => {
+      'id': id,
+      'kind': kind,
+      'message': message,
+      'entity_type': null,
+      'entity_id': null,
+      'created_at': '2026-10-07T09:00:00Z',
+      'read': read,
+    };
+    w.server.on(
+      'GET',
+      '/api/v1/driver/notifications',
+      (r) => (
+        200,
+        {
+          'unread': unread,
+          'items': [
+            notice('n2', 'maintenance_ready', 'سيارتك جاهزة للاستلام من مركز النور (طلب الصيانة رقم 12).', unread == 0),
+            notice('n1', 'receipt_issued', 'استلم المكتب منك 15.000 د.ك، إيصال رقم 7.', unread == 0),
+          ],
+        },
+      ),
+    );
+    w.server.on('POST', '/api/v1/driver/notifications/read', (r) {
+      unread = 0;
+      return (200, {'count': 2});
+    });
+    await pumpApp(tester, w);
+    final bell = find.byKey(const Key('notifications'));
+    expect(find.descendant(of: bell, matching: find.text('2')), findsOneWidget);
+    await tester.tap(bell);
+    await settle(tester);
+    expect(find.textContaining('سيارتك جاهزة للاستلام من مركز النور'), findsOneWidget);
+    expect(find.textContaining('إيصال رقم 7'), findsOneWidget);
+    expect(w.server.calls('/api/v1/driver/notifications/read', method: 'POST'), hasLength(1));
+    await shot(tester, '24-notifications');
+    await tester.binding.handlePopRoute(); // the phone's back button
+    await settle(tester);
+    expect(find.descendant(of: bell, matching: find.text('2')), findsNothing); // read: the badge is gone
+  });
 }

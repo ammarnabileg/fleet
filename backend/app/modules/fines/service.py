@@ -241,6 +241,14 @@ def charge(db: Session, public_id, *, data: dict, actor_user_id: int, **scope) -
     f.status, f.decided_by, f.decided_at, f.decision_note = "charged", actor_user_id, utcnow(), data.get("reason")
     f.version += 1
     notifications.resolve(db, f"fine_no_driver:{f.id}")
+    notifications.notify_driver(
+        db,
+        f.driver_id,
+        "fine_charged",
+        params={"number": f.number, "amount": f"{f.amount:.3f}", "installments": data["installments"]},
+        entity_type="fine",
+        entity_id=f.public_id,
+    )
     _audit(db, "fine.charged", f, actor_user_id=actor_user_id, after={"installments": data["installments"]})
     _emit(db, "fine.charged", f, installments=data["installments"])
     db.commit()

@@ -1047,4 +1047,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get payWhyUncovered => 'Penalties above the month\'s pay are not taken: the month never goes below zero';
+
+  @override
+  String get noticesTitle => 'Notifications';
+
+  @override
+  String get noticesNone => 'No notifications yet';
 }

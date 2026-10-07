@@ -155,6 +155,19 @@ def _approval(db: Session, r: Request, quote: Quote | None = None) -> dict:
     }
 
 
+def _tell_driver(db: Session, r: Request, kind: str, **params) -> None:
+    """The driver who asked for the repair (or held the vehicle when it was asked for) learns of it in the app."""
+    if r.driver_id is not None:
+        notifications.notify_driver(
+            db,
+            r.driver_id,
+            kind,
+            params={"number": r.number, **params},
+            entity_type="maintenance_request",
+            entity_id=r.public_id,
+        )
+
+
 def _invoice_approval(inv: Invoice) -> dict:
     return {
         "document_id": inv.id,
@@ -674,6 +687,7 @@ def approve(db: Session, public_id, *, note: str | None, actor_user_id: int, **s
         return _detail(db, r)
     r.decided_by, r.decided_at, r.decision_note = actor_user_id, utcnow(), note
     _event(db, r, "approved", by_user=actor_user_id, note=note)
+    _tell_driver(db, r, "maintenance_approved")
     notifications.resolve(db, f"mnt_request:{r.id}")
     _audit(db, "maintenance.approved", r, actor_user_id=actor_user_id, after={"note": note})
     _emit(db, "maintenance.request.approved", r)
@@ -690,6 +704,7 @@ def reject(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
     )
     r.decided_by, r.decided_at, r.decision_note = actor_user_id, utcnow(), reason
     _event(db, r, "rejected", by_user=actor_user_id, note=reason)
+    _tell_driver(db, r, "maintenance_rejected", reason=reason)
     notifications.resolve(db, f"mnt_request:{r.id}")
     _audit(db, "maintenance.rejected", r, actor_user_id=actor_user_id, after={"reason": reason})
     db.commit()
@@ -979,6 +994,7 @@ def ready(db: Session, public_id, *, user_id: int, note: str | None) -> dict:
         params=_alert_params(db, r) | {"center": center.name},
         dedupe_key=f"mnt_ready:{r.id}",
     )
+    _tell_driver(db, r, "maintenance_ready", center=center.name)
     _audit(db, "maintenance.ready", r, actor_user_id=user_id)
     _emit(db, "maintenance.vehicle.ready", r, center_id=str(center.public_id))
     db.commit()

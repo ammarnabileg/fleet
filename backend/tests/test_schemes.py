@@ -211,6 +211,9 @@ def test_the_driver_asks_from_the_app_and_the_office_decides(admin_client, clien
     assert client.get("/api/v1/driver/schemes", headers=h).json()["request"]["admin_note"] == (
         "الباتش للمنطقة الشمالية فقط"
     )
+    told = client.get("/api/v1/driver/notifications", headers=h).json()["items"]
+    assert [n["kind"] for n in told] == ["scheme_request_rejected", "scheme_request_approved"]
+    assert "الباتش للمنطقة الشمالية فقط" in told[0]["message"] and NEXT.strftime("%m-%Y") in told[1]["message"]
     rid = ask("batch").json()["request"]["id"]
     assert client.delete(f"/api/v1/driver/scheme-requests/{rid}", headers=h).json()["request"]["status"] == "rejected"
     assert admin_client.get(f"{P}/scheme-requests/counts").json() == {"pending": 0}

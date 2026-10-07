@@ -308,5 +308,7 @@
   "payWhyTier": "{orders} orders: the {from} tier",
   "payWhyMissing": "{missing} orders short of {target} × {rate} KWD",
   "payWhyMarks": "{marks} attendance marks",
-  "payWhyUncovered": "Penalties above the month's pay are not taken: the month never goes below zero"
+  "payWhyUncovered": "Penalties above the month's pay are not taken: the month never goes below zero",
+  "noticesTitle": "Notifications",
+  "noticesNone": "No notifications yet"
 }

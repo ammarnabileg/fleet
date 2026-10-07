@@ -1129,5 +1129,22 @@
     "used_for": "Used for",
     "status": "Status",
     "inactive": "Inactive"
+  },
+  "driver_notice": {
+    "receipt_issued": "The office received {amount} KWD from you, receipt no. {number}. Confirm it on the cash screen.",
+    "report_corrected": "Report of {date}: the cash was approved as {approved} KWD instead of {reported} KWD. Reason: {reason}",
+    "report_rejected": "Your report of {date} was refused: {reason}. Send it again, corrected.",
+    "maintenance_approved": "Maintenance request no. {number} was approved.",
+    "maintenance_rejected": "Maintenance request no. {number} was refused: {reason}",
+    "maintenance_ready": "Your vehicle is ready for pickup at {center} (maintenance request no. {number}).",
+    "accident_no_liability": "Accident no. {number}: you are not liable.",
+    "accident_charged": "Accident no. {number}: {amount} KWD is charged to you, deducted in {installments} monthly installments.",
+    "fine_charged": "Traffic fine no. {number}: {amount} KWD, deducted in {installments} monthly installments.",
+    "deduction_added": "New deduction: {reason}, {amount} KWD in {installments} monthly installments.",
+    "payslip_ready": "Your payslip for {month} is ready in the app.",
+    "document_expiring": "Your {document} expires on {date} (in {days} days). Renew it and give the copy to the office.",
+    "document_expired": "Your {document} expired on {date}. Renew it now and give the copy to the office.",
+    "scheme_request_approved": "Your request was approved: pay scheme {scheme} from {month}.",
+    "scheme_request_rejected": "Your request to change to pay scheme {scheme} was refused: {reason}"
   }
 }

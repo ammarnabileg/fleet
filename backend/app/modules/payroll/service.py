@@ -25,6 +25,7 @@ from app.core.errors import AppError
 from app.core.events import emit
 from app.modules.audit import service as audit
 from app.modules.identity import service as identity
+from app.modules.notifications import service as notifications
 from app.modules.payroll.models import Deduction, Platform, Scheme
 from app.modules.people import service as people
 
@@ -303,6 +304,17 @@ def create_manual(db: Session, data: dict, *, actor_user_id: int, **scope) -> di
         installments=data["installments"],
         start_month=start,
         actor_user_id=actor_user_id,
+    )
+    notifications.notify_driver(
+        db,
+        employee.id,
+        "deduction_added",
+        params={
+            "reason": data["reason"],
+            "amount": f"{Decimal(data['total']):.3f}",
+            "installments": data["installments"],
+        },
+        entity_type="deduction",
     )
     db.commit()
     return deduction(db, deduction_id)

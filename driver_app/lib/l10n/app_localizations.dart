@@ -1945,6 +1945,18 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'العقوبات أكبر من المستحق، والشهر لا ينزل تحت الصفر: هذا الباقي لم يُخصم'**
   String get payWhyUncovered;
+
+  /// No description provided for @noticesTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'الإشعارات'**
+  String get noticesTitle;
+
+  /// No description provided for @noticesNone.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد إشعارات بعد'**
+  String get noticesNone;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

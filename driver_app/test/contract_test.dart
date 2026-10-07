@@ -304,6 +304,14 @@ void main() {
       expect((state.fines.single.status, state.fines.single.deduction!.total), ('charged', '30.000'));
       expect([for (final s in state.fines.single.deduction!.schedule) s.amount], ['15.000', '15.000']);
 
+      // ---- what he was told: the fine charged to him, then read
+      await state.loadNotices();
+      expect(state.notices!.items.first.kind, 'fine_charged');
+      expect(state.notices!.items.first.message, contains('30.000'));
+      expect(state.notices!.unread, greaterThan(0));
+      await state.readNotices();
+      expect(state.notices!.unread, 0);
+
       // ---- cash, then sign out: the phone forgets the session and the server refuses its tokens
       await state.loadCash();
       expect(state.cash!.pending, '17.250');

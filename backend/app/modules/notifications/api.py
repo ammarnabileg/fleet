@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_session
 from app.modules.i18n import service as i18n
-from app.modules.identity.service import Principal, get_principal
+from app.modules.identity.service import DevicePrincipal, Principal, get_principal, require_device
 from app.modules.notifications import schemas, service
 
 router = APIRouter(prefix="/api/v1", tags=["notifications"])
@@ -43,3 +43,21 @@ def acknowledge(
     service.acknowledge(
         db, public_id, actor_user_id=principal.user_id, permissions=principal.permissions, **principal.scope
     )
+
+
+@router.get("/driver/notifications", response_model=schemas.DriverNoticesOut)
+def driver_notices(
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    accept_language: Annotated[str | None, Header()] = None,
+    device: DevicePrincipal = Depends(require_device),
+    db: Session = Depends(get_session),
+):
+    """What the driver was told: receipts, decisions on his reports and requests, deductions, payslips, documents."""
+    return service.driver_notices(db, device.employee_id, lang=i18n.negotiate(db, None, accept_language), limit=limit)
+
+
+@router.post("/driver/notifications/read", response_model=schemas.ReadOut)
+def read_notices(
+    body: schemas.ReadIn, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
+):
+    return {"count": service.mark_read(db, device.employee_id, body.ids)}

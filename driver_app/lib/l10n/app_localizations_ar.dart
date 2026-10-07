@@ -1042,4 +1042,10 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get payWhyUncovered => 'العقوبات أكبر من المستحق، والشهر لا ينزل تحت الصفر: هذا الباقي لم يُخصم';
+
+  @override
+  String get noticesTitle => 'الإشعارات';
+
+  @override
+  String get noticesNone => 'لا توجد إشعارات بعد';
 }

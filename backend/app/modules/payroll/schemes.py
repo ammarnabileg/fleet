@@ -24,6 +24,7 @@ from app.core.errors import AppError
 from app.modules.audit import service as audit
 from app.modules.i18n import service as i18n
 from app.modules.integrations import service as integrations
+from app.modules.notifications import service as notifications
 from app.modules.payroll.calculators import Rules, Step
 from app.modules.payroll.models import DriverScheme, Platform, Run, Scheme, SchemeChangeRequest, SchemeStep
 from app.modules.payroll.service import add_months, month_start
@@ -553,6 +554,14 @@ def approve(
         company_id=r.company_id,
         after={"scheme": str(scheme.public_id), "from": start.isoformat(), "note": note},
     )
+    notifications.notify_driver(
+        db,
+        r.employee_id,
+        "scheme_request_approved",
+        params={"scheme": scheme.name, "month": start.strftime("%m-%Y")},
+        entity_type="scheme_request",
+        entity_id=r.public_id,
+    )
     db.commit()
     _notify(db, driver, "messages.scheme_approved", scheme=scheme.name, month=start.strftime("%m-%Y"))
     return _request_out(db, [r])[0]
@@ -570,6 +579,15 @@ def reject(db: Session, public_id, *, version: int | None, note: str, actor_user
         actor_user_id=actor_user_id,
         company_id=r.company_id,
         after={"note": note},
+    )
+    scheme = db.get(Scheme, r.requested_scheme_id)
+    notifications.notify_driver(
+        db,
+        r.employee_id,
+        "scheme_request_rejected",
+        params={"scheme": scheme.name, "reason": note},
+        entity_type="scheme_request",
+        entity_id=r.public_id,
     )
     db.commit()
     _notify(db, people.ref(db, r.employee_id), "messages.scheme_rejected", reason=note)

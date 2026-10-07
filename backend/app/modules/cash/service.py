@@ -278,6 +278,14 @@ def record_receipt(db: Session, driver: people.EmployeeRef, *, amount: Decimal, 
         post=True,
     )
     check_balance_alert(db, driver)
+    notifications.notify_driver(
+        db,
+        driver.id,
+        "receipt_issued",
+        params={"number": receipt.receipt_no, "amount": f"{amount:.3f}"},
+        entity_type="receipt",
+        entity_id=receipt.public_id,
+    )
     out = _receipt_out(receipt)
     audit.record(
         db,

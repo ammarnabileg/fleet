@@ -551,3 +551,47 @@ class DriverSchemes {
   final List<PayScheme> offered;
   final SchemeRequest? request;
 }
+
+/// Something the office or the system told the driver (GET /driver/notifications): a receipt, a decision on his
+/// report or request, a deduction, a payslip, a document about to expire. The text comes in the app's language.
+class DriverNotice {
+  DriverNotice({
+    required this.id,
+    required this.kind,
+    required this.message,
+    required this.createdAt,
+    required this.read,
+    this.entityType,
+    this.entityId,
+  });
+
+  factory DriverNotice.fromJson(Map<String, dynamic> j) => DriverNotice(
+    id: j['id'] as String,
+    kind: j['kind'] as String,
+    message: j['message'] as String,
+    createdAt: DateTime.parse(j['created_at'] as String),
+    read: j['read'] as bool,
+    entityType: j['entity_type'] as String?,
+    entityId: j['entity_id'] as String?,
+  );
+
+  final String id;
+  final String kind;
+  final String message;
+  final DateTime createdAt;
+  final bool read;
+  final String? entityType;
+  final String? entityId;
+}
+
+class Notices {
+  Notices({required this.unread, required this.items});
+
+  factory Notices.fromJson(Map<String, dynamic> j) => Notices(
+    unread: (j['unread'] as num).toInt(),
+    items: [for (final n in j['items'] as List) DriverNotice.fromJson(n as Map<String, dynamic>)],
+  );
+
+  final int unread;
+  final List<DriverNotice> items;
+}

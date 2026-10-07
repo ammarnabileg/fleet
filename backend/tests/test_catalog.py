@@ -87,6 +87,16 @@ def test_every_alert_kind_has_a_text_using_only_its_params():
             assert permissions.exists(spec.permission), kind
 
 
+def test_every_driver_notice_has_a_text_using_only_its_params():
+    from app.modules.notifications.service import DRIVER_KINDS
+
+    for lang, catalog in LANGS.items():
+        assert catalog["driver_notice"].keys() == DRIVER_KINDS.keys(), lang
+        for kind, params in DRIVER_KINDS.items():
+            used = set(PLACEHOLDER.findall(catalog["driver_notice"][kind]))
+            assert used <= set(params), f"{lang}: driver_notice.{kind} uses {used - set(params)}"
+
+
 def test_statuses_and_flags_have_labels():
     from app.modules.fleet.service import MANUAL_STATUSES
 

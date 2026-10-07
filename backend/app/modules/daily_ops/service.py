@@ -209,6 +209,20 @@ def approve(
     report.status, report.approved_cash = "approved", approved
     report.reviewed_by, report.reviewed_at, report.review_note = actor_user_id, utcnow(), reason
     report.version += 1
+    if approved != report.cash_amount:  # the driver learns his cash was corrected, and why
+        notifications.notify_driver(
+            db,
+            report.employee_id,
+            "report_corrected",
+            params={
+                "date": report.business_date.isoformat(),
+                "reported": f"{report.cash_amount:.3f}",
+                "approved": f"{approved:.3f}",
+                "reason": reason,
+            },
+            entity_type="daily_report",
+            entity_id=report.public_id,
+        )
     notifications.resolve(db, f"daily_report_overdue:{report.id}")
     cash.check_balance_alert(db, driver)
     audit.record(
@@ -248,6 +262,14 @@ def reject(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
     report.status, report.review_note = "rejected", reason
     report.reviewed_by, report.reviewed_at = actor_user_id, utcnow()
     report.version += 1
+    notifications.notify_driver(
+        db,
+        report.employee_id,
+        "report_rejected",
+        params={"date": report.business_date.isoformat(), "reason": reason},
+        entity_type="daily_report",
+        entity_id=report.public_id,
+    )
     notifications.resolve(db, f"daily_report_overdue:{report.id}")
     cash.check_balance_alert(db, driver)
     audit.record(

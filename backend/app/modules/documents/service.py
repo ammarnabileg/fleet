@@ -206,5 +206,19 @@ def scan_expiring(db: Session, label_of) -> int:
             },
             dedupe_key=f"{kind}:{doc.id}:{doc.expiry_date}",
         )
+        if doc.owner_type == "employee":  # the driver sees his own residency or licence about to expire
+            notifications.notify_driver(
+                db,
+                doc.owner_id,
+                kind,
+                params={
+                    "document": type_names[doc.type_code],
+                    "date": doc.expiry_date.isoformat(),
+                    "days": max(days, 0),
+                },
+                entity_type="document",
+                entity_id=doc.public_id,
+                dedupe_key=f"{kind}:{doc.id}:{doc.expiry_date}",
+            )
     db.commit()
     return raised

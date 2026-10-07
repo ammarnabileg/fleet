@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.modules.i18n import service as i18n
-from app.modules.notifications.models import Alert
+from app.modules.notifications.models import Alert, DriverNotice
 
 
 @dataclass(frozen=True)
@@ -177,3 +177,98 @@ def acknowledge(
     if alert.acknowledged_at is None:
         alert.acknowledged_at, alert.acknowledged_by = func.now(), actor_user_id
     db.commit()
+
+
+# ------------------------------------------------------------------ what the driver is told (FR-NTF-01/02)
+
+DRIVER_KINDS: dict[str, tuple[str, ...]] = {  # kind: the params its text uses
+    "receipt_issued": ("number", "amount"),
+    "report_corrected": ("date", "reported", "approved", "reason"),
+    "report_rejected": ("date", "reason"),
+    "maintenance_approved": ("number",),
+    "maintenance_rejected": ("number", "reason"),
+    "maintenance_ready": ("number", "center"),
+    "accident_no_liability": ("number",),
+    "accident_charged": ("number", "amount", "installments"),
+    "fine_charged": ("number", "amount", "installments"),
+    "deduction_added": ("reason", "amount", "installments"),
+    "payslip_ready": ("month",),
+    "document_expiring": ("document", "date", "days"),
+    "document_expired": ("document", "date"),
+    "scheme_request_approved": ("scheme", "month"),
+    "scheme_request_rejected": ("scheme", "reason"),
+}
+
+
+def notify_driver(
+    db: Session,
+    employee_id: int,
+    kind: str,
+    *,
+    params: dict | None = None,
+    entity_type: str | None = None,
+    entity_id=None,
+    dedupe_key: str | None = None,
+) -> bool:
+    """Adds a notice for the driver to the caller's transaction (once per dedupe_key). A param may be a localized name,
+    picked in the driver's language when read."""
+    missing = set(DRIVER_KINDS[kind]) - set(params or {})
+    if missing:
+        raise ValueError(f"driver notice {kind!r} needs params {sorted(missing)}")
+    stmt = insert(DriverNotice).values(
+        employee_id=employee_id,
+        kind=kind,
+        params={k: (str(v) if v is not None and not isinstance(v, dict) else v) for k, v in (params or {}).items()},
+        entity_type=entity_type,
+        entity_id=None if entity_id is None else str(entity_id),
+        dedupe_key=dedupe_key,
+    )
+    if dedupe_key:
+        stmt = stmt.on_conflict_do_nothing(
+            index_elements=["employee_id", "dedupe_key"], index_where=DriverNotice.dedupe_key.is_not(None)
+        )
+    return db.execute(stmt.returning(DriverNotice.id)).first() is not None
+
+
+def notice_text(db: Session, n: DriverNotice, lang: str, default: str) -> str:
+    params = {k: i18n.pick(v, lang, default) if isinstance(v, dict) else v for k, v in n.params.items()}
+    return i18n.t(db, lang, f"driver_notice.{n.kind}", **params)
+
+
+def driver_notices(db: Session, employee_id: int, *, lang: str, limit: int = 50) -> dict:
+    """The driver's latest notices, newest first, and how many are unread."""
+    rows = db.scalars(
+        select(DriverNotice)
+        .where(DriverNotice.employee_id == employee_id)
+        .order_by(DriverNotice.id.desc())
+        .limit(min(limit, 200))
+    )
+    default = i18n.default_language(db).code
+    unread = db.scalar(
+        select(func.count()).where(DriverNotice.employee_id == employee_id, DriverNotice.read_at.is_(None))
+    )
+    return {
+        "unread": unread,
+        "items": [
+            {
+                "id": str(n.public_id),
+                "kind": n.kind,
+                "message": notice_text(db, n, lang, default),
+                "entity_type": n.entity_type,
+                "entity_id": n.entity_id,
+                "created_at": n.created_at,
+                "read": n.read_at is not None,
+            }
+            for n in rows
+        ],
+    }
+
+
+def mark_read(db: Session, employee_id: int, ids: Iterable | None) -> int:
+    """The given notices, or all of them, read."""
+    q = update(DriverNotice).where(DriverNotice.employee_id == employee_id, DriverNotice.read_at.is_(None))
+    if ids is not None:
+        q = q.where(DriverNotice.public_id.in_(list(ids)))
+    n = db.execute(q.values(read_at=func.now())).rowcount
+    db.commit()
+    return n

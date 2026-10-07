@@ -10,6 +10,7 @@ import '../widgets/common.dart';
 import 'accident.dart';
 import 'fines.dart';
 import 'maintenance.dart';
+import 'notifications.dart';
 import 'odometer.dart';
 import 'report.dart';
 import 'schemes.dart';
@@ -62,8 +63,24 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     ];
     if (tab >= tabs.length) tab = 0; // the office hid a tab while it was open
+    final unread = s.notices?.unread ?? 0;
     return Scaffold(
-      appBar: AppBar(title: Text(tabs[tab].$2)),
+      appBar: AppBar(
+        title: Text(tabs[tab].$2),
+        actions: [
+          IconButton(
+            key: const Key('notifications'),
+            tooltip: l.noticesTitle,
+            icon: Badge(
+              isLabelVisible: unread > 0,
+              label: Text('$unread'),
+              child: const Icon(Icons.notifications_outlined),
+            ),
+            onPressed: () =>
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsScreen(state: s))),
+          ),
+        ],
+      ),
       body: tabs[tab].$1,
       bottomNavigationBar: NavigationBar(
         selectedIndex: tab,
@@ -91,6 +108,7 @@ class HomeTab extends StatelessWidget {
         if (state.shows('daily_report')) state.loadReports(),
         if (state.shows('maintenance')) state.loadMaintenance(),
         if (state.shows('accidents')) state.loadAccidents(),
+        state.loadNotices(),
       ]);
     } on ApiError {
       // offline: the last data stays on screen

@@ -1129,5 +1129,22 @@
     "used_for": "يُستخدم في",
     "status": "الحالة",
     "inactive": "موقوف"
+  },
+  "driver_notice": {
+    "receipt_issued": "استلم المكتب منك {amount} د.ك، إيصال رقم {number}. أكّد الاستلام من شاشة الكاش.",
+    "report_corrected": "تقرير {date}: اعتُمد الكاش {approved} د.ك بدل {reported} د.ك. السبب: {reason}",
+    "report_rejected": "رُفض تقرير {date}: {reason}. أرسله من جديد مصححاً.",
+    "maintenance_approved": "اعتُمد طلب الصيانة رقم {number}.",
+    "maintenance_rejected": "رُفض طلب الصيانة رقم {number}: {reason}",
+    "maintenance_ready": "سيارتك جاهزة للاستلام من {center} (طلب الصيانة رقم {number}).",
+    "accident_no_liability": "الحادث رقم {number}: لا مسؤولية عليك.",
+    "accident_charged": "الحادث رقم {number}: تتحمل {amount} د.ك تُخصم على {installments} أقساط شهرية.",
+    "fine_charged": "المخالفة المرورية رقم {number}: {amount} د.ك تُخصم على {installments} أقساط شهرية.",
+    "deduction_added": "خصم جديد: {reason}، {amount} د.ك على {installments} أقساط شهرية.",
+    "payslip_ready": "كشف راتب {month} جاهز في التطبيق.",
+    "document_expiring": "{document} ينتهي في {date} (بعد {days} يوماً). جدّده وسلّم النسخة للمكتب.",
+    "document_expired": "{document} انتهى في {date}. جدّده فوراً وسلّم النسخة للمكتب.",
+    "scheme_request_approved": "اعتُمد طلبك: نظام الدفع {scheme} من شهر {month}.",
+    "scheme_request_rejected": "رُفض طلب تغيير نظام الدفع إلى {scheme}: {reason}"
   }
 }

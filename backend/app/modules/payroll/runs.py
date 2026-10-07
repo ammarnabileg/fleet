@@ -37,6 +37,7 @@ from app.core.events import emit
 from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
 from app.modules.identity import service as identity
+from app.modules.notifications import service as notifications
 from app.modules.org import service as org
 from app.modules.payroll import calculators, platforms, schemes, statements
 from app.modules.payroll.calculators import Month, Rules
@@ -503,6 +504,17 @@ def approve(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
         return detail(db, public_id, **scope)
     run.status, run.approved_by, run.approved_at = "approved", actor_user_id, utcnow()
     run.version += 1
+    employees = set(db.scalars(select(Line.employee_id).where(Line.run_id == run.id)))
+    for employee_id in people.driver_ids(db, employees):  # the payslip is in the app now
+        notifications.notify_driver(
+            db,
+            employee_id,
+            "payslip_ready",
+            params={"month": run.month.strftime("%m-%Y")},
+            entity_type="payroll_run",
+            entity_id=run.public_id,
+            dedupe_key=f"payslip:{run.id}:{run.reopened}",
+        )
     audit.record(
         db,
         action="payroll.approved",
