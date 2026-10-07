@@ -4,9 +4,16 @@ on:
   push:
   pull_request:
 
+# a newer commit on the same branch stops the runs still going for an older one (per event: the push run and the
+# pull-request run of one commit do not stop each other)
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20  # a hung step fails here instead of running for GitHub's six hours
     services:
       postgres:
         image: postgres:16
@@ -32,6 +39,7 @@ jobs:
 
   images:
     runs-on: ubuntu-latest
+    timeout-minutes: 20  # a hung step fails here instead of running for GitHub's six hours
     needs: backend
     steps:
       - uses: actions/checkout@v5
@@ -44,6 +52,7 @@ jobs:
   # the admin panel in a real browser against a real backend: every page and tab, phone width, and whole flows
   web-e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 30  # a hung step fails here instead of running for GitHub's six hours
     services:
       postgres:
         image: postgres:16
@@ -113,6 +122,7 @@ jobs:
 
   driver-app:
     runs-on: ubuntu-latest
+    timeout-minutes: 25  # a hung step fails here instead of running for GitHub's six hours
     services:
       postgres:
         image: postgres:16

@@ -7,6 +7,7 @@ const { defineConfig } = require('@playwright/test');
 module.exports = defineConfig({
   testDir: './tests',
   timeout: 120_000,
+  globalTimeout: 20 * 60_000, // the whole run: a hang between tests fails instead of holding the CI job
   expect: { timeout: 15_000 },
   workers: 1, // one shared database: payroll settings and month runs are company-wide
   retries: 0, // a failure is a finding, not a flake
