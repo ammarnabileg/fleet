@@ -70,4 +70,41 @@ function xlsx(sheets) {
   ]);
 }
 
-module.exports = { xlsx };
+/** The entries of a zip (stored or deflated), by name. */
+function unzip(buf) {
+  const out = {};
+  let i = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06])); // end of central directory
+  const count = buf.readUInt16LE(i + 10);
+  let p = buf.readUInt32LE(i + 16);
+  for (let n = 0; n < count; n++) {
+    const method = buf.readUInt16LE(p + 10), size = buf.readUInt32LE(p + 20), nameLen = buf.readUInt16LE(p + 28);
+    const extra = buf.readUInt16LE(p + 30), comment = buf.readUInt16LE(p + 32), local = buf.readUInt32LE(p + 42);
+    const name = buf.toString('utf8', p + 46, p + 46 + nameLen);
+    const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+    const data = buf.subarray(start, start + size);
+    out[name] = method === 8 ? zlib.inflateRawSync(data) : data;
+    p += 46 + nameLen + extra + comment;
+  }
+  return out;
+}
+
+const unescape = (s) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+
+/** The first sheet of a workbook as rows of cell texts (shared strings, inline strings and numbers). */
+function readXlsx(buf) {
+  const files = unzip(buf);
+  const shared = files['xl/sharedStrings.xml']
+    ? [...files['xl/sharedStrings.xml'].toString('utf8').matchAll(/<si>([\s\S]*?)<\/si>/g)]
+      .map((m) => unescape([...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => t[1]).join('')))
+    : [];
+  const sheet = files['xl/worksheets/sheet1.xml'].toString('utf8');
+  return [...sheet.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)].map((row) => [...row[1].matchAll(/<c ([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)].map((c) => {
+    const type = (/t="(\w+)"/.exec(c[1]) || [])[1], body = c[2] || '';
+    if (type === 's') return shared[Number(/<v>(\d+)<\/v>/.exec(body)[1])];
+    if (type === 'inlineStr') return unescape((/<t[^>]*>([\s\S]*?)<\/t>/.exec(body) || [])[1] || '');
+    const v = /<v>([^<]*)<\/v>/.exec(body);
+    return v ? (type === 'str' ? unescape(v[1]) : Number(v[1])) : null;
+  }));
+}
+
+module.exports = { xlsx, readXlsx };

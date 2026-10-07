@@ -70,6 +70,9 @@ def workbook(db: Session, run: Run, lines: list[Line]) -> bytes:
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         for line in groups.get(pid, []):
             ws.append([_value(c["code"], line.cells.get(c["code"]), labels) for c in cols])
+            for cell in ws[ws.max_row]:
+                if isinstance(cell.value, str):
+                    cell.data_type = "s"  # openpyxl takes any text starting with "=" for a formula: a name must not run
         for i, c in enumerate(cols, start=1):
             letter = ws.cell(row=1, column=i).column_letter
             ws.column_dimensions[letter].width = max(12, min(40, len(c["header"]) + 4))

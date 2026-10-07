@@ -4,8 +4,6 @@ read all, write nothing), so each number is one SQL aggregate, always within the
 Dashboard (BRD FR-DSH): every section appears only for a user holding its permission.
 """
 
-import csv
-import io
 from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
@@ -29,6 +27,7 @@ from app.modules.notifications.models import Alert
 from app.modules.org import service as org
 from app.modules.payroll.models import Deduction
 from app.modules.people.models import Employee
+from app.modules.reports.filters import Filters
 from app.modules.tracking.models import LastPosition
 
 MAX_RANGE_DAYS = 93
@@ -37,6 +36,16 @@ ZERO = Decimal("0.000")
 
 def _in_scope(column, all_companies: bool, company_ids: Iterable[int]):
     return literal(True) if all_companies else column.in_(list(company_ids))
+
+
+def _vehicle_ok(column, filters: Filters):
+    """A vehicle column within the vehicle and branch filters (FR-RPT-08)."""
+    cond = literal(True)
+    if filters.vehicle_id is not None:
+        cond = and_(cond, column == filters.vehicle_id)
+    if filters.branch_id is not None:
+        cond = and_(cond, column.in_(select(Vehicle.id).where(Vehicle.branch_id == filters.branch_id)))
+    return cond
 
 
 # ------------------------------------------------------------------ dashboard
@@ -176,7 +185,13 @@ def _range(date_from: date, date_to: date) -> None:
 
 
 def daily_summary(
-    db: Session, *, date_from: date, date_to: date, all_companies: bool, company_ids: Iterable[int]
+    db: Session,
+    *,
+    date_from: date,
+    date_to: date,
+    filters: Filters = Filters(),
+    all_companies: bool,
+    company_ids: Iterable[int],
 ) -> dict:
     """Per driver over a period: days reported, orders, cash reported and approved, reports waiting or rejected."""
     _range(date_from, date_to)
@@ -196,7 +211,10 @@ def daily_summary(
         )
         .join(Employee, Employee.id == Report.employee_id)
         .where(
-            Report.business_date.between(date_from, date_to), _in_scope(Report.company_id, all_companies, company_ids)
+            Report.business_date.between(date_from, date_to),
+            _in_scope(Report.company_id, all_companies, company_ids),
+            Employee.id == filters.driver_id if filters.driver_id is not None else literal(True),
+            Employee.branch_id == filters.branch_id if filters.branch_id is not None else literal(True),
         )
         .group_by(Employee.id)
         .order_by(Employee.employee_number)
@@ -220,20 +238,6 @@ def daily_summary(
         for k in ("days", "orders", "reported_cash", "approved_cash", "waiting", "rejected")
     }
     return {"from": date_from, "to": date_to, "rows": out, "totals": totals}
-
-
-def _safe(value) -> str:
-    """CSV cells that a spreadsheet would run as a formula are prefixed (CSV injection)."""
-    text = "" if value is None else str(value)
-    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
-
-
-def to_csv(header: list[str], rows: Iterable[list]) -> bytes:
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(header)
-    writer.writerows([[_safe(v) for v in row] for row in rows])
-    return ("﻿" + buf.getvalue()).encode("utf-8")  # the BOM makes Excel read Arabic correctly
 
 
 def name_in(name: dict, lang: str, default: str) -> str:
@@ -275,7 +279,13 @@ def _people(db: Session, ids) -> dict[int, dict]:
 
 
 def maintenance_report(
-    db: Session, *, date_from: date, date_to: date, all_companies: bool, company_ids: Iterable[int]
+    db: Session,
+    *,
+    date_from: date,
+    date_to: date,
+    filters: Filters = Filters(),
+    all_companies: bool,
+    company_ids: Iterable[int],
 ) -> dict:
     """Time at the centers (vehicles received in the period; a vehicle still there counts until now) and the cost
     (invoices approved and dated in the period): by center, by vehicle, and the parts replaced (FR-RPT-05)."""
@@ -286,11 +296,15 @@ def maintenance_report(
         MntRequest.received_at >= start,
         MntRequest.received_at < end,
         _in_scope(MntRequest.company_id, all_companies, company_ids),
+        _vehicle_ok(MntRequest.vehicle_id, filters),
     )
     approved = and_(
         Invoice.status == "approved",
         Invoice.invoice_date.between(date_from, date_to),
         _in_scope(Invoice.company_id, all_companies, company_ids),
+        Invoice.request_id.in_(select(MntRequest.id).where(_vehicle_ok(MntRequest.vehicle_id, filters)))
+        if filters.vehicle_id is not None or filters.branch_id is not None
+        else literal(True),
     )
     stays = {
         r.center_id: r
@@ -418,13 +432,23 @@ def maintenance_report(
 
 
 def accidents_report(
-    db: Session, *, date_from: date, date_to: date, all_companies: bool, company_ids: Iterable[int]
+    db: Session,
+    *,
+    date_from: date,
+    date_to: date,
+    filters: Filters = Filters(),
+    all_companies: bool,
+    company_ids: Iterable[int],
 ) -> dict:
     """Accidents that happened in the period (not the cancelled ones): by driver, by vehicle and by outcome, the
     approved estimate against the actual repair cost, and the deductions; plus every open accident still waiting
     for its police report, whatever its date (FR-RPT-06)."""
     start, end = _period(date_from, date_to)
-    scope = _in_scope(Accident.company_id, all_companies, company_ids)
+    scope = and_(
+        _in_scope(Accident.company_id, all_companies, company_ids),
+        _vehicle_ok(Accident.vehicle_id, filters),
+        Accident.driver_id == filters.driver_id if filters.driver_id is not None else literal(True),
+    )
     rows = list(
         db.scalars(
             select(Accident)
