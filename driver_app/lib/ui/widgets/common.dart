@@ -67,6 +67,7 @@ class LatinDigits extends TextInputFormatter {
   }
 }
 
+/// A soft-coloured notice: an icon and a line or two, in the tone's colours (the design's .banner).
 class Banner2 extends StatelessWidget {
   const Banner2({super.key, required this.text, this.tone = BannerTone.info, this.icon});
 
@@ -76,22 +77,20 @@ class Banner2 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (bg, fg) = switch (tone) {
-      BannerTone.info => (AppColors.infoSoft, AppColors.primary),
-      BannerTone.warn => (AppColors.warningSoft, AppColors.warning),
-      BannerTone.danger => (AppColors.dangerSoft, AppColors.danger),
-      BannerTone.success => (AppColors.successSoft, AppColors.success),
-    };
+    final (bg, fg) = toneColors(tone);
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon ?? Icons.info_outline, color: fg, size: 20),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(icon ?? Icons.info_outline, color: fg, size: 17),
+          ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(text, style: TextStyle(color: fg, height: 1.5)),
+            child: Text(text, style: TextStyle(color: fg, fontSize: 13, height: 1.6)),
           ),
         ],
       ),
@@ -99,7 +98,16 @@ class Banner2 extends StatelessWidget {
   }
 }
 
-enum BannerTone { info, warn, danger, success }
+enum BannerTone { info, warn, danger, success, neutral }
+
+/// The soft background and the readable text colour of a tone.
+(Color, Color) toneColors(BannerTone tone) => switch (tone) {
+  BannerTone.info => (AppColors.infoSoft, AppColors.info),
+  BannerTone.warn => (AppColors.warningSoft, AppColors.warning),
+  BannerTone.danger => (AppColors.dangerSoft, AppColors.danger),
+  BannerTone.success => (AppColors.successSoft, AppColors.success),
+  BannerTone.neutral => (AppColors.neutralSoft, AppColors.neutral),
+};
 
 class Pill extends StatelessWidget {
   const Pill(this.text, {super.key, this.tone = BannerTone.info});
@@ -109,18 +117,252 @@ class Pill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (bg, fg) = switch (tone) {
-      BannerTone.info => (AppColors.infoSoft, AppColors.primary),
-      BannerTone.warn => (AppColors.warningSoft, AppColors.warning),
-      BannerTone.danger => (AppColors.dangerSoft, AppColors.danger),
-      BannerTone.success => (AppColors.successSoft, AppColors.success),
-    };
+    final (bg, fg) = toneColors(tone);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
       child: Text(
         text,
-        style: TextStyle(color: fg, fontSize: 12.5, fontWeight: FontWeight.w600),
+        style: TextStyle(color: fg, fontSize: 11.5, fontWeight: FontWeight.w600, height: 1.4),
+      ),
+    );
+  }
+}
+
+/// The design's card: white, rounded 18, a hairline border and the lightest shadow.
+class DCard extends StatelessWidget {
+  const DCard({super.key, required this.child, this.padding = const EdgeInsets.fromLTRB(15, 14, 15, 14), this.onTap});
+
+  /// A card holding a list of [DRow]s.
+  const DCard.list({super.key, required this.child, this.onTap})
+    : padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 4);
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final body = Padding(padding: padding, child: child);
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppColors.shadowXs,
+      ),
+      clipBehavior: Clip.antiAlias,
+      // its own ink layer: the splashes of the rows and buttons inside show on the card, not under it
+      child: Material(
+        type: MaterialType.transparency,
+        child: onTap == null ? body : InkWell(onTap: onTap, child: body),
+      ),
+    );
+  }
+}
+
+/// A rounded square holding an icon, in soft colours (the design's day-state and list icons).
+class IconTile extends StatelessWidget {
+  const IconTile(
+    this.icon, {
+    super.key,
+    this.bg = AppColors.primarySoft,
+    this.fg = AppColors.primaryStrong,
+    this.size = 36,
+    this.iconSize = 18,
+  });
+
+  final IconData icon;
+  final Color bg;
+  final Color fg;
+  final double size;
+  final double iconSize;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(size * .31)),
+    child: Icon(icon, color: fg, size: iconSize),
+  );
+}
+
+/// A list row: an optional leading icon, a title and a line under it, something at the end; a hairline between
+/// rows (the design's .d-row).
+class DRow extends StatelessWidget {
+  const DRow({
+    super.key,
+    this.leading,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.onTap,
+    this.divider = true,
+    this.chevron = false,
+  });
+
+  final Widget? leading;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final bool divider;
+  final bool chevron;
+
+  @override
+  Widget build(BuildContext context) {
+    final row = Container(
+      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 2),
+      decoration: divider
+          ? const BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppColors.divider)),
+            )
+          : null,
+      child: Row(
+        children: [
+          if (leading != null) ...[leading!, const SizedBox(width: 10)],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.text),
+                ),
+                if (subtitle != null)
+                  Text(subtitle!, style: const TextStyle(fontSize: 11.5, color: AppColors.muted, height: 1.5)),
+              ],
+            ),
+          ),
+          if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+          if (chevron) ...[const SizedBox(width: 6), const Icon(Icons.chevron_right, size: 18, color: AppColors.faint)],
+        ],
+      ),
+    );
+    return onTap == null ? row : InkWell(onTap: onTap, child: row);
+  }
+}
+
+/// A quick action tile on the home screen: an icon on a soft square, a title, a small line (the design's .qa).
+class QuickAction extends StatelessWidget {
+  const QuickAction({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: AppColors.surface,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+      side: const BorderSide(color: AppColors.border),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            IconTile(
+              icon,
+              bg: danger ? AppColors.dangerSoft : AppColors.primarySoft,
+              fg: danger ? AppColors.danger : AppColors.primaryStrong,
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.text),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// How far along a limit (the cash alert limit): blue, orange from 85%, red at 100%.
+class Meter extends StatelessWidget {
+  const Meter(this.ratio, {super.key, this.tone});
+
+  final double ratio;
+  final BannerTone? tone; // the colour the server's judgement gives (near or over the limit); else from the ratio
+
+  @override
+  Widget build(BuildContext context) {
+    final t = tone ?? (ratio >= 1 ? BannerTone.danger : (ratio >= .85 ? BannerTone.warn : BannerTone.info));
+    final (track, fill) = switch (t) {
+      BannerTone.danger => (AppColors.dangerSoft, AppColors.dangerFill),
+      BannerTone.warn => (AppColors.warningSoft, AppColors.warningFill),
+      _ => (AppColors.primarySoft, AppColors.primary),
+    };
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(5),
+      child: LinearProgressIndicator(
+        value: ratio.clamp(0, 1).toDouble(),
+        minHeight: 8,
+        backgroundColor: track,
+        color: fill,
+      ),
+    );
+  }
+}
+
+/// A round avatar with the name's initials, coloured from the name as on the panel.
+class Avatar extends StatelessWidget {
+  const Avatar(this.name, {super.key, this.size = 48});
+
+  final String name;
+  final double size;
+
+  static const _colors = [
+    Color(0xFF0A84FF),
+    Color(0xFF7C4DFF),
+    Color(0xFF28A745),
+    Color(0xFFFF9F0A),
+    Color(0xFFE0457B),
+    Color(0xFF14A3A3),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final initials = parts.take(2).map((p) => p.characters.first).join().toUpperCase();
+    final color = _colors[name.runes.fold<int>(0, (a, b) => a + b) % _colors.length];
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: Text(
+        initials.isEmpty ? '?' : initials,
+        textDirection: TextDirection.ltr,
+        style: TextStyle(color: Colors.white, fontSize: size / 3, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -128,11 +370,12 @@ class Pill extends StatelessWidget {
 
 /// A button that shows a spinner and blocks double taps while [onPressed] runs.
 class BusyButton extends StatefulWidget {
-  const BusyButton({super.key, required this.label, required this.onPressed, this.icon});
+  const BusyButton({super.key, required this.label, required this.onPressed, this.icon, this.danger = false});
 
   final String label;
   final Future<void> Function()? onPressed;
   final IconData? icon;
+  final bool danger; // the design's red button (send an accident report)
 
   @override
   State<BusyButton> createState() => _BusyButtonState();
@@ -156,13 +399,20 @@ class _BusyButtonState extends State<BusyButton> {
     final child = _busy
         ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
         : Text(widget.label);
+    final style = widget.danger
+        ? FilledButton.styleFrom(
+            backgroundColor: AppColors.dangerFill,
+            shadowColor: AppColors.dangerFill.withValues(alpha: .35),
+          )
+        : null;
     return widget.icon == null || _busy
-        ? FilledButton(onPressed: onPressed, child: child)
-        : FilledButton.icon(onPressed: onPressed, icon: Icon(widget.icon), label: child);
+        ? FilledButton(style: style, onPressed: onPressed, child: child)
+        : FilledButton.icon(style: style, onPressed: onPressed, icon: Icon(widget.icon, size: 19), label: child);
   }
 }
 
-/// A photo slot: the picture once taken, otherwise a camera tile. [done] without a local file: uploaded earlier.
+/// A photo slot (the design's camera tile): a dashed tile with a camera on a soft circle, or the picture once
+/// taken with its name on a green chip. [done] without a local file: uploaded earlier.
 class PhotoTile extends StatelessWidget {
   const PhotoTile({
     super.key,
@@ -171,79 +421,131 @@ class PhotoTile extends StatelessWidget {
     this.done = false,
     this.busy = false,
     required this.onTap,
+    this.hint,
+    this.icon = Icons.photo_camera_outlined,
   });
 
   final String label;
+  final IconData icon; // a camera, or a picture for one from the gallery
   final String? path;
   final bool done;
   final bool busy;
   final VoidCallback? onTap;
+  final String? hint;
 
   @override
   Widget build(BuildContext context) {
+    final taken = done || path != null;
     return InkWell(
       onTap: busy ? null : onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(10),
       child: AspectRatio(
         aspectRatio: 4 / 3,
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: done || path != null ? AppColors.success : AppColors.border,
-              width: done || path != null ? 1.5 : 1,
+        child: CustomPaint(
+          foregroundPainter: taken ? null : const _DashedBorder(),
+          child: Container(
+            decoration: BoxDecoration(
+              color: path != null ? AppColors.surface : AppColors.sunken,
+              borderRadius: BorderRadius.circular(10),
+              border: taken ? Border.all(color: AppColors.successFill, width: 1.5) : null,
             ),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (path != null)
-                Image.file(
-                  File(path!),
-                  fit: BoxFit.cover,
-                  cacheWidth: 720, // decoded at tile size, not the photo's full resolution
-                  errorBuilder: (_, _, _) => const SizedBox(),
-                ),
-              if (path == null)
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      done ? Icons.check_circle : Icons.photo_camera_outlined,
-                      color: done ? AppColors.success : AppColors.primary,
-                      size: 28,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 13, color: AppColors.muted),
-                    ),
-                  ],
-                ),
-              if (path != null)
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    color: Colors.black45,
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (path != null)
+                  Image.file(
+                    File(path!),
+                    fit: BoxFit.cover,
+                    cacheWidth: 720, // decoded at tile size, not the photo's full resolution
+                    errorBuilder: (_, _, _) => const SizedBox(),
+                  ),
+                if (path == null)
+                  // a small tile (a row of screenshots) keeps the camera and the name, smaller, without the hint
+                  LayoutBuilder(
+                    builder: (context, c) {
+                      final small = c.maxHeight < 110;
+                      return Padding(
+                        padding: EdgeInsets.all(small ? 4 : 8),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: small ? 30 : 42,
+                              height: small ? 30 : 42,
+                              decoration: BoxDecoration(
+                                color: done ? AppColors.successSoft : AppColors.primarySoft,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                done ? Icons.check : icon,
+                                color: done ? AppColors.success : AppColors.primaryStrong,
+                                size: small ? 16 : 20,
+                              ),
+                            ),
+                            SizedBox(height: small ? 4 : 8),
+                            Text(
+                              label,
+                              textAlign: TextAlign.center,
+                              maxLines: small ? 1 : 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: small ? 11.5 : 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.text,
+                              ),
+                            ),
+                            if (hint != null && !small)
+                              Text(
+                                hint!,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                if (path != null)
+                  PositionedDirectional(
+                    bottom: 8,
+                    start: 8,
+                    end: 8,
+                    child: Align(
+                      alignment: AlignmentDirectional.bottomStart,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.successFill,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check, size: 12, color: Colors.white),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                label,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.white, fontSize: 11),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              if (busy)
-                const ColoredBox(
-                  color: Colors.white70,
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-            ],
+                if (busy)
+                  const ColoredBox(
+                    color: Colors.white70,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -251,17 +553,73 @@ class PhotoTile extends StatelessWidget {
   }
 }
 
+class _DashedBorder extends CustomPainter {
+  const _DashedBorder();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()..addRRect(RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(10)).deflate(.75));
+    final paint = Paint()
+      ..color = AppColors.borderStrong
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    for (final metric in path.computeMetrics()) {
+      for (var d = 0.0; d < metric.length; d += 9) {
+        canvas.drawPath(metric.extractPath(d, d + 5), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorder oldDelegate) => false;
+}
+
+/// A section title between cards (the design's .d-sec), with an optional action at the end.
 class SectionTitle extends StatelessWidget {
-  const SectionTitle(this.text, {super.key});
+  const SectionTitle(this.text, {super.key, this.action});
 
   final String text;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 18, bottom: 8),
-    child: Text(
-      text,
-      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text),
+    padding: const EdgeInsets.fromLTRB(2, 16, 2, 8),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.text),
+          ),
+        ),
+        ?action,
+      ],
+    ),
+  );
+}
+
+/// A form label above its field, with a red star when required (the design's .field label).
+class FieldLabel extends StatelessWidget {
+  const FieldLabel(this.text, {super.key, this.required = false});
+
+  final String text;
+  final bool required;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text.rich(
+      TextSpan(
+        text: text,
+        children: [
+          if (required)
+            const TextSpan(
+              text: ' *',
+              style: TextStyle(color: AppColors.danger),
+            ),
+        ],
+      ),
+      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text),
     ),
   );
 }

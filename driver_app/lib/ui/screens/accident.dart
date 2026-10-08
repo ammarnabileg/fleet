@@ -121,99 +121,126 @@ class _AccidentScreenState extends State<AccidentScreen> {
         child: Form(
           key: _form,
           child: ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             children: [
               if (custody == null)
                 Banner2(text: l.accNoVehicle, tone: BannerTone.info)
               else ...[
                 Banner2(text: l.accEmergency, tone: BannerTone.danger, icon: Icons.local_hospital_outlined),
-                const SizedBox(height: 14),
-                Text(l.accNew, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 6),
-                Text(l.accIntro, style: const TextStyle(color: AppColors.muted, height: 1.6)),
-                const SizedBox(height: 16),
-                TextFormField(
-                  key: const Key('acc-description'),
-                  controller: _description,
-                  maxLines: 3,
-                  maxLength: 2000,
-                  decoration: InputDecoration(labelText: l.accDescription),
-                  validator: (v) => (v ?? '').trim().isEmpty ? l.required : null,
-                ),
-                SwitchListTile(
-                  key: const Key('acc-injuries'),
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l.accInjuries),
-                  value: injuries,
-                  onChanged: (v) => setState(() => injuries = v),
-                ),
-                if (injuries)
-                  TextFormField(
-                    key: const Key('acc-injuries-note'),
-                    controller: _injuriesNote,
-                    maxLines: 2,
-                    maxLength: 2000,
-                    decoration: InputDecoration(labelText: l.accInjuriesNote),
+                const SizedBox(height: 10),
+                Text(l.accIntro, style: const TextStyle(color: AppColors.muted, fontSize: 12.5, height: 1.6)),
+                const SizedBox(height: 10),
+                DCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FieldLabel(l.accDescription, required: true),
+                      TextFormField(
+                        key: const Key('acc-description'),
+                        controller: _description,
+                        maxLines: 3,
+                        maxLength: 2000,
+                        validator: (v) => (v ?? '').trim().isEmpty ? l.required : null,
+                      ),
+                      SwitchListTile(
+                        key: const Key('acc-injuries'),
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(l.accInjuries),
+                        value: injuries,
+                        onChanged: (v) => setState(() => injuries = v),
+                      ),
+                      if (injuries)
+                        TextFormField(
+                          key: const Key('acc-injuries-note'),
+                          controller: _injuriesNote,
+                          maxLines: 2,
+                          maxLength: 2000,
+                          decoration: InputDecoration(labelText: l.accInjuriesNote),
+                        ),
+                      TextFormField(
+                        key: const Key('acc-other-party'),
+                        controller: _otherParty,
+                        maxLines: 2,
+                        maxLength: 2000,
+                        decoration: InputDecoration(labelText: l.accOtherParty),
+                      ),
+                    ],
                   ),
-                TextFormField(
-                  key: const Key('acc-other-party'),
-                  controller: _otherParty,
-                  maxLines: 2,
-                  maxLength: 2000,
-                  decoration: InputDecoration(labelText: l.accOtherParty),
                 ),
                 const SizedBox(height: 12),
-                Text(l.accPhotos('$accidentMinPhotos'), style: const TextStyle(fontWeight: FontWeight.w600)),
-                if (_photosMissing) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    l.accPhotosNeeded('$accidentMinPhotos'),
-                    key: const Key('acc-photos-missing'),
-                    style: const TextStyle(color: AppColors.danger),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
-                  childAspectRatio: 4 / 3,
-                  children: [
-                    for (var i = 0; i < photos.length; i++)
-                      PhotoTile(
-                        label: '${l.mntAddPhoto} ${i + 1} · ${l.mntTapToRemove}',
-                        path: photos[i].path,
-                        onTap: () => setState(() => photos.removeAt(i)),
+                DCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FieldLabel(l.accPhotos('$accidentMinPhotos'), required: true),
+                      if (_photosMissing) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          l.accPhotosNeeded('$accidentMinPhotos'),
+                          key: const Key('acc-photos-missing'),
+                          style: const TextStyle(color: AppColors.danger, fontSize: 12.5),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: 4 / 3,
+                        children: [
+                          for (var i = 0; i < photos.length; i++)
+                            PhotoTile(
+                              label: '${l.mntAddPhoto} ${i + 1} · ${l.mntTapToRemove}',
+                              path: photos[i].path,
+                              onTap: () => setState(() => photos.removeAt(i)),
+                            ),
+                          if (photos.length < accidentMaxPhotos)
+                            PhotoTile(key: const Key('acc-photo'), label: l.mntAddPhoto, onTap: _addPhoto),
+                        ],
                       ),
-                    if (photos.length < accidentMaxPhotos)
-                      PhotoTile(key: const Key('acc-photo'), label: l.mntAddPhoto, onTap: _addPhoto),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text(l.accPoliceReport, style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 4),
-                Text(l.accPoliceLater, style: const TextStyle(color: AppColors.muted, height: 1.6)),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 120,
-                  child: PhotoTile(
-                    key: const Key('acc-police'),
-                    label: police == null ? l.accPoliceReport : l.mntTapToRemove,
-                    path: police?.path,
-                    onTap: police == null ? _takePolice : () => setState(() => police = null),
+                    ],
                   ),
                 ),
-                if (police != null)
-                  TextFormField(
-                    key: const Key('acc-police-no'),
-                    controller: _policeNo,
-                    textDirection: TextDirection.ltr,
-                    decoration: InputDecoration(labelText: l.accPoliceReportNo),
+                const SizedBox(height: 12),
+                DCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FieldLabel(l.accPoliceReport),
+                      Text(
+                        l.accPoliceLater,
+                        style: const TextStyle(color: AppColors.muted, fontSize: 12.5, height: 1.6),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 120,
+                        child: PhotoTile(
+                          key: const Key('acc-police'),
+                          label: police == null ? l.accPoliceReport : l.mntTapToRemove,
+                          path: police?.path,
+                          onTap: police == null ? _takePolice : () => setState(() => police = null),
+                        ),
+                      ),
+                      if (police != null)
+                        TextFormField(
+                          key: const Key('acc-police-no'),
+                          controller: _policeNo,
+                          textDirection: TextDirection.ltr,
+                          decoration: InputDecoration(labelText: l.accPoliceReportNo),
+                        ),
+                    ],
                   ),
-                const SizedBox(height: 22),
-                BusyButton(key: const Key('acc-send'), label: l.send, icon: Icons.send, onPressed: _send),
+                ),
+                const SizedBox(height: 20),
+                BusyButton(
+                  key: const Key('acc-send'),
+                  label: l.accSend,
+                  icon: Icons.send,
+                  danger: true,
+                  onPressed: _send,
+                ),
               ],
               SectionTitle(l.accidentsTitle),
               if (accidents.isEmpty) Text(l.accNone, style: const TextStyle(color: AppColors.muted)),

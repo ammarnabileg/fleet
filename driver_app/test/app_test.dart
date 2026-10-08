@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:fleet_driver/app/state.dart';
 import 'package:fleet_driver/core/api.dart';
+import 'package:fleet_driver/core/models.dart' show kuwaitDay;
 import 'package:fleet_driver/core/tokens.dart';
 import 'package:fleet_driver/main.dart';
 import 'package:fleet_driver/ui/photos.dart';
@@ -11,6 +12,7 @@ import 'package:fleet_driver/ui/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart' show DateFormat;
 
 import 'support.dart';
 
@@ -248,6 +250,19 @@ final keetaScheme = scheme(
   ],
 );
 
+/// Brings a widget of the open screen into view: scrolls its list until the widget is built (a long form builds
+/// its end only when near), then onto the screen.
+Future<void> reveal(WidgetTester tester, Finder f) async {
+  // the field typed in last keeps the focus and scrolls itself back on screen: the keyboard closes first
+  FocusManager.instance.primaryFocus?.unfocus();
+  for (var i = 0; i < 4; i++) {
+    await tester.pump(const Duration(milliseconds: 100)); // and its last scroll to the caret ends
+  }
+  if (f.evaluate().isEmpty) await tester.scrollUntilVisible(f, 200, scrollable: find.byType(Scrollable).first);
+  await tester.ensureVisible(f);
+  await tester.pump();
+}
+
 Future<void> pumpApp(WidgetTester tester, World w) async {
   tester.view.physicalSize = const Size(1080, 2280);
   tester.view.devicePixelRatio = 2.75;
@@ -395,7 +410,7 @@ void main() {
     await tester.tap(find.byKey(const Key('screenshot')));
     await idle(tester);
     await shot(tester, '07-report');
-    await tester.ensureVisible(find.byKey(const Key('send-report')));
+    await reveal(tester, find.byKey(const Key('send-report')));
     await tester.tap(find.byKey(const Key('send-report')));
     await idle(tester);
     expect(w.server.calls('/api/v1/driver/files').single.url.queryParameters['source'], 'upload');
@@ -477,7 +492,7 @@ void main() {
     final list = find.byType(Scrollable).first;
     Future<void> reach(String key, {double step = 120}) async {
       await tester.scrollUntilVisible(find.byKey(Key(key)), step, scrollable: list);
-      await tester.ensureVisible(find.byKey(Key(key)));
+      await reveal(tester, find.byKey(Key(key)));
       await tester.pumpAndSettle();
     }
 
@@ -755,7 +770,7 @@ void main() {
     expect(tester.widget<TextFormField>(find.byKey(const Key('cash'))).controller!.text, '18.500');
     await tester.enterText(find.byKey(const Key('cash')), '19.25');
     await shot(tester, '31-report-returned-edit');
-    await tester.ensureVisible(find.byKey(const Key('send-report')));
+    await reveal(tester, find.byKey(const Key('send-report')));
     await settle(tester);
     await tester.tap(find.byKey(const Key('send-report')));
     await idle(tester);
@@ -778,7 +793,7 @@ void main() {
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.ensureVisible(find.byKey(const Key('report-2026-10-03')));
+    await reveal(tester, find.byKey(const Key('report-2026-10-03')));
     await settle(tester);
     await tester.tap(find.byKey(const Key('report-2026-10-03')));
     await settle(tester);
@@ -789,16 +804,16 @@ void main() {
       reason: 'the approved cash',
     );
     await tester.enterText(find.byKey(const Key('orders')), '26');
-    await tester.ensureVisible(find.byKey(const Key('send-report')));
+    await reveal(tester, find.byKey(const Key('send-report')));
     await settle(tester);
     await tester.tap(find.byKey(const Key('send-report')));
     await idle(tester);
     expect(w.server.calls('/api/v1/driver/reports/a1/change-request'), isEmpty, reason: 'the reason is required');
-    await tester.ensureVisible(find.byKey(const Key('change-reason')));
+    await reveal(tester, find.byKey(const Key('change-reason')));
     await settle(tester);
     await tester.enterText(find.byKey(const Key('change-reason')), 'طلبان لم يظهرا في اللقطة');
     await shot(tester, '32-report-change-request');
-    await tester.ensureVisible(find.byKey(const Key('send-report')));
+    await reveal(tester, find.byKey(const Key('send-report')));
     await settle(tester);
     await tester.tap(find.byKey(const Key('send-report')));
     await idle(tester);
@@ -834,15 +849,15 @@ void main() {
     await tester.enterText(find.byKey(const Key('orders')), '31');
     await tester.tap(find.byKey(const Key('screenshot')));
     await idle(tester);
-    await tester.ensureVisible(find.byKey(const Key('send-report')));
+    await reveal(tester, find.byKey(const Key('send-report')));
     await tester.tap(find.byKey(const Key('send-report')));
     await idle(tester);
     expect(w.server.calls('/api/v1/driver/reports', method: 'POST'), isEmpty, reason: 'the valid day is required');
-    await tester.ensureVisible(find.text('يوم صالح'));
+    await reveal(tester, find.text('يوم صالح'));
     await tester.tap(find.text('يوم صالح'));
     await settle(tester);
     await shot(tester, '25-report-valid-day');
-    await tester.ensureVisible(find.byKey(const Key('send-report')));
+    await reveal(tester, find.byKey(const Key('send-report')));
     await tester.tap(find.byKey(const Key('send-report')));
     await idle(tester);
     final body = jsonDecode(w.server.calls('/api/v1/driver/reports', method: 'POST').single.body) as Map;
@@ -1169,7 +1184,7 @@ void main() {
     }
 
     Future<void> tapTile(String label, {bool sheet = false}) async {
-      await tester.ensureVisible(find.text(label).first);
+      await reveal(tester, find.text(label).first);
       await tester.tap(find.text(label).first);
       await idle(tester);
       if (sheet) {
@@ -1419,7 +1434,7 @@ void main() {
     await tester.tap(find.byKey(const Key('mnt-photo')));
     await idle(tester);
     await shot(tester, '13-maintenance');
-    await tester.ensureVisible(find.byKey(const Key('mnt-send')));
+    await reveal(tester, find.byKey(const Key('mnt-send')));
     await tester.tap(find.byKey(const Key('mnt-send')));
     await idle(tester);
     expect(w.server.calls('/api/v1/driver/files').every((r) => r.url.queryParameters['source'] == 'camera'), isTrue);
@@ -1499,18 +1514,18 @@ void main() {
     await idle(tester);
     expect(find.textContaining('يصل الطلب للمركز مباشرة'), findsOneWidget);
     await tester.enterText(find.byKey(const Key('mnt-description')), 'البطارية لا تشحن');
-    await tester.ensureVisible(find.byKey(const Key('mnt-send')));
+    await reveal(tester, find.byKey(const Key('mnt-send')));
     await tester.tap(find.byKey(const Key('mnt-send')));
     await idle(tester);
     expect(w.server.calls('/api/v1/driver/maintenance', method: 'POST'), isEmpty, reason: 'the center is required');
-    await tester.ensureVisible(find.byKey(const Key('mnt-center')));
+    await reveal(tester, find.byKey(const Key('mnt-center')));
     await tester.tap(find.byKey(const Key('mnt-center')));
     await settle(tester);
     await tester.tap(find.text('مركز الفجر · كهرباء').last);
     await settle(tester);
     expect(find.textContaining('الري، شارع 4'), findsOneWidget);
     await shot(tester, '15-maintenance-direct');
-    await tester.ensureVisible(find.byKey(const Key('mnt-send')));
+    await reveal(tester, find.byKey(const Key('mnt-send')));
     await tester.tap(find.byKey(const Key('mnt-send')));
     await idle(tester);
     final body = jsonDecode(w.server.calls('/api/v1/driver/maintenance', method: 'POST').single.body) as Map;
@@ -1624,7 +1639,7 @@ void main() {
     );
     w.server.on('POST', '/api/v1/driver/accidents', (r) => (201, accident()));
     await pumpApp(tester, w);
-    await tester.ensureVisible(find.byKey(const Key('accident')));
+    await reveal(tester, find.byKey(const Key('accident')));
     await settle(tester);
     await tester.tap(find.byKey(const Key('accident')));
     await idle(tester);
@@ -1635,23 +1650,23 @@ void main() {
     await tester.enterText(find.byKey(const Key('acc-injuries-note')), 'ألم في الرقبة');
     await tester.enterText(find.byKey(const Key('acc-other-party')), 'بيك أب أبيض 12345');
     for (var i = 0; i < 2; i++) {
-      await tester.ensureVisible(find.byKey(const Key('acc-photo')));
+      await reveal(tester, find.byKey(const Key('acc-photo')));
       await settle(tester);
       await tester.tap(find.byKey(const Key('acc-photo')));
       await idle(tester);
     }
-    await tester.ensureVisible(find.byKey(const Key('acc-send')));
+    await tester.scrollUntilVisible(find.byKey(const Key('acc-send')), 200, scrollable: find.byType(Scrollable).first);
     await settle(tester);
     await tester.tap(find.byKey(const Key('acc-send')));
     await idle(tester);
     expect(find.byKey(const Key('acc-photos-missing')), findsOneWidget);
     expect(w.server.calls('/api/v1/driver/accidents', method: 'POST'), isEmpty);
-    await tester.ensureVisible(find.byKey(const Key('acc-photo')));
+    await reveal(tester, find.byKey(const Key('acc-photo')));
     await settle(tester);
     await tester.tap(find.byKey(const Key('acc-photo')));
     await idle(tester);
     await shot(tester, '15-accident');
-    await tester.ensureVisible(find.byKey(const Key('acc-send')));
+    await tester.scrollUntilVisible(find.byKey(const Key('acc-send')), 200, scrollable: find.byType(Scrollable).first);
     await settle(tester);
     await tester.tap(find.byKey(const Key('acc-send')));
     await idle(tester);
@@ -1717,7 +1732,7 @@ void main() {
     ))!;
     await pumpApp(tester, w);
     expect(find.textContaining('بانتظار محضر الشرطة'), findsNothing);
-    await tester.ensureVisible(find.byKey(const Key('accident')));
+    await reveal(tester, find.byKey(const Key('accident')));
     await settle(tester);
     await tester.tap(find.byKey(const Key('accident')));
     await idle(tester);
@@ -1772,7 +1787,7 @@ void main() {
       ),
     ))!;
     await pumpApp(tester, w);
-    await tester.ensureVisible(find.byKey(const Key('fines')));
+    await reveal(tester, find.byKey(const Key('fines')));
     await settle(tester);
     await tester.tap(find.byKey(const Key('fines')));
     await idle(tester);
@@ -1823,6 +1838,7 @@ void main() {
       find.byType(ListView).first,
       const Offset(0, -200),
     );
+    await settle(tester);
     await tester.tap(find.byKey(const Key('statement')));
     await idle(tester);
     expect(find.textContaining('المنصة أ'), findsOneWidget);
@@ -1831,12 +1847,14 @@ void main() {
       find.byType(ListView).first,
       const Offset(0, -200),
     );
+    await settle(tester);
     expect(find.textContaining('اللقطة لشهر آخر'), findsOneWidget);
     await tester.dragUntilVisible(
       find.byKey(const Key('send-statement')),
       find.byType(ListView).first,
       const Offset(0, 200),
     );
+    await settle(tester);
     await tester.tap(find.byKey(const Key('send-statement')));
     await idle(tester);
     expect(w.server.calls('/api/v1/driver/statements', method: 'POST'), isEmpty, reason: 'valid days are required');
@@ -1849,7 +1867,7 @@ void main() {
       await idle(tester);
     }
     await shot(tester, '18-statement');
-    await tester.ensureVisible(find.byKey(const Key('send-statement')));
+    await reveal(tester, find.byKey(const Key('send-statement')));
     await tester.tap(find.byKey(const Key('send-statement')));
     await idle(tester);
     expect(w.server.calls('/api/v1/driver/files').map((c) => c.url.queryParameters['source']).toSet(), {'upload'});
@@ -1892,6 +1910,7 @@ void main() {
       find.byType(ListView).first,
       const Offset(0, -200),
     );
+    await settle(tester);
     await tester.tap(find.byKey(const Key('payslips')));
     await idle(tester);
     expect(find.text('عدد الأيام الصالحة'), findsOneWidget);
@@ -1952,6 +1971,7 @@ void main() {
       find.byType(ListView).first,
       const Offset(0, -200),
     );
+    await settle(tester);
     await tester.tap(find.byKey(const Key('payslips')));
     await idle(tester);
     expect(find.text('كيف حسب نظامك الشهر: كيتا الأساسي'), findsOneWidget);
@@ -2135,7 +2155,7 @@ void main() {
     w.server.on('POST', '/api/v1/driver/scheme-requests', (r) => (201, view(pending)));
     w.server.on('DELETE', '/api/v1/driver/scheme-requests/q1', (r) => (200, view(null)));
     await pumpApp(tester, w);
-    await tester.ensureVisible(find.byKey(const Key('schemes')));
+    await reveal(tester, find.byKey(const Key('schemes')));
     await settle(tester);
     await tester.tap(find.byKey(const Key('schemes')));
     await idle(tester);
@@ -2200,7 +2220,7 @@ void main() {
       ),
     );
     await pumpApp(tester, w);
-    await tester.ensureVisible(find.byKey(const Key('schemes')));
+    await reveal(tester, find.byKey(const Key('schemes')));
     await settle(tester);
     await tester.tap(find.byKey(const Key('schemes')));
     await idle(tester);
@@ -2236,7 +2256,7 @@ void main() {
       return (200, {...ob, 'data': saved});
     });
     await pumpApp(tester, w);
-    await tester.ensureVisible(find.byKey(const Key('ob-scheme-batch')));
+    await reveal(tester, find.byKey(const Key('ob-scheme-batch')));
     await settle(tester);
     expect(find.byIcon(Icons.radio_button_checked), findsNothing);
     await tester.tap(find.byKey(const Key('ob-scheme-batch')));
@@ -2380,5 +2400,156 @@ void main() {
     arrived!();
     await idle(tester);
     expect(find.descendant(of: find.byKey(const Key('notifications')), matching: find.text('1')), findsOneWidget);
+  });
+  testWidgets(
+    'home: the car with its make and model, the day started at its time and reading, the balance opens cash',
+    (tester) async {
+      const started = '2026-10-08T04:52:00Z';
+      final w = (await tester.runAsync(
+        () => world(
+          today: {
+            'custody': {
+              'id': 'c1',
+              'plate_number': '18/23456',
+              'started_at': '2026-10-02T05:00:00Z',
+              'last_odometer_km': 45198,
+              'make': 'Toyota',
+              'model': 'Yaris',
+              'year': 2023,
+            },
+            'start_day_done': true,
+            'sessions': 1,
+            'day_started_at': started,
+            'day_start_km': 45198,
+          },
+        ),
+      ))!;
+      await pumpApp(tester, w);
+      expect(find.text('Toyota Yaris 2023'), findsOneWidget);
+      final time = DateFormat('HH:mm', 'en').format(DateTime.parse(started).toLocal());
+      expect(find.text('يومك بدأ الساعة \u2066$time\u2069'), findsOneWidget);
+      expect(find.text('عداد البداية \u206645,198\u2069'), findsOneWidget);
+      expect(find.byKey(const Key('end-day')), findsOneWidget);
+      expect(find.byKey(const Key('start-day')), findsNothing);
+      await tester.tap(find.byKey(const Key('qa-cash')));
+      await settle(tester);
+      expect(find.byKey(const Key('cash-total')), findsOneWidget);
+      expect(find.byKey(const Key('daily-report')), findsNothing, reason: 'the cash tab, not home');
+    },
+  );
+
+  testWidgets('the daily work tab: today\'s report to send and the ones before; once sent, its status', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    await pumpApp(tester, w);
+    await tester.tap(find.text('العمل اليومي').last);
+    await settle(tester);
+    expect(find.byKey(const Key('work-report-p1')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const Key('work-report-p1')), matching: find.text('معتمد')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('work-report')));
+    await settle(tester);
+    expect(find.byKey(const Key('orders')), findsOneWidget, reason: 'the report form');
+    await tester.tap(find.byType(BackButton));
+    await settle(tester);
+
+    w.server.on(
+      'GET',
+      '/api/v1/driver/reports',
+      (r) => (
+        200,
+        [
+          {
+            'id': 'p2',
+            'driver': null,
+            'company_id': 1,
+            'vehicle_plate': '18/23456',
+            'business_date': kuwaitDay(DateTime.now()),
+            'orders_count': 25,
+            'cash_amount': '40.500',
+            'approved_cash': null,
+            'has_screenshot': true,
+            'notes': null,
+            'status': 'submitted',
+            'submitted_at': DateTime.now().toUtc().toIso8601String(),
+            'reviewed_at': null,
+            'review_note': null,
+          },
+        ],
+      ),
+    );
+    await tester.runAsync(() async {
+      await w.state.loadReports();
+      await w.state.reloadLocal(); // as the pull to refresh does: the screens are told
+    });
+    await tester.pump();
+    expect(find.byKey(const Key('work-report')), findsNothing, reason: 'sent: nothing to send');
+    expect(find.text('أرسلت تقرير اليوم'), findsOneWidget);
+    expect(find.textContaining('40.500'), findsWidgets);
+    expect(find.text('بانتظار المراجعة'), findsWidgets);
+  });
+
+  testWidgets('the maintenance tab: a new request from it, his requests with where each is', (tester) async {
+    final w = (await tester.runAsync(
+      () => world(
+        maintenance: [
+          {
+            'id': 'm1',
+            'number': 7,
+            'vehicle_plate': '18/23456',
+            'kind': 'tyres',
+            'description': 'الإطار الخلفي',
+            'status': 'referred',
+            'created_at': '2026-10-05T08:00:00Z',
+            'center': {'name': 'مركز الملا', 'phone': null, 'address': null},
+            'ready_at': null,
+            'decision_note': null,
+          },
+        ],
+      ),
+    ))!;
+    await pumpApp(tester, w);
+    await tester.tap(find.text('الصيانة').last);
+    await settle(tester);
+    expect(find.text('إطارات'), findsOneWidget);
+    expect(find.text('محال لمركز الصيانة'), findsOneWidget);
+    expect(find.textContaining('مركز الملا'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('mnt-new')));
+    await settle(tester);
+    expect(find.byKey(const Key('mnt-send')), findsOneWidget);
+  });
+  testWidgets('a report sent with no signal waits on the phone: shown as not sent yet, never offered twice', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final img = await tester.runAsync(testImage);
+    Photos.gallery = () async => TakenPhoto(img!, DateTime.now());
+    w.server.on('POST', '/api/v1/driver/files', (r) => throw const SocketException('offline'));
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('daily-report')));
+    await settle(tester);
+    await tester.enterText(find.byKey(const Key('orders')), '27');
+    await tester.enterText(find.byKey(const Key('cash')), '19.5');
+    await tester.tap(find.byKey(const Key('screenshot')));
+    await idle(tester);
+    await reveal(tester, find.byKey(const Key('send-report')));
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    expect(find.text('حُفظ على الهاتف'), findsOneWidget);
+    await tester.tap(find.text('تم'));
+    await idle(tester);
+    expect(
+      find.descendant(of: find.byKey(const Key('daily-report')), matching: find.text('تقرير اليوم محفوظ على الهاتف')),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('العمل اليومي').last);
+    await settle(tester);
+    expect(find.byKey(const Key('work-report')), findsNothing, reason: 'waiting to go: not to be sent again');
+    expect(find.text('لم يُرسل بعد'), findsOneWidget);
+    expect(find.textContaining('27'), findsWidgets);
+    await tester.tap(find.text('الرئيسية').last);
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('daily-report')));
+    await settle(tester);
+    expect(find.byKey(const Key('report-queued')), findsOneWidget);
+    expect(find.byKey(const Key('send-report')), findsNothing);
   });
 }

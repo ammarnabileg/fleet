@@ -1,27 +1,36 @@
 /// The shapes the driver API returns. Amounts stay strings with three decimals, exactly as the server sends them.
 class Custody {
-  Custody({required this.id, required this.plate, required this.startedAt, this.lastKm});
+  Custody({required this.id, required this.plate, required this.startedAt, this.lastKm, this.model});
 
   factory Custody.fromJson(Map<String, dynamic> j) => Custody(
     id: j['id'] as String,
     plate: j['plate_number'] as String,
     startedAt: DateTime.parse(j['started_at'] as String),
     lastKm: (j['last_odometer_km'] as num?)?.toInt(),
+    model: [j['make'], j['model'], j['year']].whereType<Object>().join(' ').trim(),
   );
 
   final String id;
   final String plate;
   final DateTime startedAt;
   final int? lastKm;
+  final String? model; // make, model and year as one line ("Toyota Yaris 2023"); empty from an older server
 }
 
 /// The business day (yyyy-mm-dd) of a moment, by Kuwait's clock (UTC+3, no daylight saving), as the server counts.
 String kuwaitDay(DateTime t) => t.toUtc().add(const Duration(hours: 3)).toIso8601String().substring(0, 10);
 
 class Today {
-  Today({this.custody, required this.startDayDone, this.endDayDone = false, int? sessions, this.recent = const {}})
-    : sessions = sessions ?? (startDayDone ? 1 : 0),
-      canStartAgain = sessions != null;
+  Today({
+    this.custody,
+    required this.startDayDone,
+    this.endDayDone = false,
+    int? sessions,
+    this.recent = const {},
+    this.dayStartedAt,
+    this.dayStartKm,
+  }) : sessions = sessions ?? (startDayDone ? 1 : 0),
+       canStartAgain = sessions != null;
 
   factory Today.fromJson(Map<String, dynamic> j) => Today(
     custody: j['custody'] == null ? null : Custody.fromJson(j['custody'] as Map<String, dynamic>),
@@ -29,6 +38,8 @@ class Today {
     endDayDone: j['end_day_done'] as bool? ?? false,
     sessions: (j['sessions'] as num?)?.toInt(), // an older server: one session a day
     recent: {for (final e in (j['recent'] as Map? ?? {}).entries) e.key as String: (e.value as num).toInt()},
+    dayStartedAt: j['day_started_at'] == null ? null : DateTime.parse(j['day_started_at'] as String),
+    dayStartKm: (j['day_start_km'] as num?)?.toInt(),
   );
 
   final Custody? custody;
@@ -37,6 +48,8 @@ class Today {
   final int sessions; // today's work sessions: after ending the day he may start again
   final bool canStartAgain; // the server knows sessions (an older one refuses a second start)
   final Map<String, int> recent; // the two days before: their sessions, for a report sent late
+  final DateTime? dayStartedAt; // the session he is in (or ended last): when and at what reading it started
+  final int? dayStartKm;
 }
 
 class Receipt {

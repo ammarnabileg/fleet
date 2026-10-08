@@ -129,6 +129,41 @@ class AppState extends ChangeNotifier {
   bool get dayStarted => _queuedDay.isNotEmpty || (today?.startDayDone ?? false);
   bool get dayEnded => _queuedDay.isNotEmpty ? _queuedDay.last == 'end_day' : (today?.endDayDone ?? false);
 
+  /// The start of day still in the queue (no signal yet), the latest: its time and reading.
+  ({DateTime at, int? km})? get queuedStart {
+    for (final i in queued.reversed) {
+      if (i.kind == 'odometer' && i.state != 'failed' && i.payload['kind'] == 'start_day') {
+        final at = i.payload['recorded_at'] as String?;
+        if (_isToday(at)) return (at: DateTime.parse(at!), km: (i.payload['value_km'] as num?)?.toInt());
+      }
+    }
+    return null;
+  }
+
+  /// This session's report of today, once sent (not refused): the home screen and the daily work say so.
+  Report? get todaysReport {
+    final day = kuwaitDay(DateTime.now());
+    for (final r in reports) {
+      if (r.businessDate == day && r.status != 'rejected' && r.session >= sessionsToday) return r;
+    }
+    return null;
+  }
+
+  /// A report of [day] for [session] (or later) still in the outbox, not refused: as far as the driver is concerned it
+  /// is sent, and it must not be sent twice. One without a session (an older server) is the day's.
+  OutboxItem? queuedReport(String day, int session) {
+    for (final i in queued) {
+      if (i.kind == 'report' && i.state != 'failed' && i.payload['business_date'] == day) {
+        final s = (i.payload['session'] as num?)?.toInt();
+        if (s == null || s >= session) return i;
+      }
+    }
+    return null;
+  }
+
+  /// This session's report of today still waiting for the network.
+  OutboxItem? get todaysQueuedReport => queuedReport(kuwaitDay(DateTime.now()), sessionsToday);
+
   /// Today's work sessions as known, the starts still queued included.
   int get sessionsToday => (today?.sessions ?? 0) + _queuedDay.where((k) => k == 'start_day').length;
 
@@ -578,11 +613,18 @@ class AppState extends ChangeNotifier {
     if (onlyIfChanged && mark == _localMark) return;
     _localMark = mark;
     tracking = state;
-    final delivered = queued.any((i) => i.kind != 'report' && i.kind.isNotEmpty && !items.any((x) => x.id == i.id));
+    final gone = [
+      for (final i in queued)
+        if (i.kind.isNotEmpty && !items.any((x) => x.id == i.id)) i.kind,
+    ];
     queued = items;
     notifyListeners();
     // something the home screen shows was delivered meanwhile (a reading, a pickup): its state from the server
-    if (delivered && today != null) unawaited(_quietly(loadToday).then((_) => notifyListeners()));
+    if (gone.any((k) => k != 'report') && today != null) unawaited(_quietly(loadToday).then((_) => notifyListeners()));
+    // a report delivered in the background: the daily work shows it sent, with its status
+    if (gone.contains('report') && shows('daily_report')) {
+      unawaited(_quietly(loadReports).then((_) => notifyListeners()));
+    }
   }
 
   String? _localMark;

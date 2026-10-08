@@ -162,6 +162,8 @@ class _ReportScreenState extends State<ReportScreen> {
     final asks = widget.state.reportForm.fields;
     final editing = _editing;
     final sent = editing == null ? _sent : null;
+    // sent with no signal: in the outbox, it goes by itself (a second one would be dropped as the day's duplicate)
+    final waiting = editing == null && sent == null ? widget.state.queuedReport(_day(daysBack), _session) : null;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -175,24 +177,31 @@ class _ReportScreenState extends State<ReportScreen> {
       body: Form(
         key: _form,
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [
-            Text(l.reportDate, style: const TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            if (editing == null)
-              SegmentedButton<int>(
-                segments: [
-                  ButtonSegment(value: 0, label: Text(l.today)),
-                  ButtonSegment(value: 1, label: Text(l.yesterday)),
-                  ButtonSegment(value: 2, label: Text(l.dayBefore)),
+            DCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  FieldLabel(l.reportDate),
+                  if (editing == null)
+                    SegmentedButton<int>(
+                      showSelectedIcon: false,
+                      segments: [
+                        ButtonSegment(value: 0, label: Text(l.today)),
+                        ButtonSegment(value: 1, label: Text(l.yesterday)),
+                        ButtonSegment(value: 2, label: Text(l.dayBefore)),
+                      ],
+                      selected: {daysBack},
+                      onSelectionChanged: (s) => setState(() => daysBack = s.first),
+                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '\u2066${editing?.businessDate ?? _day(daysBack)}\u2069',
+                    style: const TextStyle(color: AppColors.muted, fontSize: 12.5),
+                  ),
                 ],
-                selected: {daysBack},
-                onSelectionChanged: (s) => setState(() => daysBack = s.first),
               ),
-            const SizedBox(height: 6),
-            Text(
-              '\u2066${editing?.businessDate ?? _day(daysBack)}\u2069',
-              style: const TextStyle(color: AppColors.muted),
             ),
             if (editing != null && editing.status == 'returned' && editing.reviewNote != null) ...[
               const SizedBox(height: 12),
@@ -215,7 +224,16 @@ class _ReportScreenState extends State<ReportScreen> {
                   onPressed: () => _open(sent),
                 ),
             ],
-            if (sent == null) ...[
+            if (waiting != null) ...[
+              const SizedBox(height: 16),
+              Banner2(
+                key: const Key('report-queued'),
+                text: l.reportQueuedForDay,
+                tone: BannerTone.warn,
+                icon: Icons.schedule,
+              ),
+            ],
+            if (sent == null && waiting == null) ...[
               if (editing == null && _earlierOrders != null) ...[
                 const SizedBox(height: 16),
                 Banner2(
@@ -225,162 +243,202 @@ class _ReportScreenState extends State<ReportScreen> {
                 ),
               ],
               if (_endDue) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Banner2(key: const Key('end-reading'), text: l.endReadingIntro, icon: Icons.speed),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: 180,
-                  child: PhotoTile(
-                    key: const Key('end-photo'),
-                    label: l.odometerPhoto,
-                    path: odometer?.path,
-                    onTap: () async {
-                      final p = await Photos.camera(context);
-                      if (p != null) setState(() => odometer = p);
-                    },
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  key: const Key('end-km'),
-                  controller: _km,
-                  keyboardType: TextInputType.number,
-                  textDirection: TextDirection.ltr,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(7)],
-                  decoration: InputDecoration(labelText: l.odometerKm, suffixText: l.km),
-                  validator: (v) => int.tryParse(v ?? '') == null ? l.kmInvalid : null,
-                ),
-              ],
-              if (asks.contains('valid_day')) ...[
-                const SizedBox(height: 16),
-                Text(l.validDayQuestion, style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                FormField<bool>(
-                  key: const Key('valid-day'),
-                  validator: (_) => validDay == null ? l.required : null,
-                  builder: (field) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 12),
+                DCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      SegmentedButton<bool>(
-                        emptySelectionAllowed: true,
-                        segments: [
-                          ButtonSegment(value: true, label: Text(l.validDayYes), icon: const Icon(Icons.check)),
-                          ButtonSegment(value: false, label: Text(l.validDayNo), icon: const Icon(Icons.close)),
-                        ],
-                        selected: {?validDay},
-                        onSelectionChanged: (s) {
-                          setState(() => validDay = s.isEmpty ? null : s.first);
-                          field.didChange(validDay);
+                      FieldLabel(l.odometerPhoto, required: true),
+                      PhotoTile(
+                        key: const Key('end-photo'),
+                        label: odometer == null ? l.takeOdometerPhoto : l.odometerPhoto,
+                        hint: l.cameraOnly,
+                        path: odometer?.path,
+                        onTap: () async {
+                          final p = await Photos.camera(context);
+                          if (p != null) setState(() => odometer = p);
                         },
                       ),
-                      if (field.hasError)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(field.errorText!, style: const TextStyle(color: AppColors.danger, fontSize: 12)),
+                      const SizedBox(height: 12),
+                      FieldLabel(l.odometerKm, required: true),
+                      TextFormField(
+                        key: const Key('end-km'),
+                        controller: _km,
+                        keyboardType: TextInputType.number,
+                        textDirection: TextDirection.ltr,
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, letterSpacing: 2),
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(7)],
+                        decoration: InputDecoration(
+                          hintText: '000000',
+                          hintTextDirection: TextDirection.ltr,
+                          suffixText: l.km,
                         ),
+                        validator: (v) => int.tryParse(v ?? '') == null ? l.kmInvalid : null,
+                      ),
                     ],
                   ),
                 ),
               ],
-              if (asks.contains('orders')) ...[
-                const SizedBox(height: 16),
-                TextFormField(
-                  key: const Key('orders'),
-                  controller: _orders,
-                  keyboardType: TextInputType.number,
-                  textDirection: TextDirection.ltr,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
-                  decoration: InputDecoration(labelText: l.ordersCount),
-                  validator: (v) => int.tryParse(v ?? '') == null ? l.required : null,
-                ),
-              ],
-              if (asks.contains('cash')) ...[
+              if (asks.contains('valid_day') || asks.contains('orders') || asks.contains('cash')) ...[
                 const SizedBox(height: 12),
-                TextFormField(
-                  key: const Key('cash'),
-                  controller: _cash,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  textDirection: TextDirection.ltr,
-                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                  decoration: InputDecoration(labelText: l.cashAmount, suffixText: '  ${l.kwd}', hintText: '0.000'),
-                  validator: (v) => _amount.hasMatch((v ?? '').trim()) ? null : l.cashInvalid,
+                DCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (asks.contains('valid_day')) ...[
+                        FieldLabel(l.validDayQuestion, required: true),
+                        FormField<bool>(
+                          key: const Key('valid-day'),
+                          validator: (_) => validDay == null ? l.required : null,
+                          builder: (field) => Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SegmentedButton<bool>(
+                                emptySelectionAllowed: true,
+                                showSelectedIcon: false,
+                                segments: [
+                                  ButtonSegment(value: true, label: Text(l.validDayYes), icon: const Icon(Icons.check)),
+                                  ButtonSegment(value: false, label: Text(l.validDayNo), icon: const Icon(Icons.close)),
+                                ],
+                                selected: {?validDay},
+                                onSelectionChanged: (s) {
+                                  setState(() => validDay = s.isEmpty ? null : s.first);
+                                  field.didChange(validDay);
+                                },
+                              ),
+                              if (field.hasError)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Text(
+                                    field.errorText!,
+                                    style: const TextStyle(color: AppColors.danger, fontSize: 12),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (asks.contains('orders')) ...[
+                        if (asks.contains('valid_day')) const SizedBox(height: 14),
+                        FieldLabel(l.ordersCount, required: true),
+                        TextFormField(
+                          key: const Key('orders'),
+                          controller: _orders,
+                          keyboardType: TextInputType.number,
+                          textDirection: TextDirection.ltr,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(4),
+                          ],
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                          decoration: const InputDecoration(hintText: '0', hintTextDirection: TextDirection.ltr),
+                          validator: (v) => int.tryParse(v ?? '') == null ? l.required : null,
+                        ),
+                      ],
+                      if (asks.contains('cash')) ...[
+                        const SizedBox(height: 14),
+                        FieldLabel(l.cashAmount, required: true),
+                        TextFormField(
+                          key: const Key('cash'),
+                          controller: _cash,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          textDirection: TextDirection.ltr,
+                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                          decoration: InputDecoration(
+                            suffixText: '  ${l.kwd}',
+                            hintText: '0.000',
+                            hintTextDirection: TextDirection.ltr,
+                            helperText: l.cashHint,
+                            helperMaxLines: 2,
+                          ),
+                          validator: (v) => _amount.hasMatch((v ?? '').trim()) ? null : l.cashInvalid,
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ],
-              const SizedBox(height: 16),
-              Text(
-                editing == null ? l.screenshot : l.newScreenshotOptional,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: 180,
-                child: PhotoTile(
-                  key: const Key('screenshot'),
-                  label: l.fromGallery,
-                  path: shot?.path,
-                  onTap: () async {
-                    final p = await Photos.gallery();
-                    if (p != null) setState(() => shot = p);
-                  },
-                ),
-              ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _notes,
-                maxLines: 2,
-                decoration: InputDecoration(labelText: l.notes),
-              ),
-              if (editing != null && !editing.editable) ...[
-                const SizedBox(height: 12),
-                TextFormField(
-                  key: const Key('change-reason'),
-                  controller: _reason,
-                  maxLines: 2,
-                  decoration: InputDecoration(labelText: l.changeReason),
-                  validator: (v) => (v ?? '').trim().length < 3 ? l.required : null,
+              DCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    FieldLabel(
+                      editing == null ? l.screenshot : l.newScreenshotOptional,
+                      required: editing == null && widget.state.reportForm.screenshot,
+                    ),
+                    PhotoTile(
+                      key: const Key('screenshot'),
+                      label: l.fromGallery,
+                      icon: Icons.image_outlined,
+                      path: shot?.path,
+                      onTap: () async {
+                        final p = await Photos.gallery();
+                        if (p != null) setState(() => shot = p);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    FieldLabel(l.notes),
+                    TextFormField(controller: _notes, maxLines: 2),
+                    if (editing != null && !editing.editable) ...[
+                      const SizedBox(height: 12),
+                      FieldLabel(l.changeReason, required: true),
+                      TextFormField(
+                        key: const Key('change-reason'),
+                        controller: _reason,
+                        maxLines: 2,
+                        validator: (v) => (v ?? '').trim().length < 3 ? l.required : null,
+                      ),
+                    ],
+                  ],
                 ),
-              ],
-              const SizedBox(height: 22),
+              ),
+              const SizedBox(height: 20),
               BusyButton(key: const Key('send-report'), label: l.send, icon: Icons.send, onPressed: _send),
             ],
             if (editing == null && reports.isNotEmpty) ...[
               SectionTitle(l.recentReports),
-              for (final r in reports.take(10))
-                Card(
-                  child: ListTile(
-                    key: Key(r.session > 1 ? 'report-${r.businessDate}-${r.session}' : 'report-${r.businessDate}'),
-                    onTap: r.status == 'rejected' || r.changePending ? null : () => _open(r),
-                    title: Text(
-                      [
-                        '\u2066${r.businessDate}\u2069',
-                        if (r.session > 1) l.reportSession('${r.session}'),
-                        if (r.validDay != null) r.validDay! ? l.validDayYes : l.validDayNo,
-                        '${r.orders ?? '—'}',
-                        if (asks.contains('cash')) money(r.cash, l.kwd),
-                      ].join(' · '),
-                    ),
-                    subtitle: r.changePending
-                        ? Text(l.changePending)
-                        : r.reviewNote != null
-                        ? Text(r.reviewNote!)
-                        : (r.approvedCash != null && r.approvedCash != r.cash
-                              ? Text(l.approvedCash(money(r.approvedCash!, l.kwd)))
-                              : null),
-                    trailing: Pill(
-                      switch (r.status) {
-                        'approved' => l.status_approved,
-                        'rejected' => l.status_rejected,
-                        'returned' => l.status_returned,
-                        _ => l.status_submitted,
-                      },
-                      tone: switch (r.status) {
-                        'approved' => BannerTone.success,
-                        'rejected' => BannerTone.danger,
-                        _ => BannerTone.warn,
-                      },
-                    ),
-                  ),
+              DCard.list(
+                child: Column(
+                  children: [
+                    for (final (i, r) in reports.take(10).indexed)
+                      DRow(
+                        key: Key(r.session > 1 ? 'report-${r.businessDate}-${r.session}' : 'report-${r.businessDate}'),
+                        divider: i < reports.take(10).length - 1,
+                        onTap: r.status == 'rejected' || r.changePending ? null : () => _open(r),
+                        title: [
+                          '\u2066${r.businessDate}\u2069',
+                          if (r.session > 1) l.reportSession('${r.session}'),
+                          if (r.validDay != null) r.validDay! ? l.validDayYes : l.validDayNo,
+                          '${r.orders ?? '—'}',
+                          if (asks.contains('cash')) money(r.cash, l.kwd),
+                        ].join(' · '),
+                        subtitle: r.changePending
+                            ? l.changePending
+                            : r.reviewNote ??
+                                  (r.approvedCash != null && r.approvedCash != r.cash
+                                      ? l.approvedCash(money(r.approvedCash!, l.kwd))
+                                      : null),
+                        trailing: Pill(
+                          switch (r.status) {
+                            'approved' => l.status_approved,
+                            'rejected' => l.status_rejected,
+                            'returned' => l.status_returned,
+                            _ => l.status_submitted,
+                          },
+                          tone: switch (r.status) {
+                            'approved' => BannerTone.success,
+                            'rejected' => BannerTone.danger,
+                            _ => BannerTone.warn,
+                          },
+                        ),
+                      ),
+                  ],
                 ),
+              ),
             ],
           ],
         ),

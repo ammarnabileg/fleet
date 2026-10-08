@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import '../../app/state.dart';
 import '../photos.dart';
-import '../theme.dart';
 import '../widgets/common.dart';
 import 'home.dart';
 
@@ -64,7 +63,7 @@ class _OdometerScreenState extends State<OdometerScreen> {
   @override
   Widget build(BuildContext context) {
     final l = context.l;
-    final km = int.tryParse(_km.text);
+    final typed = int.tryParse(_km.text);
     return Scaffold(
       appBar: AppBar(
         title: Text(switch (widget.kind) {
@@ -76,34 +75,72 @@ class _OdometerScreenState extends State<OdometerScreen> {
       body: Form(
         key: _form,
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [
-            Text(
-              widget.kind == 'pickup' ? l.pickupIntro : l.odometerIntro,
-              style: const TextStyle(color: AppColors.muted, height: 1.7),
+            DCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  FieldLabel(l.odometerPhoto, required: true),
+                  PhotoTile(
+                    key: const Key('odo-photo'),
+                    label: photo == null ? l.takeOdometerPhoto : l.odometerPhoto,
+                    hint: l.cameraOnly,
+                    path: photo?.path,
+                    onTap: _take,
+                  ),
+                  if (photo != null)
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: TextButton.icon(
+                        onPressed: _take,
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: Text(l.retake),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  FieldLabel(l.odometerKm, required: true),
+                  TextFormField(
+                    key: const Key('km'),
+                    controller: _km,
+                    keyboardType: TextInputType.number,
+                    textDirection: TextDirection.ltr,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: 2),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(7)],
+                    decoration: InputDecoration(
+                      hintText: '000000',
+                      hintTextDirection: TextDirection.ltr,
+                      helperMaxLines: 2,
+                      suffixText: l.km,
+                      helperText: lastKm == null ? null : l.lastKmHint(km(lastKm!)),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                    validator: (v) => int.tryParse(v ?? '') == null ? l.kmInvalid : null,
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-            PhotoTile(key: const Key('odo-photo'), label: l.odometerPhoto, path: photo?.path, onTap: _take),
-            if (photo != null)
-              TextButton.icon(onPressed: _take, icon: const Icon(Icons.refresh), label: Text(l.retake)),
-            const SizedBox(height: 16),
-            TextFormField(
-              key: const Key('km'),
-              controller: _km,
-              keyboardType: TextInputType.number,
-              textDirection: TextDirection.ltr,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600, letterSpacing: 2),
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(7)],
-              decoration: InputDecoration(labelText: l.odometerKm, suffixText: l.km),
-              onChanged: (_) => setState(() {}),
-              validator: (v) => int.tryParse(v ?? '') == null ? l.kmInvalid : null,
-            ),
-            if (km != null && lastKm != null && km < lastKm!) ...[
+            const SizedBox(height: 12),
+            Banner2(text: widget.kind == 'pickup' ? l.pickupIntro : l.odometerIntro, icon: Icons.info_outline),
+            if (typed != null && lastKm != null && typed < lastKm!) ...[
               const SizedBox(height: 10),
               Banner2(text: l.kmLower('\u2066$lastKm\u2069'), tone: BannerTone.warn),
             ],
-            const SizedBox(height: 24),
-            BusyButton(key: const Key('send-reading'), label: l.send, icon: Icons.send, onPressed: _send),
+            const SizedBox(height: 20),
+            BusyButton(
+              key: const Key('send-reading'),
+              label: switch (widget.kind) {
+                'start_day' => l.startDay,
+                'end_day' => l.endDay,
+                _ => l.mntPickedUp,
+              },
+              icon: switch (widget.kind) {
+                'start_day' => Icons.play_arrow_rounded,
+                'end_day' => Icons.nightlight_outlined,
+                _ => Icons.key,
+              },
+              onPressed: _send,
+            ),
           ],
         ),
       ),

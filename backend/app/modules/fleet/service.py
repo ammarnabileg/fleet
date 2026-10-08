@@ -1214,11 +1214,17 @@ def driver_today(db: Session, employee_id: int) -> dict:
         "custody": {
             "id": str(custody.public_id),
             "plate_number": vehicle.plate_number,
+            "make": vehicle.make,
+            "model": vehicle.model,
+            "year": vehicle.year,
             "started_at": custody.started_at,
             "last_odometer_km": vehicle.last_odometer_km,
         },
         "start_day_done": started,
         "end_day_done": started and last["end"] is not None,
+        # the open (or last) session's start: when and at what reading his day started
+        "day_started_at": last["start"]["recorded_at"] if started else None,
+        "day_start_km": last["start"]["km"] if started else None,
         "sessions": len(day["sessions"]) if day else 0,
         # the days before, for a report sent late: how many sessions each had
         "recent": {d.isoformat(): len(x["sessions"]) for d, x in days.items() if d < today()},

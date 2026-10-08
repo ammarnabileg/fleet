@@ -7,14 +7,15 @@ from decimal import Decimal as D
 
 from app.core.clock import KUWAIT, today
 from app.modules.daily_ops import service
-from tests.conftest import jpeg
+from tests.conftest import bearer, bind_device, hand_over, jpeg, make_driver, make_vehicle
 from tests.test_report_alerts import open_alerts, send_report
 from tests.test_report_evidence import at, on_the_road, read
 
 
 def driver_today(client, h) -> dict:
     out = client.get("/api/v1/driver/today", headers=h).json()
-    out.pop("recent")
+    for extra in ("recent", "day_started_at", "day_start_km"):
+        out.pop(extra)
     return out
 
 
@@ -26,8 +27,18 @@ def post_report(client, h, orders: int = 1, session: int | None = None):
     return client.post("/api/v1/driver/reports", headers=h, json=body | ({"session": session} if session else {}))
 
 
+def started(client, h) -> tuple:
+    """The session the home screen shows: when it started and at what reading."""
+    out = client.get("/api/v1/driver/today", headers=h).json()
+    at = out["day_started_at"]
+    return (datetime.fromisoformat(at) if at else None), out["day_start_km"]
+
+
 def test_the_driver_starts_again_after_ending_the_day(admin_client, client, company):
-    v, d, h, c = on_the_road(admin_client, client, company)
+    v = make_vehicle(admin_client, company["id"], km=30_000, make="Toyota", model="Yaris", year=2023)
+    d = make_driver(admin_client, company["id"])
+    h = bearer(bind_device(client, d["phone"]))
+    hand_over(admin_client, v, d, km=30_000, started_at=(datetime.now(UTC) - timedelta(days=6)).isoformat())
     now = datetime.now(UTC)
     first, end1, second, end2 = (now - timedelta(minutes=m) for m in (40, 30, 20, 10))
     if first.astimezone(KUWAIT).date() != today():  # just after midnight: the whole day in the last minutes
@@ -38,7 +49,9 @@ def test_the_driver_starts_again_after_ending_the_day(admin_client, client, comp
         "end_day_done": False,
         "sessions": 0,
     }
+    assert started(client, h) == (None, None)
     assert read(client, h, "start_day", 30_010, first).status_code == 201
+    assert started(client, h) == (first, 30_010)  # the open session
     # the day is open: another start is refused for what it is, the same one sent again is already there
     r = read(client, h, "start_day", 30_015, end1)
     assert r.status_code == 409 and r.json()["code"] == "day_already_started"
@@ -55,9 +68,14 @@ def test_the_driver_starts_again_after_ending_the_day(admin_client, client, comp
     }
     one = send_report(client, h, today())
     assert one["session"] == 1
+    out = client.get("/api/v1/driver/today", headers=h).json()
+    assert out["day_start_km"] == 30_010 and datetime.fromisoformat(out["day_started_at"]) == first
+    custody = out["custody"]
+    assert (custody["make"], custody["model"], custody["year"]) == ("Toyota", "Yaris", 2023)  # the home screen's card
 
     # he starts again: the day is open once more, and its report waits for the end reading
     assert read(client, h, "start_day", 30_060, second).status_code == 201
+    assert started(client, h) == (second, 30_060)  # the new session, not the first
     assert driver_today(client, h) | {"custody": None} == {
         "custody": None,
         "start_day_done": True,
@@ -99,6 +117,7 @@ def test_a_night_shift_ends_after_midnight_and_the_day_still_closes(admin_client
     night = at(today() - timedelta(days=1), 22)
     assert read(client, h, "start_day", 30_010, night).status_code == 201
     if now - night < timedelta(hours=15):
+        assert started(client, h) == (night, 30_010)  # yesterday evening's session, still open
         # after midnight the evening's session is still the open one: the app offers its end, not a new start
         assert driver_today(client, h) | {"custody": None} == {
             "custody": None,

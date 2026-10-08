@@ -60,16 +60,18 @@ class _SignInScreenState extends State<SignInScreen> {
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              const SizedBox(height: 32),
-              const _Brand(),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
+              _Brand(state: widget.state),
+              const SizedBox(height: 28),
               Text(
                 _sentTo == null ? l.signInTitle : l.otpTitle,
-                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 _sentTo == null ? l.signInHint : l.otpHint('\u2066$_sentTo\u2069'),
+                textAlign: TextAlign.center,
                 style: const TextStyle(color: AppColors.muted, height: 1.6),
               ),
               const SizedBox(height: 24),
@@ -130,20 +132,39 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 }
 
+/// The design's sign-in head: the app's mark and name, centered, with the language switch under it.
 class _Brand extends StatelessWidget {
-  const _Brand();
+  const _Brand({required this.state});
+
+  final AppState state;
 
   @override
-  Widget build(BuildContext context) => Row(
+  Widget build(BuildContext context) => Column(
     children: [
       Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(14)),
-        child: const Icon(Icons.local_shipping_outlined, color: Colors.white),
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          color: AppColors.primaryStrong,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(color: AppColors.primary.withValues(alpha: .3), blurRadius: 16, offset: const Offset(0, 6)),
+          ],
+        ),
+        child: const Icon(Icons.local_shipping_outlined, color: Colors.white, size: 28),
       ),
-      const SizedBox(width: 12),
-      Text(context.l.appTitle, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 12),
+      Text(context.l.appTitle, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 14),
+      SegmentedButton<String>(
+        showSelectedIcon: false,
+        segments: const [
+          ButtonSegment(value: 'ar', label: Text('العربية')),
+          ButtonSegment(value: 'en', label: Text('English')),
+        ],
+        selected: {state.lang},
+        onSelectionChanged: (s) => state.setLang(s.first),
+      ),
     ],
   );
 }
@@ -224,15 +245,20 @@ class _CivilIdSignInScreenState extends State<CivilIdSignInScreen> {
             padding: const EdgeInsets.all(24),
             children: [
               if (widget.primary) ...[
-                const SizedBox(height: 32),
-                const _Brand(),
-                const SizedBox(height: 32),
-                Text(l.signInTitle, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
+                const SizedBox(height: 24),
+                _Brand(state: widget.state),
+                const SizedBox(height: 28),
+                Text(
+                  l.signInTitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 6),
               ],
               if (_token == null) ...[
                 Text(
                   codes ? l.civilSignInHint : l.civilSignInOnly,
+                  textAlign: widget.primary ? TextAlign.center : TextAlign.start,
                   style: const TextStyle(color: AppColors.muted, height: 1.6),
                 ),
                 const SizedBox(height: 20),

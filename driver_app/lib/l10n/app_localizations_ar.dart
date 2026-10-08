@@ -1268,4 +1268,180 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get driverNotWorking => 'السائق لا يعمل';
+
+  @override
+  String greeting(String name) {
+    return 'مرحباً، $name';
+  }
+
+  @override
+  String get yourCar => 'سيارتك';
+
+  @override
+  String get quickActions => 'إجراءات سريعة';
+
+  @override
+  String get dayNotStarted => 'لم تبدأ يومك بعد';
+
+  @override
+  String get dayNotStartedHint => 'ابدأ بتصوير العداد من الكاميرا';
+
+  @override
+  String dayStartedAt(String time) {
+    return 'يومك بدأ الساعة $time';
+  }
+
+  @override
+  String dayStartKm(String km) {
+    return 'عداد البداية $km';
+  }
+
+  @override
+  String get dayEndedHint => 'ستعمل مرة أخرى اليوم؟ ابدأ من جديد';
+
+  @override
+  String get agoNow => 'الآن';
+
+  @override
+  String agoMinutes(String n) {
+    return 'منذ $n د';
+  }
+
+  @override
+  String agoHours(String n) {
+    return 'منذ $n س';
+  }
+
+  @override
+  String agoDays(String n) {
+    return 'منذ $n يوم';
+  }
+
+  @override
+  String lastSentAgo(String ago) {
+    return 'آخر إرسال $ago';
+  }
+
+  @override
+  String get qaBalance => 'رصيدي';
+
+  @override
+  String get qaReceipts => 'إيصالاتي';
+
+  @override
+  String qaReceiptsWaiting(String n) {
+    return '$n بانتظار تأكيدك';
+  }
+
+  @override
+  String get qaReceiptsDone => 'كلها مؤكدة';
+
+  @override
+  String get qaMaintenanceSub => 'عطل أو ملاحظة';
+
+  @override
+  String get qaAccidentSub => 'صور + تقرير الشرطة';
+
+  @override
+  String get qaReportSub => 'طلبات وكاش اليوم';
+
+  @override
+  String get qaFinesSub => 'مخالفات سيارتك';
+
+  @override
+  String get qaStatementSub => 'لقطات المنصة الشهرية';
+
+  @override
+  String get qaPayslipsSub => 'رواتبك الشهرية';
+
+  @override
+  String get qaSchemesSub => 'طريقة حساب راتبك';
+
+  @override
+  String get tabWork => 'العمل اليومي';
+
+  @override
+  String get todayReport => 'تقرير اليوم';
+
+  @override
+  String get workReportSent => 'أرسلت تقرير اليوم';
+
+  @override
+  String get workReportDue => 'لم ترسل تقرير اليوم بعد';
+
+  @override
+  String get workReportDueHint => 'أرسل عدد الطلبات والكاش كما في تطبيق المنصة';
+
+  @override
+  String get sendDailyReport => 'إرسال التقرير اليومي';
+
+  @override
+  String ordersCash(String orders, String cash) {
+    return '$orders طلب · $cash';
+  }
+
+  @override
+  String get myRequests => 'طلباتي';
+
+  @override
+  String get cashBalanceTitle => 'رصيدك الحالي (د.ك)';
+
+  @override
+  String cashPendingPart(String amount) {
+    return 'منها $amount غير معتمد';
+  }
+
+  @override
+  String cashLimit(String amount) {
+    return 'حد التنبيه $amount';
+  }
+
+  @override
+  String employeeAt(String number, String company) {
+    return '$number · $company';
+  }
+
+  @override
+  String get thisPhone => 'هذا الهاتف';
+
+  @override
+  String get takeOdometerPhoto => 'التقط صورة العداد';
+
+  @override
+  String get cameraOnly => 'من الكاميرا فقط — لا يُسمح بالمعرض';
+
+  @override
+  String lastKmHint(String km) {
+    return 'آخر قراءة مسجلة للسيارة: $km';
+  }
+
+  @override
+  String get cashHint => 'كما يظهر في تطبيق شركة التوصيل';
+
+  @override
+  String get mntDescriptionHint => 'مثال: صوت عند الفرملة';
+
+  @override
+  String get accSend => 'إرسال البلاغ';
+
+  @override
+  String get workReportQueued => 'تقرير اليوم محفوظ على الهاتف';
+
+  @override
+  String get reportQueuedForDay =>
+      'تقرير هذا اليوم محفوظ على الهاتف ويُرسل تلقائياً عند عودة الاتصال. لا ترسله مرة ثانية.';
+
+  @override
+  String ordersN(String n) {
+    return '$n طلب';
+  }
+
+  @override
+  String get workReportDueHintDays => 'أرسل عدد الطلبات وهل احتُسب اليوم يوماً صالحاً';
+
+  @override
+  String get qaReportSubDays => 'طلبات اليوم واحتسابه';
+
+  @override
+  String get notSentYet => 'لم يُرسل بعد';
 }

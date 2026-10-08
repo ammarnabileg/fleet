@@ -112,7 +112,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
         child: Form(
           key: _form,
           child: ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             children: [
               for (final r in requests.where((r) => r.isReady)) ...[
                 ReadyBanner(request: r, state: widget.state),
@@ -121,99 +121,118 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
               if (custody == null)
                 Banner2(text: l.mntNoVehicle, tone: BannerTone.info)
               else ...[
-                Text(l.mntNew, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 6),
-                Text(
-                  direct ? l.mntDirectIntro : l.mntIntro,
-                  style: const TextStyle(color: AppColors.muted, height: 1.6),
-                ),
-                const SizedBox(height: 16),
-                if (direct) ...[
-                  DropdownButtonFormField<String>(
-                    key: const Key('mnt-center'),
-                    initialValue: centerId,
-                    isExpanded: true,
-                    decoration: InputDecoration(labelText: l.mntCenter),
-                    items: [
-                      for (final c in form.centers)
-                        DropdownMenuItem(
-                          value: c.id,
-                          child: Text(
-                            [c.name, if (c.specialty != null) c.specialty!].join(' · '),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                    onChanged: (v) => setState(() => centerId = v),
-                    validator: (v) => v == null ? l.required : null,
-                  ),
-                  if (picked != null && (picked.address != null || picked.phone != null)) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      [
-                        picked.address,
-                        if (picked.phone != null) '\u2066${picked.phone}\u2069',
-                      ].whereType<String>().join(' · '),
-                      key: const Key('mnt-center-where'),
-                      style: const TextStyle(color: AppColors.muted, height: 1.5),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                ],
-                DropdownButtonFormField<String>(
-                  key: const Key('mnt-kind'),
-                  initialValue: kind,
-                  decoration: InputDecoration(labelText: l.mntKind),
-                  items: [
-                    for (final k in maintenanceKinds) DropdownMenuItem(value: k, child: Text(maintenanceKind(l, k))),
-                  ],
-                  onChanged: (v) => setState(() => kind = v ?? kind),
-                ),
+                Banner2(text: direct ? l.mntDirectIntro : l.mntIntro, icon: Icons.info_outline),
                 const SizedBox(height: 12),
-                TextFormField(
-                  key: const Key('mnt-description'),
-                  controller: _description,
-                  maxLines: 3,
-                  maxLength: 2000,
-                  decoration: InputDecoration(labelText: l.mntDescription),
-                  validator: (v) => (v ?? '').trim().isEmpty ? l.required : null,
-                ),
-                const SizedBox(height: 4),
-                TextFormField(
-                  key: const Key('mnt-km'),
-                  controller: _km,
-                  keyboardType: TextInputType.number,
-                  textDirection: TextDirection.ltr,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(7)],
-                  decoration: InputDecoration(labelText: l.mntOdometer, suffixText: '  ${l.km}'),
-                ),
-                const SizedBox(height: 16),
-                Text(l.mntPhotos, style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
-                  childAspectRatio: 4 / 3,
-                  children: [
-                    for (var i = 0; i < photos.length; i++)
-                      PhotoTile(
-                        label: '${l.mntAddPhoto} ${i + 1} · ${l.mntTapToRemove}',
-                        path: photos[i].path,
-                        onTap: () => setState(() => photos.removeAt(i)),
+                DCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (direct) ...[
+                        FieldLabel(l.mntCenter, required: true),
+                        DropdownButtonFormField<String>(
+                          key: const Key('mnt-center'),
+                          initialValue: centerId,
+                          isExpanded: true,
+                          hint: Text(l.mntCenter),
+                          items: [
+                            for (final c in form.centers)
+                              DropdownMenuItem(
+                                value: c.id,
+                                child: Text(
+                                  [c.name, if (c.specialty != null) c.specialty!].join(' · '),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                          ],
+                          onChanged: (v) => setState(() => centerId = v),
+                          validator: (v) => v == null ? l.required : null,
+                        ),
+                        if (picked != null && (picked.address != null || picked.phone != null)) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            [
+                              picked.address,
+                              if (picked.phone != null) '\u2066${picked.phone}\u2069',
+                            ].whereType<String>().join(' · '),
+                            key: const Key('mnt-center-where'),
+                            style: const TextStyle(color: AppColors.muted, height: 1.5),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                      ],
+                      FieldLabel(l.mntKind, required: true),
+                      DropdownButtonFormField<String>(
+                        key: const Key('mnt-kind'),
+                        initialValue: kind,
+                        items: [
+                          for (final k in maintenanceKinds)
+                            DropdownMenuItem(value: k, child: Text(maintenanceKind(l, k))),
+                        ],
+                        onChanged: (v) => setState(() => kind = v ?? kind),
                       ),
-                    if (photos.length < maxPhotos)
-                      PhotoTile(key: const Key('mnt-photo'), label: l.mntAddPhoto, onTap: _addPhoto),
-                  ],
+                      const SizedBox(height: 12),
+                      FieldLabel(l.mntDescription, required: true),
+                      TextFormField(
+                        key: const Key('mnt-description'),
+                        controller: _description,
+                        maxLines: 3,
+                        maxLength: 2000,
+                        decoration: InputDecoration(hintText: l.mntDescriptionHint),
+                        validator: (v) => (v ?? '').trim().isEmpty ? l.required : null,
+                      ),
+                      const SizedBox(height: 4),
+                      FieldLabel(l.mntOdometer),
+                      TextFormField(
+                        key: const Key('mnt-km'),
+                        controller: _km,
+                        keyboardType: TextInputType.number,
+                        textDirection: TextDirection.ltr,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(7)],
+                        decoration: InputDecoration(
+                          hintText: '000000',
+                          hintTextDirection: TextDirection.ltr,
+                          suffixText: '  ${l.km}',
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      FieldLabel(l.mntPhotos),
+                      GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: 4 / 3,
+                        children: [
+                          for (var i = 0; i < photos.length; i++)
+                            PhotoTile(
+                              label: '${l.mntAddPhoto} ${i + 1} · ${l.mntTapToRemove}',
+                              path: photos[i].path,
+                              onTap: () => setState(() => photos.removeAt(i)),
+                            ),
+                          if (photos.length < maxPhotos)
+                            PhotoTile(key: const Key('mnt-photo'), label: l.mntAddPhoto, onTap: _addPhoto),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 20),
                 BusyButton(key: const Key('mnt-send'), label: l.send, icon: Icons.send, onPressed: _send),
               ],
-              SectionTitle(l.maintenanceTitle),
-              if (requests.isEmpty) Text(l.mntNone, style: const TextStyle(color: AppColors.muted)),
-              for (final r in requests) _RequestTile(request: r),
+              SectionTitle(l.myRequests),
+              if (requests.isEmpty)
+                DCard(
+                  child: Text(l.mntNone, style: const TextStyle(color: AppColors.muted)),
+                )
+              else
+                DCard.list(
+                  child: Column(
+                    children: [
+                      for (final (i, r) in requests.indexed) RequestRow(request: r, divider: i < requests.length - 1),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),
@@ -222,28 +241,29 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
   }
 }
 
-class _RequestTile extends StatelessWidget {
-  const _RequestTile({required this.request});
+/// One request in a list: its kind, number, car, date and center, its status on a pill.
+class RequestRow extends StatelessWidget {
+  const RequestRow({super.key, required this.request, this.divider = true});
 
   final MaintenanceRequest request;
+  final bool divider;
 
   @override
   Widget build(BuildContext context) {
     final l = context.l;
     final (label, tone) = maintenanceStatus(l, request.status);
     final lines = [
-      '${maintenanceKind(l, request.kind)} · \u2066${request.plate}\u2069 · ${when(context, request.createdAt)}',
+      '${l.mntRequestNo('${request.number}')} · \u2066${request.plate}\u2069 · ${when(context, request.createdAt)}',
       request.description,
       if (request.centerName != null) l.mntAtCenter(request.centerName!),
       if (request.rejectedReason != null) l.mntRejected(request.rejectedReason!),
     ];
-    return Card(
-      child: ListTile(
-        title: Text(l.mntRequestNo('${request.number}')),
-        subtitle: Text(lines.join('\n'), style: const TextStyle(height: 1.5)),
-        isThreeLine: true,
-        trailing: Pill(label, tone: tone),
-      ),
+    return DRow(
+      divider: divider,
+      leading: const IconTile(Icons.build_outlined, bg: AppColors.surface3, fg: AppColors.text3),
+      title: maintenanceKind(l, request.kind),
+      subtitle: lines.join('\n'),
+      trailing: Pill(label, tone: tone),
     );
   }
 }

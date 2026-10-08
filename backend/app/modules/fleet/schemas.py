@@ -176,6 +176,9 @@ class DriverReadingIn(BaseModel):
 class DriverCustody(BaseModel):
     id: str
     plate_number: str
+    make: str | None = None
+    model: str | None = None
+    year: int | None = None
     started_at: datetime
     last_odometer_km: int | None
 
@@ -186,6 +189,8 @@ class DriverTodayOut(BaseModel):
     end_day_done: bool  # the day closed: end-of-day reading, or the vehicle returned
     sessions: int = 0  # today's work sessions: after ending the day he may start again, and its report adds up
     recent: dict[str, int] = {}  # the two days before: their sessions, for a report sent late
+    day_started_at: datetime | None = None  # the session he is in (or ended last): its start of day
+    day_start_km: int | None = None
 
 
 class VehicleChangeIn(BaseModel):

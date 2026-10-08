@@ -1275,4 +1275,180 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get driverNotWorking => 'Driver not at work';
+
+  @override
+  String greeting(String name) {
+    return 'Hello, $name';
+  }
+
+  @override
+  String get yourCar => 'Your car';
+
+  @override
+  String get quickActions => 'Quick actions';
+
+  @override
+  String get dayNotStarted => 'You have not started your day';
+
+  @override
+  String get dayNotStartedHint => 'Start with a camera photo of the odometer';
+
+  @override
+  String dayStartedAt(String time) {
+    return 'Your day started at $time';
+  }
+
+  @override
+  String dayStartKm(String km) {
+    return 'Start odometer $km';
+  }
+
+  @override
+  String get dayEndedHint => 'Working again today? Start again';
+
+  @override
+  String get agoNow => 'just now';
+
+  @override
+  String agoMinutes(String n) {
+    return '$n min ago';
+  }
+
+  @override
+  String agoHours(String n) {
+    return '$n h ago';
+  }
+
+  @override
+  String agoDays(String n) {
+    return '$n d ago';
+  }
+
+  @override
+  String lastSentAgo(String ago) {
+    return 'last sent $ago';
+  }
+
+  @override
+  String get qaBalance => 'My balance';
+
+  @override
+  String get qaReceipts => 'My receipts';
+
+  @override
+  String qaReceiptsWaiting(String n) {
+    return '$n to confirm';
+  }
+
+  @override
+  String get qaReceiptsDone => 'All confirmed';
+
+  @override
+  String get qaMaintenanceSub => 'A fault or a note';
+
+  @override
+  String get qaAccidentSub => 'Photos + police report';
+
+  @override
+  String get qaReportSub => 'Today\'s orders and cash';
+
+  @override
+  String get qaFinesSub => 'Fines on your car';
+
+  @override
+  String get qaStatementSub => 'Monthly platform screenshots';
+
+  @override
+  String get qaPayslipsSub => 'Your monthly pay';
+
+  @override
+  String get qaSchemesSub => 'How your pay is worked out';
+
+  @override
+  String get tabWork => 'Daily work';
+
+  @override
+  String get todayReport => 'Today\'s report';
+
+  @override
+  String get workReportSent => 'Today\'s report is sent';
+
+  @override
+  String get workReportDue => 'Today\'s report is not sent yet';
+
+  @override
+  String get workReportDueHint => 'Send the orders and the cash as shown in the platform\'s app';
+
+  @override
+  String get sendDailyReport => 'Send the daily report';
+
+  @override
+  String ordersCash(String orders, String cash) {
+    return '$orders orders · $cash';
+  }
+
+  @override
+  String get myRequests => 'My requests';
+
+  @override
+  String get cashBalanceTitle => 'Your balance (KWD)';
+
+  @override
+  String cashPendingPart(String amount) {
+    return '$amount of it not approved yet';
+  }
+
+  @override
+  String cashLimit(String amount) {
+    return 'Alert limit $amount';
+  }
+
+  @override
+  String employeeAt(String number, String company) {
+    return '$number · $company';
+  }
+
+  @override
+  String get thisPhone => 'This phone';
+
+  @override
+  String get takeOdometerPhoto => 'Take the odometer photo';
+
+  @override
+  String get cameraOnly => 'Camera only — the gallery is not allowed';
+
+  @override
+  String lastKmHint(String km) {
+    return 'Last recorded reading for the car: $km';
+  }
+
+  @override
+  String get cashHint => 'As shown in the delivery company app';
+
+  @override
+  String get mntDescriptionHint => 'e.g. a noise when braking';
+
+  @override
+  String get accSend => 'Send the report';
+
+  @override
+  String get workReportQueued => 'Today\'s report is saved on the phone';
+
+  @override
+  String get reportQueuedForDay =>
+      'This day\'s report is saved on the phone and goes out by itself when the connection is back. Do not send it again.';
+
+  @override
+  String ordersN(String n) {
+    return '$n orders';
+  }
+
+  @override
+  String get workReportDueHintDays => 'Send the orders and whether the day counted as valid';
+
+  @override
+  String get qaReportSubDays => 'Today\'s orders and valid day';
+
+  @override
+  String get notSentYet => 'Not sent yet';
 }

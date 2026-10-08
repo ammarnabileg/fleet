@@ -2353,6 +2353,300 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'السائق لا يعمل'**
   String get driverNotWorking;
+
+  /// No description provided for @greeting.
+  ///
+  /// In ar, this message translates to:
+  /// **'مرحباً، {name}'**
+  String greeting(String name);
+
+  /// No description provided for @yourCar.
+  ///
+  /// In ar, this message translates to:
+  /// **'سيارتك'**
+  String get yourCar;
+
+  /// No description provided for @quickActions.
+  ///
+  /// In ar, this message translates to:
+  /// **'إجراءات سريعة'**
+  String get quickActions;
+
+  /// No description provided for @dayNotStarted.
+  ///
+  /// In ar, this message translates to:
+  /// **'لم تبدأ يومك بعد'**
+  String get dayNotStarted;
+
+  /// No description provided for @dayNotStartedHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'ابدأ بتصوير العداد من الكاميرا'**
+  String get dayNotStartedHint;
+
+  /// No description provided for @dayStartedAt.
+  ///
+  /// In ar, this message translates to:
+  /// **'يومك بدأ الساعة {time}'**
+  String dayStartedAt(String time);
+
+  /// No description provided for @dayStartKm.
+  ///
+  /// In ar, this message translates to:
+  /// **'عداد البداية {km}'**
+  String dayStartKm(String km);
+
+  /// No description provided for @dayEndedHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'ستعمل مرة أخرى اليوم؟ ابدأ من جديد'**
+  String get dayEndedHint;
+
+  /// No description provided for @agoNow.
+  ///
+  /// In ar, this message translates to:
+  /// **'الآن'**
+  String get agoNow;
+
+  /// No description provided for @agoMinutes.
+  ///
+  /// In ar, this message translates to:
+  /// **'منذ {n} د'**
+  String agoMinutes(String n);
+
+  /// No description provided for @agoHours.
+  ///
+  /// In ar, this message translates to:
+  /// **'منذ {n} س'**
+  String agoHours(String n);
+
+  /// No description provided for @agoDays.
+  ///
+  /// In ar, this message translates to:
+  /// **'منذ {n} يوم'**
+  String agoDays(String n);
+
+  /// No description provided for @lastSentAgo.
+  ///
+  /// In ar, this message translates to:
+  /// **'آخر إرسال {ago}'**
+  String lastSentAgo(String ago);
+
+  /// No description provided for @qaBalance.
+  ///
+  /// In ar, this message translates to:
+  /// **'رصيدي'**
+  String get qaBalance;
+
+  /// No description provided for @qaReceipts.
+  ///
+  /// In ar, this message translates to:
+  /// **'إيصالاتي'**
+  String get qaReceipts;
+
+  /// No description provided for @qaReceiptsWaiting.
+  ///
+  /// In ar, this message translates to:
+  /// **'{n} بانتظار تأكيدك'**
+  String qaReceiptsWaiting(String n);
+
+  /// No description provided for @qaReceiptsDone.
+  ///
+  /// In ar, this message translates to:
+  /// **'كلها مؤكدة'**
+  String get qaReceiptsDone;
+
+  /// No description provided for @qaMaintenanceSub.
+  ///
+  /// In ar, this message translates to:
+  /// **'عطل أو ملاحظة'**
+  String get qaMaintenanceSub;
+
+  /// No description provided for @qaAccidentSub.
+  ///
+  /// In ar, this message translates to:
+  /// **'صور + تقرير الشرطة'**
+  String get qaAccidentSub;
+
+  /// No description provided for @qaReportSub.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلبات وكاش اليوم'**
+  String get qaReportSub;
+
+  /// No description provided for @qaFinesSub.
+  ///
+  /// In ar, this message translates to:
+  /// **'مخالفات سيارتك'**
+  String get qaFinesSub;
+
+  /// No description provided for @qaStatementSub.
+  ///
+  /// In ar, this message translates to:
+  /// **'لقطات المنصة الشهرية'**
+  String get qaStatementSub;
+
+  /// No description provided for @qaPayslipsSub.
+  ///
+  /// In ar, this message translates to:
+  /// **'رواتبك الشهرية'**
+  String get qaPayslipsSub;
+
+  /// No description provided for @qaSchemesSub.
+  ///
+  /// In ar, this message translates to:
+  /// **'طريقة حساب راتبك'**
+  String get qaSchemesSub;
+
+  /// No description provided for @tabWork.
+  ///
+  /// In ar, this message translates to:
+  /// **'العمل اليومي'**
+  String get tabWork;
+
+  /// No description provided for @todayReport.
+  ///
+  /// In ar, this message translates to:
+  /// **'تقرير اليوم'**
+  String get todayReport;
+
+  /// No description provided for @workReportSent.
+  ///
+  /// In ar, this message translates to:
+  /// **'أرسلت تقرير اليوم'**
+  String get workReportSent;
+
+  /// No description provided for @workReportDue.
+  ///
+  /// In ar, this message translates to:
+  /// **'لم ترسل تقرير اليوم بعد'**
+  String get workReportDue;
+
+  /// No description provided for @workReportDueHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'أرسل عدد الطلبات والكاش كما في تطبيق المنصة'**
+  String get workReportDueHint;
+
+  /// No description provided for @sendDailyReport.
+  ///
+  /// In ar, this message translates to:
+  /// **'إرسال التقرير اليومي'**
+  String get sendDailyReport;
+
+  /// No description provided for @ordersCash.
+  ///
+  /// In ar, this message translates to:
+  /// **'{orders} طلب · {cash}'**
+  String ordersCash(String orders, String cash);
+
+  /// No description provided for @myRequests.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلباتي'**
+  String get myRequests;
+
+  /// No description provided for @cashBalanceTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'رصيدك الحالي (د.ك)'**
+  String get cashBalanceTitle;
+
+  /// No description provided for @cashPendingPart.
+  ///
+  /// In ar, this message translates to:
+  /// **'منها {amount} غير معتمد'**
+  String cashPendingPart(String amount);
+
+  /// No description provided for @cashLimit.
+  ///
+  /// In ar, this message translates to:
+  /// **'حد التنبيه {amount}'**
+  String cashLimit(String amount);
+
+  /// No description provided for @employeeAt.
+  ///
+  /// In ar, this message translates to:
+  /// **'{number} · {company}'**
+  String employeeAt(String number, String company);
+
+  /// No description provided for @thisPhone.
+  ///
+  /// In ar, this message translates to:
+  /// **'هذا الهاتف'**
+  String get thisPhone;
+
+  /// No description provided for @takeOdometerPhoto.
+  ///
+  /// In ar, this message translates to:
+  /// **'التقط صورة العداد'**
+  String get takeOdometerPhoto;
+
+  /// No description provided for @cameraOnly.
+  ///
+  /// In ar, this message translates to:
+  /// **'من الكاميرا فقط — لا يُسمح بالمعرض'**
+  String get cameraOnly;
+
+  /// No description provided for @lastKmHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'آخر قراءة مسجلة للسيارة: {km}'**
+  String lastKmHint(String km);
+
+  /// No description provided for @cashHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'كما يظهر في تطبيق شركة التوصيل'**
+  String get cashHint;
+
+  /// No description provided for @mntDescriptionHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'مثال: صوت عند الفرملة'**
+  String get mntDescriptionHint;
+
+  /// No description provided for @accSend.
+  ///
+  /// In ar, this message translates to:
+  /// **'إرسال البلاغ'**
+  String get accSend;
+
+  /// No description provided for @workReportQueued.
+  ///
+  /// In ar, this message translates to:
+  /// **'تقرير اليوم محفوظ على الهاتف'**
+  String get workReportQueued;
+
+  /// No description provided for @reportQueuedForDay.
+  ///
+  /// In ar, this message translates to:
+  /// **'تقرير هذا اليوم محفوظ على الهاتف ويُرسل تلقائياً عند عودة الاتصال. لا ترسله مرة ثانية.'**
+  String get reportQueuedForDay;
+
+  /// No description provided for @ordersN.
+  ///
+  /// In ar, this message translates to:
+  /// **'{n} طلب'**
+  String ordersN(String n);
+
+  /// No description provided for @workReportDueHintDays.
+  ///
+  /// In ar, this message translates to:
+  /// **'أرسل عدد الطلبات وهل احتُسب اليوم يوماً صالحاً'**
+  String get workReportDueHintDays;
+
+  /// No description provided for @qaReportSubDays.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلبات اليوم واحتسابه'**
+  String get qaReportSubDays;
+
+  /// No description provided for @notSentYet.
+  ///
+  /// In ar, this message translates to:
+  /// **'لم يُرسل بعد'**
+  String get notSentYet;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
