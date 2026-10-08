@@ -668,6 +668,24 @@ abstract class AppLocalizations {
   /// **'أنهيت اليوم'**
   String get endDayDone;
 
+  /// No description provided for @startAgain.
+  ///
+  /// In ar, this message translates to:
+  /// **'ابدأ من جديد'**
+  String get startAgain;
+
+  /// No description provided for @reportAddsToDay.
+  ///
+  /// In ar, this message translates to:
+  /// **'سيُضاف هذا التقرير إلى ما أرسلته اليوم ({orders} طلب). اكتب طلبات ونقدية هذه الفترة فقط.'**
+  String reportAddsToDay(String orders);
+
+  /// No description provided for @reportSession.
+  ///
+  /// In ar, this message translates to:
+  /// **'الفترة {n}'**
+  String reportSession(String n);
+
   /// No description provided for @endReadingIntro.
   ///
   /// In ar, this message translates to:

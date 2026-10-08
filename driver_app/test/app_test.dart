@@ -539,6 +539,110 @@ void main() {
     'change_pending': pending,
   };
 
+  testWidgets('after ending the day he starts again: a new session, and its report adds to the day', (tester) async {
+    final today = DateTime.now().toUtc().add(const Duration(hours: 3)).toIso8601String().substring(0, 10);
+    var sessions = 1;
+    var ended = true;
+    Map<String, dynamic> day() => {
+      'custody': {
+        'id': 'c1',
+        'plate_number': '18/23456',
+        'started_at': '2026-10-02T05:00:00Z',
+        'last_odometer_km': 45210,
+      },
+      'start_day_done': true,
+      'end_day_done': ended,
+      'sessions': sessions,
+    };
+    final w = (await tester.runAsync(() => world(today: day())))!;
+    // each photo its own file: the outbox removes it once sent
+    final photos = [for (var i = 0; i < 2; i++) (await tester.runAsync(testImage))!];
+    final screenshot = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(photos.removeAt(0), DateTime.now());
+    Photos.gallery = () async => TakenPhoto(screenshot!, DateTime.now());
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': (r.url.queryParameters['source'] == 'camera' ? 'c' : 'd') * 64}),
+    );
+    w.server.on('POST', '/api/v1/driver/odometer', (r) {
+      final kind = (jsonDecode(r.body) as Map)['kind'];
+      if (kind == 'start_day') (sessions, ended) = (2, false);
+      if (kind == 'end_day') ended = true;
+      return (201, {'id': 'x'});
+    });
+    w.server.on('GET', '/api/v1/driver/today', (r) => (200, day()));
+    w.server.on(
+      'GET',
+      '/api/v1/driver/reports/form',
+      (r) => (
+        200,
+        {
+          'fields': ['orders', 'cash'],
+          'screenshot': true,
+          'end_reading': true,
+        },
+      ),
+    );
+    w.server.on('GET', '/api/v1/driver/reports', (r) => (200, [sentReport('t1', today, 'submitted')]));
+    w.server.on('POST', '/api/v1/driver/reports', (r) => (201, {'id': 'n'}));
+    await pumpApp(tester, w);
+    expect(find.text('أنهيت اليوم'), findsOneWidget);
+    // within the session that ended, its report is edited, not sent twice (UAT-04)
+    await tester.tap(find.byKey(const Key('daily-report')));
+    await settle(tester);
+    expect(find.byKey(const Key('report-exists')), findsOneWidget);
+    await tester.state<NavigatorState>(find.byType(Navigator).first).maybePop();
+    await settle(tester);
+
+    await tester.tap(find.byKey(const Key('start-again')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('odo-photo')));
+    await idle(tester);
+    await tester.enterText(find.byKey(const Key('km')), '45300');
+    await tester.tap(find.byKey(const Key('send-reading')));
+    await idle(tester);
+    expect((jsonDecode(w.server.calls('/api/v1/driver/odometer').single.body) as Map)['kind'], 'start_day');
+    await tester.tap(find.text('تم'));
+    await settle(tester);
+    expect(find.byKey(const Key('start-again')), findsNothing);
+    await tester.tap(find.byKey(const Key('end-day')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('odo-photo')));
+    await idle(tester);
+    await tester.enterText(find.byKey(const Key('km')), '45360');
+    await tester.tap(find.byKey(const Key('send-reading')));
+    await idle(tester);
+    await tester.tap(find.text('تم'));
+    await settle(tester);
+    expect(find.byKey(const Key('start-again')), findsOneWidget);
+
+    // the new session's report: the form, with what today already holds
+    await tester.tap(find.byKey(const Key('daily-report')));
+    await settle(tester);
+    expect(find.byKey(const Key('report-exists')), findsNothing);
+    expect(find.byKey(const Key('report-adds')), findsOneWidget);
+    expect(find.textContaining('24'), findsWidgets);
+    final list = find.byType(Scrollable).first;
+    Future<void> reach(String key) async {
+      await tester.scrollUntilVisible(find.byKey(Key(key)), 120, scrollable: list);
+      await tester.pumpAndSettle();
+    }
+
+    await reach('orders');
+    await tester.enterText(find.byKey(const Key('orders')), '6');
+    await reach('cash');
+    await tester.enterText(find.byKey(const Key('cash')), '3');
+    await reach('screenshot');
+    await tester.tap(find.byKey(const Key('screenshot')));
+    await idle(tester);
+    await reach('send-report');
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    final report = jsonDecode(w.server.calls('/api/v1/driver/reports', method: 'POST').single.body) as Map;
+    expect((report['business_date'], report['orders_count']), (today, 6));
+  });
+
   testWidgets('a report sent back: the office note, then corrected in place, never sent twice', (tester) async {
     final today = DateTime.now().toUtc().add(const Duration(hours: 3)).toIso8601String().substring(0, 10);
     final w = (await tester.runAsync(() => world()))!;

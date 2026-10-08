@@ -237,18 +237,31 @@ class HomeTab extends StatelessWidget {
             ),
           if (custody != null && today!.startDayDone) ...[
             const SizedBox(height: 10),
-            today.endDayDone
-                ? Banner2(text: l.endDayDone, tone: BannerTone.success, icon: Icons.nightlight_outlined)
-                : OutlinedButton.icon(
-                    key: const Key('end-day'),
-                    icon: const Icon(Icons.nightlight_outlined),
-                    label: Text(l.endDay),
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => OdometerScreen(state: state, kind: 'end_day'),
-                      ),
-                    ),
+            if (today.endDayDone) ...[
+              Banner2(text: l.endDayDone, tone: BannerTone.success, icon: Icons.nightlight_outlined),
+              const SizedBox(height: 10),
+              // working once more the same day: a new session, its orders add to the day's
+              FilledButton.icon(
+                key: const Key('start-again'),
+                icon: const Icon(Icons.replay),
+                label: Text(l.startAgain),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => OdometerScreen(state: state, kind: 'start_day'),
                   ),
+                ),
+              ),
+            ] else
+              OutlinedButton.icon(
+                key: const Key('end-day'),
+                icon: const Icon(Icons.nightlight_outlined),
+                label: Text(l.endDay),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => OdometerScreen(state: state, kind: 'end_day'),
+                  ),
+                ),
+              ),
           ],
           for (final (screen, button) in [
             (

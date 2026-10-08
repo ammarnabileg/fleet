@@ -43,4 +43,20 @@ test('the report after a started day needs its end-of-day reading; the reviewer 
   await expect(ev.locator('img')).toHaveCount(2);
   await drawer.getByRole('button', { name: 'اعتماد', exact: true }).click();
   await expect(drawer).toBeHidden();
+
+  // ---- he works again the same day: a second session, its own report, the day's distance adds up
+  await reading('start_day', 12100);
+  expect(await app.call('GET', '/driver/today')).toMatchObject({ start_day_done: true, end_day_done: false, sessions: 2 });
+  await reading('end_day', 12150);
+  const second = await app.call('POST', '/driver/reports', { business_date: kuwaitDay(), orders_count: 4, cash_amount: '2.000', screenshot_sha256: await app.photo() });
+  expect(second.session).toBe(2);
+  await admin.reload();
+  await settled(admin);
+  const row = admin.locator('#view tbody tr', { hasText: driver.name.ar }).filter({ hasText: 'فترة 2' });
+  await expect(row).toHaveCount(1);
+  await row.click();
+  const ev2 = admin.locator('.overlay[data-open]').last().locator('[data-evidence]');
+  await expect(ev2).toContainText('عداد بداية اليوم 12,010 كم');
+  await expect(ev2).toContainText('عداد نهاية اليوم 12,150 كم');
+  await expect(ev2).toContainText('مسافة اليوم135 كم');
 });

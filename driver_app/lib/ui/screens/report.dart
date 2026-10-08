@@ -43,13 +43,27 @@ class _ReportScreenState extends State<ReportScreen> {
   Report? get _editing => widget.report;
   bool get _endDue => _editing == null && daysBack == 0 && widget.state.endReadingDue;
 
-  /// The day's report already sent (not refused): it is edited, never sent twice.
+  /// Today's work session: after ending the day the driver may start again, and that session sends its own report.
+  int get _session => daysBack == 0 ? (widget.state.today?.sessions ?? 0) : 0;
+
+  /// This session's report already sent (not refused): it is edited, never sent twice. A report of an earlier
+  /// session today is not it: the new one adds to it.
   Report? get _sent {
     final day = _day(daysBack);
     for (final r in widget.state.reports) {
-      if (r.businessDate == day && r.status != 'rejected') return r;
+      if (r.businessDate == day && r.status != 'rejected' && r.session >= _session) return r;
     }
     return null;
+  }
+
+  /// What the earlier sessions of today already reported (their orders), when this report adds to them.
+  int? get _earlierOrders {
+    final day = _day(daysBack);
+    final earlier = [
+      for (final r in widget.state.reports)
+        if (r.businessDate == day && r.status != 'rejected' && r.session < _session) r,
+    ];
+    return earlier.isEmpty ? null : earlier.fold<int>(0, (n, r) => n + (r.orders ?? 0));
   }
 
   @override
@@ -200,6 +214,14 @@ class _ReportScreenState extends State<ReportScreen> {
                 ),
             ],
             if (sent == null) ...[
+              if (editing == null && _earlierOrders != null) ...[
+                const SizedBox(height: 16),
+                Banner2(
+                  key: const Key('report-adds'),
+                  text: l.reportAddsToDay('\u2066${_earlierOrders!}\u2069'),
+                  icon: Icons.add_circle_outline,
+                ),
+              ],
               if (_endDue) ...[
                 const SizedBox(height: 16),
                 Banner2(key: const Key('end-reading'), text: l.endReadingIntro, icon: Icons.speed),
@@ -324,11 +346,12 @@ class _ReportScreenState extends State<ReportScreen> {
               for (final r in reports.take(10))
                 Card(
                   child: ListTile(
-                    key: Key('report-${r.businessDate}'),
+                    key: Key(r.session > 1 ? 'report-${r.businessDate}-${r.session}' : 'report-${r.businessDate}'),
                     onTap: r.status == 'rejected' || r.changePending ? null : () => _open(r),
                     title: Text(
                       [
                         '\u2066${r.businessDate}\u2069',
+                        if (r.session > 1) l.reportSession('${r.session}'),
                         if (r.validDay != null) r.validDay! ? l.validDayYes : l.validDayNo,
                         '${r.orders ?? '—'}',
                         if (asks.contains('cash')) money(r.cash, l.kwd),

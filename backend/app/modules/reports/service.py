@@ -116,7 +116,7 @@ def dashboard(
         scope = _in_scope(Report.company_id, all_companies, company_ids)
         sent, orders, cash_ = db.execute(
             select(
-                func.count(),
+                func.count(Report.employee_id.distinct()),  # drivers (shown against those on duty), not sessions
                 func.coalesce(func.sum(Report.orders_count), 0),
                 func.coalesce(func.sum(Report.cash_amount), 0),
             ).where(scope, Report.business_date == day, Report.status != "rejected")

@@ -19,6 +19,8 @@
   };
 
   /* ================= التقارير اليومية ================= */
+  /* السائق بدأ يومه من جديد بعد إنهائه: تقرير الفترة الثانية يُضاف لليوم، ولا يحل محل الأول */
+  var session = function (r) { return r.session > 1 ? h` ${BT.pill('فترة ' + r.session, 'b')}` : ''; };
   BT.pages['daily'] = function (p, q) {
     A.setTitle('التقارير اليومية');
     var v = A.view(), filters = { day: q.date || '' };
@@ -35,7 +37,7 @@
       bulk: [{ label: 'اعتماد المحدد كما هو', icon: 'check', cls: 'btn-primary', run: function (rows, clear) { bulkApprove(rows.filter(function (r) { return r.status === 'submitted'; }), function () { clear(); t.refresh(); }); } }],
       columns: [
         { key: 'driver', label: 'السائق', render: function (r) { return A.person(r.driver, r.vehicle_plate || ''); } },
-        { key: 'business_date', label: 'اليوم', render: function (r) { return h`<span class="num">${fmt.date(r.business_date)}</span>`; } },
+        { key: 'business_date', label: 'اليوم', render: function (r) { return h`<span class="num">${fmt.date(r.business_date)}</span>${session(r)}`; } },
         { key: 'orders', label: 'الطلبات', num: true, render: function (r) { return r.orders_count != null ? h`<span class="num">${fmt.int(r.orders_count)}</span>${off(r, 'orders')}` : '—'; } },
         { key: 'valid_day', label: 'حسب المنصة', render: function (r) { return r.valid_day == null ? '—' : r.valid_day ? BT.pill('صالح', 'g') : BT.pill('غير صالح', 'n'); } },
         { key: 'cash', label: 'الكاش', num: true, render: function (r) { return h`${amt(r.cash_amount)}${off(r, 'cash')}${r.approved_cash != null && Number(r.approved_cash) !== Number(r.cash_amount) ? h`<span class="sub">المعتمد ${fmt.money(r.approved_cash)}</span>` : ''}`; } },
@@ -130,7 +132,7 @@
     var canReview = r.status === 'submitted' && api.can('daily_reports.review');
     var body = h`<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
       <div>${r.has_screenshot ? A.thumbs([{ src: api.url('/daily-reports/' + r.id + '/screenshot'), caption: 'لقطة تطبيق الطلبات' }]) : BT.empty('image', 'بدون لقطة شاشة', '')}</div>
-      <div>${BT.kv([['السائق', A.person(r.driver)], ['السيارة', r.vehicle_plate ? BT.plate(r.vehicle_plate) : '—'], ['يوم العمل', h`<span class="num">${fmt.date(r.business_date)}</span>`], ['الطلبات', r.orders_count != null ? h`<span class="num">${fmt.int(r.orders_count)}</span>` : '—'], r.valid_day != null ? ['اليوم حسب تطبيق المنصة', r.valid_day ? BT.pill('صالح', 'g') : BT.pill('غير صالح', 'n')] : null, ['الكاش المُبلّغ', amt(r.cash_amount)], r.approved_cash != null ? ['الكاش المعتمد', amt(r.approved_cash)] : null, ['الحالة', A.pill('report_status', r.status)], ['أُرسل', h`${fmt.dt(r.submitted_at)}${r.late ? h` ${BT.pill('متأخر — بعد يومه', 'o')}` : ''}`], r.notes ? ['ملاحظات السائق', r.notes] : null, r.review_note ? ['ملاحظة المراجعة', r.review_note] : null].filter(Boolean))}</div></div>
+      <div>${BT.kv([['السائق', A.person(r.driver)], ['السيارة', r.vehicle_plate ? BT.plate(r.vehicle_plate) : '—'], ['يوم العمل', h`<span class="num">${fmt.date(r.business_date)}</span>${session(r)}`], ['الطلبات', r.orders_count != null ? h`<span class="num">${fmt.int(r.orders_count)}</span>` : '—'], r.valid_day != null ? ['اليوم حسب تطبيق المنصة', r.valid_day ? BT.pill('صالح', 'g') : BT.pill('غير صالح', 'n')] : null, ['الكاش المُبلّغ', amt(r.cash_amount)], r.approved_cash != null ? ['الكاش المعتمد', amt(r.approved_cash)] : null, ['الحالة', A.pill('report_status', r.status)], ['أُرسل', h`${fmt.dt(r.submitted_at)}${r.late ? h` ${BT.pill('متأخر — بعد يومه', 'o')}` : ''}`], r.notes ? ['ملاحظات السائق', r.notes] : null, r.review_note ? ['ملاحظة المراجعة', r.review_note] : null].filter(Boolean))}</div></div>
       <div data-evidence></div><div data-changes></div>
       ${canReview ? h`<div class="form mt-16">${BT.f.money({ name: 'cash_amount', label: 'الكاش الصحيح (اختياري)', hint: 'اتركه فارغاً لاعتماد المبلغ كما أرسله السائق' })}${BT.f.textarea({ name: 'reason', label: 'السبب (إلزامي عند التصحيح أو الرفض أو الإعادة للسائق)', rows: 2 })}</div>` : ''}`;
     var showEvidence = function (d) {

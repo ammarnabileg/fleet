@@ -242,6 +242,34 @@ void main() {
       final corrected = state.reports.single;
       expect((corrected.orders, corrected.cash, corrected.status), (22, '17.500', 'submitted'));
 
+      // ---- he works again the same day: a new session, its own end reading and report, adding to the day
+      expect(
+        await state.sendReading(
+          kind: 'start_day',
+          km: 30215,
+          photoPath: (await jpeg('odo-again')).path,
+          takenAt: DateTime.now().toUtc(),
+        ),
+        SendResult.sent,
+      );
+      expect((state.today!.startDayDone, state.today!.endDayDone, state.today!.sessions), (true, false, 2));
+      expect(
+        await state.sendReading(
+          kind: 'end_day',
+          km: 30260,
+          photoPath: (await jpeg('odo-end2')).path,
+          takenAt: DateTime.now().toUtc(),
+        ),
+        SendResult.sent,
+      );
+      expect(state.today!.endDayDone, isTrue);
+      expect(
+        await state.sendReport(businessDate: day, orders: 4, cash: '2.500', screenshotPath: (await jpeg('shot2')).path),
+        SendResult.sent,
+      );
+      final both = await admin.call('GET', '/daily-reports?driver_id=${driver['id']}') as List;
+      expect([for (final r in both) (r['session'], r['orders_count'])]..sort((a, b) => a.$1 - b.$1), [(1, 22), (2, 4)]);
+
       // ---- his profile, his car and a change asked for, his cash movements, a renewed document (FR-APP-01..05)
       await state.loadProfile();
       expect(state.profile!.employeeNumber, 'C$n');
@@ -380,7 +408,7 @@ void main() {
 
       // ---- cash, then sign out: the phone forgets the session and the server refuses its tokens
       await state.loadCash();
-      expect(state.cash!.pending, '17.500'); // the corrected report's cash, not doubled
+      expect(state.cash!.pending, '20.000'); // the corrected report's cash, not doubled, and the second session's
       final oldRefresh = (await db.get('refresh_token'))!;
       await state.signOut();
       expect(state.phase, Phase.signedOut);

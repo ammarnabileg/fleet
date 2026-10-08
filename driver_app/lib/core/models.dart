@@ -16,17 +16,20 @@ class Custody {
 }
 
 class Today {
-  Today({this.custody, required this.startDayDone, this.endDayDone = false});
+  Today({this.custody, required this.startDayDone, this.endDayDone = false, int? sessions})
+    : sessions = sessions ?? (startDayDone ? 1 : 0);
 
   factory Today.fromJson(Map<String, dynamic> j) => Today(
     custody: j['custody'] == null ? null : Custody.fromJson(j['custody'] as Map<String, dynamic>),
     startDayDone: j['start_day_done'] as bool? ?? false,
     endDayDone: j['end_day_done'] as bool? ?? false,
+    sessions: (j['sessions'] as num?)?.toInt(), // an older server: one session a day
   );
 
   final Custody? custody;
   final bool startDayDone;
   final bool endDayDone; // closed by the end-of-day reading, or the vehicle returned
+  final int sessions; // today's work sessions: after ending the day he may start again
 }
 
 class Receipt {
@@ -91,11 +94,13 @@ class Report {
     this.reviewNote,
     this.notes,
     this.changePending = false,
+    this.session = 1,
   });
 
   factory Report.fromJson(Map<String, dynamic> j) => Report(
     id: j['id'] as String,
     businessDate: j['business_date'] as String,
+    session: (j['session'] as num?)?.toInt() ?? 1,
     orders: (j['orders_count'] as num?)?.toInt(),
     cash: j['cash_amount'] as String,
     approvedCash: j['approved_cash'] as String?,
@@ -116,6 +121,7 @@ class Report {
   final String? reviewNote;
   final String? notes;
   final bool changePending; // a change asked for after approval waits for the office
+  final int session; // the day's work session it covers: a second one after he started again adds to the first
 
   bool get editable => status == 'submitted' || status == 'returned';
 }

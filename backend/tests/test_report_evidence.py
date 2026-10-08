@@ -82,6 +82,7 @@ def test_todays_report_waits_for_the_end_of_day_reading(admin_client, client, ne
         "custody": None,
         "start_day_done": False,
         "end_day_done": False,
+        "sessions": 0,
     }
     send_report(other, h2, today())
 

@@ -184,6 +184,7 @@ class DriverTodayOut(BaseModel):
     custody: DriverCustody | None
     start_day_done: bool
     end_day_done: bool  # the day closed: end-of-day reading, or the vehicle returned
+    sessions: int = 0  # today's work sessions: after ending the day he may start again, and its report adds up
 
 
 class VehicleChangeIn(BaseModel):

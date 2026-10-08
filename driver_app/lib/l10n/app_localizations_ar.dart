@@ -313,6 +313,19 @@ class AppLocalizationsAr extends AppLocalizations {
   String get endDayDone => 'أنهيت اليوم';
 
   @override
+  String get startAgain => 'ابدأ من جديد';
+
+  @override
+  String reportAddsToDay(String orders) {
+    return 'سيُضاف هذا التقرير إلى ما أرسلته اليوم ($orders طلب). اكتب طلبات ونقدية هذه الفترة فقط.';
+  }
+
+  @override
+  String reportSession(String n) {
+    return 'الفترة $n';
+  }
+
+  @override
   String get endReadingIntro => 'قبل إرسال تقرير اليوم: صورة عداد نهاية اليوم ورقمه. تُرسل القراءة أولاً ثم التقرير.';
 
   @override

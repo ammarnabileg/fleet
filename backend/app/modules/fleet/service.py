@@ -509,33 +509,35 @@ def driver_reading(
     if photo.source != "camera" or photo.uploaded_by_device != device_id:
         raise AppError(422, "photo_not_from_camera")
     vehicle = db.scalar(select(Vehicle).where(Vehicle.id == custody.vehicle_id).with_for_update())
-    day = business_date(recorded_at)
-    if kind == "end_day" and db.scalar(
-        select(OdometerReading.id).where(
+    # The day may hold several work sessions (he starts again after ending it), one open at a time: under the
+    # vehicle's lock, the custody's last start or end of this business day must not be the same kind. The same
+    # reading sent again (the app's queue retrying) is already there; another one is refused for what it is.
+    last = db.execute(
+        select(OdometerReading.kind, OdometerReading.recorded_at)
+        .where(
             OdometerReading.custody_id == custody.id,
-            OdometerReading.kind == "end_day",
-            OdometerReading.business_date == day,
+            OdometerReading.kind.in_(("start_day", "end_day")),
+            OdometerReading.business_date == business_date(recorded_at),
         )
-    ):
-        raise AppError(409, "reading_exists")
-    try:
-        with db.begin_nested():
-            reading = _add_reading(
-                db,
-                vehicle,
-                custody,
-                kind=kind,
-                value_km=value_km,
-                photo_sha256=photo_sha256,
-                recorded_at=recorded_at,
-                lat=lat,
-                lng=lng,
-                by_device=device_id,
-            )
-    except IntegrityError as exc:
-        if violated_constraint(exc) == "odometer_readings_start_day_idx":
-            raise AppError(409, "reading_exists") from None
-        raise
+        .order_by(OdometerReading.recorded_at.desc(), OdometerReading.id.desc())
+        .limit(1)
+    ).first()
+    if last is not None and last.kind == kind:
+        if last.recorded_at == recorded_at:
+            raise AppError(409, "reading_exists")
+        raise AppError(409, "day_already_started" if kind == "start_day" else "day_already_ended")
+    reading = _add_reading(
+        db,
+        vehicle,
+        custody,
+        kind=kind,
+        value_km=value_km,
+        photo_sha256=photo_sha256,
+        recorded_at=recorded_at,
+        lat=lat,
+        lng=lng,
+        by_device=device_id,
+    )
     db.commit()
     return _readings_out(db, [reading])[0]
 
@@ -1101,10 +1103,11 @@ def driver_today(db: Session, employee_id: int) -> dict:
     """What the driver app shows on its home screen."""
     custody = db.scalar(select(Custody).where(Custody.driver_id == employee_id, Custody.ended_at.is_(None)))
     if custody is None:
-        return {"custody": None, "start_day_done": False, "end_day_done": False}
+        return {"custody": None, "start_day_done": False, "end_day_done": False, "sessions": 0}
     vehicle = db.get(Vehicle, custody.vehicle_id)
     day = driver_days(db, employee_id, today(), today()).get(today())
-    started = day is not None and day["start"]["custody_id"] == custody.id
+    last = day["sessions"][-1] if day else None  # he may start again after ending the day
+    started = last is not None and last["start"]["custody_id"] == custody.id
     return {
         "custody": {
             "id": str(custody.public_id),
@@ -1113,7 +1116,8 @@ def driver_today(db: Session, employee_id: int) -> dict:
             "last_odometer_km": vehicle.last_odometer_km,
         },
         "start_day_done": started,
-        "end_day_done": started and day["end"] is not None,
+        "end_day_done": started and last["end"] is not None,
+        "sessions": len(day["sessions"]) if day else 0,
     }
 
 
@@ -1133,9 +1137,11 @@ DAY_CLOSES_WITHIN = timedelta(hours=24)
 
 
 def driver_days(db: Session, employee_id: int, first, last) -> dict:
-    """Each business day from first to last the driver started (his start-of-day reading), with the reading that
-    closed it: his end of day, or the vehicle returned, on the same custody, within 24 hours and before his next
-    start. The day's distance is the difference (BRD FR-DWR-02/05)."""
+    """Each business day from first to last the driver started, as its work sessions: each start-of-day reading
+    with the reading that closed it (his end of day, or the vehicle returned, on the same custody, within 24 hours
+    and before his next start) and the distance between them (BRD FR-DWR-02/05). He may start again after ending
+    the day; the day's start is its first, its end the last session's close (None while that one is open), its
+    distance the sum of the closed sessions."""
     starts = list(
         db.scalars(
             select(OdometerReading)
@@ -1175,12 +1181,22 @@ def driver_days(db: Session, employee_id: int, first, last) -> dict:
             (c for c in closes if c.custody_id == start.custody_id and start.recorded_at < c.recorded_at <= limit),
             None,
         )
-        out[start.business_date] = {
-            "start": _brief(start),
-            "end": _brief(end) if end else None,
-            "km": end.effective_km - start.effective_km if end else None,
+        out.setdefault(start.business_date, []).append(
+            {
+                "start": _brief(start),
+                "end": _brief(end) if end else None,
+                "km": end.effective_km - start.effective_km if end else None,
+            }
+        )
+    return {
+        day: {
+            "start": sessions[0]["start"],
+            "end": sessions[-1]["end"],
+            "km": sum(kms) if (kms := [s["km"] for s in sessions if s["km"] is not None]) else None,
+            "sessions": sessions,
         }
-    return out
+        for day, sessions in out.items()
+    }
 
 
 def work_periods(db: Session, vehicle_id: int, start: datetime, end: datetime) -> list[tuple[int, datetime, datetime]]:
@@ -1273,16 +1289,19 @@ def start_days(db: Session, employee_ids: Iterable[int], first, last) -> dict[in
     return out
 
 
-def drivers_started(db: Session, day) -> set[int]:
-    """The drivers who started that business day (a start-of-day reading): they owe that day's report."""
-    return set(
-        db.scalars(
-            select(OdometerReading.driver_id).where(
+def drivers_started(db: Session, day) -> dict[int, int]:
+    """The drivers who started that business day (a start-of-day reading), with how many times (he may start again
+    after ending it): they owe that day's report, one per session."""
+    return dict(
+        db.execute(
+            select(OdometerReading.driver_id, func.count())
+            .where(
                 OdometerReading.kind == "start_day",
                 OdometerReading.business_date == day,
                 OdometerReading.driver_id.is_not(None),
             )
-        )
+            .group_by(OdometerReading.driver_id)
+        ).all()
     )
 
 

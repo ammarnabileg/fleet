@@ -39,6 +39,7 @@ class ReportOut(BaseModel):
     company_id: int
     vehicle_plate: str | None
     business_date: date
+    session: int = 1  # the day's work session it covers: a second one after he started again adds to the first
     orders_count: int | None
     cash_amount: Decimal
     approved_cash: Decimal | None

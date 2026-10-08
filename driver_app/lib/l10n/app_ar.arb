@@ -145,6 +145,23 @@
   "kind_report": "تقرير يومي",
   "startDayTitle": "بداية اليوم",
   "endDayDone": "أنهيت اليوم",
+  "startAgain": "ابدأ من جديد",
+  "reportAddsToDay": "سيُضاف هذا التقرير إلى ما أرسلته اليوم ({orders} طلب). اكتب طلبات ونقدية هذه الفترة فقط.",
+  "@reportAddsToDay": {
+    "placeholders": {
+      "orders": {
+        "type": "String"
+      }
+    }
+  },
+  "reportSession": "الفترة {n}",
+  "@reportSession": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
   "endReadingIntro": "قبل إرسال تقرير اليوم: صورة عداد نهاية اليوم ورقمه. تُرسل القراءة أولاً ثم التقرير.",
   "status_returned": "أُعيد للتصحيح",
   "editReportTitle": "تعديل التقرير",

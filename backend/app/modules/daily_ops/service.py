@@ -1,14 +1,16 @@
 """Daily reports: each working day the driver sends the number of orders, the cash he collected and a screenshot of
 the delivery platform's daily summary (required fields from the settings). The cash becomes a pending collection on
 his account at once (the "unapproved" balance); the reviewer approves it as it is, corrects the cash with a reason
-(posted adjustment), or rejects the report (the driver sends it again). One live report per driver and day.
+(posted adjustment), or rejects the report (the driver sends it again). One live report per driver and work
+session: a driver who starts again after ending the day sends the new session's report, and the day's figures are
+the sum of its reports.
 """
 
 from collections.abc import Iterable
 from datetime import timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -40,6 +42,7 @@ def _out(r: Report, names: dict | None = None, plates: dict | None = None) -> di
         "company_id": r.company_id,
         "vehicle_plate": (plates or {}).get(r.vehicle_id),
         "business_date": r.business_date,
+        "session": r.session,
         "orders_count": r.orders_count,
         "cash_amount": r.cash_amount,
         "approved_cash": r.approved_cash,
@@ -98,10 +101,13 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
     if not today() - timedelta(days=MAX_DAYS_BACK) <= day <= today():
         raise AppError(422, "invalid_business_date")
     asked = _validate(db, driver, device_id, data)
+    started = fleet.driver_days(db, employee_id, day, day).get(day)
     if asked["end_reading"] and day == today():
-        started = fleet.driver_days(db, employee_id, day, day).get(day)
         if started is not None and started["end"] is None:  # drove today: the day's closing reading comes first
             raise AppError(409, "end_reading_required")
+    # the report covers the day's sessions up to now: after he starts again, his next report is the next session's
+    # and adds to the first; sent again without a new start, it is the same session's (report_exists)
+    session = max(1, len(started["sessions"]) if started else 0)
     custodies = fleet.custodies_for_driver(db, employee_id, utcnow() - timedelta(days=MAX_DAYS_BACK + 1), utcnow())
     custody = custodies[-1] if custodies else None
     amount = Decimal(data.get("cash_amount") or 0)
@@ -109,6 +115,7 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
         employee_id=employee_id,
         company_id=driver.company_id,
         business_date=day,
+        session=session,
         custody_id=custody.id if custody else None,
         vehicle_id=custody.vehicle_id if custody else None,
         orders_count=data.get("orders_count"),
@@ -123,10 +130,13 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
             db.add(report)
             db.flush()
     except IntegrityError as exc:
-        if violated_constraint(exc) == "reports_one_per_day_idx":
+        if violated_constraint(exc) == "reports_one_per_session_idx":
             existing = db.scalar(
                 select(Report.public_id).where(
-                    Report.employee_id == employee_id, Report.business_date == day, Report.status != "rejected"
+                    Report.employee_id == employee_id,
+                    Report.business_date == day,
+                    Report.session == session,
+                    Report.status != "rejected",
                 )
             )
             raise AppError(409, "report_exists", report_id=str(existing)) from None  # edit that one (UAT-04)
@@ -187,9 +197,12 @@ def list_reports(
             min(r.business_date for r in reports) - timedelta(days=AVERAGE_DAYS),
             max(r.business_date for r in reports),
         )
+        totals = _day_totals(db, reports)
         for report, row in zip(reports, out, strict=True):
             row["deviations"] = _deviations(
-                report, _average(history[report.employee_id], report.business_date), percent
+                totals[report.id],
+                _average(history[report.employee_id], report.business_date),
+                percent,
             )
     return out
 
@@ -199,19 +212,22 @@ MIN_HISTORY = 5  # fewer approved days than this: no average to compare with
 
 
 def _history(db: Session, employee_ids: set[int], first, last) -> dict[int, list[tuple]]:
-    """The approved reports of these drivers between the two days: (day, orders, cash as approved)."""
+    """The approved reports of these drivers between the two days, a day's sessions added up: (day, orders, cash as
+    approved)."""
     out: dict[int, list[tuple]] = {i: [] for i in employee_ids}
     rows = db.execute(
         select(
             Report.employee_id,
             Report.business_date,
-            Report.orders_count,
-            func.coalesce(Report.approved_cash, Report.cash_amount),
-        ).where(
+            func.sum(Report.orders_count),
+            func.sum(func.coalesce(Report.approved_cash, Report.cash_amount)),
+        )
+        .where(
             Report.employee_id.in_(employee_ids),
             Report.status == "approved",
             Report.business_date.between(first, last),
         )
+        .group_by(Report.employee_id, Report.business_date)
     )
     for employee_id, day, orders, amount in rows:
         out[employee_id].append((day, orders, amount))
@@ -228,12 +244,30 @@ def _average(rows: list[tuple], day) -> dict:
     }
 
 
-def _deviations(report: Report, average: dict, percent: int) -> list[str]:
-    """Orders or cash further from the driver's own average than the set percent, either way (FR-DWR-08)."""
+def _day_totals(db: Session, reports: list[Report]) -> dict[int, tuple]:
+    """The live reports of each of these drivers' days added up, (orders, cash): a day with two work sessions is
+    judged as a day, not each half on its own."""
+    keys = {(r.employee_id, r.business_date) for r in reports}
+    rows = db.execute(
+        select(Report.employee_id, Report.business_date, func.sum(Report.orders_count), func.sum(Report.cash_amount))
+        .where(tuple_(Report.employee_id, Report.business_date).in_(keys), Report.status != "rejected")
+        .group_by(Report.employee_id, Report.business_date)
+    )
+    days = {(e, d): (o, c) for e, d, o, c in rows}
+    # a rejected report is judged on its own
+    return {
+        r.id: (r.orders_count, r.cash_amount) if r.status == "rejected" else days[r.employee_id, r.business_date]
+        for r in reports
+    }
+
+
+def _deviations(day: tuple, average: dict, percent: int) -> list[str]:
+    """The day's orders or cash further from the driver's own average than the set percent, either way
+    (FR-DWR-08)."""
     if average["days"] < MIN_HISTORY:
         return []
     out = []
-    for field, value in (("orders", report.orders_count), ("cash", report.cash_amount)):
+    for field, value in zip(("orders", "cash"), day, strict=True):
         mean = average[field]
         if value is not None and mean and abs(Decimal(value) - mean) * 100 > mean * percent:
             out.append(field)
@@ -256,7 +290,11 @@ def evidence(db: Session, public_id, **scope) -> dict:
         "end": this["end"],
         "km": this["km"],
         "average": average | {"km": round(sum(kms) / len(kms)) if kms else None, "km_days": len(kms)},
-        "deviations": _deviations(report, average, org.get_section(db, "daily_report").deviation_percent),
+        "deviations": _deviations(
+            _day_totals(db, [report])[report.id],
+            average,
+            org.get_section(db, "daily_report").deviation_percent,
+        ),
     }
 
 
@@ -287,7 +325,8 @@ def _approval(db: Session, report: Report, driver: people.EmployeeRef) -> dict:
     return {
         "document_id": report.id,
         "document_key": report.public_id,
-        "document_ref": f"{i18n.pick(driver.name, lang, lang)} {report.business_date.isoformat()}",
+        "document_ref": f"{i18n.pick(driver.name, lang, lang)} {report.business_date.isoformat()}"
+        + (f" #{report.session}" if report.session > 1 else ""),
         "company_id": report.company_id,
         "amount": report.cash_amount,
     }
@@ -402,13 +441,20 @@ def reject(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
 
 
 def scan_missing(db: Session, day=None) -> int:
-    """At the end of the day: the drivers who started it and sent no report are named to the supervisors, and the
-    driver is reminded in the app (BRD FR-DWR-07). Sending it closes the alert."""
+    """At the end of the day: the drivers who started it and sent no report, or started again and sent none for the
+    last session, are named to the supervisors, and the driver is reminded in the app (BRD FR-DWR-07). Sending it
+    closes the alert."""
     day = day or today()
     started = fleet.drivers_started(db, day)
-    sent = set(db.scalars(select(Report.employee_id).where(Report.business_date == day)))
+    sent = dict(
+        db.execute(
+            select(Report.employee_id, func.max(Report.session))
+            .where(Report.business_date == day)
+            .group_by(Report.employee_id)
+        ).all()
+    )
     raised = 0
-    for employee_id in sorted(started - sent):
+    for employee_id in sorted(e for e, sessions in started.items() if sent.get(e, 0) < sessions):
         driver = people.ref(db, employee_id)
         raised += notifications.raise_alert(
             db,
@@ -469,6 +515,7 @@ def month_activity(db: Session, employee_ids: Iterable[int], first, last) -> dic
     out = {i: {"days": set(), "orders": 0, "valid_days": 0, "pending": 0} for i in ids}
     if not ids:
         return out
+    valid_days: dict[int, set] = {i: set() for i in ids}  # a day with several sessions counts once
     q = select(Report.employee_id, Report.business_date, Report.orders_count, Report.valid_day, Report.status).where(
         Report.employee_id.in_(ids), Report.business_date.between(first, last), Report.status != "rejected"
     )
@@ -476,10 +523,13 @@ def month_activity(db: Session, employee_ids: Iterable[int], first, last) -> dic
         row = out[employee_id]
         row["days"].add(day)
         if status == "approved":
-            row["orders"] += orders or 0
-            row["valid_days"] += bool(valid)
+            row["orders"] += orders or 0  # the sessions' orders add up
+            if valid:
+                valid_days[employee_id].add(day)
         else:
             row["pending"] += 1
+    for employee_id, days in valid_days.items():
+        out[employee_id]["valid_days"] = len(days)
     return out
 
 

@@ -117,3 +117,19 @@ def test_the_month_comes_from_the_approved_daily_reports(admin_client, client, c
     run = admin_client.post(f"{P}/runs/{run['id']}/recompute").json()
     line = next(x for x in run["lines"] if x["employee"]["id"] == d["id"])
     assert (line["cells"]["valid_days"], line["cells"]["orders"], line["flags"]) == (3, 59, [])
+
+    # he started again that day and his second session's report is approved: its orders add to the day, the day
+    # still counts once, as worked and as valid
+    owner_db.execute(
+        text(
+            "INSERT INTO daily_ops.reports (employee_id, company_id, business_date, session, orders_count, valid_day,"
+            " status) SELECT employee_id, company_id, business_date, 2, 4, true, 'approved' FROM daily_ops.reports"
+            " WHERE public_id = :id"
+        ),
+        {"id": late["id"]},
+    )
+    owner_db.commit()
+    run = admin_client.post(f"{P}/runs/{run['id']}/recompute").json()
+    line = next(x for x in run["lines"] if x["employee"]["id"] == d["id"])
+    cells = line["cells"]
+    assert (cells["working_days"], cells["valid_days"], cells["orders"], line["flags"]) == (4, 3, 63, [])

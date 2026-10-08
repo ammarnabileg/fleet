@@ -12,6 +12,7 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
+    SmallInteger,
     Text,
     text,
 )
@@ -29,10 +30,12 @@ class Report(Base):
         CheckConstraint("orders_count >= 0", name="orders_count"),
         CheckConstraint("cash_amount >= 0", name="cash_amount"),
         CheckConstraint("status IN ('submitted', 'returned', 'approved', 'rejected')", name="status"),
+        CheckConstraint("session >= 1", name="session"),
         Index(
-            "reports_one_per_day_idx",
+            "reports_one_per_session_idx",
             "employee_id",
             "business_date",
+            "session",
             unique=True,
             postgresql_where=text("status <> 'rejected'"),
         ),
@@ -47,6 +50,8 @@ class Report(Base):
     custody_id: Mapped[int | None] = mapped_column(BigInteger)
     vehicle_id: Mapped[int | None] = mapped_column(BigInteger)
     business_date: Mapped[date] = mapped_column(Date)
+    # the work session of the day it covers: a driver who starts again after ending the day sends another report
+    session: Mapped[int] = mapped_column(SmallInteger, server_default=text("1"))
     orders_count: Mapped[int | None] = mapped_column(Integer)
     cash_amount: Mapped[Decimal] = mapped_column(Numeric(12, 3), server_default=text("0"))
     valid_day: Mapped[bool | None] = mapped_column(Boolean)  # the platform counted the day (its daily summary)

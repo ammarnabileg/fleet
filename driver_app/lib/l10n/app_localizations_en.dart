@@ -314,6 +314,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get endDayDone => 'Day ended';
 
   @override
+  String get startAgain => 'Start again';
+
+  @override
+  String reportAddsToDay(String orders) {
+    return 'This report adds to what you already sent today ($orders orders). Enter only this session\'s orders and cash.';
+  }
+
+  @override
+  String reportSession(String n) {
+    return 'Session $n';
+  }
+
+  @override
   String get endReadingIntro =>
       'Before today\'s report: the end-of-day odometer photo and reading. The reading goes first, then the report.';
 
