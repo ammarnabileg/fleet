@@ -477,6 +477,10 @@ def reverse(db: Session, public_id, *, reason: str, actor_user_id: int, all_comp
     )
     for employee_id in _drivers_of(db, journal.id):
         check_balance_alert(db, people.ref(db, employee_id))
+    if original.kind == "fuel":  # the fuel claim it paid waits for a decision again
+        from app.modules.cash import fuel
+
+        fuel.reopen(db, original, reason=reason, actor_user_id=actor_user_id)
     db.commit()
     return journal_out(db, journal)
 

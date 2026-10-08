@@ -26,9 +26,8 @@ ALTER TABLE cash.journals DROP CONSTRAINT journals_kind_check;
 ALTER TABLE cash.journals ADD CONSTRAINT journals_kind_check
     CHECK (kind IN ('collection', 'adjustment', 'deposit', 'bank_deposit', 'settlement', 'writeoff', 'reversal',
                     'opening', 'fuel'));
-DROP INDEX cash.journals_one_per_source;
-CREATE UNIQUE INDEX journals_one_per_source ON cash.journals (source_type, source_id, kind)
-    WHERE status <> 'rejected' AND kind IN ('collection', 'deposit', 'settlement', 'opening', 'fuel');
+-- a fuel claim posts once by its own conditional decision (pending -> approved), and again after a reversal
+-- reopens it: so fuel stays out of journals_one_per_source
 
 CREATE TABLE cash.fuel_claims (
     id              bigint        GENERATED ALWAYS AS IDENTITY CONSTRAINT fuel_claims_pkey PRIMARY KEY,

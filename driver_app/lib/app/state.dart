@@ -181,6 +181,7 @@ class AppState extends ChangeNotifier {
     _applyConfig(await db.get('app_config'));
     _applyReportForm(await db.get('report_form'));
     _applyMaintenanceForm(await db.get('maintenance_form'));
+    _applyFuel(await db.get('fuel'));
     await _showSplash();
     unawaited(catalog.load(api, lang));
     if (!await tokens.hasSession()) {
@@ -401,6 +402,7 @@ class AppState extends ChangeNotifier {
     payslips = [];
     schemes = null;
     fuel = null;
+    unawaited(db.put('fuel', null)); // whether he may claim fuel was his, not the next driver's
     notices = null;
   }
 
@@ -527,10 +529,22 @@ class AppState extends ChangeNotifier {
   /// offered; a network failure keeps what was loaded.
   Future<void> loadFuel() async {
     try {
-      fuel = Fuel.fromJson(await api.get('/driver/fuel') as Map<String, dynamic>);
+      final raw = await api.get('/driver/fuel') as Map<String, dynamic>;
+      fuel = Fuel.fromJson(raw);
+      await db.put('fuel', jsonEncode(raw)); // a receipt is photographed at a station with no signal, after a restart
     } on ApiError catch (e) {
       if (e.isTransient) rethrow;
       fuel = null;
+      await db.put('fuel', null);
+    }
+  }
+
+  void _applyFuel(String? raw) {
+    if (raw == null || fuel != null) return;
+    try {
+      fuel = Fuel.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      // an older shape: the next load replaces it
     }
   }
 

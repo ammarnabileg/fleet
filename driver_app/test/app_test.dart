@@ -2760,7 +2760,8 @@ void main() {
     await settle(tester);
     await tester.tap(find.byKey(const Key('fuel')));
     await idle(tester);
-    await tester.enterText(find.byKey(const Key('fuel-amount')), '3.25');
+    // typed on an Arabic keyboard: its digits and its decimal point (٫)
+    await tester.enterText(find.byKey(const Key('fuel-amount')), '\u0663\u066B\u0662\u0665');
     await tester.enterText(find.byKey(const Key('fuel-km')), '45210');
     await reveal(tester, find.byKey(const Key('fuel-photo')));
     await tester.tap(find.byKey(const Key('fuel-photo')));

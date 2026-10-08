@@ -181,6 +181,48 @@ def _alert_key(claim: FuelClaim) -> str:
     return f"fuel_claim:{claim.id}"
 
 
+def reopen(db: Session, journal: Journal, *, reason: str, actor_user_id: int) -> None:
+    """Its fuel journal was reversed (a wrong amount, a wrong driver): the claim is pending again, for the accountant
+    to approve at the right amount or reject. In the caller's transaction."""
+    claim = db.scalar(select(FuelClaim).where(FuelClaim.journal_id == journal.id).with_for_update())
+    if claim is None:
+        return
+    db.execute(
+        update(FuelClaim)
+        .where(FuelClaim.id == claim.id)
+        .values(
+            status="pending",
+            approved_amount=None,
+            decision_note=None,
+            decided_by=None,
+            decided_at=None,
+            journal_id=None,
+        )
+    )
+    driver = people.ref(db, claim.employee_id)
+    notifications.raise_alert(
+        db,
+        "fuel_claim",
+        company_id=claim.company_id,
+        entity_type="fuel_claim",
+        entity_id=claim.public_id,
+        params={"name": driver.name, "amount": f"{claim.amount:.3f}"},
+        dedupe_key=_alert_key(claim),
+        refresh=True,
+    )
+    audit.record(
+        db,
+        action="cash.fuel_reopened",
+        entity_type="fuel_claim",
+        entity_id=claim.public_id,
+        actor_user_id=actor_user_id,
+        company_id=claim.company_id,
+        before={"status": "approved", "journal": str(journal.public_id)},
+        after={"status": "pending"},
+        comment=reason,
+    )
+
+
 # ------------------------------------------------------------------ the office
 
 

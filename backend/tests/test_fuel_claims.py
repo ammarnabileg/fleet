@@ -313,3 +313,25 @@ def test_the_role_templates_hold_the_review(admin_client):
     roles = {r["code"]: r for r in admin_client.get("/api/v1/roles").json()}
     assert "cash.fuel_review" in roles["accountant"]["permissions"]
     assert "cash.fuel_review" in roles["management"]["permissions"]
+
+
+def test_a_reversed_fuel_approval_reopens_the_claim_to_approve_at_the_right_amount(
+    admin_client, client, company, world
+):
+    s = driver_of(admin_client, client, company, world)
+    mine = claim(client, s, amount="9.000").json()
+    done = admin_client.post(f"{C}/{mine['id']}/approve", json={}).json()
+    assert balance(client, s) == "-9.000"
+    r = admin_client.post(f"/api/v1/cash/journals/{done['journal_id']}/reverse", json={"reason": "it was 6.000"})
+    assert r.status_code == 201, r.text
+    assert balance(client, s) == "0.000"
+    [row] = admin_client.get(C, params={"status": "pending"}).json()  # waiting again, its alert back
+    assert (row["id"], row["approved_amount"], row["journal_id"]) == (mine["id"], None, None)
+    assert [a["entity_id"] for a in admin_client.get("/api/v1/alerts").json() if a["kind"] == "fuel_claim"] == [
+        mine["id"]
+    ]
+    r = admin_client.post(f"{C}/{mine['id']}/approve", json={"amount": "6.000", "note": "the receipt says 6.000"})
+    assert r.status_code == 200, r.text
+    assert balance(client, s) == "-6.000"
+    view = client.get(DRIVER, headers=s["h"]).json()
+    assert [(c["status"], c["approved_amount"]) for c in view["claims"]] == [("approved", "6.000")]

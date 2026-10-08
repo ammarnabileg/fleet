@@ -160,7 +160,10 @@ class _FuelScreenState extends State<FuelScreen> {
                         controller: _amountField,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         textDirection: TextDirection.ltr,
-                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[0-9.٠-٩۰-۹]'))],
+                        inputFormatters: [
+                          const DecimalPoint(),
+                          FilteringTextInputFormatter.allow(RegExp('[0-9.٠-٩۰-۹]')),
+                        ],
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                         decoration: InputDecoration(
                           suffixText: '  ${l.kwd}',

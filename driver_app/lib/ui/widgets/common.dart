@@ -40,6 +40,15 @@ String latinDigits(String text) => text.replaceAllMapped(RegExp('[٠-٩۰-۹]'),
   return String.fromCharCode(0x30 + c - (c >= 0x06F0 ? 0x06F0 : 0x0660));
 });
 
+/// A decimal point as an Arabic keyboard types it (٫, or a comma): the dot the amount is read with.
+class DecimalPoint extends TextInputFormatter {
+  const DecimalPoint();
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) =>
+      newValue.copyWith(text: newValue.text.replaceAll(RegExp('[\u066B,\u060C]'), '.'));
+}
+
 /// The IBAN as typed or pasted: only its letters and digits, upper case (a banking app's copy brings spaces, dashes
 /// and invisible direction marks), at most 34 characters.
 class IbanFormatter extends TextInputFormatter {

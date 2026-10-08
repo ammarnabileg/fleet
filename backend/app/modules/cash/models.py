@@ -78,7 +78,7 @@ class Journal(Base):
             "kind",
             unique=True,
             postgresql_where=text(
-                "status <> 'rejected' AND kind IN ('collection', 'deposit', 'settlement', 'opening', 'fuel')"
+                "status <> 'rejected' AND kind IN ('collection', 'deposit', 'settlement', 'opening')"
             ),
         ),
         Index("journals_one_reversal", "reverses_id", unique=True, postgresql_where=text("kind = 'reversal'")),
