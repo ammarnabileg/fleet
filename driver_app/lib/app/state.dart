@@ -549,7 +549,14 @@ class AppState extends ChangeNotifier {
       {'kind': kind, 'value_km': km, 'recorded_at': takenAt.toUtc().toIso8601String(), 'lat': lat, 'lng': lng},
       {'photo_sha256': photoPath},
     );
-    return _sendNow(id, after: loadToday);
+    // the day started or ended: the tracking service reports at once, so its notification says so within seconds
+    return _sendNow(
+      id,
+      after: () async {
+        await loadToday();
+        if (kind == 'start_day' || kind == 'end_day') unawaited(platform.startTracking().catchError((Object _) {}));
+      },
+    );
   }
 
   /// [queueOnly]: something it depends on (the end-of-day reading) is still waiting, so it waits behind it and goes

@@ -10,24 +10,23 @@ import 'support.dart';
 void main() {
   late StreamController<Fix> gps;
   late List<Duration> asked;
+  late List<(Map<String, dynamic>?, bool)> shown;
+  late Map<String, dynamic> status; // what the server answers to the heartbeat; a test may change it
 
   Future<(Tracker, FakeServer)> make({bool required = true}) async {
     final (db, _, api, server) = await session();
     gps = StreamController<Fix>.broadcast();
     asked = [];
-    server.on(
-      'POST',
-      '/api/v1/driver/status',
-      (req) => (
-        200,
-        {
-          'server_time': '2026-10-04T09:00:00Z',
-          'tracking_required': required,
-          'interval_moving_s': 30,
-          'interval_stationary_s': 300,
-        },
-      ),
-    );
+    shown = [];
+    status = {
+      'server_time': '2026-10-04T09:00:00Z',
+      'tracking_required': required,
+      'interval_moving_s': 30,
+      'interval_stationary_s': 300,
+      'on_duty': false,
+      'company': {'ar': 'شركة المثال', 'en': 'Example Co'},
+    };
+    server.on('POST', '/api/v1/driver/status', (req) => (200, status));
     server.on('POST', '/api/v1/driver/positions', (req) {
       final pts = jsonDecode(req.body)['points'] as List;
       return (
@@ -52,14 +51,19 @@ void main() {
         'location_permission': 'always',
         'gps_enabled': true,
       },
+      notify: (company, working) => shown.add((company, working)),
       heartbeatEvery: const Duration(hours: 1),
       syncEvery: const Duration(hours: 1),
     );
     return (t, server);
   }
 
-  Fix fix(DateTime at, {double speed = 40, bool mock = false}) =>
-      Fix(at: at, lat: 29.3, lng: 48.0, speedKmh: speed, isMock: mock);
+  Fix fix(DateTime at, {double? speed = 40, bool mock = false, double lat = 29.3, double accuracy = 10}) =>
+      Fix(at: at, lat: lat, lng: 48.0, accuracyM: accuracy, speedKmh: speed, isMock: mock);
+  List sentPoints(FakeServer server) => [
+    for (final r in server.calls('/api/v1/driver/positions')) ...jsonDecode(r.body)['points'] as List,
+  ];
+  Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 60));
 
   test('tracks only when the server says there is a custody, at the server interval', () async {
     final (t, server) = await make(required: false);
@@ -79,12 +83,10 @@ void main() {
     final t0 = DateTime.utc(2026, 10, 4, 9);
     for (final s in [0, 5, 31, 62]) {
       gps.add(fix(t0.add(Duration(seconds: s)), mock: s == 62));
+      await settle();
     }
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    expect(await t.queue.size(), 3, reason: 'the fix 5 s after the first is dropped');
-    await t.sync();
-    final sent = [for (final r in server.calls('/api/v1/driver/positions')) ...jsonDecode(r.body)['points'] as List];
-    expect([for (final p in sent) p['is_mock']], [false, false, true]);
+    // each kept point goes at once, without waiting for the sync timer; the fix 5 s after the first is dropped
+    expect([for (final p in sentPoints(server)) p['is_mock']], [false, false, true]);
     expect(await t.queue.size(), 0);
     await t.stop();
   });
@@ -117,6 +119,101 @@ void main() {
     expect(await t.queue.size(), 1);
     final state = jsonDecode((await t.db.get('tracking_state'))!) as Map;
     expect((state['required'], state['queue']), (true, 1));
+    await t.stop();
+  });
+
+  test('a phone that measures no speed: worked out from the distance, never a fake 0 while moving', () async {
+    final (t, server) = await make();
+    await t.start();
+    final t0 = DateTime.utc(2026, 10, 4, 9);
+    // 0.0027 degrees of latitude is about 300 m: 300 m in 30 s is 36 km/h
+    for (var i = 0; i < 4; i++) {
+      gps.add(fix(t0.add(Duration(seconds: 30 * i)), speed: null, lat: 29.3 + 0.0027 * i));
+      await settle();
+    }
+    final speeds = [for (final p in sentPoints(server)) p['speed_kmh'] as num?];
+    expect(speeds.first, isNull, reason: 'the first fix has nothing to compare with');
+    for (final v in speeds.skip(1)) {
+      expect(v, closeTo(36, 1));
+    }
+    expect(asked, [const Duration(seconds: 30)], reason: 'moving: it never parked');
+    await t.stop();
+  });
+
+  test('positions within their accuracy are a stop, and an approximate position or a jump gives no speed', () async {
+    final (t, server) = await make();
+    await t.start();
+    final t0 = DateTime.utc(2026, 10, 4, 9);
+    gps.add(fix(t0, speed: null));
+    await settle();
+    gps.add(fix(t0.add(const Duration(seconds: 30)), speed: null, lat: 29.3 + 0.00005)); // 5 m: wifi jitter
+    await settle();
+    gps.add(fix(t0.add(const Duration(seconds: 60)), speed: null, lat: 29.31, accuracy: 500)); // approximate
+    await settle();
+    gps.add(fix(t0.add(const Duration(seconds: 90)), speed: null, lat: 30.3)); // 110 km in 30 s
+    await settle();
+    expect([for (final p in sentPoints(server)) p['speed_kmh']], [null, 0, null, null]);
+    await t.stop();
+  });
+
+  test('a change in the settings reaches the running tracker at the next heartbeat', () async {
+    final (t, _) = await make();
+    await t.start();
+    expect(asked, [const Duration(seconds: 30)]);
+    status = {...status, 'interval_moving_s': 10};
+    await t.heartbeat();
+    expect(asked.last, const Duration(seconds: 10));
+    final t0 = DateTime.utc(2026, 10, 4, 9);
+    for (var s = 0; s <= 150; s += 10) {
+      gps.add(fix(t0.add(Duration(seconds: s)), speed: 0));
+      await settle();
+    }
+    expect(asked.last, const Duration(seconds: 300), reason: 'parked');
+    status = {...status, 'interval_stationary_s': 120};
+    await t.heartbeat();
+    expect(asked.last, const Duration(seconds: 120), reason: 'still parked, at the new parked interval');
+    gps.add(fix(t0.add(const Duration(seconds: 400)), speed: 35));
+    await settle();
+    expect(asked.last, const Duration(seconds: 10), reason: 'moving again, at the new moving interval');
+    await t.stop();
+  });
+
+  test('equal intervals do not restart the GPS on every fix', () async {
+    final (t, _) = await make();
+    status = {...status, 'interval_stationary_s': 30};
+    await t.start();
+    final t0 = DateTime.utc(2026, 10, 4, 9);
+    for (var s = 0; s <= 300; s += 30) {
+      gps.add(fix(t0.add(Duration(seconds: s)), speed: 0));
+      await settle();
+    }
+    expect(asked, [const Duration(seconds: 30)]);
+    await t.stop();
+  });
+
+  test('the notification shows the company and whether the driver is at work, only when that changes', () async {
+    final (t, _) = await make();
+    await t.start();
+    expect(shown.single.$2, isFalse);
+    expect(shown.single.$1, {'ar': 'شركة المثال', 'en': 'Example Co'});
+    await t.sync();
+    await t.heartbeat();
+    expect(shown, hasLength(1), reason: 'nothing changed: not posted again every minute');
+    status = {...status, 'on_duty': true};
+    await t.heartbeat();
+    expect(shown.last.$2, isTrue);
+    final state = jsonDecode((await t.db.get('tracking_state'))!) as Map;
+    expect((state['on_duty'], (state['company'] as Map)['en']), (true, 'Example Co'));
+    await t.stop();
+  });
+
+  test('an older server without the work status: not at work, nothing breaks', () async {
+    final (t, _) = await make();
+    status = {...status}
+      ..remove('on_duty')
+      ..remove('company');
+    await t.start();
+    expect(shown, [(null, false)]);
     await t.stop();
   });
 }

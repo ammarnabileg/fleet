@@ -52,6 +52,8 @@ class HeartbeatOut(BaseModel):
     tracking_required: bool
     interval_moving_s: int
     interval_stationary_s: int
+    on_duty: bool = False  # day started and not ended
+    company: dict[str, str] | None = None  # the driver's company name, by language
 
 
 class VehicleRef(BaseModel):

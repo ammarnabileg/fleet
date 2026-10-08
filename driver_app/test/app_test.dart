@@ -44,6 +44,8 @@ const nationalities = [
   {'value': 'باكستان', 'ar': 'باكستان', 'en': 'Pakistan'},
 ];
 
+var trackingStarts = 0; // how often the app asked the tracking service to start or report
+
 class World {
   World(this.state, this.server);
   final AppState state;
@@ -75,7 +77,7 @@ Future<World> world({
     pollEvery: null,
     platform: PhoneHooks(
       permissionsOk: () async => true,
-      startTracking: () async {},
+      startTracking: () async => trackingStarts++,
       stopTracking: () async {},
       deviceMeta: () async => {'platform': 'android', 'model': 'Test phone', 'app_version': '0.1.0'},
       pushToken: pushToken,
@@ -337,8 +339,10 @@ void main() {
     );
     await shot(tester, '04-start-day');
     await tester.enterText(find.byKey(const Key('km')), '45210');
+    final startsBefore = trackingStarts;
     await tester.tap(find.byKey(const Key('send-reading')));
     await idle(tester);
+    expect(trackingStarts, startsBefore + 1, reason: 'the service reports at once: its notification says at work');
     expect(w.server.calls('/api/v1/driver/files').single.url.queryParameters['source'], 'camera');
     final body = jsonDecode(w.server.calls('/api/v1/driver/odometer').single.body) as Map;
     expect(

@@ -379,5 +379,7 @@
         "type": "int"
       }
     }
-  }
+  },
+  "driverWorking": "Driver at work",
+  "driverNotWorking": "Driver not at work"
 }

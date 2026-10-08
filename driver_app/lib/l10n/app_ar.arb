@@ -777,5 +777,7 @@
         "type": "int"
       }
     }
-  }
+  },
+  "driverWorking": "السائق يعمل",
+  "driverNotWorking": "السائق لا يعمل"
 }

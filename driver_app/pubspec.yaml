@@ -16,6 +16,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_background_service: ^5.1.0
+  flutter_local_notifications: ^22.3.1
   flutter_localizations:
     sdk: flutter
   geolocator: ^14.1.1

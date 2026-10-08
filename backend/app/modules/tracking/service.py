@@ -416,11 +416,15 @@ def heartbeat(db: Session, device: identity.DevicePrincipal, status: dict) -> di
             notifications.resolve(db, key)
     db.commit()
     settings = org.get_section(db, "tracking")
+    company, _ = org.labels(db, device.company_id, None)
     return {
         "server_time": utcnow(),
         "tracking_required": custody is not None,
         "interval_moving_s": settings.interval_moving_s,
         "interval_stationary_s": settings.interval_stationary_s,
+        # what the phone's ongoing notification shows: his company, and whether he is at work (day started, not ended)
+        "on_duty": custody is not None and custody.id in fleet.on_duty_now(db, [custody.id]),
+        "company": company,
     }
 
 

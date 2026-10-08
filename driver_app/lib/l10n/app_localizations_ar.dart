@@ -1229,4 +1229,10 @@ class AppLocalizationsAr extends AppLocalizations {
   String ibanLengthKw(int count) {
     return 'الآيبان الكويتي 30 خانة تبدأ بـ KW، والمكتوب هنا $count';
   }
+
+  @override
+  String get driverWorking => 'السائق يعمل';
+
+  @override
+  String get driverNotWorking => 'السائق لا يعمل';
 }

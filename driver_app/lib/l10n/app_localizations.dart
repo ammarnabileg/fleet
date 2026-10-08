@@ -2287,6 +2287,18 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'الآيبان الكويتي 30 خانة تبدأ بـ KW، والمكتوب هنا {count}'**
   String ibanLengthKw(int count);
+
+  /// No description provided for @driverWorking.
+  ///
+  /// In ar, this message translates to:
+  /// **'السائق يعمل'**
+  String get driverWorking;
+
+  /// No description provided for @driverNotWorking.
+  ///
+  /// In ar, this message translates to:
+  /// **'السائق لا يعمل'**
+  String get driverNotWorking;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

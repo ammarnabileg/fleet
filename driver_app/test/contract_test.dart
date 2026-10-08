@@ -132,7 +132,8 @@ void main() {
       expect(state.today!.custody!.plate, '77/$n');
       expect(state.today!.startDayDone, isFalse);
 
-      // ---- tracking: the server says track (custody open); three fixes go out and are acknowledged
+      // ---- tracking: the server says track (custody open); three fixes go out and are acknowledged. The phone
+      // measured the speed of the first only: the others' is worked out from the distance (111 m in 31 s, 13 km/h)
       final now = DateTime.now().toUtc();
       final fixes = Stream<Fix>.fromIterable([
         for (var i = 0; i < 3; i++)
@@ -140,10 +141,12 @@ void main() {
             at: now.subtract(Duration(seconds: 90 - 31 * i)),
             lat: 29.37 + i * 0.001,
             lng: 47.98,
-            speedKmh: 35,
+            accuracyM: 8,
+            speedKmh: i == 0 ? 35 : null,
             heading: 90,
           ),
       ]);
+      final shown = <(Map<String, dynamic>?, bool)>[];
       final tracker = Tracker(
         db: db,
         api: state.api,
@@ -155,19 +158,22 @@ void main() {
           'queue_size': queueSize,
           'app_version': '0.1.0',
         },
+        notify: (company, working) => shown.add((company, working)),
         heartbeatEvery: const Duration(hours: 1),
         syncEvery: const Duration(hours: 1),
       );
       await tracker.start();
       expect(tracker.required, isTrue);
+      expect(shown.single.$2, isFalse, reason: 'custody, day not started: not at work');
+      expect(shown.single.$1, isNotNull, reason: 'his company, for the notification title');
       await Future<void>.delayed(const Duration(milliseconds: 300));
       await tracker.sync();
       expect(await tracker.queue.size(), 0);
-      await tracker.stop();
       final live = (await admin.call('GET', '/tracking/live') as List).firstWhere(
         (v) => v['vehicle']['id'] == vehicle['id'],
       );
       expect((live['position']['lat'] as num).toDouble(), closeTo(29.372, 0.0001));
+      expect((live['position']['speed_kmh'] as num).toDouble(), closeTo(12.9, 0.5), reason: 'worked out, never 0');
 
       // ---- start of day: camera photo + reading, through the outbox
       final photo = await jpeg('odo');
@@ -184,6 +190,9 @@ void main() {
         SendResult.sent,
       );
       expect(state.today!.startDayDone, isTrue);
+      await tracker.heartbeat();
+      expect(shown.last.$2, isTrue, reason: 'day started: at work');
+      await tracker.stop();
       final readings = await admin.call('GET', '/odometer/readings?vehicle_id=${vehicle['id']}') as List;
       final start = readings.firstWhere((r) => r['kind'] == 'start_day');
       expect((start['value_km'], start['source']), (30120, 'device'));

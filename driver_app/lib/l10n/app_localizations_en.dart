@@ -1236,4 +1236,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String ibanLengthKw(int count) {
     return 'A Kuwaiti IBAN has 30 characters starting with KW; this one has $count';
   }
+
+  @override
+  String get driverWorking => 'Driver at work';
+
+  @override
+  String get driverNotWorking => 'Driver not at work';
 }

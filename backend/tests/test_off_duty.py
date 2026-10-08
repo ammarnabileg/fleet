@@ -128,3 +128,26 @@ def test_the_live_stream_leaves_off_duty_positions_to_who_may_see_them(companies
 
     assert asyncio.run(run(False)) == ["ON"]
     assert asyncio.run(run(True)) == ["OFF", "ON"]
+
+
+def test_the_heartbeat_tells_the_phone_its_company_and_whether_the_driver_is_at_work(admin_client, client, company, db):
+    v = make_vehicle(admin_client, company["id"])
+    d = make_driver(admin_client, company["id"])
+    c = hand_over(admin_client, v, d, started_at=(now() - timedelta(hours=5)).isoformat())
+    headers = bearer(bind_device(client, d["phone"]))
+    ids = _id(db, "fleet.vehicles", v["id"]), _id(db, "fleet.custodies", c["id"]), _id(db, "people.employees", d["id"])
+    photo = upload(admin_client)
+
+    def beat():
+        r = client.post("/api/v1/driver/status", headers=headers, json={})
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    first = beat()
+    assert (first["on_duty"], first["company"]) == (False, company["name"])  # custody, day not started
+    reading(db, *ids, "start_day", 10_010, now() - timedelta(hours=2), photo)
+    db.commit()
+    assert beat()["on_duty"] is True
+    reading(db, *ids, "end_day", 10_100, now() - timedelta(minutes=5), photo)
+    db.commit()
+    assert beat()["on_duty"] is False
