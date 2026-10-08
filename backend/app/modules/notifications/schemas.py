@@ -17,6 +17,14 @@ class AlertOut(BaseModel):
     acknowledged_at: datetime | None
 
 
+class AlertSummary(BaseModel):
+    open: int
+    critical: int
+    warning: int
+    info: int
+    latest: AlertOut | None  # the newest open alert
+
+
 class DriverNoticeOut(BaseModel):
     id: str
     kind: str

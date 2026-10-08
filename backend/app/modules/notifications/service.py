@@ -167,6 +167,30 @@ def list_alerts(
     return [_out(db, a, lang, default) for a in db.scalars(q)]
 
 
+def summary(
+    db: Session, *, permissions: Iterable[str], all_companies: bool, company_ids: Iterable[int], lang: str
+) -> dict:
+    """What the panel polls every few seconds: the open alerts by severity (not capped) and the newest one, so it can
+    say what arrived. Two small queries on the open-alerts index."""
+    scope = {"permissions": list(permissions), "all_companies": all_companies, "company_ids": list(company_ids)}
+    counts = dict(
+        db.execute(
+            _visible(
+                select(Alert.severity, func.count()).where(Alert.acknowledged_at.is_(None)).group_by(Alert.severity),
+                **scope,
+            )
+        ).all()
+    )
+    latest = db.scalar(
+        _visible(select(Alert).where(Alert.acknowledged_at.is_(None)).order_by(Alert.id.desc()).limit(1), **scope)
+    )
+    return {
+        "open": sum(counts.values()),
+        **{s: counts.get(s, 0) for s in ("critical", "warning", "info")},
+        "latest": _out(db, latest, lang, i18n.default_language(db).code) if latest else None,
+    }
+
+
 def acknowledge(
     db: Session, public_id, *, actor_user_id: int, permissions: Iterable[str], all_companies: bool, company_ids
 ) -> None:

@@ -55,3 +55,32 @@ def test_one_open_alert_per_situation(db, admin_client):
     notifications.resolve(db, "gps_off:1")
     db.commit()
     assert admin_client.get("/api/v1/alerts").json() == []
+
+
+def test_the_summary_counts_visible_open_alerts_and_names_the_newest(admin_client, db, company):
+    before = admin_client.get("/api/v1/alerts/summary").json()
+    for i in range(3):
+        notifications.raise_alert(
+            db, "gps_off", company_id=company["id"], params={"driver": f"S{i}", "plate": "1"}, dedupe_key=f"sum:{i}"
+        )
+    db.commit()
+    s = admin_client.get("/api/v1/alerts/summary").json()
+    assert s["open"] == before["open"] + 3 and s["warning"] == before["warning"] + 3
+    newest = admin_client.get("/api/v1/alerts", params={"limit": 1}).json()[0]
+    assert s["latest"]["id"] == newest["id"] and "S2" in s["latest"]["message"]
+    admin_client.post(f"/api/v1/alerts/{newest['id']}/ack")
+    after = admin_client.get("/api/v1/alerts/summary").json()
+    assert after["open"] == s["open"] - 1 and after["latest"]["id"] != newest["id"]
+
+
+def test_the_summary_is_not_capped_and_follows_permissions(admin_client, new_client, db, company):
+    for i in range(205):
+        notifications.raise_alert(
+            db, "gps_off", company_id=company["id"], params={"driver": f"C{i}", "plate": "1"}, dedupe_key=f"cap:{i}"
+        )
+    db.commit()
+    assert admin_client.get("/api/v1/alerts/summary").json()["open"] >= 205  # the bell no longer stops at 200
+    make_user(admin_client, "nobody", permissions=["employees.view"])
+    c = new_client()
+    login(c, "nobody")
+    assert c.get("/api/v1/alerts/summary").json() == {"open": 0, "critical": 0, "warning": 0, "info": 0, "latest": None}

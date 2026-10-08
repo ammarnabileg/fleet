@@ -209,7 +209,7 @@
 
   /* ---------- العدادات في القائمة (كل دقيقة) ---------- */
   A.refreshCounts = function () {
-    var jobs = [api.get('/alerts', { limit: 200 }).then(function (r) { A.counts.alerts = r.length; }, function () {})];
+    var jobs = [api.get('/alerts/summary').then(function (s) { A.counts.alerts = s.open; }, function () {})];
     if (api.can('dashboard.view')) jobs.push(api.get('/dashboard').then(function (d) {
       A.counts.daily = d.daily_reports ? d.daily_reports.waiting_review : null;
       A.counts.signal_lost = d.drivers ? d.drivers.signal_lost : null;
@@ -234,7 +234,39 @@
   /* ---------- التنبيهات ---------- */
   A.updateBell = function () {
     var b = document.getElementById('bell-badge'), n = A.counts.alerts || 0;
-    if (b) { b.textContent = n >= 200 ? '200+' : n; b.hidden = !n; }
+    if (b) { b.textContent = n > 99 ? '99+' : n; b.hidden = !n; }
+  };
+
+  /* ---------- تنبيه جديد يظهر وحده ----------
+     كل بضع ثوانٍ (وفور العودة إلى الصفحة) يُسأل الخادم عن عدد التنبيهات المفتوحة وأحدثها. إذا وصل جديد: رسالة
+     صغيرة تقول ما هو، والعدادات، وتُعاد رسم لوحة التحكم أو صفحة التنبيهات في مكانها. لا يُغلق نافذة مفتوحة:
+     يؤجَّل الرسم حتى تُغلق. */
+  var lastAlerts = null;
+  A.pollAlerts = function () {
+    return api.get('/alerts/summary').then(function (s) {
+      var before = lastAlerts, latest = s.latest ? s.latest.id : null;
+      lastAlerts = { open: s.open, latest: latest };
+      A.counts.alerts = s.open;
+      A.updateBell();
+      if (!before) return; // the first look only notes where things stand
+      var arrived = latest && latest !== before.latest && s.open > before.open;
+      if (arrived) {
+        var n = s.open - before.open;
+        BT.toast(n > 1 ? h`${n} تنبيهات جديدة · آخرها: ${s.latest.message}` : s.latest.message, {
+          type: { critical: 'error', warning: 'warning' }[s.latest.severity] || 'info', timeout: 8000,
+          action: { label: 'عرض', fn: function () { A.go('alerts'); } }
+        });
+      }
+      if (arrived || s.open !== before.open || latest !== before.latest) { A.refreshCounts(); A.redrawLive(); }
+      else if (A._stale) A.redrawLive();
+    }, function () {});
+  };
+  A.redrawLive = function () {
+    if (document.querySelector('.overlay[data-open], .menu.show')) { A._stale = true; return; } // a drawer, dialog or menu in use
+    A._stale = false;
+    var cur = (A.router && A.router.current) || '';
+    if (cur === 'alerts' && A._alertsTable) A._alertsTable.refresh();
+    else if (cur === 'dashboard' && A._dashboardRedraw) A._dashboardRedraw();
   };
   BT.actions['notifications'] = function (arg, el) {
     var pop = BT.popover(el, h`<div class="nm-h"><b>التنبيهات المفتوحة</b><a class="btn btn-link fs-sm" href="#/alerts">عرض الكل</a></div><div class="nm-list" data-alerts>${A.spinner()}</div>`, { cls: 'notif-menu' });
@@ -432,7 +464,10 @@
       var start = function () {
         A.router.start();
         A.refreshCounts();
+        A.pollAlerts();
         setInterval(function () { if (!document.hidden) A.refreshCounts(); }, (BT.config.refreshCountsSec || 60) * 1000);
+        setInterval(function () { if (!document.hidden) A.pollAlerts(); }, (BT.config.alertsPollSec || 15) * 1000);
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) A.pollAlerts(); }); // catch up on return
       };
       if (api.me.must_change_password) A.changePassword(true).then(start); else start();
     }, function (err) {

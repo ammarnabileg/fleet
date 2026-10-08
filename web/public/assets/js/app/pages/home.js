@@ -10,9 +10,18 @@
     A.setTitle('لوحة التحكم');
     var v = A.view();
     var hour = +new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kuwait', hour: '2-digit', hourCycle: 'h23' }).format(new Date());
-    var jobs = [api.get('/dashboard'), api.get('/alerts', { limit: 8 })];
-    jobs.push(api.can('documents.view') ? Promise.all([api.get('/documents/expiring', { within_days: 30 }), A.docTypes()]).then(function (x) { return x[0]; }) : Promise.resolve(null));
-    A.load(v, Promise.all(jobs), function (r) {
+    function fetch() {
+      var jobs = [api.get('/dashboard'), api.get('/alerts', { limit: 8 })];
+      jobs.push(api.can('documents.view') ? Promise.all([api.get('/documents/expiring', { within_days: 30 }), A.docTypes()]).then(function (x) { return x[0]; }) : Promise.resolve(null));
+      return Promise.all(jobs);
+    }
+    A.load(v, fetch(), draw).then(function (r) { if (r && r[0].week) week(v, r[0].week); }).catch(function () {});
+    // a new alert redraws it in place: no spinner, no jump to the top
+    A._dashboardRedraw = function () {
+      return fetch().then(function (r) { if (!document.contains(v)) return; BT.render(v, draw(r)); if (r[0].week) week(v, r[0].week); }, function () {});
+    };
+    A.onLeave(function () { A._dashboardRedraw = null; });
+    function draw(r) {
       var d = r[0], alerts = r[1], docs = r[2];
       var veh = d.vehicles, drv = d.drivers, rep = d.daily_reports, cash = d.cash;
       var total = veh ? Object.keys(veh).reduce(function (s, k) { return s + veh[k]; }, 0) : 0;
@@ -85,7 +94,7 @@
         ${hrCard}
         ${weekCard}
         <div class="grid" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)">${alertCard}<div class="grid" style="gap:16px">${docCard}${quickCard}</div></div>`;
-    }).then(function (r) { if (r && r[0].week) week(v, r[0].week); }).catch(function () {});
+    }
   };
 
   /* آخر 7 أيام: الطلبات أو الكاش المُبلّغ لكل يوم، ورسمٌ يُعرض جدولاً لمن يريد الأرقام */

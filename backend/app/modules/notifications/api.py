@@ -36,6 +36,21 @@ def list_alerts(
     )
 
 
+@router.get("/alerts/summary", response_model=schemas.AlertSummary)
+def alerts_summary(
+    accept_language: Annotated[str | None, Header()] = None,
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_session),
+):
+    """Polled by the panel: open counts and the newest open alert, within the user's permissions and companies."""
+    return service.summary(
+        db,
+        permissions=principal.permissions,
+        lang=i18n.negotiate(db, principal.locale, accept_language),
+        **principal.scope,
+    )
+
+
 @router.post("/alerts/{public_id}/ack", status_code=204)
 def acknowledge(
     public_id: uuid.UUID, principal: Principal = Depends(get_principal), db: Session = Depends(get_session)

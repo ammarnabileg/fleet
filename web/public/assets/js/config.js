@@ -13,5 +13,6 @@ BT.config = Object.assign(BT.config || {}, {
   mapFallbackTiles: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
   mapCenter: [29.31, 47.98],
   mapZoom: 10,
-  refreshCountsSec: 60
+  refreshCountsSec: 60,
+  alertsPollSec: 15 // a new alert reaches the open screen within this many seconds
 });
