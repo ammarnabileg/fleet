@@ -3,13 +3,14 @@ preview suggests the kind and columns, the user confirms, then the same check-th
 
 import io
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import openpyxl
 import pytest
 
 from app.modules.imports.api import NEEDED
 from tests.conftest import login, make_user
+from tests.test_claims import choose, phone_codes
 
 P = "/api/v1/imports/sheets"
 W = (2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2)
@@ -23,6 +24,7 @@ def civil(prefix: str) -> str:
 
 
 ALI, OMAR, SARA, NOOR = civil("28609201527"), civil("29602200536"), civil("29704180474"), civil("28107030921")
+HANI = civil("28501010001")
 EXPIRED = datetime.now() - timedelta(days=90)
 
 
@@ -60,6 +62,18 @@ def client_workbook(*, employees=None, vehicles=None) -> bytes:
         (2, "60- 76303", "نيسان - nissan", 2022, "ابيض - white", EXPIRED),
         (3, "23-68409", "نيسان - nissan", 2024, "ابيض - white", datetime(2027, 9, 25)),
     ]:
+        ws.append(list(r))
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def employees_book(header: list | None, rows: list) -> bytes:
+    """One employees sheet, with a header row or without, as an office adds columns to its own file."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "السائقون"
+    for r in ([header] if header else []) + rows:
         ws.append(list(r))
     buf = io.BytesIO()
     wb.save(buf)
@@ -270,3 +284,139 @@ def test_drivers_without_a_phone_get_the_initial_password(admin_client, client, 
     r = run(c, data, plan)
     assert r.status_code == 403 and r.json()["params"]["permission"] == "devices.manage", r.text
     assert run(c, data, {k: v for k, v in plan.items() if k != "claim_password"}).status_code == 200
+
+
+# ------------------------------------------------------------------ the driver app, initial password and its days
+
+CLAIM = "/api/v1/driver/auth/claim"
+
+
+def sign_in(client, civil_id: str, password: str, device: str = "phone-0001"):
+    return client.post(CLAIM, json={"civil_id": civil_id, "password": password, "device_uid": device})
+
+
+def staff(admin_client) -> dict:
+    return {e["civil_id"]: e for e in admin_client.get("/api/v1/employees", params={"limit": 50}).json()}
+
+
+def test_the_password_columns_are_found_and_never_shown(admin_client):
+    data = employees_book(
+        ["الرقم المدني", "الاسم", "المهنة", "التطبيق", "Password", "Days"],
+        [(ALI, "علي", "سائق", "نعم", "Secret-pass-1", 7), (OMAR, "عمر", "سائق", "لا", None, None)],
+    )
+    r = admin_client.post(f"{P}/preview", files={"file": ("x.xlsx", data, "application/octet-stream")})
+    sheet = r.json()["sheets"][0]
+    assert sheet["kind"] == "employees" and sheet["mapping"] == {
+        "civil_id": 0,
+        "name": 1,
+        "job_title": 2,
+        "app_access": 3,
+        "initial_password": 4,
+        "password_days": 5,
+    }
+    assert sheet["columns"][4]["samples"] == ["••••••••", ""] and "Secret-pass-1" not in r.text
+    assert sheet["columns"][3]["samples"] == ["نعم", "لا"]
+    optional = {"app_access", "initial_password", "password_days"}
+    assert {f["key"] for f in r.json()["fields"]["employees"] if not f["required"]} >= optional
+
+
+def test_per_row_password_and_days(admin_client, client, company):
+    header = ["الرقم المدني", "الاسم", "المهنة", "تفعيل التطبيق", "كلمة المرور", "صالحة لمدة"]
+    data = employees_book(
+        header, [(ALI, "علي", "سائق", None, "Row-pass-11", 5), (OMAR, "عمر", "سائق", "نعم", None, None)]
+    )
+    plan = plan_from(preview(admin_client, data), company["id"])
+    out = run(admin_client, data, plan).json()
+    assert [(e["row"], e["code"]) for e in out["errors"]] == [(3, "app_needs_phone_or_password")]  # phone codes on
+
+    data = employees_book(header, [(ALI, "علي", "سائق", None, "Row-pass-11", 5)])
+    out = run(admin_client, data, plan, apply=True).json()
+    assert out["applied"] and (out["activated"], out["claims"]) == (0, 1) and out["warnings"] == [], out
+    ali = staff(admin_client)[ALI]
+    assert ali["app_access"] == "none"  # his first sign-in gives him the app, with the phone he verifies
+    claim = admin_client.get(f"/api/v1/employees/{ali['id']}/claim").json()
+    expires = datetime.fromisoformat(claim["expires_at"])
+    assert claim["open"] and abs(expires - (datetime.now(UTC) + timedelta(days=5))) < timedelta(minutes=5)
+    r = sign_in(client, ALI, "Row-pass-11")
+    assert r.status_code == 200 and r.json()["next"] == "phone", r.text
+
+    # without phone codes a driver needs no phone for the app: activated now, and told how he will sign in
+    phone_codes(admin_client, False)
+    data = employees_book(
+        header, [(NOOR, "نور", "سائق", "نعم", None, None), (OMAR, "عمر", "سائق", None, "Row-pass-22", None)]
+    )
+    out = run(admin_client, data, plan, apply=True).json()
+    assert out["applied"] and (out["activated"], out["claims"]) == (2, 1), out
+    assert [(w["row"], w["code"]) for w in out["warnings"]] == [(2, "driver_no_sign_in_yet")]
+    people = staff(admin_client)
+    assert (people[NOOR]["app_access"], people[OMAR]["app_access"]) == ("active", "active")
+    claim = admin_client.get(f"/api/v1/employees/{people[OMAR]['id']}/claim").json()
+    expires = datetime.fromisoformat(claim["expires_at"])
+    assert abs(expires - (datetime.now(UTC) + timedelta(days=14))) < timedelta(minutes=5)  # the plan's days
+    assert sign_in(client, OMAR, "Row-pass-22", "phone-0002").json()["next"] == "password"
+
+
+def test_a_row_password_wins_over_the_plan_one(admin_client, client, new_client, company):
+    data = employees_book(
+        ["الرقم المدني", "الاسم", "المهنة", "كلمة المرور"],
+        [(ALI, "علي", "سائق", "Row-pass-33"), (OMAR, "عمر", "سائق", None), (SARA, "سارة", "مدير", None)],
+    )
+    plan = plan_from(preview(admin_client, data), company["id"])
+    assert plan["sheets"][0]["columns"]["initial_password"] == 3
+    out = run(admin_client, data, plan | {"claim_password": "Plan-pass-1", "claim_days": 7}, apply=True).json()
+    assert out["applied"] and out["claims"] == 2 and out["warnings"] == [], out
+    assert sign_in(client, ALI, "Plan-pass-1").status_code == 401
+    assert sign_in(client, ALI, "Row-pass-33").status_code == 200
+    assert sign_in(client, OMAR, "Plan-pass-1", "phone-0002").status_code == 200
+    assert sign_in(client, SARA, "Plan-pass-1", "phone-0003").status_code == 401  # not a driver
+
+    # a password column is a password, plan or not: it needs whoever manages the drivers' phones
+    make_user(admin_client, "importer", permissions=list(NEEDED))
+    c = new_client()
+    login(c, "importer")
+    r = run(c, data, plan)
+    assert r.status_code == 403 and r.json()["params"]["permission"] == "devices.manage", r.text
+    plan["sheets"][0]["columns"].pop("initial_password")
+    assert run(c, data, plan).status_code == 200
+
+
+def test_reimport_never_resets_open_or_used_passwords(admin_client, client, company):
+    """Without phone codes a driver who signed in keeps no phone: the plan's password used to reach him again on every
+    import, wiping his own password and reopening the shared one."""
+    phone_codes(admin_client, False)
+    header = ["الرقم المدني", "الاسم", "المهنة", "كلمة المرور"]
+    data = employees_book(header, [(ALI, "علي", "سائق", "Row-pass-44")])
+    plan = plan_from(preview(admin_client, data), company["id"])
+    out = run(admin_client, data, plan, apply=True).json()
+    assert (out["activated"], out["claims"]) == (1, 1)
+    out = run(admin_client, data, plan, apply=True).json()
+    assert out["claims"] == 0 and [(w["row"], w["code"]) for w in out["warnings"]] == [(2, "claim_already_open")]
+    r = sign_in(client, ALI, "Row-pass-44")  # open as it was
+    assert r.status_code == 200, r.text
+    assert choose(client, r.json()["claim_token"], "Ali-own-pass-1").status_code == 200
+    out = run(admin_client, data, plan, apply=True).json()
+    assert out["claims"] == 0 and [(w["row"], w["code"]) for w in out["warnings"]] == [(2, "claim_already_used")]
+
+    # the plan's password, for drivers with no phone and no password in the file: only OMAR gets it
+    data = employees_book(header[:3], [(ALI, "علي", "سائق"), (OMAR, "عمر", "سائق")])
+    plan = plan_from(preview(admin_client, data), company["id"]) | {"claim_password": "Plan-pass-55"}
+    for expected in ([(2, "claim_already_used")], [(2, "claim_already_used"), (3, "claim_already_open")]):
+        out = run(admin_client, data, plan, apply=True).json()
+        assert out["applied"] and [(w["row"], w["code"]) for w in out["warnings"]] == expected, out
+    assert out["claims"] == 0
+    r = sign_in(client, ALI, "Ali-own-pass-1", "phone-0009")
+    assert r.status_code == 200 and r.json()["next"] == "done", r.text  # his own password still signs him in
+    assert sign_in(client, ALI, "Plan-pass-55", "phone-0010").status_code == 401
+    assert sign_in(client, OMAR, "Plan-pass-55", "phone-0011").json()["next"] == "password"
+
+
+def test_a_shared_password_or_a_yes_no_column_is_not_guessed(admin_client):
+    """Without a header row: a shared password with 8 digits in it passes for a phone, نعم/لا for a profession."""
+    rows = [
+        (1, int(ALI), "علي حسن", "نعم", "Pass12345678", "سائق"),
+        (2, int(OMAR), "عمر سالم", "لا", "Pass12345678", "سائق"),
+        (3, int(HANI), "هاني", "نعم", "Pass12345678", "سائق"),
+    ]
+    sheet = preview(admin_client, employees_book(None, rows))["sheets"][0]
+    assert sheet["header_row"] is None and sheet["kind"] == "employees"
+    assert sheet["mapping"] == {"civil_id": 1, "name": 2, "job_title": 5}  # one profession for all is still one

@@ -21,7 +21,8 @@ class ImportResult(BaseModel):
     people: Counts
     documents: int
     opening_balances: int
-    claims: int = 0  # drivers without a phone who may now sign in once with their civil ID
+    activated: int = 0  # drivers given the app by this import
+    claims: int = 0  # drivers given an initial password: they may sign in once with their civil ID and it
     errors: list[IssueOut]
     warnings: list[IssueOut]
 

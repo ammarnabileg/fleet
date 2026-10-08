@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Form, UploadFile
+from fastapi.responses import Response
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -6,10 +7,11 @@ from app.core.db import get_session
 from app.core.errors import AppError
 from app.modules.files import service as files
 from app.modules.identity.service import Principal, get_principal
-from app.modules.imports import schemas, service, sheets
+from app.modules.imports import schemas, service, sheets, workbook
 
 router = APIRouter(prefix="/api/v1", tags=["imports"])
 NEEDED = ("employees.create", "employees.update", "vehicles.create", "vehicles.update", "documents.manage")
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def _importer(principal: Principal = Depends(get_principal)) -> Principal:
@@ -35,7 +37,18 @@ def import_workbook(
         actor_user_id=principal.user_id,
         can_set_salary=principal.has("employees.view_salary"),
         can_open=principal.has("cash.adjust"),
+        can_manage_devices=principal.has("devices.manage"),
         **principal.scope,
+    )
+
+
+@router.get("/imports/workbook/template")
+def workbook_template(_: Principal = Depends(_importer)):
+    """The onboarding workbook to fill, with the optional driver columns (app, initial password, its days)."""
+    return Response(
+        workbook.template(),
+        media_type=XLSX,
+        headers={"Content-Disposition": 'attachment; filename="import-template.xlsx"', "Cache-Control": "no-store"},
     )
 
 
@@ -59,7 +72,8 @@ def import_sheets(
         parsed = schemas.MappedPlan.model_validate_json(plan)
     except ValidationError as exc:
         raise AppError(422, "import_bad_mapping", sheet="-", fields=exc.errors()[0]["loc"][0]) from None
-    if parsed.claim_password and not principal.has("devices.manage"):
+    passwords = parsed.claim_password or any("initial_password" in s.columns for s in parsed.sheets)
+    if passwords and not principal.has("devices.manage"):  # who sets drivers' passwords, not who may import
         raise AppError(403, "permission_denied", permission="devices.manage")
     return service.run_mapped(
         db,
@@ -68,5 +82,6 @@ def import_sheets(
         apply=apply,
         actor_user_id=principal.user_id,
         can_set_salary=principal.has("employees.view_salary"),
+        can_manage_devices=principal.has("devices.manage"),
         **principal.scope,
     )

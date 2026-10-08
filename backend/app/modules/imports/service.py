@@ -8,10 +8,11 @@ duplicates. Documents are added only when the expiry date changed.
 """
 
 from collections import Counter
+from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
-from app.core.clock import today
+from app.core.clock import business_date, today
 from app.core.errors import AppError
 from app.core.types import clean_iban, iban_ok
 from app.modules.audit import service as audit
@@ -88,6 +89,117 @@ def _document(db: Session, owner: documents.Owner, type_code: str, expiry, actor
     return 1
 
 
+def _app_columns(cells: dict, civil_id: str | None) -> tuple[bool | None, str | None, int | None]:
+    """The optional driver columns of a row (app yes/no, initial password, its days), None where blank."""
+    app = password = days = None
+    if wb._text(cells.get("app_access")):
+        app = wb.parse_yes_no(cells["app_access"])
+        if app is None:
+            raise _RowError("invalid_yes_no", field="app_access", value=wb._text(cells["app_access"]))
+    if wb._text(cells.get("initial_password")):
+        password = wb.parse_password(cells["initial_password"])
+        if password is None:  # never with the value: the error list is on screen and in saved network recordings
+            raise _RowError("invalid_initial_password", field="initial_password")
+        if password.replace(" ", "") == civil_id:
+            raise _RowError("initial_password_is_civil_id")
+    if wb._text(cells.get("password_days")):
+        days = wb.parse_days(cells["password_days"])
+        if days is None:
+            raise _RowError("claim_days_out_of_range", value=wb._text(cells["password_days"]))
+    return app, password, days
+
+
+@dataclass
+class _DriverApp:
+    """The driver app across the rows of one import. Only drivers still without the app are activated: a file never
+    suspends one, nor undoes what the office did by hand. A password goes only to a driver with none, or with an
+    expired one he never used: an open one stays as it is, and a used one led to his own way in (his own password
+    without phone codes) that a re-import must not wipe. Passwords wait here, in memory, until every row passed."""
+
+    codes: bool  # phone codes on: activating a driver without a phone is refused, his first sign-in activates him
+    can_set_passwords: bool
+    days: int = 14
+    fallback: str | None = None  # the plan's password, for drivers with neither a phone nor a password in the file
+    activated: int = 0
+    pending: dict = field(default_factory=dict)  # employee id -> (password, days, sheet, row)
+
+    def check(self, is_driver: bool, app: bool | None, password: str | None, days: int | None) -> None:
+        """Before the row writes anything."""
+        if not is_driver and (app or password or days):
+            raise _RowError("not_a_driver")
+        if app is False and password:
+            raise _RowError("password_without_app")
+        if password and not self.can_set_passwords:
+            raise _RowError("permission_denied", permission="devices.manage")
+
+    def row(
+        self,
+        db: Session,
+        employee,
+        sheet: str,
+        number: int,
+        columns: tuple,
+        *,
+        warnings: list,
+        actor_user_id: int,
+        scope: dict,
+    ) -> None:
+        """After the employee is saved, last in the row: an error here still rolls the whole row back."""
+        app, given, days = columns
+        if not employee.is_driver:
+            return
+        password = given
+        if given is None and app is not False and not employee.phone:
+            password = self.fallback
+        if days and password is None:
+            warnings.append(Issue(sheet, number, "password_days_ignored"))
+        if app is False:
+            if employee.app_access in ("active", "suspended"):
+                warnings.append(Issue(sheet, number, "app_access_kept"))
+            return
+        if (app or given) and employee.is_terminal:
+            raise _RowError("employment_ended")
+        if app and employee.app_access == "suspended":
+            warnings.append(Issue(sheet, number, "app_access_kept"))
+        if not employee.phone and app is None and password is None:
+            warnings.append(Issue(sheet, number, "driver_without_phone"))
+            return
+        if not employee.phone and self.codes:  # people refuses the app without a phone: his first sign-in gives it
+            if password is None:
+                raise _RowError("app_needs_phone_or_password")
+        elif employee.app_access == "none" and not employee.is_terminal:
+            people.set_app_access(
+                db, employee.public_id, value="active", actor_user_id=actor_user_id, commit=False, **scope
+            )
+            self.activated += 1
+            if not employee.phone and password is None:
+                warnings.append(Issue(sheet, number, "driver_no_sign_in_yet"))
+        if password is None:
+            return
+        claim = identity.claim_status(db, employee.id)
+        if claim and claim["used_at"]:
+            warnings.append(Issue(sheet, number, "claim_already_used"))
+        elif claim and claim["open"]:
+            expires = business_date(claim["expires_at"]).strftime("%d/%m/%Y")
+            warnings.append(Issue(sheet, number, "claim_already_open", {"date": expires}))
+        else:
+            self.pending[employee.id] = (password, days or self.days, sheet, number)
+
+    def set_passwords(self, db: Session, warnings: list, actor_user_id: int) -> int:
+        """Once every row passed, in the same transaction: one hash per password and days, however many drivers."""
+        groups: dict[tuple, list] = {}
+        for employee_id, (password, days, sheet, number) in self.pending.items():
+            groups.setdefault((password, days), []).append((employee_id, sheet, number))
+        done = 0
+        for (password, days), items in groups.items():
+            refs = [people.ref(db, employee_id) for employee_id, _, _ in items]  # as the rows left them
+            out = identity.set_claims(db, refs, password=password, days=days, actor_user_id=actor_user_id)
+            done += out["set"]
+            where = {str(r.public_id): (s, n) for r, (_, s, n) in zip(refs, items, strict=True)}
+            warnings += [Issue(*where[x["employee"]["id"]], x["code"]) for x in out["skipped"]]
+        return done
+
+
 def _duplicates(rows: list[Row], key) -> dict[int, str]:
     values = {r.number: key(r) for r in rows}
     counts = Counter(v for v in values.values() if v)
@@ -142,6 +254,7 @@ def _person(
     can_set_salary: bool,
     numbers: list[int],
     warnings: list,
+    drivers: _DriverApp,
     scope: dict,
 ) -> tuple[str, int]:
     c = wb.PEOPLE_COLUMNS
@@ -157,6 +270,8 @@ def _person(
         raise _RowError("invalid_civil_id", value=civil_id)
     if not civil_id and status != "under_visa":  # only someone whose visa is in process may have none yet
         raise _RowError("field_required", field=c[3].rstrip(" *"))
+    columns = _app_columns(row.values, civil_id)
+    drivers.check(role == wb.DRIVER_ROLE, *columns)
     company, branch = _required(row, c[5]), _required(row, c[6])
     salary = None
     if wb.text(row, c[10]):
@@ -215,14 +330,13 @@ def _person(
         )
         action = "created"
     employee = people.find(db, civil_id=civil_id or None, phone=phone)
-    if employee.is_driver and not employee.is_terminal and employee.app_access == "none":
-        people.set_app_access(
-            db, employee.public_id, value="active", actor_user_id=actor_user_id, commit=False, **scope
-        )
     docs = 0
     if residence:
         owner = documents.Owner("employee", employee.id, str(employee.public_id), employee.company_id, employee.name)
         docs = _document(db, owner, "residence", residence, actor_user_id)
+    drivers.row(
+        db, employee, row.sheet, row.number, columns, warnings=warnings, actor_user_id=actor_user_id, scope=scope
+    )
     return action, docs
 
 
@@ -255,6 +369,7 @@ def run(
     actor_user_id: int,
     can_set_salary: bool,
     can_open: bool = False,
+    can_manage_devices: bool = False,
     **scope,
 ) -> dict:
     sheets = wb.read(data)
@@ -270,6 +385,7 @@ def run(
     dupes[PEOPLE] |= _duplicates(sheets[PEOPLE], lambda r: wb.text(r, wb.PEOPLE_COLUMNS[3]).replace(" ", ""))
     dupes[OPENING] = _duplicates(sheets[OPENING], lambda r: wb.text(r, wb.OPENING_COLUMNS[2]).replace(" ", ""))
     numbers = [people.next_employee_number(db)]
+    drivers = _DriverApp(codes=org.phone_codes(db), can_set_passwords=can_manage_devices)
     for sheet, handler, bucket in (
         (VEHICLES, _vehicle, "vehicles"),
         (PEOPLE, _person, "people"),
@@ -280,7 +396,12 @@ def run(
                 errors.append(Issue(sheet, row.number, "duplicate_in_file", {"value": dupes[sheet][row.number]}))
                 continue
             extra = {
-                PEOPLE: {"can_set_salary": can_set_salary, "numbers": numbers, "warnings": warnings},
+                PEOPLE: {
+                    "can_set_salary": can_set_salary,
+                    "numbers": numbers,
+                    "warnings": warnings,
+                    "drivers": drivers,
+                },
                 OPENING: {"can_open": can_open},
             }.get(sheet, {})
             try:
@@ -292,6 +413,7 @@ def run(
                 errors.append(Issue(sheet, row.number, exc.code, exc.params))
             except AppError as exc:
                 errors.append(Issue(sheet, row.number, exc.code, exc.params))
+    claims = drivers.set_passwords(db, warnings, actor_user_id) if not errors else 0
     applied = apply and not errors
     if applied:
         audit.record(
@@ -304,6 +426,8 @@ def run(
                 "people": dict(counts["people"]),
                 "opening_balances": counts["opening"]["created"],
                 "documents": counts["documents"],
+                "activated": drivers.activated,
+                "claims": claims,
             },
         )
         db.commit()
@@ -315,6 +439,8 @@ def run(
         "people": {"created": counts["people"]["created"], "updated": counts["people"]["updated"]},
         "documents": counts["documents"],
         "opening_balances": counts["opening"]["created"],
+        "activated": drivers.activated,
+        "claims": claims,
         "errors": [vars(e) for e in errors],
         "warnings": [vars(w) for w in warnings],
     }
@@ -395,6 +521,7 @@ def _mapped_person(db: Session, sheet: str, number: int, row: dict, ctx: dict) -
         raise _RowError("invalid_civil_id", value=civil_id)
     if not name:
         raise _RowError("field_required", field="name")
+    columns = _app_columns(row, civil_id)
     if not _civil_id_ok(civil_id):
         ctx["warnings"].append(Issue(sheet, number, "civil_id_check_digit", {"value": civil_id}))
     job = _cell(row, "job_title") or None
@@ -405,6 +532,7 @@ def _mapped_person(db: Session, sheet: str, number: int, row: dict, ctx: dict) -
         "branch_id": ctx["branch_id"],
         "is_driver": bool(job) and any(k in sheets.norm(job) for k in ctx["keywords"]),
     }
+    ctx["drivers"].check(data["is_driver"], *columns)
     if job:
         data["job_title"] = job
     if _cell(row, "nationality"):
@@ -452,11 +580,7 @@ def _mapped_person(db: Session, sheet: str, number: int, row: dict, ctx: dict) -
         )
         action = "created"
     employee = people.find(db, civil_id=civil_id, phone=None)
-    if employee.is_driver and not employee.phone:
-        ctx["warnings"].append(Issue(sheet, number, "driver_without_phone"))
-        ctx["no_phone"].append(employee)
-    elif employee.is_driver and not employee.is_terminal and employee.app_access == "none":
-        people.set_app_access(db, employee.public_id, value="active", actor_user_id=actor, commit=False, **scope)
+    ctx["drivers"].row(db, employee, sheet, number, columns, warnings=ctx["warnings"], actor_user_id=actor, scope=scope)
     return action, 0
 
 
@@ -473,6 +597,7 @@ def run_mapped(
     apply: bool,
     actor_user_id: int,
     can_set_salary: bool,
+    can_manage_devices: bool = False,
     **scope,
 ) -> dict:
     """Imports the sheets of a client's own workbook as the plan says (from the preview, checked by the user)."""
@@ -492,7 +617,12 @@ def run_mapped(
         "actor_user_id": actor_user_id,
         "scope": scope,
         "warnings": warnings,
-        "no_phone": [],
+        "drivers": _DriverApp(
+            codes=org.phone_codes(db),
+            can_set_passwords=can_manage_devices,
+            days=plan["claim_days"],
+            fallback=plan.get("claim_password"),
+        ),
     }
     for sp in plan["sheets"]:
         sheet = found.get(sp["name"])
@@ -521,11 +651,7 @@ def run_mapped(
                 counts["documents"] += docs
             except (_RowError, AppError) as exc:
                 errors.append(Issue(sheet.name, number, exc.code, exc.params))
-    claims = 0
-    if plan.get("claim_password") and ctx["no_phone"] and not errors:
-        claims = identity.set_claims(
-            db, ctx["no_phone"], password=plan["claim_password"], days=plan["claim_days"], actor_user_id=actor_user_id
-        )["set"]
+    claims = ctx["drivers"].set_passwords(db, warnings, actor_user_id) if not errors else 0
     applied = apply and not errors
     if applied:
         audit.record(
@@ -537,6 +663,7 @@ def run_mapped(
                 "vehicles": dict(counts["vehicles"]),
                 "people": dict(counts["people"]),
                 "documents": counts["documents"],
+                "activated": ctx["drivers"].activated,
                 "claims": claims,
             },
         )
@@ -549,6 +676,7 @@ def run_mapped(
         "people": {"created": counts["people"]["created"], "updated": counts["people"]["updated"]},
         "documents": counts["documents"],
         "opening_balances": 0,
+        "activated": ctx["drivers"].activated,
         "claims": claims,
         "errors": [vars(e) for e in errors],
         "warnings": [vars(w) for w in warnings],
