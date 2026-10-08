@@ -10,10 +10,11 @@ import 'home.dart';
 /// Start or end of the day: a photo of the odometer from the app's camera, then the reading. Saved with the
 /// photo's own time and sent at once, or later if there is no network.
 class OdometerScreen extends StatefulWidget {
-  const OdometerScreen({super.key, required this.state, required this.kind});
+  const OdometerScreen({super.key, required this.state, required this.kind, this.requestId});
 
   final AppState state;
-  final String kind; // start_day | end_day
+  final String kind; // start_day | end_day | pickup (the car collected from the maintenance center)
+  final String? requestId; // pickup: the maintenance request
 
   @override
   State<OdometerScreen> createState() => _OdometerScreenState();
@@ -39,14 +40,21 @@ class _OdometerScreenState extends State<OdometerScreen> {
     }
     if (!_form.currentState!.validate()) return;
     try {
-      final r = await widget.state.sendReading(
-        kind: widget.kind,
-        km: int.parse(_km.text),
-        photoPath: photo!.path,
-        takenAt: photo!.takenAt,
-        lat: photo!.lat,
-        lng: photo!.lng,
-      );
+      final r = widget.kind == 'pickup'
+          ? await widget.state.sendPickup(
+              requestId: widget.requestId!,
+              km: int.parse(_km.text),
+              photoPath: photo!.path,
+              takenAt: photo!.takenAt,
+            )
+          : await widget.state.sendReading(
+              kind: widget.kind,
+              km: int.parse(_km.text),
+              photoPath: photo!.path,
+              takenAt: photo!.takenAt,
+              lat: photo!.lat,
+              lng: photo!.lng,
+            );
       if (mounted) Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ResultScreen(result: r)));
     } catch (e) {
       if (mounted) showError(context, widget.state, e);
@@ -58,13 +66,22 @@ class _OdometerScreenState extends State<OdometerScreen> {
     final l = context.l;
     final km = int.tryParse(_km.text);
     return Scaffold(
-      appBar: AppBar(title: Text(widget.kind == 'start_day' ? l.startDayTitle : l.endDayTitle)),
+      appBar: AppBar(
+        title: Text(switch (widget.kind) {
+          'start_day' => l.startDayTitle,
+          'pickup' => l.pickupTitle,
+          _ => l.endDayTitle,
+        }),
+      ),
       body: Form(
         key: _form,
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            Text(l.odometerIntro, style: const TextStyle(color: AppColors.muted, height: 1.7)),
+            Text(
+              widget.kind == 'pickup' ? l.pickupIntro : l.odometerIntro,
+              style: const TextStyle(color: AppColors.muted, height: 1.7),
+            ),
             const SizedBox(height: 16),
             PhotoTile(key: const Key('odo-photo'), label: l.odometerPhoto, path: photo?.path, onTap: _take),
             if (photo != null)

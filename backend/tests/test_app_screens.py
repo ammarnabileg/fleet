@@ -60,6 +60,9 @@ def test_every_screen_shows_until_the_office_hides_it_and_the_server_refuses_it_
             assert r.status_code == 200, key
     r = client.post("/api/v1/driver/maintenance", json={}, headers=driver)  # sending too, not only reading
     assert r.status_code == 403 and r.json()["code"] == "screen_off"
+    assert client.get("/api/v1/driver/maintenance/form", headers=driver).json()["code"] == "screen_off"
+    r = client.post(f"/api/v1/driver/maintenance/{uuid.uuid4()}/picked-up", json={}, headers=driver)
+    assert r.status_code == 403 and r.json()["code"] == "screen_off"
     assert client.get("/api/v1/driver/today", headers=driver).status_code == 200  # the day itself is never hidden
 
     save(admin_client, hidden_screens=list(SCREENS))

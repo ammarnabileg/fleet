@@ -87,13 +87,36 @@ class RequestIn(_In):
 
 
 class DriverRequestIn(_In):
-    """From the driver app, for the vehicle the driver holds. client_ref: the app's id, so a retry is recognised."""
+    """From the driver app, for the vehicle the driver holds. client_ref: the app's id, so a retry is recognised.
+    center_id: the center he takes the car to, when requests go straight to the center (the settings)."""
 
     client_ref: uuid.UUID
     kind: Kind
     description: Text
     odometer_km: Annotated[int, Field(ge=0, le=5_000_000)] | None = None
     photos: list[Sha] = Field(default_factory=list, max_length=10)
+    center_id: uuid.UUID | None = None
+
+
+class DriverCenterOut(BaseModel):
+    id: str
+    name: str
+    specialty: str | None
+    phone: str | None
+    address: str | None
+
+
+class DriverFormOut(BaseModel):
+    direct_to_center: bool  # he picks the center and the request goes straight to it
+    centers: list[DriverCenterOut]
+
+
+class DriverPickupIn(_In):
+    """The driver collected the car from the center: its odometer, photographed with this phone's camera."""
+
+    odometer_km: Annotated[int, Field(ge=0, le=5_000_000)]
+    odometer_photo: Sha
+    picked_up_at: AwareDatetime | None = None  # when the photo was taken (sent later from the queue)
 
 
 class NoteIn(_In):

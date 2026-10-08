@@ -9,6 +9,7 @@ import '../photos.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'home.dart';
+import 'odometer.dart';
 
 const maintenanceKinds = ['periodic', 'mechanical', 'electrical', 'tyres', 'battery', 'ac', 'bodywork', 'other'];
 
@@ -53,6 +54,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
   final _description = TextEditingController();
   final _km = TextEditingController();
   String kind = 'mechanical';
+  String? centerId; // straight to the center: the one he leaves the car at
   final photos = <TakenPhoto>[];
 
   @override
@@ -83,6 +85,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
         description: _description.text.trim(),
         km: int.tryParse(_km.text),
         photoPaths: [for (final p in photos) p.path],
+        centerId: widget.state.maintenanceForm.direct ? centerId : null,
       );
       if (mounted) Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ResultScreen(result: r)));
     } catch (e) {
@@ -95,6 +98,11 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
     final l = context.l;
     final custody = widget.state.today?.custody;
     final requests = widget.state.maintenance;
+    final form = widget.state.maintenanceForm;
+    final picked = [
+      for (final c in form.centers)
+        if (c.id == centerId) c,
+    ].firstOrNull;
     return Scaffold(
       appBar: AppBar(title: Text(l.maintenanceTitle)),
       body: RefreshIndicator(
@@ -105,7 +113,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
             padding: const EdgeInsets.all(20),
             children: [
               for (final r in requests.where((r) => r.isReady)) ...[
-                ReadyBanner(request: r),
+                ReadyBanner(request: r, state: widget.state),
                 const SizedBox(height: 12),
               ],
               if (custody == null)
@@ -113,8 +121,43 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
               else ...[
                 Text(l.mntNew, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
-                Text(l.mntIntro, style: const TextStyle(color: AppColors.muted, height: 1.6)),
+                Text(
+                  form.direct ? l.mntDirectIntro : l.mntIntro,
+                  style: const TextStyle(color: AppColors.muted, height: 1.6),
+                ),
                 const SizedBox(height: 16),
+                if (form.direct) ...[
+                  DropdownButtonFormField<String>(
+                    key: const Key('mnt-center'),
+                    initialValue: centerId,
+                    isExpanded: true,
+                    decoration: InputDecoration(labelText: l.mntCenter),
+                    items: [
+                      for (final c in form.centers)
+                        DropdownMenuItem(
+                          value: c.id,
+                          child: Text(
+                            [c.name, if (c.specialty != null) c.specialty!].join(' · '),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (v) => setState(() => centerId = v),
+                    validator: (v) => v == null ? l.required : null,
+                  ),
+                  if (picked != null && (picked.address != null || picked.phone != null)) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      [
+                        picked.address,
+                        if (picked.phone != null) '\u2066${picked.phone}\u2069',
+                      ].whereType<String>().join(' · '),
+                      key: const Key('mnt-center-where'),
+                      style: const TextStyle(color: AppColors.muted, height: 1.5),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                ],
                 DropdownButtonFormField<String>(
                   key: const Key('mnt-kind'),
                   initialValue: kind,
@@ -203,11 +246,13 @@ class _RequestTile extends StatelessWidget {
   }
 }
 
-/// "Your vehicle is ready at the center": where to collect it (home screen and the maintenance screen).
+/// "Your vehicle is ready at the center": where to collect it (home screen and the maintenance screen). Straight
+/// to the center, he confirms the pickup himself and the car is his again.
 class ReadyBanner extends StatelessWidget {
-  const ReadyBanner({super.key, required this.request});
+  const ReadyBanner({super.key, required this.request, required this.state});
 
   final MaintenanceRequest request;
+  final AppState state;
 
   @override
   Widget build(BuildContext context) {
@@ -216,12 +261,30 @@ class ReadyBanner extends StatelessWidget {
         ? null
         : '\u2066${request.centerPhone}\u2069'; // a number reads left to right
     final where = [request.centerAddress, phone].whereType<String>().join(' · ');
-    return Banner2(
+    final banner = Banner2(
       text:
           l.mntReadyBanner('\u2066${request.plate}\u2069', request.centerName ?? '') +
           (where.isEmpty ? '' : '\n$where'),
       tone: BannerTone.success,
       icon: Icons.car_repair,
+    );
+    if (!state.maintenanceForm.direct) return banner;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        banner,
+        const SizedBox(height: 8),
+        FilledButton.icon(
+          key: Key('mnt-picked-up-${request.number}'),
+          icon: const Icon(Icons.key),
+          label: Text(l.mntPickedUp),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => OdometerScreen(state: state, kind: 'pickup', requestId: request.id),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

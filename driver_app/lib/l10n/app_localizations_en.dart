@@ -647,6 +647,26 @@ class AppLocalizationsEn extends AppLocalizations {
       'Describe the problem and take photos. Your supervisor approves the request and chooses the maintenance center.';
 
   @override
+  String get mntDirectIntro =>
+      'Describe the problem, take photos, and choose the maintenance center where you will leave the car. The request goes straight to the center, which tells you when the car is ready.';
+
+  @override
+  String get mntCenter => 'Maintenance center';
+
+  @override
+  String get mntPickedUp => 'I collected the car';
+
+  @override
+  String get pickupTitle => 'Collecting the car from the center';
+
+  @override
+  String get pickupIntro =>
+      'Photograph the odometer and enter the reading when you collect the car: it is back in your custody and you start your day as usual.';
+
+  @override
+  String get kind_pickup => 'Car collected from maintenance';
+
+  @override
   String get mntNoVehicle => 'Maintenance is requested for the vehicle in your custody. You have none now.';
 
   @override

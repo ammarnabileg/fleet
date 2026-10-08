@@ -183,6 +183,7 @@ Future<World> world({
     ),
   );
   server.on('GET', '/api/v1/driver/maintenance', (r) => (200, maintenance ?? []));
+  server.on('GET', '/api/v1/driver/maintenance/form', (r) => (200, {'direct_to_center': false, 'centers': []}));
   server.on('GET', '/api/v1/driver/accidents', (r) => (200, accidents ?? []));
   server.on('GET', '/api/v1/driver/fines', (r) => (200, fines ?? []));
   return World(state, server);
@@ -1364,6 +1365,141 @@ void main() {
     expect(find.textContaining('جاهزة للاستلام من مركز النور'), findsOneWidget);
     expect(find.textContaining('الشويخ'), findsOneWidget);
     await shot(tester, '14-maintenance-ready');
+  });
+
+  Map<String, dynamic> directForm() => {
+    'direct_to_center': true,
+    'centers': [
+      {'id': 'k1', 'name': 'مركز النور', 'specialty': 'ميكانيكا', 'phone': '+965 2222 1100', 'address': 'الشويخ'},
+      {'id': 'k2', 'name': 'مركز الفجر', 'specialty': 'كهرباء', 'phone': null, 'address': 'الري، شارع 4'},
+    ],
+  };
+
+  testWidgets('straight to the center: he picks where he leaves the car and the request goes to it', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on('GET', '/api/v1/driver/maintenance/form', (r) => (200, directForm()));
+    final img = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.now());
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'c' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on(
+      'POST',
+      '/api/v1/driver/maintenance',
+      (r) => (
+        201,
+        {
+          'id': 'm1',
+          'number': 42,
+          'vehicle_plate': '18/23456',
+          'kind': 'electrical',
+          'description': 'x',
+          'status': 'referred',
+          'center': {'id': 'k2', 'name': 'مركز الفجر', 'phone': null, 'address': 'الري، شارع 4'},
+          'created_at': '2026-10-04T07:00:00Z',
+          'ready_at': null,
+          'picked_up_at': null,
+          'decision_note': null,
+        },
+      ),
+    );
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('maintenance')));
+    await idle(tester);
+    expect(find.textContaining('يصل الطلب للمركز مباشرة'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('mnt-description')), 'البطارية لا تشحن');
+    await tester.ensureVisible(find.byKey(const Key('mnt-send')));
+    await tester.tap(find.byKey(const Key('mnt-send')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/maintenance', method: 'POST'), isEmpty, reason: 'the center is required');
+    await tester.ensureVisible(find.byKey(const Key('mnt-center')));
+    await tester.tap(find.byKey(const Key('mnt-center')));
+    await settle(tester);
+    await tester.tap(find.text('مركز الفجر · كهرباء').last);
+    await settle(tester);
+    expect(find.textContaining('الري، شارع 4'), findsOneWidget);
+    await shot(tester, '15-maintenance-direct');
+    await tester.ensureVisible(find.byKey(const Key('mnt-send')));
+    await tester.tap(find.byKey(const Key('mnt-send')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/maintenance', method: 'POST').single.body) as Map;
+    expect((body['center_id'], body['description']), ('k2', 'البطارية لا تشحن'));
+  });
+
+  testWidgets('the car ready at the center: he collects it himself and it is his again', (tester) async {
+    var collected = false;
+    final w = (await tester.runAsync(
+      () => world(
+        today: {'custody': null, 'start_day_done': false, 'end_day_done': false},
+        maintenance: [
+          {
+            'id': 'm1',
+            'number': 41,
+            'vehicle_plate': '18/23456',
+            'kind': 'mechanical',
+            'description': 'Noise',
+            'status': 'ready',
+            'center': {'id': 'k1', 'name': 'مركز النور', 'phone': '+965 2222 1100', 'address': 'الشويخ'},
+            'created_at': '2026-10-03T07:00:00Z',
+            'ready_at': '2026-10-04T09:00:00Z',
+            'picked_up_at': null,
+            'decision_note': null,
+          },
+        ],
+      ),
+    ))!;
+    w.server.on('GET', '/api/v1/driver/maintenance/form', (r) => (200, directForm()));
+    w.server.on(
+      'GET',
+      '/api/v1/driver/today',
+      (r) => (
+        200,
+        {
+          'custody': collected
+              ? {
+                  'id': 'c2',
+                  'plate_number': '18/23456',
+                  'started_at': '2026-10-04T10:00:00Z',
+                  'last_odometer_km': 45300,
+                }
+              : null,
+          'start_day_done': false,
+          'end_day_done': false,
+        },
+      ),
+    );
+    final img = await tester.runAsync(testImage);
+    final taken = DateTime.utc(2026, 10, 4, 10, 5);
+    Photos.camera = (_) async => TakenPhoto(img!, taken);
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'c' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('POST', '/api/v1/driver/maintenance/m1/picked-up', (r) {
+      collected = true;
+      return (200, {'id': 'm1'});
+    });
+    await pumpApp(tester, w);
+    expect(find.byKey(const Key('start-day')), findsNothing, reason: 'no car yet');
+    await tester.tap(find.byKey(const Key('mnt-picked-up-41')));
+    await settle(tester);
+    expect(find.text('استلام السيارة من المركز'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('odo-photo')));
+    await idle(tester);
+    await tester.enterText(find.byKey(const Key('km')), '45300');
+    await tester.tap(find.byKey(const Key('send-reading')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/maintenance/m1/picked-up').single.body) as Map;
+    expect(
+      (body['odometer_km'], body['odometer_photo'], body['picked_up_at'], body.containsKey('request_id')),
+      (45300, 'c' * 64, '2026-10-04T10:05:00.000Z', false),
+    );
+    await tester.tap(find.text('تم'));
+    await settle(tester);
+    expect(find.byKey(const Key('start-day')), findsOneWidget, reason: 'the car is his again: his day can start');
   });
 
   Map<String, dynamic> accident({

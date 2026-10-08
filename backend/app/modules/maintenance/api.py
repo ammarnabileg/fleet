@@ -450,3 +450,28 @@ def driver_request(
 )
 def my_requests(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
     return service.for_driver(db, device.employee_id)
+
+
+@router.get(
+    "/driver/maintenance/form",
+    response_model=schemas.DriverFormOut,
+    dependencies=[Depends(org.screen("maintenance"))],
+)
+def driver_form(_: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
+    return service.driver_form(db)
+
+
+@router.post(
+    "/driver/maintenance/{public_id}/picked-up",
+    response_model=schemas.DriverRequestOut,
+    dependencies=[Depends(org.screen("maintenance"))],
+)
+def driver_picked_up(
+    public_id: uuid.UUID,
+    body: schemas.DriverPickupIn,
+    device: DevicePrincipal = Depends(require_device),
+    db: Session = Depends(get_session),
+):
+    return service.driver_picked_up(
+        db, public_id, employee_id=device.employee_id, device_id=device.device_id, data=body.model_dump()
+    )

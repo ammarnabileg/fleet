@@ -77,8 +77,10 @@
       var avg = stays.length ? BT.sum(stays, function (r) { return r.stay_seconds; }) / stays.length : null;
       BT.render(body, h`<div class="kpis">
           ${BT.kpi({ label: 'لدى المركز', value: String(rows.length), sub: rows.filter(function (r) { return r.is_new; }).length + ' جديدة لم تُفتح', dot: 'b' })}
-          ${BT.kpi({ label: 'بانتظار اعتماد العرض', value: String(rows.filter(function (r) { return r.status === 'quote_pending'; }).length), sub: 'لا يبدأ الإصلاح قبل الاعتماد', dot: 'o' })}
-          ${BT.kpi({ label: 'جاهزة للاستلام', value: String(rows.filter(function (r) { return r.status === 'ready'; }).length), sub: 'أُبلغت الإدارة', dot: 'g' })}
+          ${P.center && P.center.direct_to_center
+            ? BT.kpi({ label: 'قيد الإصلاح', value: String(rows.filter(function (r) { return ['received', 'inspection', 'in_repair', 'waiting_parts', 'quote_pending'].indexOf(r.status) > -1; }).length), sub: 'من الاستلام حتى اكتمال الإصلاح', dot: 'o' })
+            : BT.kpi({ label: 'بانتظار اعتماد العرض', value: String(rows.filter(function (r) { return r.status === 'quote_pending'; }).length), sub: 'لا يبدأ الإصلاح قبل الاعتماد', dot: 'o' })}
+          ${BT.kpi({ label: 'جاهزة للاستلام', value: String(rows.filter(function (r) { return r.status === 'ready'; }).length), sub: P.center && P.center.direct_to_center ? 'أُبلغ السائق' : 'أُبلغت الإدارة', dot: 'g' })}
           ${BT.kpi({ label: 'متوسط مدة البقاء', value: M.dur(avg), sub: 'للسيارات المستلمة', dot: 'p' })}
         </div>
         <div class="card" style="padding:10px 12px"><div class="flow">${M.AT_CENTER.map(function (s, i) {
@@ -213,19 +215,24 @@
     api.get('/portal/requests/' + p.id).then(function (r) {
       if (!document.contains(v)) return;
       setTitle('طلب #' + r.number + ' · ' + r.vehicle.plate_number, [['السيارات المحالة', 'requests'], ['#' + r.number]]);
-      var acts = [], s = r.status;
+      var acts = [], s = r.status, direct = !!(P.center && P.center.direct_to_center);
       var hasInvoice = r.invoices.some(function (i) { return i.status !== 'rejected'; });
+      var early = ['received', 'inspection'].indexOf(s) > -1;
       if (s === 'referred') acts.push(['تسجيل الاستلام', 'log-in', 'btn-primary', 'receive']);
       if (s === 'received') acts.push(['بدء الفحص', 'search', 'btn-secondary', 'inspection']);
-      if (['received', 'inspection'].indexOf(s) > -1 && api.can('portal.quotes')) acts.push(['إرسال عرض السعر', 'file-plus', 'btn-primary', 'quote']);
+      // الطلب من السائق مباشرة: الإصلاح لا ينتظر عرض سعر (العرض اختياري)، والفاتورة قبل إبلاغ السائق
+      if (direct && early) acts.push(['بدء الإصلاح', 'wrench', 'btn-secondary', 'start_repair']);
+      if (early && api.can('portal.quotes')) acts.push([direct ? 'عرض سعر (اختياري)' : 'إرسال عرض السعر', 'file-plus', direct ? 'btn-ghost' : 'btn-primary', 'quote']);
       if (['in_repair', 'waiting_parts'].indexOf(s) > -1 && api.can('portal.quotes')) acts.push(['عرض سعر معدّل', 'file-plus', 'btn-ghost', 'quote']);
       if (s === 'in_repair') acts.push(['بانتظار قطع', 'package', 'btn-secondary', 'waiting_parts']);
       if (s === 'waiting_parts') acts.push(['استئناف الإصلاح', 'wrench', 'btn-secondary', 'in_repair']);
-      if (['in_repair', 'waiting_parts'].indexOf(s) > -1) acts.push(['اكتمل الإصلاح', 'circle-check', 'btn-primary', 'complete']);
-      if (s === 'completed') acts.push(['جاهزة للاستلام', 'bell-ring', 'btn-primary', 'ready']);
-      if (s === 'ready') acts.push(['تم الاستلام', 'log-out', 'btn-secondary', 'picked']);
-      if (['completed', 'ready', 'picked_up'].indexOf(s) > -1 && !hasInvoice && api.can('portal.invoices')) acts.push(['إدخال الفاتورة', 'receipt-text', s === 'picked_up' ? 'btn-primary' : 'btn-outline', 'invoice']);
+      if (['in_repair', 'waiting_parts'].indexOf(s) > -1 || (direct && early)) acts.push(['اكتمل الإصلاح', 'circle-check', 'btn-primary', 'complete']);
+      if (['completed', 'ready', 'picked_up'].indexOf(s) > -1 && !hasInvoice && api.can('portal.invoices')) acts.push(['إدخال الفاتورة', 'receipt-text', s === 'picked_up' || (direct && s === 'completed') ? 'btn-primary' : 'btn-outline', 'invoice']);
+      if (s === 'completed' && (!direct || hasInvoice)) acts.push(['جاهزة للاستلام', 'bell-ring', 'btn-primary', 'ready']);
+      if (s === 'ready' && !direct) acts.push(['تم الاستلام', 'log-out', 'btn-secondary', 'picked']);
+      var hint = !direct ? '' : s === 'completed' && !hasInvoice ? 'أدخل فاتورة الصيانة، ثم «جاهزة للاستلام» ليُبلَّغ السائق.' : s === 'ready' ? 'أُبلغ السائق. يؤكد الاستلام من تطبيقه عند خروج السيارة، فتعود في عهدته.' : '';
       BT.render(v, h`${head(h`${M.vehicleLine(r.vehicle)} · طلب <span class="num">#${r.number}</span>`, h`${M.status(r.status)} · ${M.kind(r.kind)}${r.emergency ? ' · طارئة' : ''}`, h`${acts.map(function (a) { return h`<button type="button" class="btn ${a[2]}" data-act="${a[3]}">${icon(a[1], 15)}${a[0]}</button>`; })}`)}
+        ${hint ? h`<div class="banner info mb-16" data-direct-hint>${icon('info', 16)}<div>${hint}</div></div>` : ''}
         ${M.detail(r, fileUrl(r.id))}`);
       BT.on(v, 'click', '[data-act]', function (e, b) { ACT[b.getAttribute('data-act')](r); });
     }, function (err) { if (document.contains(v)) BT.render(v, errorBox(err)); });
@@ -255,6 +262,7 @@
     },
     inspection: function (r) { status(r, 'inspection', 'بدء الفحص'); },
     in_repair: function (r) { status(r, 'in_repair', 'استئناف الإصلاح'); },
+    start_repair: function (r) { status(r, 'in_repair', 'بدء الإصلاح'); },
     waiting_parts: function (r) { status(r, 'waiting_parts', 'بانتظار قطع'); },
     quote: function (r) {
       var ed;
@@ -292,7 +300,7 @@
     ready: function (r) {
       form({
         title: 'السيارة جاهزة للاستلام', subtitle: r.vehicle.plate_number, icon: 'bell-ring', size: 'sm',
-        body: h`<p>تُبلَّغ الإدارة فوراً، ويرى السائق أن سيارته جاهزة في التطبيق.</p><div class="form mt-12">${BT.f.textarea({ name: 'note', label: 'ملاحظة (موعد الاستلام مثلاً)', optional: true, rows: 2 })}</div>`,
+        body: h`<p>${P.center && P.center.direct_to_center ? 'يُبلَّغ السائق ليأتي ويستلمها، ويؤكد الاستلام من التطبيق. وتراها الإدارة.' : 'تُبلَّغ الإدارة فوراً، ويرى السائق أن سيارته جاهزة في التطبيق.'}</p><div class="form mt-12">${BT.f.textarea({ name: 'note', label: 'ملاحظة (موعد الاستلام مثلاً)', optional: true, rows: 2 })}</div>`,
         submitText: 'جاهزة', done: 'أُبلغت الإدارة والسائق',
         submit: function (f) { return api.post('/portal/requests/' + r.id + '/ready', { note: f.note || null }); }
       });

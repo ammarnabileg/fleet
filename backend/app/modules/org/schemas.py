@@ -101,6 +101,9 @@ class DriverAppSettings(_Section):
 class MaintenanceSettings(_Section):
     approval_limit: Decimal = Field(Decimal("100.000"), ge=0, max_digits=12, decimal_places=3)  # quotes above it
     close_requires_invoice: bool = True  # a picked-up request closes once its invoice is approved
+    # the driver sends the request straight to the center he picks: no office approval or referral, no quote needed;
+    # the center repairs, uploads its invoice, and calls him to collect the car, which comes back to him
+    direct_to_center: bool = False
 
 
 class AccidentsSettings(_Section):

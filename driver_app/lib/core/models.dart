@@ -250,6 +250,25 @@ class Onboarding {
 }
 
 /// A maintenance request as the driver follows it (the office and the center do the rest).
+/// A center the driver may take the car to, when requests go straight to the center.
+class MaintenanceCenter {
+  MaintenanceCenter({required this.id, required this.name, this.specialty, this.phone, this.address});
+
+  factory MaintenanceCenter.fromJson(Map<String, dynamic> j) => MaintenanceCenter(
+    id: j['id'] as String,
+    name: j['name'] as String,
+    specialty: j['specialty'] as String?,
+    phone: j['phone'] as String?,
+    address: j['address'] as String?,
+  );
+
+  final String id;
+  final String name;
+  final String? specialty;
+  final String? phone;
+  final String? address;
+}
+
 class MaintenanceRequest {
   MaintenanceRequest({
     required this.id,

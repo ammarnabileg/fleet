@@ -27,7 +27,7 @@
     if (api.can('invoices.view')) tabs.push(['invoices', 'الفواتير']);
     if (api.can('maintenance.view')) tabs.push(['centers', 'مراكز الصيانة']);
     var tab = tabs.some(function (t) { return t[0] === q.tab; }) ? q.tab : tabs[0][0];
-    BT.render(v, h`${A.head('الصيانة ومراكزها', 'كل طلب يمر بالاعتماد ثم الإحالة لمركز يحدّث حالته من بوابته؛ مدة البقاء والفواتير تُتابع هنا', h`${api.can('maintenance.create') ? A.btn('طلب صيانة', { icon: 'plus', cls: 'btn-primary', action: 'mnt-new' }) : ''}${api.can('invoices.create') ? A.btn('فاتورة من مركز', { icon: 'receipt-text', cls: 'btn-outline', action: 'mnt-invoice' }) : ''}`)}
+    BT.render(v, h`${A.head('الصيانة ومراكزها', 'طلب الإدارة يمر بالاعتماد ثم الإحالة لمركز يحدّث حالته من بوابته (وطلب السائق يذهب للمركز الذي يختاره مباشرة إن فُعّل ذلك في الإعدادات)؛ مدة البقاء والفواتير تُتابع هنا', h`${api.can('maintenance.create') ? A.btn('طلب صيانة', { icon: 'plus', cls: 'btn-primary', action: 'mnt-new' }) : ''}${api.can('invoices.create') ? A.btn('فاتورة من مركز', { icon: 'receipt-text', cls: 'btn-outline', action: 'mnt-invoice' }) : ''}`)}
       ${tabs.length > 1 ? BT.tabs('mnt', tabs, tab, 'tabs-line') : ''}
       ${tabs.map(function (t) { return h`<div data-panel="${t[0]}" data-group="mnt" class="${t[0] === tab ? 'active' : ''}"><div data-p="${t[0]}"></div></div>`; })}`);
     var drawn = {};
@@ -165,9 +165,18 @@
   /* ================= الفواتير ================= */
   var INV_CHIPS = { pending: { status: 'pending' }, unpaid: { status: 'approved', payment_status: 'unpaid' }, paid: { payment_status: 'paid' }, rejected: { status: 'rejected' } };
   function invoicesPanel(el) {
-    BT.render(el, h`<div class="card"><div data-t></div></div>`);
+    // المحاسبة الدورية مع مركز: فواتيره وحده (المعتمدة غير المدفوعة هي مستحقاته)
+    var center = '';
+    BT.render(el, h`<div class="card">${api.can('maintenance.view') ? h`<div class="toolbar" style="margin:0 0 8px"><select class="input" data-inv-center style="max-width:280px" aria-label="المركز"><option value="">كل المراكز</option></select></div>` : ''}<div data-t></div></div>`);
+    var sel = el.querySelector('[data-inv-center]');
+    if (sel) {
+      api.get('/maintenance/centers').then(function (cs) {
+        cs.forEach(function (c) { var o = document.createElement('option'); o.value = c.id; o.textContent = c.name; sel.appendChild(o); });
+      }, function () { sel.remove(); });
+      sel.addEventListener('change', function () { center = sel.value; t.refresh(); });
+    }
     var t = BT.table(el.querySelector('[data-t]'), {
-      fetch: function (s) { return api.get('/maintenance/invoices', Object.assign({ limit: s.limit, offset: s.offset }, INV_CHIPS[s.chip] || {})); },
+      fetch: function (s) { return api.get('/maintenance/invoices', Object.assign({ limit: s.limit, offset: s.offset, center_id: center }, INV_CHIPS[s.chip] || {})); },
       chips: { value: 'pending', all: 'الكل', options: [{ v: 'pending', t: 'بانتظار الاعتماد' }, { v: 'unpaid', t: 'معتمدة غير مدفوعة' }, { v: 'paid', t: 'مدفوعة' }, { v: 'rejected', t: 'مرفوضة' }] },
       columns: [
         { key: 'number', label: 'الفاتورة', render: function (i) { return h`<span class="num">${i.number}</span><span class="sub">${fmt.date(i.invoice_date)}</span>`; } },

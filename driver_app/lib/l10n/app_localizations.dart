@@ -1268,6 +1268,42 @@ abstract class AppLocalizations {
   /// **'صِف المشكلة وصوّرها من الكاميرا. يصل الطلب للمشرف ليعتمده ويحدد مركز الصيانة.'**
   String get mntIntro;
 
+  /// No description provided for @mntDirectIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'صِف المشكلة وصوّرها من الكاميرا، واختر مركز الصيانة الذي ستترك السيارة عنده. يصل الطلب للمركز مباشرة، ويُبلغك عندما تكون السيارة جاهزة.'**
+  String get mntDirectIntro;
+
+  /// No description provided for @mntCenter.
+  ///
+  /// In ar, this message translates to:
+  /// **'مركز الصيانة'**
+  String get mntCenter;
+
+  /// No description provided for @mntPickedUp.
+  ///
+  /// In ar, this message translates to:
+  /// **'استلمت السيارة'**
+  String get mntPickedUp;
+
+  /// No description provided for @pickupTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'استلام السيارة من المركز'**
+  String get pickupTitle;
+
+  /// No description provided for @pickupIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'صوّر عداد السيارة واكتب القراءة عند استلامها من المركز: تعود السيارة في عهدتك وتبدأ يومك كالمعتاد.'**
+  String get pickupIntro;
+
+  /// No description provided for @kind_pickup.
+  ///
+  /// In ar, this message translates to:
+  /// **'استلام سيارة من الصيانة'**
+  String get kind_pickup;
+
   /// No description provided for @mntNoVehicle.
   ///
   /// In ar, this message translates to:

@@ -696,6 +696,136 @@ void main() {
   );
 
   test(
+    'maintenance straight to the center: picked by the driver, repaired, invoiced, collected, his again',
+    () async {
+      final admin = await signedInAdmin();
+      Future<void> direct(bool on) async {
+        final settings = await admin.call('GET', '/settings') as Map;
+        final current = settings['maintenance'] as Map;
+        await admin.call('PUT', '/settings/maintenance', {
+          'version': current['version'],
+          'value': {...current['value'] as Map, 'direct_to_center': on},
+        });
+      }
+
+      await direct(true);
+      addTearDown(() => direct(false));
+      final n = DateTime.now().millisecondsSinceEpoch % 10000000;
+      final company = await companyId(admin);
+      final driver = await admin.call('POST', '/employees', {
+        'employee_number': 'M$n',
+        'name': {'ar': 'سائق الصيانة', 'en': 'Maintenance Driver'},
+        'company_id': company,
+        'is_driver': true,
+        'phone': '+9656${n.toString().padLeft(7, '0')}',
+      });
+      await admin.call('PUT', '/employees/${driver['id']}/app-access', {'app_access': 'active'});
+      final vehicle = await admin.call('POST', '/vehicles', {
+        'plate_number': '66/$n',
+        'company_id': company,
+        'last_odometer_km': 40000,
+      });
+      await admin.call('POST', '/custodies', {
+        'vehicle_id': vehicle['id'],
+        'driver_id': driver['id'],
+        'odometer_km': 40000,
+        'photo_sha256': await admin.upload(await jpeg('handover')),
+        'started_at': DateTime.now().toUtc().subtract(const Duration(hours: 2)).toIso8601String(),
+      });
+      final center = await admin.call('POST', '/maintenance/centers', {
+        'name': 'Direct Garage $n',
+        'address': 'Shuwaikh, block 1',
+      });
+      await admin.call('POST', '/maintenance/centers/${center['id']}/users', {
+        'username': 'dg$n',
+        'full_name': 'Direct Garage',
+        'password': 'correct-horse-battery-$n',
+      });
+      final link = await admin.call('POST', '/employees/${driver['id']}/activation-link', {
+        'channel': 'manual',
+        'onboarding': false,
+      });
+      final db = await testDb();
+      final state = appAgainstBackend(db);
+      await state.activate(AppState.activationToken(Uri.parse(link['url'] as String))!);
+
+      // ---- the driver picks the center: the request is there at once, no office step
+      await state.loadMaintenance();
+      expect(state.maintenanceForm.direct, isTrue);
+      final picked = state.maintenanceForm.centers.firstWhere((c) => c.name == 'Direct Garage $n');
+      expect(picked.address, 'Shuwaikh, block 1');
+      expect(
+        await state.sendMaintenance(
+          kind: 'electrical',
+          description: 'Battery does not charge',
+          photoPaths: [(await jpeg('mnt')).path],
+          centerId: picked.id,
+        ),
+        SendResult.sent,
+      );
+      final mine = state.maintenance.single;
+      expect((mine.status, mine.centerName), ('referred', 'Direct Garage $n'));
+
+      // ---- the center: reception, done, the invoice, then the driver is called
+      final portal = Admin(backend!);
+      final login = await portal.call('POST', '/auth/login', {
+        'username': 'dg$n',
+        'password': 'correct-horse-battery-$n',
+      });
+      portal.csrf = login['csrf_token'] as String;
+      await portal.call('POST', '/portal/requests/${mine.id}/receive', {
+        'odometer_km': 40050,
+        'odometer_photo': await portal.upload(await jpeg('in')),
+      });
+      await portal.call('POST', '/portal/requests/${mine.id}/complete', {
+        'repair_details': 'Battery replaced',
+        'final_odometer_km': 40052,
+        'final_odometer_photo': await portal.upload(await jpeg('out')),
+      });
+      final day = DateTime.now().toUtc().add(const Duration(hours: 3)).toIso8601String().substring(0, 10);
+      await portal.call('POST', '/portal/invoices', {
+        'request_id': mine.id,
+        'number': 'D-$n',
+        'invoice_date': day,
+        'total': '35.000',
+        'file_sha256': await portal.upload(await jpeg('invoice')),
+        'items': [
+          {'kind': 'part', 'description': 'Battery', 'unit_price': '35.000'},
+        ],
+      });
+      await portal.call('POST', '/portal/requests/${mine.id}/ready', {});
+      await state.loadMaintenance();
+      await state.loadToday();
+      expect((state.maintenance.single.isReady, state.today!.custody), (true, null));
+
+      // ---- he collects it: the car is his again, his day can start
+      expect(
+        await state.sendPickup(
+          requestId: mine.id,
+          km: 40060,
+          photoPath: (await jpeg('pickup')).path,
+          takenAt: DateTime.now().toUtc(),
+        ),
+        SendResult.sent,
+      );
+      expect(state.maintenance.single.status, 'picked_up');
+      expect((state.today!.custody!.plate, state.today!.custody!.lastKm), ('66/$n', 40060));
+      // a retry from the queue is "already collected", not a failure
+      expect(
+        await state.sendPickup(
+          requestId: mine.id,
+          km: 40060,
+          photoPath: (await jpeg('pickup2')).path,
+          takenAt: DateTime.now().toUtc(),
+        ),
+        SendResult.sent,
+      );
+    },
+    skip: backend == null ? 'set BACKEND_URL to run against a real backend' : null,
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test(
     'civil ID and the initial password from the office, the phone, the code step',
     () async {
       final admin = await signedInAdmin();

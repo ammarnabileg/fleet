@@ -52,6 +52,8 @@ class Outbox {
     // after approval he asks for the change; a retry finds his request already waiting
     'report_change': ('/driver/reports/{report_id}/change-request', 'upload', {'change_request_exists'}, 'POST'),
     'maintenance': ('/driver/maintenance', 'camera', {'request_exists'}, 'POST'),
+    // he collected the car from the center (a retry finds it collected already)
+    'maintenance_pickup': ('/driver/maintenance/{request_id}/picked-up', 'camera', {'already_picked_up'}, 'POST'),
     // a renewed document for the office to check (a retry finds it already waiting)
     'renewal': ('/driver/documents/renewals', 'upload', {'renewal_exists'}, 'POST'),
     'accident': ('/driver/accidents', 'camera', {'accident_exists'}, 'POST'),

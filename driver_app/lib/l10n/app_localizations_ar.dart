@@ -643,6 +643,26 @@ class AppLocalizationsAr extends AppLocalizations {
   String get mntIntro => 'صِف المشكلة وصوّرها من الكاميرا. يصل الطلب للمشرف ليعتمده ويحدد مركز الصيانة.';
 
   @override
+  String get mntDirectIntro =>
+      'صِف المشكلة وصوّرها من الكاميرا، واختر مركز الصيانة الذي ستترك السيارة عنده. يصل الطلب للمركز مباشرة، ويُبلغك عندما تكون السيارة جاهزة.';
+
+  @override
+  String get mntCenter => 'مركز الصيانة';
+
+  @override
+  String get mntPickedUp => 'استلمت السيارة';
+
+  @override
+  String get pickupTitle => 'استلام السيارة من المركز';
+
+  @override
+  String get pickupIntro =>
+      'صوّر عداد السيارة واكتب القراءة عند استلامها من المركز: تعود السيارة في عهدتك وتبدأ يومك كالمعتاد.';
+
+  @override
+  String get kind_pickup => 'استلام سيارة من الصيانة';
+
+  @override
   String get mntNoVehicle => 'تطلب الصيانة للسيارة التي في عهدتك. لا توجد سيارة معك الآن.';
 
   @override

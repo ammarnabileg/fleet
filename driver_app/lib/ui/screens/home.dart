@@ -132,7 +132,7 @@ class HomeTab extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           for (final r in state.maintenance.where((r) => r.isReady && state.shows('maintenance'))) ...[
-            ReadyBanner(request: r),
+            ReadyBanner(request: r, state: state),
             const SizedBox(height: 12),
           ],
           for (final a in state.accidents.where((a) => a.awaitsPoliceReport && state.shows('accidents'))) ...[
@@ -350,6 +350,7 @@ class _QueuedTile extends StatelessWidget {
     final what = switch (item.kind) {
       'odometer' => l.kind_odometer,
       'maintenance' => l.kind_maintenance,
+      'maintenance_pickup' => l.kind_pickup,
       'accident' => l.kind_accident,
       'police_report' => l.kind_police_report,
       _ => l.kind_report,

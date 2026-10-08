@@ -638,11 +638,8 @@ def handover(
     _check_moment(started_at)
     vehicle = _get_vehicle(db, vehicle_public_id, lock=True, **scope)
     driver = people.ref_by_public_id(db, driver_public_id, **scope)
-    if not driver.is_driver:
-        raise AppError(422, "not_a_driver")
-    if driver.is_terminal:
-        raise AppError(422, "employment_ended")
     if kind == "emergency":
+        _check_driver(driver)
         if not can_emergency:
             raise AppError(403, "permission_denied", permission="custody.emergency")
         if not reason:
@@ -650,49 +647,23 @@ def handover(
         if vehicle.status == "inactive":
             raise AppError(409, "vehicle_not_available", status=vehicle.status)
     else:
-        if vehicle.status not in ("available", "assigned"):  # assigned: the overlap check gives the precise error
-            raise AppError(409, "vehicle_not_available", status=vehicle.status)
-        if not driver.is_working:
-            raise AppError(422, "driver_not_working")
-        has_license, expiry = documents.current_expiry(db, "driving_license", "employee", driver.id)
-        if has_license and expiry is not None and expiry < business_date(started_at):
-            raise AppError(422, "driving_license_expired", date=expiry.isoformat())
+        _check_can_take(db, vehicle, driver, started_at)
     _check_photo(db, photo_sha256)
     for photo in photos or ():
         _check_photo(db, photo["sha256"])
-    custody = Custody(
-        vehicle_id=vehicle.id,
-        driver_id=driver.id,
-        company_id=vehicle.company_id,
+    custody = _start_custody(
+        db,
+        vehicle,
+        driver,
         started_at=started_at,
         kind=kind,
         reason=reason,
-        needs_review=kind == "emergency",
-        handed_over_by=actor_user_id,
-    )
-    try:
-        with db.begin_nested():
-            db.add(custody)
-            db.flush()
-    except IntegrityError as exc:
-        code = OVERLAP_ERRORS.get(violated_constraint(exc))
-        if code is None:
-            raise
-        raise AppError(409, code) from None
-    db.refresh(custody)
-    _add_reading(
-        db,
-        vehicle,
-        custody,
-        kind="handover",
-        value_km=odometer_km,
+        odometer_km=odometer_km,
         photo_sha256=photo_sha256,
-        recorded_at=started_at,
+        handed_over_by=actor_user_id,
         by_user=actor_user_id,
+        photos=photos,
     )
-    _add_photos(db, custody, "handover", photos)
-    vehicle.status = "assigned"
-    vehicle.version += 1
     if kind == "emergency":
         notifications.raise_alert(
             db,
@@ -712,6 +683,80 @@ def handover(
         company_id=vehicle.company_id,
         after=out | {"odometer_km": odometer_km},
     )
+    if commit:
+        db.commit()
+    return out
+
+
+def _check_driver(driver: people.EmployeeRef) -> None:
+    if not driver.is_driver:
+        raise AppError(422, "not_a_driver")
+    if driver.is_terminal:
+        raise AppError(422, "employment_ended")
+
+
+def _check_can_take(db: Session, vehicle: Vehicle, driver: people.EmployeeRef, started_at: datetime) -> None:
+    """A normal handover: the vehicle free, the driver working with a licence valid that day."""
+    _check_driver(driver)
+    if vehicle.status not in ("available", "assigned"):  # assigned: the overlap check gives the precise error
+        raise AppError(409, "vehicle_not_available", status=vehicle.status)
+    if not driver.is_working:
+        raise AppError(422, "driver_not_working")
+    has_license, expiry = documents.current_expiry(db, "driving_license", "employee", driver.id)
+    if has_license and expiry is not None and expiry < business_date(started_at):
+        raise AppError(422, "driving_license_expired", date=expiry.isoformat())
+
+
+def _start_custody(
+    db: Session,
+    vehicle: Vehicle,
+    driver: people.EmployeeRef,
+    *,
+    started_at: datetime,
+    kind: str,
+    reason: str | None,
+    odometer_km: int,
+    photo_sha256: str,
+    handed_over_by: int,
+    by_user: int | None = None,
+    by_device: int | None = None,
+    photos: list[dict] | None = None,
+) -> Custody:
+    """The custody, its handover reading and photos, the vehicle assigned (vehicle locked, checks done)."""
+    custody = Custody(
+        vehicle_id=vehicle.id,
+        driver_id=driver.id,
+        company_id=vehicle.company_id,
+        started_at=started_at,
+        kind=kind,
+        reason=reason,
+        needs_review=kind == "emergency",
+        handed_over_by=handed_over_by,
+    )
+    try:
+        with db.begin_nested():
+            db.add(custody)
+            db.flush()
+    except IntegrityError as exc:
+        code = OVERLAP_ERRORS.get(violated_constraint(exc))
+        if code is None:
+            raise
+        raise AppError(409, code) from None
+    db.refresh(custody)
+    _add_reading(
+        db,
+        vehicle,
+        custody,
+        kind="handover",
+        value_km=odometer_km,
+        photo_sha256=photo_sha256,
+        recorded_at=started_at,
+        by_user=by_user,
+        by_device=by_device,
+    )
+    _add_photos(db, custody, "handover", photos)
+    vehicle.status = "assigned"
+    vehicle.version += 1
     emit(
         db,
         "custody.started",
@@ -724,8 +769,50 @@ def handover(
             "kind": kind,
         },
     )
-    if commit:
-        db.commit()
+    return custody
+
+
+def hand_back_after_maintenance(
+    db: Session,
+    vehicle_id: int,
+    driver_id: int,
+    *,
+    odometer_km: int,
+    photo_sha256: str,
+    at: datetime,
+    handed_over_by: int,
+    device_id: int,
+) -> dict:
+    """The driver collected the vehicle from the center that repaired it: it is his again, from his own reading
+    and camera photo, without an office handover. handed_over_by is the center account that released it. A
+    driver who now holds another vehicle, has left, or whose licence expired is refused: the office hands over."""
+    _check_moment(at)
+    vehicle = _vehicle_for_update(db, vehicle_id)
+    driver = people.ref(db, driver_id)
+    _check_can_take(db, vehicle, driver, at)
+    _check_photo(db, photo_sha256)
+    custody = _start_custody(
+        db,
+        vehicle,
+        driver,
+        started_at=at,
+        kind="normal",
+        reason=None,
+        odometer_km=odometer_km,
+        photo_sha256=photo_sha256,
+        handed_over_by=handed_over_by,
+        by_device=device_id,
+    )
+    out = _custodies_out(db, [custody])[0]
+    audit.record(
+        db,
+        action="custody.started",
+        entity_type="custody",
+        entity_id=custody.public_id,
+        actor_type="device",
+        company_id=vehicle.company_id,
+        after=out | {"odometer_km": odometer_km, "after_maintenance": True},
+    )
     return out
 
 

@@ -105,6 +105,9 @@ class AppState extends ChangeNotifier {
     endReading: false,
   );
 
+  /// The maintenance request form: straight to a center he picks, or through the office. Kept for offline.
+  ({bool direct, List<MaintenanceCenter> centers}) maintenanceForm = (direct: false, centers: const []);
+
   Profile? profile;
   MyVehicle? myVehicle;
   List<DriverDocument> documents = [];
@@ -125,6 +128,7 @@ class AppState extends ChangeNotifier {
     }
     _applyConfig(await db.get('app_config'));
     _applyReportForm(await db.get('report_form'));
+    _applyMaintenanceForm(await db.get('maintenance_form'));
     await _showSplash();
     unawaited(catalog.load(api, lang));
     if (!await tokens.hasSession()) {
@@ -440,10 +444,28 @@ class AppState extends ChangeNotifier {
     );
   }
 
-  Future<void> loadMaintenance() async => maintenance = [
-    for (final r in await api.get('/driver/maintenance') as List)
-      MaintenanceRequest.fromJson(r as Map<String, dynamic>),
-  ];
+  Future<void> loadMaintenance() async {
+    maintenance = [
+      for (final r in await api.get('/driver/maintenance') as List)
+        MaintenanceRequest.fromJson(r as Map<String, dynamic>),
+    ];
+    try {
+      final raw = jsonEncode(await api.get('/driver/maintenance/form'));
+      await db.put('maintenance_form', raw);
+      _applyMaintenanceForm(raw);
+    } on ApiError {
+      // an older server: through the office, as before
+    }
+  }
+
+  void _applyMaintenanceForm(String? raw) {
+    if (raw == null) return;
+    final f = jsonDecode(raw) as Map<String, dynamic>;
+    maintenanceForm = (
+      direct: f['direct_to_center'] == true,
+      centers: [for (final c in f['centers'] as List? ?? []) MaintenanceCenter.fromJson(c as Map<String, dynamic>)],
+    );
+  }
 
   Future<void> loadAccidents() async => accidents = [
     for (final a in await api.get('/driver/accidents') as List) Accident.fromJson(a as Map<String, dynamic>),
@@ -638,18 +660,48 @@ class AppState extends ChangeNotifier {
 
   /// A maintenance request for the vehicle the driver holds. The id is made here, once: a retry after a lost
   /// answer is recognised by the server ("request_exists") instead of creating a second request.
+  /// [centerId]: the center he takes the car to, when requests go straight to the center.
   Future<SendResult> sendMaintenance({
     required String kind,
     required String description,
     int? km,
     required List<String> photoPaths,
+    String? centerId,
   }) async {
     final id = await outbox.add(
       'maintenance',
-      {'client_ref': const Uuid().v4(), 'kind': kind, 'description': description, 'odometer_km': km},
+      {
+        'client_ref': const Uuid().v4(),
+        'kind': kind,
+        'description': description,
+        'odometer_km': km,
+        'center_id': ?centerId,
+      },
       {for (var i = 0; i < photoPaths.length; i++) 'photos.$i': photoPaths[i]},
     );
     return _sendNow(id, after: loadMaintenance);
+  }
+
+  /// He collected the car from the center: the odometer from the camera, at the photo's time. The car is his
+  /// again, so his day can start.
+  Future<SendResult> sendPickup({
+    required String requestId,
+    required int km,
+    required String photoPath,
+    required DateTime takenAt,
+  }) async {
+    final id = await outbox.add(
+      'maintenance_pickup',
+      {'request_id': requestId, 'odometer_km': km, 'picked_up_at': takenAt.toUtc().toIso8601String()},
+      {'odometer_photo': photoPath},
+    );
+    return _sendNow(
+      id,
+      after: () async {
+        await Future.wait([loadMaintenance(), loadToday()]);
+        unawaited(platform.startTracking().catchError((Object _) {}));
+      },
+    );
   }
 
   /// An accident with the vehicle the driver held at [occurredAt] (taken when the report screen opened, so a report

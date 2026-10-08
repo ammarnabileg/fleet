@@ -50,6 +50,10 @@ def portal_client(admin_client, new_client, c, username) -> object:
 
 @pytest.fixture
 def setup(admin_client, client, new_client, company):
+    return make_setup(admin_client, client, new_client, company)
+
+
+def make_setup(admin_client, client, new_client, company) -> dict:
     """A driver holding a vehicle, with the app; a center with one portal account."""
     vehicle = make_vehicle(admin_client, company["id"], km=20_000)
     driver = make_driver(admin_client, company["id"])
