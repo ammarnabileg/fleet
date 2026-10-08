@@ -464,6 +464,7 @@
     "fuel_no_vehicle": "No vehicle was in your custody at the receipt's time",
     "fuel_decided": "This fuel claim was already decided",
     "fuel_claim_not_found": "Fuel claim not found",
+    "books_start_locked": "The books start date cannot change while entries depend on it: reverse the opening balances first, and any entries between the two dates",
     "before_books_start": "Nothing is entered before the books start in the system ({date}): earlier balances go in the opening balances",
     "entry_lines_count": "An entry has {min} to {max} lines",
     "entry_unbalanced": "The entry does not balance: debits and credits differ by {difference}",

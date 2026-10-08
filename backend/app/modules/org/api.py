@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -56,9 +57,24 @@ def put_settings(
     principal: Principal = Depends(require_permission("settings.update")),
     db: Session = Depends(get_session),
 ):
+    if section == "finance":  # the books start moves only while nothing hangs on it
+        from app.modules.finance import service as finance
+
+        new = (body.value or {}).get("books_start_date")
+        finance.check_books_start_change(
+            db,
+            service.get_section(db, "finance").books_start_date,
+            date.fromisoformat(new) if isinstance(new, str) and new else None,
+        )
     version, value = service.update_section(
         db, section, body.value, expected_version=body.version, actor_user_id=principal.user_id
     )
+    if section == "cash":  # a new limit or deposit days apply now, not at the next scan
+        from app.modules.cash import service as cash
+
+        cash.check_treasury(db)
+        cash.recheck_deposit_day(db)
+        db.commit()
     return schemas.SettingOut(version=version, value=value.model_dump(mode="json"))
 
 

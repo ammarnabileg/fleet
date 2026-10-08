@@ -83,6 +83,28 @@ def _check_date(db: Session, day: date) -> None:
         raise AppError(422, "before_books_start", date=start.isoformat())
 
 
+def check_books_start_change(db: Session, old: date | None, new: date | None) -> None:
+    """The books start moves only while nothing hangs on it: no opening entry standing, and no entry dated between the
+    two dates (an earlier start would enter documents the opening already counts; a later one would leave entries
+    before the start)."""
+    if old == new:
+        return
+    if (
+        db.scalar(select(Entry.id).where(Entry.source_kind == "opening", Entry.reversed_by_id.is_(None)).limit(1))
+        is not None
+    ):
+        raise AppError(409, "books_start_locked")
+    if old and new:
+        lo, hi = min(old, new), max(old, new)
+        hit = db.scalar(
+            select(Entry.id)
+            .where(Entry.entry_date >= lo, Entry.entry_date < hi, Entry.source_kind != "reversal")
+            .limit(1)
+        )
+        if hit is not None:
+            raise AppError(409, "books_start_locked")
+
+
 def _auto(db: Session) -> bool:
     return books(db).entry_approval == "auto"
 
@@ -579,7 +601,7 @@ def post(db: Session, first: date, last: date, *, actor_user_id: int, all_compan
         (e.source_kind, e.source_id): e
         for e in db.scalars(
             select(Entry).where(
-                Entry.source_kind != "reversal",
+                Entry.source_kind.not_in(("reversal", "manual", "opening")),  # written by hand: no document to match
                 Entry.reversed_by_id.is_(None),
                 or_(
                     Entry.entry_date.between(first, last),
@@ -837,8 +859,12 @@ def reverse_entry(
         raise AppError(409, "entry_not_approved")
     if entry.reversed_by_id is not None or entry.source_kind == "reversal":
         raise AppError(409, "entry_already_reversed")
-    day = day or today()
-    _check_date(db, day)
+    if entry.source_kind == "opening":
+        # dated where it stood, the day before the books start: a corrected opening then replaces it from the start
+        day = entry.entry_date
+    else:
+        day = day or today()
+        _check_date(db, day)
     reversal = Entry(
         entry_date=day,
         source_kind="reversal",

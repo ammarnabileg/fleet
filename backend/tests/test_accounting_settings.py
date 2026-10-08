@@ -482,3 +482,50 @@ def test_deposit_weekdays_are_saturday_to_friday(admin_client, days):
         assert r.status_code == 422
     else:
         assert r.json()["value"]["treasury_deposit_weekdays"] == [1, 2]
+
+
+def test_review_fixes_manual_entries_are_never_stale_and_an_opening_reverses_on_its_date(admin_client):
+    from tests.test_finance import period
+
+    accounts = {a["code"]: a["id"] for a in admin_client.get("/api/v1/finance/accounts").json()}
+    first = period()["date_from"]
+    r = admin_client.post(
+        "/api/v1/finance/entries/manual",
+        json={
+            "entry_date": first,
+            "description": "rent accrual",
+            "lines": [
+                {"account_id": accounts["6130"], "debit": "5.000", "credit": "0"},
+                {"account_id": accounts["2140"], "debit": "0", "credit": "5.000"},
+            ],
+        },
+    )
+    assert r.status_code == 201, r.text
+    out = admin_client.post("/api/v1/finance/entries/post", json=period()).json()
+    assert out["stale"] == [], out  # written by hand: no document to match
+
+
+def test_review_fixes_the_books_start_holds_once_an_opening_stands_and_its_reversal_takes_its_date(admin_client):
+    acc = accounts(admin_client)
+    start = today().replace(day=1)
+    settings(admin_client, "finance", books_start_date=str(start))
+    out = admin_client.post(f"{F}/opening", json={"lines": [{"account_id": acc["1120"], "debit": "1000"}]}).json()
+    entry = out["entry"]
+    if entry["status"] == "draft":
+        admin_client.post(f"{F}/entries/approve", json={"ids": [entry["id"]]})
+    cur = admin_client.get("/api/v1/settings").json()["finance"]
+    moved = str(start - timedelta(days=40))
+    r = admin_client.put(
+        "/api/v1/settings/finance",
+        json={"version": cur["version"], "value": cur["value"] | {"books_start_date": moved}},
+    )
+    assert r.status_code == 409 and r.json()["code"] == "books_start_locked", r.text
+    # a wrong opening is reversed where it stands, so the corrected one replaces it from the start
+    r = admin_client.post(f"{F}/entries/{entry['id']}/reverse", json={"reason": "bank was 800"})
+    assert r.status_code == 200, r.text
+    assert r.json()["entry_date"] == str(start - timedelta(days=1))
+    admin_client.post(f"{F}/opening", json={"lines": [{"account_id": acc["1120"], "debit": "800"}]})
+    rows = admin_client.get(
+        f"{F}/entries", params={"date_from": str(start - timedelta(days=1)), "date_to": str(start - timedelta(days=1))}
+    ).json()
+    assert sum(1 for e in rows if e["source_kind"] in ("opening", "reversal")) == 3

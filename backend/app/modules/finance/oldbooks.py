@@ -45,7 +45,7 @@ def parse_amount(v) -> Decimal | None:
         d = Decimal(str(v)) if isinstance(v, float) else Decimal(_text(v).replace(",", ""))
     except InvalidOperation:
         return None
-    if not d.is_finite() or d < 0:
+    if not d.is_finite() or d < 0 or d >= 10**9:  # what an entry line holds (12 digits, 3 decimals)
         return None
     q = d.quantize(FILS)
     return q if abs(q - d) < Decimal("0.0000001") else None

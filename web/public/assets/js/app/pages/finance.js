@@ -339,14 +339,19 @@
   }
 
   /* ================= القيد اليدوي ================= */
-  function num(v) { var n = Number(String(v || '').replace(/,/g, '')); return isFinite(n) ? n : NaN; }
+  // an amount: at most 3 decimals (fils) — more is refused, never rounded in silence
+  function num(v) {
+    var t = String(v || '').replace(/,/g, '').trim();
+    if (t && !/^\d+(\.\d{1,3})?$/.test(t)) return NaN;
+    var n = Number(t); return isFinite(n) ? n : NaN;
+  }
   function fils(n) { return Math.round(n * 1000); }
   function companySelect(label) {
     var companies = api.companyOptions ? api.companyOptions() : [];
     return companies.length ? BT.f.select({ name: 'company', label: label, optional: true, placeholder: 'بلا شركة', options: companies }) : '';
   }
   function manualEntry(done) {
-    Promise.all([api.get('/finance/accounts'), A.allEmployees({}), config(), api.get('/companies/options').then(function (c) { api.companies = c; })]).then(function (r) {
+    Promise.all([api.get('/finance/accounts'), api.can('employees.view') ? A.allEmployees({}).catch(function () { return []; }) : Promise.resolve([]), config(), api.get('/companies/options').then(function (c) { api.companies = c; })]).then(function (r) {
       var accounts = r[0].filter(function (a) { return a.active; }), people = r[1];
       var opts = accounts.map(function (a) { return { v: a.id, t: accountLabel(a) }; });
       var emps = {}; people.forEach(function (p) { emps[p.employee_number + ' · ' + api.name(p.name)] = p.id; });

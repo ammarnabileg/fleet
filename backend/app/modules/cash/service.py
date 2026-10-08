@@ -885,6 +885,12 @@ def check_treasury(db: Session, branch_ids: Iterable[int] | None = None) -> None
             notifications.resolve(db, f"treasury_deposit_day:{b['id']}")
 
 
+def recheck_deposit_day(db: Session) -> None:
+    """The deposit days changed: today no longer one of them closes today's deposit-day alerts."""
+    if kuwait_weekday(today()) not in org.get_section(db, "cash").treasury_deposit_weekdays:
+        notifications.resolve(db, "treasury_deposit_day:", prefix=True)
+
+
 def scan_treasury(db: Session, *, moment: str) -> int:
     """moment "morning" (07:00 Kuwait): on a deposit day, treasury_deposit_day for each branch whose treasury holds
     cash; "night" (end of the day): the day's deposit-day alerts close. Both check the limit again. Returns the
