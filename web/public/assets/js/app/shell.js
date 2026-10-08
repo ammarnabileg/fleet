@@ -343,7 +343,8 @@
     maintenance_invoice: { perm: ['invoices.view'], open: function () { A.go('maintenance?tab=invoices'); } },
     accident: { perm: ['accidents.view'], open: function (a) { A.go('accidents/' + a.entity_id); } },
     fine: { perm: ['fines.view'], open: function (a, after) { A.fine(a.entity_id, after); } },
-    fuel_claim: { perm: ['cash.fuel_review'], label: 'مراجعة', open: function () { A.go('cash?tab=fuel'); } }
+    fuel_claim: { perm: ['cash.fuel_review'], label: 'مراجعة', open: function () { A.go('cash?tab=fuel'); } },
+    branch: { perm: ['treasury.view'], open: function () { A.go('cash?tab=treasury'); } } // the treasury's deposit rule
     // approval_escalated: no button. It goes to every approvals.view holder, but only the approvers have it in their inbox
   };
   A.alertTarget = function (a) {

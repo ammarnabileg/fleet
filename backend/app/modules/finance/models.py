@@ -39,6 +39,8 @@ SOURCE_KINDS = (
     "deduction",
     "fine_payment",
     "reversal",
+    "manual",
+    "opening",
 )
 
 
@@ -143,12 +145,12 @@ class Entry(Base):
     __table_args__ = (
         CheckConstraint(
             "source_kind IN ('cash_journal', 'expense', 'expense_payment', 'maintenance_invoice', 'invoice_payment', "
-            "'payroll_run', 'payroll_payment', 'deduction', 'fine_payment', 'reversal')",
+            "'payroll_run', 'payroll_payment', 'deduction', 'fine_payment', 'reversal', 'manual', 'opening')",
             name="source_kind",
         ),
         CheckConstraint("status IN ('draft', 'approved')", name="status"),
         CheckConstraint("(source_kind = 'reversal') = (reverses_id IS NOT NULL)", name="reversal"),
-        CheckConstraint("source_kind = 'reversal' OR source_id IS NOT NULL", name="source"),
+        CheckConstraint("source_kind IN ('reversal', 'manual', 'opening') OR source_id IS NOT NULL", name="source"),
         CheckConstraint("source_kind <> 'reversal' OR reason IS NOT NULL", name="reason"),
         CheckConstraint("(status = 'approved') = (approved_at IS NOT NULL)", name="approved"),
         CheckConstraint("reversed_by_id IS NULL OR status = 'approved'", name="reversed"),
@@ -160,6 +162,12 @@ class Entry(Base):
             postgresql_where=text("source_kind <> 'reversal' AND reversed_by_id IS NULL"),
         ),
         Index("entries_one_reversal", "reverses_id", unique=True, postgresql_where=text("reverses_id IS NOT NULL")),
+        Index(
+            "entries_old_ref",
+            "source_ref",
+            unique=True,
+            postgresql_where=text("source_kind = 'manual' AND source_ref LIKE 'OLD-%' AND reversed_by_id IS NULL"),
+        ),
         Index("entries_entry_date_idx", "entry_date", "id"),
         SCHEMA,
     )
@@ -188,6 +196,7 @@ class EntryLine(Base):
     __table_args__ = (
         CheckConstraint("debit >= 0 AND credit >= 0 AND (debit = 0) <> (credit = 0)", name="amount"),
         Index("entry_lines_account_id_idx", "account_id"),
+        Index("entry_lines_employee_id_idx", "employee_id", postgresql_where=text("employee_id IS NOT NULL")),
         SCHEMA,
     )
 
@@ -199,3 +208,4 @@ class EntryLine(Base):
     debit: Mapped[Decimal] = mapped_column(Numeric(12, 3), server_default=text("0"))
     credit: Mapped[Decimal] = mapped_column(Numeric(12, 3), server_default=text("0"))
     memo: Mapped[str | None] = mapped_column(Text)
+    employee_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("people.employees.id"))  # the party

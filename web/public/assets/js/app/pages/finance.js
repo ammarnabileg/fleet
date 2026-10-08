@@ -23,6 +23,10 @@
     if (m > 12) { m = 1; y++; }
     return { from: first, to: BT.date.add(y + '-' + (m < 10 ? '0' : '') + m + '-01', -1) };
   }
+  // how the books are kept (settings «المحاسبة»): fetched once per visit of the page
+  var cfg = null;
+  function config() { return api.get('/finance/config').then(function (c) { cfg = c; return c; }); }
+  function fiscalRange() { return { from: cfg && cfg.fiscal_year_start ? cfg.fiscal_year_start : month().from, to: BT.config.today }; }
   function accountLabel(a) { return a.code + ' · ' + api.name(a.name); }
   function err(code, params) {
     params = Object.assign({}, params || {});
@@ -58,7 +62,7 @@
       var el = document.getElementById('fin-' + t);
       if (t === 'expenses') expensesPanel(el, q.chip);
       if (t === 'entries') entriesPanel(el);
-      if (t === 'balance') balancePanel(el);
+      if (t === 'balance') config().then(function () { balancePanel(el); }, function () { balancePanel(el); });
       if (t === 'chart') chartPanel(el);
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/finance?tab=' + e.detail); });
@@ -191,7 +195,8 @@
   /* ================= القيود ================= */
   function entriesPanel(el) {
     var r = month();
-    var tools = h`${api.can('finance.create') ? h`<button type="button" class="btn btn-sm btn-primary" data-post>${icon('refresh-cw', 14)} توليد القيود</button>` : ''}
+    var tools = h`${api.can('finance.create') ? h`<button type="button" class="btn btn-sm btn-primary" data-post>${icon('refresh-cw', 14)} توليد القيود</button><button type="button" class="btn btn-sm btn-soft" data-manual>${icon('plus', 14)} قيد يدوي</button>` : ''}
+      ${api.can('finance.approve') ? h`<button type="button" class="btn btn-sm btn-soft" data-opening>${icon('scale', 14)} الأرصدة الافتتاحية</button><button type="button" class="btn btn-sm btn-ghost" data-old-import>${icon('file-up', 14)} استيراد من نظام قديم</button>` : ''}
       ${api.can('finance.approve') ? h`<button type="button" class="btn btn-sm btn-outline" data-approve-all>${icon('check', 14)} اعتماد المسودات</button><button type="button" class="btn btn-sm btn-ghost" data-discard>حذف المسودات</button>` : ''}
       ${api.can('finance.export') ? h`<button type="button" class="btn btn-sm btn-outline" data-export="xlsx">${icon('file-spreadsheet', 14)} Excel</button><button type="button" class="btn btn-sm btn-ghost" data-export="csv">CSV</button>` : ''}`;
     BT.render(el, h`<div class="card"><div data-t></div></div>`);
@@ -223,6 +228,9 @@
       A.confirmRun({ title: 'حذف مسودات الفترة', message: 'لتُنشأ من جديد بعد تعديل دليل الحسابات. المستندات لا تتأثر.', confirmText: 'حذف', tone: 'danger',
         run: function () { return api.post('/finance/entries/discard', period()); }, after: function (res) { BT.toast('حُذفت ' + res.count + ' مسودة'); t.refresh(); } });
     });
+    BT.on(host, 'click', '[data-manual]', function () { manualEntry(function () { t.refresh(); }); });
+    BT.on(host, 'click', '[data-opening]', function () { openingBalances(function () { t.refresh(); }); });
+    BT.on(host, 'click', '[data-old-import]', function () { oldImport(function () { t.refresh(); }); });
     BT.on(host, 'click', '[data-export]', function (e, b) {
       var ext = b.getAttribute('data-export');
       A.downloadFile('/finance/entries/export', Object.assign(period(), { format: ext }), 'entries-' + r.from + '-' + r.to + '.' + ext);
@@ -249,6 +257,10 @@
       if (e.status === 'draft' && api.can('finance.approve')) btns.push({ label: 'اعتماد', cls: 'btn-primary', icon: 'check', close: false, onClick: function (dlg) {
         api.post('/finance/entries/approve', { ids: [e.id] }).then(function () { BT.toast('اعتُمد القيد'); dlg.close(); if (done) done(); }, api.fail).catch(function () {});
       } });
+      if (e.status === 'draft' && (e.source_kind === 'manual' || e.source_kind === 'opening') && api.can('finance.create')) btns.push({ label: 'حذف', cls: 'btn-ghost', icon: 'trash-2', close: false, onClick: function (dlg) {
+        A.confirmRun({ title: 'حذف القيد #' + e.number, message: 'مسودة كتبتموها: تُحذف نهائياً.', confirmText: 'حذف', tone: 'danger',
+          run: function () { return api.del('/finance/entries/' + e.id); }, done: 'حُذف القيد', after: function () { dlg.close(); if (done) done(); } });
+      } });
       if (e.status === 'approved' && !e.reversed_by && e.source_kind !== 'reversal' && api.can('finance.approve')) btns.push({ label: 'قيد عكسي', cls: 'btn-outline', icon: 'undo-2', close: false, onClick: function (dlg) {
         A.confirmRun({ title: 'عكس القيد #' + e.number, message: 'يُنشأ قيد معتمد بعكس كل سطر، ويصبح المستند جاهزاً ليُقيَّد من جديد.', confirmText: 'عكس القيد', tone: 'danger', reason: { label: 'السبب', required: true },
           run: function (reason) { return api.post('/finance/entries/' + e.id + '/reverse', { reason: reason }); }, done: 'أُنشئ القيد العكسي', after: function () { dlg.close(); if (done) done(); } });
@@ -267,7 +279,7 @@
             e.approved_at ? ['الاعتماد', (e.approved_by || '') + ' · ' + fmt.dt(e.approved_at)] : null
           ].filter(Boolean))}
           <div class="table-wrap mt-16"><table class="t compact"><thead><tr><th>الحساب</th><th class="num">مدين</th><th class="num">دائن</th></tr></thead><tbody>
-            ${e.lines.map(function (l) { return h`<tr><td><span class="num">${l.account.code}</span> ${api.name(l.account.name)}</td><td class="num">${money(l.debit)}</td><td class="num">${money(l.credit)}</td></tr>`; })}
+            ${e.lines.map(function (l) { return h`<tr><td><span class="num">${l.account.code}</span> ${api.name(l.account.name)}${l.employee || l.memo ? h`<span class="sub">${[l.employee ? api.name(l.employee.name) : '', l.memo || ''].filter(Boolean).join(' · ')}</span>` : ''}</td><td class="num">${money(l.debit)}</td><td class="num">${money(l.credit)}</td></tr>`; })}
           </tbody><tfoot><tr><td>الإجمالي</td><td class="num"><b>${fmt.money(debit)}</b></td><td class="num"><b>${fmt.money(credit)}</b></td></tr></tfoot></table></div>`,
         buttons: btns
       });
@@ -276,8 +288,9 @@
 
   /* ================= ميزان المراجعة ================= */
   function balancePanel(el) {
-    var r = month();
-    BT.render(el, h`<div class="card"><div class="toolbar"><div class="page-actions">${rangeTools(r)}</div></div><div data-tb></div></div>`);
+    var r = fiscalRange();
+    var fy = cfg ? h`<span class="muted fs-sm" data-fiscal>السنة المالية من ${fmt.date(cfg.fiscal_year_start)}</span>` : '';
+    BT.render(el, h`<div class="card"><div class="toolbar"><div class="page-actions">${rangeTools(r)}${fy}</div></div><div data-tb></div></div>`);
     function load() {
       A.load(el.querySelector('[data-tb]'), api.get('/finance/trial-balance', { date_from: r.from, date_to: r.to }), function (rows) {
         if (!rows.length) return BT.empty('scale', 'لا قيود معتمدة حتى نهاية الفترة', 'اعتمد القيود أولاً من تبويب «القيود»');
@@ -323,6 +336,165 @@
       return h`<div class="ledger"><div class="fw-600">كشف حساب <span class="num">${b.account.code}</span> ${api.name(b.account.name)}</div>${parties}${lines}</div>`;
     }).catch(function () {});
     BT.on(cell, 'click', '[data-ledger-entry]', function (e, a) { e.preventDefault(); entry(a.getAttribute('data-ledger-entry')); });
+  }
+
+  /* ================= القيد اليدوي ================= */
+  function num(v) { var n = Number(String(v || '').replace(/,/g, '')); return isFinite(n) ? n : NaN; }
+  function fils(n) { return Math.round(n * 1000); }
+  function companySelect(label) {
+    var companies = api.companyOptions ? api.companyOptions() : [];
+    return companies.length ? BT.f.select({ name: 'company', label: label, optional: true, placeholder: 'بلا شركة', options: companies }) : '';
+  }
+  function manualEntry(done) {
+    Promise.all([api.get('/finance/accounts'), A.allEmployees({}), config(), api.get('/companies/options').then(function (c) { api.companies = c; })]).then(function (r) {
+      var accounts = r[0].filter(function (a) { return a.active; }), people = r[1];
+      var opts = accounts.map(function (a) { return { v: a.id, t: accountLabel(a) }; });
+      var emps = {}; people.forEach(function (p) { emps[p.employee_number + ' · ' + api.name(p.name)] = p.id; });
+      var listId = BT.uid('emps');
+      function row() {
+        return h`<tr data-line><td style="min-width:220px">${BT.f.select({ label: '', options: opts, placeholder: 'الحساب…' })}</td>
+          <td><input class="input num-in" data-debit inputmode="decimal" placeholder="0.000" aria-label="مدين"></td>
+          <td><input class="input num-in" data-credit inputmode="decimal" placeholder="0.000" aria-label="دائن"></td>
+          <td><input class="input" data-emp list="${listId}" autocomplete="off" placeholder="اختياري" aria-label="الموظف"></td>
+          <td><button type="button" class="icon-btn sm" data-del-line aria-label="حذف السطر">${icon('x', 14)}</button></td></tr>`;
+      }
+      var dlg = BT.modal.open({
+        title: 'قيد يدوي', subtitle: cfg && cfg.entry_approval === 'auto' ? 'يُعتمد فور حفظه (الاعتماد تلقائي في الإعدادات)' : 'يُحفظ مسودة يعتمدها من له صلاحية الاعتماد', icon: 'book-open', size: 'xl', form: true,
+        body: h`<div class="form-grid">
+            ${BT.f.input({ name: 'date', label: 'التاريخ', type: 'date', required: true, value: BT.config.today })}
+            ${companySelect('الشركة')}
+            ${BT.f.input({ name: 'description', label: 'البيان', required: true, full: true })}</div>
+          <datalist id="${listId}">${Object.keys(emps).map(function (k) { return h`<option value="${k}"></option>`; })}</datalist>
+          <div class="table-wrap mt-12"><table class="t compact" data-lines><thead><tr><th>الحساب</th><th class="num">مدين</th><th class="num">دائن</th><th>الموظف (اختياري)</th><th></th></tr></thead>
+            <tbody>${row()}${row()}</tbody>
+            <tfoot><tr><td><button type="button" class="btn btn-sm btn-ghost" data-add-line>${icon('plus', 14)} سطر</button></td><td class="num" data-sum-debit>0.000</td><td class="num" data-sum-credit>0.000</td><td colspan="2">الفرق <b class="num" data-diff>0.000</b></td></tr></tfoot></table></div>`,
+        buttons: [{ label: 'إلغاء', cls: 'btn-ghost' }, { label: 'حفظ القيد', cls: 'btn-primary', submit: true, disabled: true }],
+        onSubmit: function (v, d) {
+          var lines = read();
+          if (!lines) return false;
+          return api.post('/finance/entries/manual', { entry_date: v.date, description: v.description, company_id: v.company ? Number(v.company) : null, lines: lines.list })
+            .then(function (e) { BT.toast(e.status === 'approved' ? 'حُفظ القيد #' + e.number + ' واعتُمد' : 'حُفظ القيد #' + e.number, { sub: e.status === 'approved' ? '' : 'مسودة بانتظار الاعتماد' }); if (done) done(); return true; })
+            .catch(function (err) { api.fail(err); return Promise.reject(err); });
+        }
+      });
+      var body = dlg.body, tbody = body.querySelector('[data-lines] tbody');
+      function read() {
+        var list = [], debit = 0, credit = 0, ok = true;
+        BT.$$('tr[data-line]', tbody).forEach(function (tr) {
+          var acc = tr.querySelector('select').value, d = num(tr.querySelector('[data-debit]').value), c = num(tr.querySelector('[data-credit]').value);
+          var empText = tr.querySelector('[data-emp]').value.trim();
+          if (!acc && !d && !c) return;
+          if (!acc || isNaN(d) || isNaN(c) || (d > 0) === (c > 0) || d < 0 || c < 0) ok = false;
+          if (empText && !emps[empText]) ok = false;
+          debit += fils(d || 0); credit += fils(c || 0);
+          list.push({ account_id: Number(acc), debit: (d || 0).toFixed(3), credit: (c || 0).toFixed(3), employee_id: empText ? emps[empText] : null });
+        });
+        return { list: list, debit: debit, credit: credit, ok: ok && list.length >= 2 };
+      }
+      function update() {
+        var x = read();
+        body.querySelector('[data-sum-debit]').textContent = fmt.money(x.debit / 1000);
+        body.querySelector('[data-sum-credit]').textContent = fmt.money(x.credit / 1000);
+        body.querySelector('[data-diff]').textContent = fmt.money((x.debit - x.credit) / 1000);
+        var b = dlg.btn(1); if (b) b.disabled = !(x.ok && x.debit > 0 && x.debit === x.credit);
+      }
+      body.addEventListener('input', update);
+      body.addEventListener('change', update);
+      BT.on(body, 'click', '[data-add-line]', function () { tbody.insertAdjacentHTML('beforeend', String(row())); update(); });
+      BT.on(body, 'click', '[data-del-line]', function (e, b) { if (BT.$$('tr[data-line]', tbody).length > 2) b.closest('tr').remove(); update(); });
+    }, api.fail).catch(function () {});
+  }
+
+  /* ================= الأرصدة الافتتاحية ================= */
+  function openingBalances(done) {
+    Promise.all([api.get('/finance/accounts'), api.get('/finance/roles'), config(), api.get('/companies/options').then(function (c) { api.companies = c; })]).then(function (r) {
+      var accounts = r[0].filter(function (a) { return a.active; });
+      var equityId = (r[1].find(function (x) { return x.role === 'opening_equity'; }) || {}).account_id;
+      var equity = r[0].find(function (a) { return a.id === equityId; });
+      var ready = !!cfg.books_start_date;
+      var dlg = BT.modal.open({
+        title: 'الأرصدة الافتتاحية', icon: 'scale', size: 'lg', form: true,
+        subtitle: ready ? 'بتاريخ ' + fmt.date(cfg.opening_date) + '، اليوم السابق لبداية الدفاتر' : '',
+        body: h`${ready ? '' : h`<div class="banner warn mb-12">${icon('triangle-alert', 16)}<div>حدّد «تاريخ بداية الدفاتر في النظام» في الإعدادات ← المحاسبة أولاً.</div></div>`}
+          <div class="form-grid">${companySelect('الشركة (اختياري)')}</div>
+          <div class="hint">رصيد كل حساب في دفاتركم السابقة يوم ما قبل البداية. ما لا يتوازن يذهب سطراً واحداً إلى حساب الأرصدة الافتتاحية${equity ? ' (' + equity.code + ')' : ''}.</div>
+          <div class="table-wrap mt-8" style="max-height:50vh"><table class="t compact" data-opening-lines><thead><tr><th>الحساب</th><th class="num">مدين</th><th class="num">دائن</th></tr></thead><tbody>
+            ${accounts.map(function (a) { return h`<tr data-acc-line="${a.id}"><td><span class="num">${a.code}</span> ${api.name(a.name)}</td><td><input class="input num-in" data-debit inputmode="decimal" placeholder="0.000" aria-label="مدين ${a.code}"></td><td><input class="input num-in" data-credit inputmode="decimal" placeholder="0.000" aria-label="دائن ${a.code}"></td></tr>`; })}
+          </tbody></table></div>
+          <div class="banner info mt-12" data-equity>${icon('info', 16)}<div>الفرق إلى ${equity ? equity.code + ' ' + api.name(equity.name) : 'الأرصدة الافتتاحية'}: <b class="num" data-opening-diff>0.000</b></div></div>`,
+        buttons: [{ label: 'إلغاء', cls: 'btn-ghost' }, { label: 'حفظ الأرصدة', cls: 'btn-primary', submit: true, disabled: true }],
+        onSubmit: function (v) {
+          var x = read();
+          return api.post('/finance/opening', { company_id: v.company ? Number(v.company) : null, lines: x.list }).then(function (res) {
+            BT.toast('سُجّلت الأرصدة الافتتاحية #' + res.entry.number, { sub: Number(res.difference) ? 'الفرق ' + fmt.money(Math.abs(res.difference)) + ' إلى ' + (res.equity_account ? res.equity_account.code : '') : '' });
+            if (done) done(); return true;
+          }).catch(function (err) { api.fail(err); return Promise.reject(err); });
+        }
+      });
+      var body = dlg.body;
+      function read() {
+        var list = [], debit = 0, credit = 0, ok = true;
+        BT.$$('tr[data-acc-line]', body).forEach(function (tr) {
+          var d = num(tr.querySelector('[data-debit]').value), c = num(tr.querySelector('[data-credit]').value);
+          if (!d && !c) return;
+          if (isNaN(d) || isNaN(c) || (d > 0) === (c > 0) || d < 0 || c < 0) ok = false;
+          debit += fils(d || 0); credit += fils(c || 0);
+          list.push({ account_id: Number(tr.getAttribute('data-acc-line')), debit: (d || 0).toFixed(3), credit: (c || 0).toFixed(3) });
+        });
+        return { list: list, diff: debit - credit, ok: ok && list.length > 0 };
+      }
+      function update() {
+        var x = read();
+        body.querySelector('[data-opening-diff]').textContent = fmt.money(Math.abs(x.diff) / 1000) + (x.diff > 0 ? ' دائن' : x.diff < 0 ? ' مدين' : '');
+        var b = dlg.btn(1); if (b) b.disabled = !(ready && x.ok);
+      }
+      body.addEventListener('input', update);
+    }, api.fail).catch(function () {});
+  }
+
+  /* ================= استيراد دفاتر النظام القديم ================= */
+  function issueList(list, tone) {
+    return h`<div class="banner ${tone} mt-12">${icon(tone === 'danger' ? 'circle-x' : 'triangle-alert', 16)}<div>${list.slice(0, 50).map(function (x) {
+      return h`<div>${x.sheet}${x.row ? ' · صف ' + x.row : ''}: ${err(x.code, x.params)}</div>`;
+    })}${list.length > 50 ? h`<div>… و${list.length - 50} غيرها</div>` : ''}</div></div>`;
+  }
+  function oldImport(done) {
+    var file = null;
+    var dlg = BT.modal.open({
+      title: 'استيراد من نظام قديم', icon: 'file-up', size: 'lg',
+      body: h`<p class="muted fs-sm">ملف Excel بورقتين: «أرصدة افتتاحية» (رصيد كل حساب يوم ما قبل بداية الدفاتر، والفرق إلى حساب الأرصدة الافتتاحية) و«قيود» (كل قيد قديم أسطره برقمه في النظام القديم). أي ورقة يمكن تركها فارغة. صف «مثال» يُتجاهل.</p>
+        <div><button type="button" class="btn btn-outline btn-sm" data-old-template>${icon('download', 14)} تنزيل القالب</button></div>
+        <div class="form-grid mt-12">${companySelect('الشركة (اختياري)')}</div>
+        ${BT.f.upload({ name: 'file', label: 'ملف Excel (.xlsx)', accept: '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', accept_label: 'xlsx · حتى 10MB' })}
+        <div data-old-result></div>`,
+      buttons: [{ label: 'إغلاق', cls: 'btn-ghost' }, { label: 'فحص', cls: 'btn-outline', icon: 'list-checks', close: false, onClick: function () { run(false); } },
+        { label: 'استيراد', cls: 'btn-primary', icon: 'check', close: false, disabled: true, onClick: function () { run(true); } }]
+    });
+    var body = dlg.body, res = body.querySelector('[data-old-result]'), input = body.querySelector('input[type=file]');
+    input.addEventListener('change', function () { file = input.files[0] || null; dlg.btn(2).disabled = true; BT.render(res, ''); });
+    BT.on(body, 'click', '[data-old-template]', function () { A.downloadFile('/finance/import/template', {}, 'old-books-template.xlsx'); });
+    function run(apply) {
+      if (!file) { BT.toast('اختر الملف أولاً', { type: 'error' }); return; }
+      var company = (body.querySelector('[name=company]') || {}).value;
+      var i = apply ? 2 : 1;
+      dlg.busy(i, true);
+      api.uploadForm('/finance/import', file, { apply: apply, company_id: company || null }).then(function (r) {
+        dlg.busy(i, false);
+        var o = r.opening;
+        BT.render(res, h`<div class="mt-12" data-old-summary>${BT.kv([
+            ['الأرصدة الافتتاحية', h`<span class="num">${o.lines}</span> سطر · مدين ${fmt.money(o.debit)} · دائن ${fmt.money(o.credit)} · الفرق إلى الأرصدة الافتتاحية <b class="num">${fmt.money(o.difference)}</b>`],
+            ['القيود', h`<span class="num">${r.entries}</span> قيد · <span class="num">${r.lines}</span> سطر`]
+          ])}
+          ${r.errors.length ? issueList(r.errors, 'danger') : r.applied ? h`<div class="banner success mt-12">${icon('circle-check', 16)}<div>استُورد ${r.numbers.length} قيد.</div></div>` : h`<div class="banner success mt-12">${icon('circle-check', 16)}<div>الملف سليم: اضغط «استيراد».</div></div>`}
+          ${r.warnings.length ? issueList(r.warnings, 'warn') : ''}</div>`);
+        dlg.btn(2).disabled = apply || r.errors.length > 0;
+        if (r.applied) { BT.toast('تم الاستيراد', { sub: r.numbers.length + ' قيد' }); file = null; input.value = ''; if (done) done(); }
+      }, function (e) {
+        dlg.busy(i, false);
+        dlg.btn(2).disabled = true;
+        BT.render(res, h`<div class="banner danger mt-12">${icon('circle-x', 16)}<div>${api.message(e)}</div></div>`);
+      });
+    }
   }
 
   /* ================= دليل الحسابات ================= */

@@ -99,6 +99,38 @@ class PickIn(_In):
     date_to: date | None = None
 
 
+Side = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=3)]
+Description = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
+Memo = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
+
+
+class ManualLineIn(_In):
+    account_id: int
+    debit: Side = Decimal("0")
+    credit: Side = Decimal("0")
+    memo: Memo | None = None
+    employee_id: uuid.UUID | None = None  # who the line is with (the account statement's party)
+
+
+class ManualIn(_In):
+    entry_date: date
+    description: Description
+    company_id: int | None = None
+    lines: Annotated[list[ManualLineIn], Field(min_length=2, max_length=200)]
+
+
+class OpeningLineIn(_In):
+    account_id: int
+    debit: Side = Decimal("0")
+    credit: Side = Decimal("0")
+    employee_id: uuid.UUID | None = None
+
+
+class OpeningIn(_In):
+    company_id: int | None = None
+    lines: Annotated[list[OpeningLineIn], Field(min_length=1, max_length=500)]
+
+
 class ReverseIn(_In):
     reason: Reason
     entry_date: date | None = None
@@ -180,6 +212,8 @@ class EntryLineOut(BaseModel):
     account: LineAccount
     debit: Decimal
     credit: Decimal
+    memo: str | None = None
+    employee: Ref | None = None
 
 
 class EntryOut(BaseModel):
@@ -275,3 +309,41 @@ class BalanceOut(BaseModel):
     debit: Decimal
     credit: Decimal
     closing: Decimal
+
+
+class OpeningOut(BaseModel):
+    entry: EntryOut
+    difference: Decimal  # debits over credits as given: credited (or debited) to the equity account
+    equity_account: LineAccount | None
+
+
+class ConfigOut(BaseModel):
+    entry_approval: str
+    fiscal_year_start_month: int
+    fiscal_year_start: date
+    books_start_date: date | None
+    opening_date: date | None
+
+
+class ImportIssue(BaseModel):
+    sheet: str
+    row: int | None
+    code: str
+    params: dict
+
+
+class ImportTotals(BaseModel):
+    debit: Decimal
+    credit: Decimal
+    difference: Decimal
+    lines: int
+
+
+class ImportOut(BaseModel):
+    errors: list[ImportIssue]
+    warnings: list[ImportIssue]
+    opening: ImportTotals
+    entries: int
+    lines: int
+    applied: bool
+    numbers: list[int]  # the entries made

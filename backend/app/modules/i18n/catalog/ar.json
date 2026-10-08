@@ -463,7 +463,23 @@
     "fuel_not_covered": "البنزين على السائق حسب نظام الدفع، لا يُسجَّل على الشركة",
     "fuel_no_vehicle": "لم تكن في عهدتك سيارة وقت الفاتورة",
     "fuel_decided": "طلب البنزين اتُّخذ فيه قرار من قبل",
-    "fuel_claim_not_found": "طلب البنزين غير موجود"
+    "fuel_claim_not_found": "طلب البنزين غير موجود",
+    "before_books_start": "لا قيد قبل بداية الدفاتر في النظام ({date}): ما قبلها في الأرصدة الافتتاحية",
+    "entry_lines_count": "عدد أسطر القيد من {min} إلى {max}",
+    "entry_unbalanced": "القيد غير متوازن: الفرق بين المدين والدائن {difference}",
+    "line_one_side": "كل سطر مدين أو دائن بمبلغ أكبر من صفر، لا الاثنان (الحساب {code})",
+    "books_start_required": "حدّد تاريخ بداية الدفاتر في الإعدادات (المحاسبة) أولاً: الأرصدة الافتتاحية بتاريخ اليوم السابق له",
+    "opening_exists": "الأرصدة الافتتاحية مسجّلة من قبل لهذه الدفاتر: اعكس القيد السابق (أو احذف مسودته) أولاً",
+    "entry_not_deletable": "يُحذف فقط القيد اليدوي أو الافتتاحي وهو مسودة؛ المعتمد يُعكس",
+    "old_entries_imported": "قيود النظام القديم مستوردة من قبل: {numbers}",
+    "old_entry_imported": "القيد القديم رقم {number} مستورد من قبل",
+    "unknown_account": "لا حساب بالرمز {code} في دليل الحسابات",
+    "amount_invalid": "المبلغ ليس رقماً صحيحاً موجباً بثلاث خانات عشرية على الأكثر",
+    "entry_not_balanced": "القيد القديم رقم {number} غير متوازن: الفرق {difference}",
+    "entry_number_missing": "رقم القيد في النظام القديم فارغ",
+    "date_invalid": "التاريخ «{value}» غير مفهوم: اكتبه يوم/شهر/سنة",
+    "entry_dates_differ": "أسطر القيد القديم رقم {number} بتواريخ مختلفة",
+    "civil_id_not_found": "لا موظف بالرقم المدني {civil_id}: يُستورد السطر بلا طرف"
   },
   "settings": {
     "branding": "الهوية",
@@ -518,7 +534,13 @@
     "driver_app.splash_image": "صورة شاشة البداية",
     "driver_app.splash_color": "لون الخلفية حول الصورة",
     "driver_app.splash_seconds": "مدة الظهور (ثانية)",
-    "payroll.absence_deduction": "خصم أيام الغياب والإجازة بدون راتب — قرار العميل"
+    "payroll.absence_deduction": "خصم أيام الغياب والإجازة بدون راتب — قرار العميل",
+    "finance": "المحاسبة",
+    "finance.entry_approval": "اعتماد القيود",
+    "finance.fiscal_year_start_month": "شهر بداية السنة المالية",
+    "finance.books_start_date": "تاريخ بداية الدفاتر في النظام",
+    "cash.treasury_deposit_limit": "حد إيداع الخزينة في البنك (د.ك، 0 = بلا تنبيه)",
+    "cash.treasury_deposit_weekdays": "أيام إيداع الخزينة في البنك"
   },
   "common": {
     "active": "نشط",
@@ -588,7 +610,9 @@
     "vehicle_change_requested": "{driver} يطلب تغيير السيارة {plate}: {reason}",
     "document_renewal_submitted": "{driver} أرسل {document} مجدداً حتى {date}: راجعه واعتمده",
     "daily_report_missing": "{driver} بدأ يومه {date} ولم يرسل تقريره",
-    "fuel_claim": "طلب بنزين من {name} بمبلغ {amount} د.ك بانتظار المراجعة"
+    "fuel_claim": "طلب بنزين من {name} بمبلغ {amount} د.ك بانتظار المراجعة",
+    "treasury_deposit_due": "خزينة {branch} بلغت {balance} د.ك (الحد {limit}): أودعها في البنك",
+    "treasury_deposit_day": "اليوم يوم إيداع خزينة {branch} في البنك: فيها {balance} د.ك"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
@@ -1091,7 +1115,9 @@
     "payroll_payment": "صرف رواتب شهر {month} {ref}",
     "deduction": "خصم ({source}): {reason}",
     "fine_payment": "سداد مخالفة #{number}: {violation} {ref}",
-    "reversal": "عكس القيد #{number}: {reason}"
+    "reversal": "عكس القيد #{number}: {reason}",
+    "opening": "أرصدة افتتاحية للدفاتر التي تبدأ {date}",
+    "imported": "قيد مستورد #{number}"
   },
   "entry_source": {
     "cash_journal": "دفتر الكاش",
@@ -1103,7 +1129,9 @@
     "payroll_payment": "صرف رواتب",
     "deduction": "خصم",
     "fine_payment": "سداد مخالفة",
-    "reversal": "قيد عكسي"
+    "reversal": "قيد عكسي",
+    "manual": "قيد يدوي",
+    "opening": "أرصدة افتتاحية"
   },
   "finance_column": {
     "title": "القيود",

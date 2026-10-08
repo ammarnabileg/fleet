@@ -329,6 +329,7 @@ def record_receipt(db: Session, driver: people.EmployeeRef, *, amount: Decimal, 
         post=True,
     )
     check_balance_alert(db, driver)
+    check_treasury(db, [driver.branch_id])
     notifications.notify_driver(
         db,
         driver.id,
@@ -475,6 +476,7 @@ def reverse(db: Session, public_id, *, reason: str, actor_user_id: int, all_comp
         actor_user_id=actor_user_id,
         after={"reverses": str(original.public_id), "reason": reason},
     )
+    check_treasury(db)
     for employee_id in _drivers_of(db, journal.id):
         check_balance_alert(db, people.ref(db, employee_id))
     if original.kind == "fuel":  # the fuel claim it paid waits for a decision again
@@ -518,6 +520,7 @@ def bank_deposit(
         actor_user_id=actor_user_id,
         after={"branch_id": branch_id, "amount": amount, "reference": reference, "receipt": receipt_sha256},
     )
+    check_treasury(db, [branch_id])
     db.commit()
     return journal_out(db, journal)
 
@@ -621,6 +624,8 @@ def settle(
             )
         )
     db.execute(update(Account).where(Account.id == acc).values(closed_at=func.now()))
+    if balance < 0:
+        check_treasury(db, [driver.branch_id])
     notifications.resolve(db, f"driver_left_with_cash:{driver.id}")
     notifications.resolve(db, f"cash_balance_high:{driver.id}")
     audit.record(
@@ -840,6 +845,70 @@ def treasury(db: Session) -> list[dict]:
         }
         for b in branches
     ]
+
+
+# ------------------------------------------------------------------ the treasury's deposit rule (settings cash)
+
+
+def kuwait_weekday(day: date) -> int:
+    """0 = Saturday .. 6 = Friday, the Kuwait week (settings cash.treasury_deposit_weekdays)."""
+    return (day.weekday() + 2) % 7
+
+
+def _treasury_balances(db: Session, branch_ids: Iterable[int] | None) -> list[tuple[dict, Decimal]]:
+    branches = [b for b in org.list_branches(db) if branch_ids is None or b["id"] in set(branch_ids)]
+    ids = {b["id"]: account(db, "treasury", branch_id=b["id"]) for b in branches}
+    found = balances(db, ids.values())
+    return [(b, found.get(ids[b["id"]], Balance(ZERO, ZERO)).posted) for b in branches]
+
+
+def check_treasury(db: Session, branch_ids: Iterable[int] | None = None) -> None:
+    """A branch treasury holding the deposit limit or more: treasury_deposit_due until a deposit (or any movement)
+    brings it under; a treasury emptied closes its deposit-day alert. After every treasury movement, and nightly."""
+    limit = org.get_section(db, "cash").treasury_deposit_limit
+    for b, balance in _treasury_balances(db, branch_ids):
+        key = f"treasury_deposit_due:{b['id']}"
+        if limit > 0 and balance >= limit:
+            notifications.raise_alert(
+                db,
+                "treasury_deposit_due",
+                company_id=None,
+                entity_type="branch",
+                entity_id=b["public_id"],
+                params={"branch": b["name"], "balance": f"{balance:.3f}", "limit": f"{limit:.3f}"},
+                dedupe_key=key,
+                refresh=True,
+            )
+        else:
+            notifications.resolve(db, key)
+        if balance <= 0:
+            notifications.resolve(db, f"treasury_deposit_day:{b['id']}")
+
+
+def scan_treasury(db: Session, *, moment: str) -> int:
+    """moment "morning" (07:00 Kuwait): on a deposit day, treasury_deposit_day for each branch whose treasury holds
+    cash; "night" (end of the day): the day's deposit-day alerts close. Both check the limit again. Returns the
+    deposit-day alerts raised."""
+    raised = 0
+    if moment == "night":
+        notifications.resolve(db, "treasury_deposit_day:", prefix=True)
+    elif kuwait_weekday(today()) in org.get_section(db, "cash").treasury_deposit_weekdays:
+        for b, balance in _treasury_balances(db, None):
+            if balance > 0:
+                notifications.raise_alert(
+                    db,
+                    "treasury_deposit_day",
+                    company_id=None,
+                    entity_type="branch",
+                    entity_id=b["public_id"],
+                    params={"branch": b["name"], "balance": f"{balance:.3f}"},
+                    dedupe_key=f"treasury_deposit_day:{b['id']}",
+                    refresh=True,
+                )
+                raised += 1
+    check_treasury(db)
+    db.commit()
+    return raised
 
 
 # ------------------------------------------------------------------ invariants (nightly)

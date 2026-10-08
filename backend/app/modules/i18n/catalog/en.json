@@ -463,7 +463,23 @@
     "fuel_not_covered": "Fuel is on the driver under his pay scheme: it is not charged to the company",
     "fuel_no_vehicle": "No vehicle was in your custody at the receipt's time",
     "fuel_decided": "This fuel claim was already decided",
-    "fuel_claim_not_found": "Fuel claim not found"
+    "fuel_claim_not_found": "Fuel claim not found",
+    "before_books_start": "Nothing is entered before the books start in the system ({date}): earlier balances go in the opening balances",
+    "entry_lines_count": "An entry has {min} to {max} lines",
+    "entry_unbalanced": "The entry does not balance: debits and credits differ by {difference}",
+    "line_one_side": "Each line is a debit or a credit above zero, not both (account {code})",
+    "books_start_required": "Set the books start date in the settings (Accounting) first: opening balances are dated the day before it",
+    "opening_exists": "Opening balances were already entered for these books: reverse the earlier entry (or delete its draft) first",
+    "entry_not_deletable": "Only a manual or opening draft can be deleted; an approved entry is reversed",
+    "old_entries_imported": "These old entries were already imported: {numbers}",
+    "old_entry_imported": "Old entry {number} was already imported",
+    "unknown_account": "No account with code {code} in the chart of accounts",
+    "amount_invalid": "The amount is not a positive number with at most three decimals",
+    "entry_not_balanced": "Old entry {number} does not balance: the difference is {difference}",
+    "entry_number_missing": "The old system's entry number is empty",
+    "date_invalid": "The date \"{value}\" is not understood: write it day/month/year",
+    "entry_dates_differ": "The lines of old entry {number} have different dates",
+    "civil_id_not_found": "No employee with civil ID {civil_id}: the line is imported without a party"
   },
   "settings": {
     "branding": "Branding",
@@ -518,7 +534,13 @@
     "driver_app.splash_image": "Splash image",
     "driver_app.splash_color": "Background around the image",
     "driver_app.splash_seconds": "Shown for (seconds)",
-    "payroll.absence_deduction": "Absence and unpaid leave days — the client's decision"
+    "payroll.absence_deduction": "Absence and unpaid leave days — the client's decision",
+    "finance": "Accounting",
+    "finance.entry_approval": "Entry approval",
+    "finance.fiscal_year_start_month": "Fiscal year starts in month",
+    "finance.books_start_date": "Books start date in the system",
+    "cash.treasury_deposit_limit": "Treasury deposit limit (KWD, 0 = no alert)",
+    "cash.treasury_deposit_weekdays": "Treasury bank deposit days"
   },
   "common": {
     "active": "Active",
@@ -588,7 +610,9 @@
     "vehicle_change_requested": "{driver} asks to change the vehicle {plate}: {reason}",
     "document_renewal_submitted": "{driver} sent a renewed {document}, valid until {date}: check and approve it",
     "daily_report_missing": "{driver} started the day {date} but sent no report",
-    "fuel_claim": "Fuel claim from {name} for {amount} KWD awaits review"
+    "fuel_claim": "Fuel claim from {name} for {amount} KWD awaits review",
+    "treasury_deposit_due": "The {branch} treasury holds {balance} KWD (limit {limit}): deposit it at the bank",
+    "treasury_deposit_day": "Today is the bank deposit day for the {branch} treasury: it holds {balance} KWD"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -1091,7 +1115,9 @@
     "payroll_payment": "Salaries for {month} paid {ref}",
     "deduction": "Deduction ({source}): {reason}",
     "fine_payment": "Fine #{number} paid: {violation} {ref}",
-    "reversal": "Reverses entry #{number}: {reason}"
+    "reversal": "Reverses entry #{number}: {reason}",
+    "opening": "Opening balances of the books starting {date}",
+    "imported": "Imported entry #{number}"
   },
   "entry_source": {
     "cash_journal": "Cash ledger",
@@ -1103,7 +1129,9 @@
     "payroll_payment": "Salaries paid",
     "deduction": "Deduction",
     "fine_payment": "Fine paid",
-    "reversal": "Reversal"
+    "reversal": "Reversal",
+    "manual": "Manual entry",
+    "opening": "Opening balances"
   },
   "finance_column": {
     "title": "Entries",
