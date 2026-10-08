@@ -12,9 +12,10 @@ from datetime import date, datetime
 
 from app.core.errors import AppError
 from app.core.text import norm
-from app.modules.imports.workbook import _text, parse_phone
+from app.modules.imports.workbook import PEOPLE_OPTIONAL, _text, parse_phone, parse_yes_no
 
 SAMPLES = 5
+MASK = "••••••••"  # what the preview shows of a password
 
 
 @dataclass(frozen=True)
@@ -66,8 +67,13 @@ FIELDS: dict[str, tuple[Field, ...]] = {
         Field("phone", False, ("الهاتف", "رقم الهاتف", "الموبايل", "phone", "mobile")),
         Field("nationality", False, ("الجنسيه", "nationality")),
         Field("iban", False, ("رقم الايبان", "الايبان", "iban")),
+        # only from a header or picked by hand, never guessed from what the column holds
+        Field("app_access", False, PEOPLE_OPTIONAL["app_access"]),
+        Field("initial_password", False, PEOPLE_OPTIONAL["initial_password"]),
+        Field("password_days", False, PEOPLE_OPTIONAL["password_days"]),
     ),
 }
+PASSWORD = next(f for f in FIELDS["employees"] if f.key == "initial_password")
 
 
 def _parts(header: str) -> list[str]:
@@ -110,6 +116,21 @@ CONTENT = {
 def _share(values: list, test) -> float:
     filled = [v for v in values if _text(v)]
     return sum(1 for v in filled if test(v)) / len(filled) if filled else 0.0
+
+
+def _same(values: list) -> bool:
+    """One value repeated down the column, such as a password shared by a batch of drivers."""
+    filled = [norm(v) for v in values if _text(v)]
+    return len(filled) > 1 and len(set(filled)) == 1
+
+
+def _yes_no(values: list) -> bool:
+    filled = [v for v in values if _text(v)]
+    return bool(filled) and all(parse_yes_no(v) is not None for v in filled)
+
+
+def _has_digit(values: list) -> bool:
+    return any(re.search(r"\d", _text(v)) for v in values)
 
 
 def _is_serial(values: list) -> bool:
@@ -170,6 +191,8 @@ def suggest(sheet: Sheet) -> tuple[str | None, dict[str, int]]:
     """The likely kind of the sheet and a column (0-based) for each field found."""
     columns = list(range(len(sheet.headers)))
     values = {c: [r[1][c] for r in sheet.rows[:200]] for c in columns}
+    # a shared password (8 digits pass for a phone) or a yes/no column is never a civil ID, plate, phone or name
+    noise = {c for c in columns if _same(values[c]) or _yes_no(values[c])}
     best: tuple[str | None, dict[str, int], int] = (None, {}, 0)
     for kind, fields in FIELDS.items():
         mapping: dict[str, int] = {}
@@ -189,11 +212,13 @@ def suggest(sheet: Sheet) -> tuple[str | None, dict[str, int]]:
                         mapping[f.key] = c
                         taken.add(c)
                         break
-        # 2. content, for what the headers did not name
+        # 2. content, for what the headers did not name (all the cars of one year are still a year column)
         for key, test in CONTENT.items():
             if key in mapping or key not in {f.key for f in fields}:
                 continue
             for c in columns:
+                if c in noise and key != "year":
+                    continue
                 if c not in taken and not _is_serial(values[c]) and _share(values[c], test) >= 0.9:
                     mapping[key] = c
                     taken.add(c)
@@ -202,14 +227,24 @@ def suggest(sheet: Sheet) -> tuple[str | None, dict[str, int]]:
             text_cols = [
                 c
                 for c in columns
-                if c not in taken and _share(values[c], lambda v: isinstance(v, str) and not _text(v).isdigit()) >= 0.9
+                if c not in taken
+                and not _yes_no(values[c])
+                and _share(values[c], lambda v: isinstance(v, str) and not _text(v).isdigit()) >= 0.9
             ]
             distinct = {c: len({norm(v) for v in values[c] if _text(v)}) for c in text_cols}
-            if text_cols:
-                name_col = max(text_cols, key=lambda c: distinct[c])
+            names = [c for c in text_cols if c not in noise]
+            if names:
+                name_col = max(names, key=lambda c: distinct[c])
                 mapping["name"] = name_col
                 taken.add(name_col)
-                rest = [c for c in text_cols if c != name_col and distinct[c] <= max(3, len(sheet.rows[:200]) // 5)]
+                # one profession for all (a sheet of drivers) is a profession; one value with a digit is a password
+                rest = [
+                    c
+                    for c in text_cols
+                    if c != name_col
+                    and distinct[c] <= max(3, len(sheet.rows[:200]) // 5)
+                    and not (_same(values[c]) and _has_digit(values[c]))
+                ]
                 if rest and "job_title" not in mapping:
                     mapping["job_title"] = rest[0]
         if kind == "vehicles" and "registration_expiry" not in mapping:
@@ -229,20 +264,28 @@ def _sample(v) -> str:
     return v.strftime("%d/%m/%Y") if isinstance(v, date) else _text(v)
 
 
+def _secret(sheet: Sheet, column: int, mapping: dict) -> bool:
+    """A password column: its samples are not sent back (screen sharing, saved network recordings)."""
+    return mapping.get("initial_password") == column or bool(set(_parts(sheet.headers[column])) & set(PASSWORD.aliases))
+
+
 def preview(data: bytes) -> dict:
     sheets = []
     for s in read(data):
         kind, mapping = suggest(s) if s.rows else (None, {})
+        columns = []
+        for c in range(len(s.headers)):
+            samples = [_sample(r[1][c]) for r in s.rows[:SAMPLES]]
+            if _secret(s, c, mapping):
+                samples = [MASK if x else "" for x in samples]
+            columns.append({"index": c, "header": s.headers[c], "samples": samples})
         sheets.append(
             {
                 "name": s.name,
                 "rows": len(s.rows),
                 "header_row": s.header_row,
                 "first_row": s.first_row,
-                "columns": [
-                    {"index": c, "header": s.headers[c], "samples": [_sample(r[1][c]) for r in s.rows[:SAMPLES]]}
-                    for c in range(len(s.headers))
-                ],
+                "columns": columns,
                 "kind": kind,
                 "mapping": mapping,
             }

@@ -19,6 +19,7 @@ from app.modules.audit import service as audit
 from app.modules.i18n import service as i18n
 from app.modules.identity import security
 from app.modules.identity.claims import set_claims  # noqa: F401  (the import sets initial passwords)
+from app.modules.identity.claims import status as claim_status  # noqa: F401  (and leaves open or used ones alone)
 from app.modules.identity.devices import (  # noqa: F401  (driver devices, used by other modules from here)
     DevicePrincipal,
     activate,

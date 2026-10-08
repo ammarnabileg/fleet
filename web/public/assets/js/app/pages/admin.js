@@ -23,6 +23,9 @@
     var file = null;
     BT.render(el, h`<div class="card"><div class="form" style="max-width:560px">
         <p class="muted fs-sm">ملف Excel المرفق بالعقد (السيارات، المستخدمون والسائقون، الأرصدة الافتتاحية) كما هو: نفس أسماء الأوراق ونفس الأعمدة.</p>
+        <p class="muted fs-sm">أعمدة اختيارية للسائقين في «المستخدمون والسائقون» بعد العمود M: تفعيل التطبيق (N: نعم أو لا، والفارغ يُفعَّل)، وكلمة المرور المبدئية (O)، وصلاحيتها بالأيام (P: من 1 إلى 60، والفارغ 14). ملف بلا هذه الأعمدة يُستورد كما كان.</p>
+        <div class="banner info fs-sm">${icon('key-round', 15)}<div>كلمة المرور المبدئية تحتاج صلاحية «إدارة أجهزة السائقين»${api.can('devices.manage') ? '' : ' (ليست لديك: صفوفها تظهر خطأً)'}، ولا يغيّرها الاستيراد لسائق له كلمة مفتوحة أو دخل بها من قبل. الملف بعد كتابة كلمات المرور سري: احذفه بعد الاستيراد.</div></div>
+        <div><button type="button" class="btn btn-outline btn-sm" data-template>${icon('download', 14)} تنزيل القالب</button></div>
         ${BT.f.upload({ name: 'file', label: 'ملف Excel (.xlsx)', accept: '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', accept_label: 'xlsx · حتى 10MB' })}
         <div class="flex gap-8"><button type="button" class="btn btn-primary" data-check>${icon('list-checks', 15)} فحص الملف دون حفظ</button><button type="button" class="btn btn-success hidden" data-apply>${icon('check', 15)} تنفيذ الاستيراد</button></div></div>
         <div data-result class="mt-16"></div></div>`);
@@ -39,6 +42,7 @@
       }, function (err) { btn.classList.remove('is-loading'); btn.disabled = false; BT.render(res, h`<div class="banner danger">${icon('circle-x', 16)}<div>${api.message(err)}</div></div>`); });
     }
     el.querySelector('[data-check]').onclick = function (e) { run(false, e.currentTarget); };
+    el.querySelector('[data-template]').onclick = function () { A.downloadFile('/imports/workbook/template', {}, 'import-template.xlsx'); };
     applyBtn.onclick = function () {
       BT.confirm({ title: 'تنفيذ الاستيراد', message: 'تُضاف السجلات الجديدة وتُحدَّث الموجودة دفعة واحدة.', confirmText: 'تنفيذ', tone: 'success' }).then(function (r) { if (r.ok) run(true, applyBtn); });
     };
@@ -51,7 +55,7 @@
   function sheetsPanel(el) {
     var file = null, pv = null;
     BT.render(el, h`<div class="card"><div class="form">
-        <p class="muted fs-sm">ملف Excel بصيغتكم كما هو: أوراق السيارات والموظفين بأي ترتيب أعمدة، ولو بلا صف عناوين. يقترح النظام نوع كل ورقة والعمود المناسب لكل حقل، فراجعها قبل الفحص. المستندات (الإقامة، الرخصة، الجواز) والهاتف والآيبان يكملها السائق في التسجيل الذاتي إن لم تكن في الملف.</p>
+        <p class="muted fs-sm">ملف Excel بصيغتكم كما هو: أوراق السيارات والموظفين بأي ترتيب أعمدة، ولو بلا صف عناوين. يقترح النظام نوع كل ورقة والعمود المناسب لكل حقل، فراجعها قبل الفحص. المستندات (الإقامة، الرخصة، الجواز) والهاتف والآيبان يكملها السائق في التسجيل الذاتي إن لم تكن في الملف. ولكل سائق إن كانت في الملف أعمدة لها: تفعيل التطبيق (نعم/لا)، وكلمة مرور مبدئية (تحتاج صلاحية «إدارة أجهزة السائقين»)، وصلاحيتها بالأيام.</p>
         <div style="max-width:560px">${BT.f.upload({ name: 'file', label: 'ملف Excel (.xlsx)', accept: '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', accept_label: 'xlsx · حتى 10MB' })}</div>
         <div data-plan></div></div>
         <div data-result class="mt-16"></div></div>`);
@@ -67,7 +71,7 @@
     });
     function options(sheet, kind, field) {
       return [{ v: '', t: '— لا يوجد —' }].concat(sheet.columns.map(function (c) {
-        var sample = c.samples.filter(Boolean).slice(0, 2).join('، ');
+        var sample = field === 'initial_password' ? '' : c.samples.filter(Boolean).slice(0, 2).join('، ');
         return { v: c.index, t: colName(c.index) + (c.header ? ' · ' + c.header : '') + (sample ? ' — ' + sample : '') };
       }));
     }
@@ -90,7 +94,7 @@
           ${BT.f.input({ name: 'driver_keywords', label: 'يُعدّ الموظف سائقاً إذا احتوت مهنته على', value: 'سائق، driver', hint: 'كلمات مفصولة بفواصل' })}</div>
         ${api.can('devices.manage') ? h`<div class="card mt-12"><div class="card-b form">
           ${BT.f.check({ name: 'claim_on', label: A.codes === false ? 'السائقون بلا هاتف يدخلون برقمهم المدني وكلمة مرور مبدئية، ثم يختار كل منهم كلمة مروره' : 'السائقون بلا هاتف يدخلون مرة واحدة برقمهم المدني وكلمة مرور مبدئية، ثم يسجلون هواتفهم برمز واتساب' })}
-          <div class="form-grid">${BT.f.input({ name: 'claim_password', label: 'كلمة المرور المبدئية', pattern: '.{8,64}', msg: '8 أحرف على الأقل', hint: 'تُبلَّغ للسائقين، وتعمل مرة واحدة لكل سائق' })}${BT.f.input({ name: 'claim_days', label: 'صالحة لمدة (يوم)', value: 14, num: true })}</div>
+          <div class="form-grid">${BT.f.input({ name: 'claim_password', label: 'كلمة مرور افتراضية لمن ليس له كلمة في الملف (ولا هاتف)', pattern: '.{8,64}', msg: '8 أحرف على الأقل', hint: 'تُبلَّغ للسائقين، وتعمل مرة واحدة لكل سائق. كلمة السائق في عمود الملف تُقدَّم عليها' })}${BT.f.input({ name: 'claim_days', label: 'صالحة لمدة (يوم)', value: 14, num: true })}</div>
           <div class="muted fs-sm">${A.codes === false ? 'ما يحمي الحساب: مرة واحدة (السائق الحقيقي يُرفض إن سبقه أحد فيبلغكم)، والمدة، ومراجعة تسجيله الذاتي (ومنه الآيبان) قبل الاعتماد. لا رمز واتساب: اجعل المدة قصيرة.' : 'ما يحمي الحساب: رمز واتساب على هاتف السائق، ومرة واحدة، والمدة، ومراجعة تسجيله الذاتي (ومنه الآيبان) قبل الاعتماد.'}</div></div></div>` : ''}
         ${pv.sheets.map(function (sh, i) { return sh.rows ? sheetCard(sh, i) : ''; })}
         ${pv.sheets.some(function (sh) { return !sh.rows; }) ? h`<div class="muted fs-sm mt-8">أوراق بلا بيانات لم تُعرض: ${pv.sheets.filter(function (sh) { return !sh.rows; }).map(function (sh) { return sh.name; }).join('، ')}</div>` : ''}
@@ -121,6 +125,7 @@
       planBox.addEventListener('change', function (e) { if (e.target.name !== 'file') applyBtn.classList.add('hidden'); });
       function run(apply, btn) {
         var pl = plan();
+        if (!file) { BT.toast('اختر الملف أولاً', { type: 'error' }); return; }
         if (!pl.company_id) { BT.toast('اختر الشركة', { type: 'error' }); return; }
         if (!pl.sheets.length) { BT.toast('لم تُختر أي ورقة للاستيراد', { type: 'error' }); return; }
         if (pl.claim_password !== undefined && pl.claim_password.length < 8) { BT.toast('كلمة المرور المبدئية 8 أحرف على الأقل', { type: 'error' }); return; }
@@ -132,7 +137,7 @@
           btn.classList.remove('is-loading'); btn.disabled = false;
           BT.render(res, result(r, false));
           applyBtn.classList.toggle('hidden', apply || r.errors.length > 0);
-          if (apply) BT.toast('تم الاستيراد');
+          if (apply) { BT.toast('تم الاستيراد'); file = null; input.value = ''; } // قد يحوي كلمات مرور: لا يبقى في الصفحة
           res.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, function (err) { btn.classList.remove('is-loading'); btn.disabled = false; BT.render(res, h`<div class="banner danger">${icon('circle-x', 16)}<div>${api.message(err)}</div></div>`); });
       }
@@ -150,7 +155,7 @@
   function result(r, template) {
     var c = function (o) { return fmt.int(o.created) + ' جديد · ' + fmt.int(o.updated) + ' تحديث'; };
     return h`<div class="${r.errors.length ? 'banner danger' : r.applied ? 'banner success' : 'banner info'}">${icon(r.errors.length ? 'circle-x' : 'circle-check', 16)}<div>${r.errors.length ? h`<b>${fmt.int(r.errors.length)} خطأ</b>: صحّح الملف وافحصه من جديد` : r.applied ? 'تم الاستيراد' : 'الملف سليم وجاهز للتنفيذ'}</div></div>
-      <div class="kpis mt-12">${BT.kpi({ label: 'السيارات', value: c(r.vehicles), dot: 'b' })}${BT.kpi({ label: 'الموظفون والسائقون', value: c(r.people), dot: 'g' })}${BT.kpi({ label: 'المستندات', value: fmt.int(r.documents), dot: 'p' })}${template ? BT.kpi({ label: 'الأرصدة الافتتاحية', value: fmt.int(r.opening_balances), dot: 'o' }) : r.claims ? BT.kpi({ label: 'يدخلون بالرقم المدني', value: fmt.int(r.claims), dot: 'o' }) : ''}</div>
+      <div class="kpis mt-12">${BT.kpi({ label: 'السيارات', value: c(r.vehicles), dot: 'b' })}${BT.kpi({ label: 'الموظفون والسائقون', value: c(r.people), dot: 'g' })}${BT.kpi({ label: 'المستندات', value: fmt.int(r.documents), dot: 'p' })}${template ? BT.kpi({ label: 'الأرصدة الافتتاحية', value: fmt.int(r.opening_balances), dot: 'o' }) : ''}${BT.kpi({ label: 'تفعيل التطبيق', value: fmt.int(r.activated || 0), dot: 'g' })}${BT.kpi({ label: 'كلمات مرور مبدئية', value: fmt.int(r.claims || 0), dot: 'n' })}</div>
       ${r.errors.length ? h`<div class="section-t mt-12">الأخطاء</div><div class="table-wrap"><table class="t compact"><thead><tr><th>الورقة</th><th class="num">الصف</th><th>المشكلة</th></tr></thead><tbody>${r.errors.map(issue)}</tbody></table></div>` : ''}
       ${r.warnings.length ? h`<div class="section-t mt-12">تنبيهات (لا تمنع الاستيراد)</div><div class="table-wrap"><table class="t compact"><thead><tr><th>الورقة</th><th class="num">الصف</th><th>الملاحظة</th></tr></thead><tbody>${r.warnings.map(issue)}</tbody></table></div>` : ''}`;
   }
