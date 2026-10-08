@@ -46,6 +46,8 @@ celery.conf.beat_schedule = {
     "daily-report-overdue": {"task": "daily_ops.scan_overdue", "schedule": crontab(minute=5)},
     "daily-report-missing": {"task": "daily_ops.scan_missing", "schedule": crontab(hour=23, minute=30)},  # Kuwait
     "ledger-invariants": {"task": "cash.check_invariants", "schedule": crontab(hour=2, minute=0)},
+    "treasury-deposit-day": {"task": "cash.scan_treasury", "schedule": crontab(hour=7, minute=0), "args": ("morning",)},
+    "treasury-day-end": {"task": "cash.scan_treasury", "schedule": crontab(hour=23, minute=55), "args": ("night",)},
     "police-reports": {"task": "accidents.scan_police_reports", "schedule": crontab(hour=9, minute=15)},
     "finance-entries": {"task": "finance.post_entries", "schedule": crontab(hour=3, minute=30)},
     "approval-escalation": {"task": "approvals.escalate", "schedule": crontab(minute="*/15")},

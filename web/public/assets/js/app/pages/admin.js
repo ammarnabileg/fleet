@@ -358,7 +358,19 @@
   /* ---------- إعدادات النظام: كل قسم نموذج من قيمه الحالية ---------- */
   var ENUMS = {
     'payroll.deduction_cap_base': [{ v: 'gross', t: 'الراتب المستحق في الشهر' }, { v: 'basic', t: 'الراتب الأساسي' }],
-    'payroll.absence_deduction': [{ v: 'none', t: 'لا يُخصم شيء' }, { v: 'daily_wage', t: 'أجر يوم لكل يوم (الأساسي ÷ أيام الشهر)' }]
+    'payroll.absence_deduction': [{ v: 'none', t: 'لا يُخصم شيء' }, { v: 'daily_wage', t: 'أجر يوم لكل يوم (الأساسي ÷ أيام الشهر)' }],
+    'finance.entry_approval': [{ v: 'manual', t: 'يدوي: القيود مسودات يعتمدها من له صلاحية الاعتماد' }, { v: 'auto', t: 'تلقائي: كل قيد يُعتمد فور إنشائه' }],
+    'finance.fiscal_year_start_month': ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'].map(function (m, i) { return { v: i + 1, t: (i + 1) + ' · ' + m }; })
+  };
+  // أيام الأسبوع الكويتي: 0 السبت … 6 الجمعة (cash.treasury_deposit_weekdays)
+  var WEEKDAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
+  var DATES = { 'finance.books_start_date': true };
+  var HINTS = {
+    'finance.entry_approval': 'التحويل إلى «تلقائي» لا يعتمد المسودات الموجودة: اعتمدها من «القيود» ← «اعتماد المسودات». القيد اليدوي يتبع نفس الإعداد، والقيد العكسي يُعتمد فوراً دائماً.',
+    'finance.fiscal_year_start_month': 'ميزان المراجعة وكشف الحساب يبدآن افتراضياً من أول السنة المالية حتى اليوم.',
+    'finance.books_start_date': 'أول يوم للدفاتر في هذا النظام: الأرصدة الافتتاحية بتاريخ اليوم السابق له، ولا يُقبل قيد بتاريخ قبله.',
+    'cash.treasury_deposit_limit': 'إذا بلغ رصيد خزينة فرع هذا المبلغ يصل تنبيه «أودع الخزينة في البنك» لمن يرى الخزينة، ويُغلق وحده عندما ينزل الرصيد تحته بإيداع أو أي حركة. 0 يوقف التنبيه.',
+    'cash.treasury_deposit_weekdays': 'في هذه الأيام يصل صباحاً (7:00) تنبيه بإيداع الخزينة لكل فرع في خزينته مبلغ، ويُغلق نهاية اليوم أو عندما تفرغ الخزينة.'
   };
   function systemPanel(el) {
     A.load(el, Promise.all([api.get('/settings'), A.docTypes()]).then(function (r) { return r[0]; }), function (sections) {
@@ -371,7 +383,9 @@
             var name = form.getAttribute('data-sec'), cur = sections[name], vals = BT.form.values(form), value = {};
             Object.keys(cur.value).forEach(function (k) {
               var old = cur.value[k];
-              if (Array.isArray(old)) value[k] = String(vals[k] || '').split(/[,،]/).map(function (x) { return x.trim(); }).filter(Boolean);
+              if (name + '.' + k === 'cash.treasury_deposit_weekdays') value[k] = [].concat(vals[k] || []).map(Number);
+              else if (ENUMS[name + '.' + k] && typeof old === 'number') value[k] = Number(vals[k]);
+              else if (Array.isArray(old)) value[k] = String(vals[k] || '').split(/[,،]/).map(function (x) { return x.trim(); }).filter(Boolean);
               else if (typeof old === 'boolean') value[k] = !!vals[k];
               else if (typeof old === 'number') value[k] = vals[k] === '' ? old : Number(vals[k]);
               else if (/^-?\d+\.\d{3}$/.test(String(old))) value[k] = vals[k] === '' ? old : Number(vals[k]).toFixed(3); // مبلغ: 3 خانات
@@ -385,7 +399,11 @@
       return h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr))">${Object.keys(sections).filter(function (name) { return name !== 'driver_app'; }).map(function (name) {
         var s = sections[name];
         return h`<form class="card" data-sec="${name}" novalidate><div class="card-h"><div class="card-t">${api.t('settings', name)}</div><span class="muted fs-sm">نسخة ${s.version}</span></div><div class="form">${Object.keys(s.value).map(function (k) {
-          var val = s.value[k], label = api.t('settings', name + '.' + k);
+          var val = s.value[k], label = api.t('settings', name + '.' + k), key = name + '.' + k, hint = HINTS[key];
+          if (key === 'cash.treasury_deposit_weekdays') return h`<div class="field" data-weekdays><label>${label}</label><div class="flex gap-8" style="flex-wrap:wrap">${WEEKDAYS.map(function (d, i) { return h`<label class="check"><input type="checkbox" name="${k}" value="${i}"${val.indexOf(i) > -1 ? raw(' checked') : ''}${canEdit ? '' : raw(' disabled')}><span>${d}</span></label>`; })}</div><div class="hint">${hint}</div></div>`;
+          if (ENUMS[key]) return BT.f.select({ name: k, label: label, value: val, placeholder: false, options: ENUMS[key], disabled: !canEdit, hint: hint });
+          if (DATES[key]) return BT.f.input({ name: k, label: label, type: 'date', value: val || '', readonly: !canEdit, hint: hint });
+          if (hint) return BT.f.input({ name: k, label: label, value: val == null ? '' : val, readonly: !canEdit, num: true, hint: hint });
           if (Array.isArray(val)) return BT.f.input({ name: k, label: label, value: val.join(', '), readonly: !canEdit, hint: 'قيم مفصولة بفواصل: ' + val.map(function (x) { return api.t('photo_position', x, null, '') || A.docTypeName(x); }).join('، ') });
           if (typeof val === 'boolean') return BT.f.switch({ name: k, label: label, checked: val });
           if (ENUMS[name + '.' + k]) return BT.f.select({ name: k, label: label, value: val, placeholder: false, options: ENUMS[name + '.' + k] });

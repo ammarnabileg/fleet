@@ -29,6 +29,16 @@ class CashSettings(_Section):
     driver_balance_alert: Decimal = Field(Decimal("80.000"), ge=0, max_digits=12, decimal_places=3)
     report_review_hours: int = Field(24, ge=1, le=168)
     fuel_max_amount: Decimal = Field(Decimal("50.000"), gt=0, max_digits=12, decimal_places=3)  # one fuel claim
+    # a branch treasury holding this much (posted) raises treasury_deposit_due until a deposit brings it under; 0 = off
+    treasury_deposit_limit: Decimal = Field(Decimal("0.000"), ge=0, max_digits=12, decimal_places=3)
+    # the days the treasury goes to the bank, 0 = Saturday .. 6 = Friday (the Kuwait week): that morning
+    # treasury_deposit_day for each branch whose treasury holds cash
+    treasury_deposit_weekdays: list[Annotated[int, Field(ge=0, le=6)]] = Field(default_factory=list, max_length=7)
+
+    @model_validator(mode="after")
+    def _days(self):
+        self.treasury_deposit_weekdays = sorted(set(self.treasury_deposit_weekdays))
+        return self
 
 
 class OdometerSettings(_Section):
@@ -142,6 +152,16 @@ class DailyReportSettings(_Section):
     deviation_percent: int = Field(50, ge=10, le=500)  # orders or cash this far from the driver's average (FR-DWR-08)
 
 
+class FinanceSettings(_Section):
+    """How the books are kept. entry_approval "auto": every entry the system makes (and a manual one) is approved as
+    it is made; "manual": drafts wait for finance.approve. books_start_date: the first day of the books in this system
+    (opening balances the day before; nothing dated earlier). One set of books for all the companies."""
+
+    entry_approval: Literal["manual", "auto"] = "manual"
+    fiscal_year_start_month: int = Field(1, ge=1, le=12)
+    books_start_date: date | None = None
+
+
 class BrandingSettings(_Section):
     display_name: str = Field("BrilliantTech Fleet", min_length=2, max_length=60)
     primary_color: str = Field("#0A6CFF", pattern=r"^#[0-9A-Fa-f]{6}$")
@@ -166,6 +186,7 @@ SECTIONS: dict[str, type[_Section]] = {
     "accidents": AccidentsSettings,
     "payroll": PayrollSettings,
     "daily_report": DailyReportSettings,
+    "finance": FinanceSettings,
     "branding": BrandingSettings,
 }
 

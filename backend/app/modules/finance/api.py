@@ -2,7 +2,7 @@ import uuid
 from datetime import date
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -326,6 +326,56 @@ def export_entries(
     )
 
 
+@router.post("/entries/manual", response_model=schemas.EntryOut, status_code=201)
+def create_manual(body: schemas.ManualIn, principal: Principal = Depends(create), db: Session = Depends(get_session)):
+    """A balanced entry written by hand: a draft, or approved at once when the settings approve entries
+    automatically."""
+    return service.create_manual(db, body.model_dump(), actor_user_id=principal.user_id, **principal.scope)
+
+
+@router.post("/opening", response_model=schemas.OpeningOut, status_code=201)
+def create_opening(
+    body: schemas.OpeningIn, principal: Principal = Depends(approve), db: Session = Depends(get_session)
+):
+    """The books' opening balances, the day before they start; the difference to the opening balances account."""
+    return service.create_opening(db, body.model_dump(), actor_user_id=principal.user_id, **principal.scope)
+
+
+@router.get("/config", response_model=schemas.ConfigOut)
+def config(_: Principal = Depends(view), db: Session = Depends(get_session)):
+    """How the books are kept (settings section finance), for the finance pages."""
+    return service.config(db)
+
+
+@router.get("/import/template")
+def import_template(_: Principal = Depends(approve)):
+    """The workbook to fill from the old system: opening balances and entries."""
+    return Response(
+        service.import_template(),
+        media_type=XLSX,
+        headers={"Content-Disposition": 'attachment; filename="old-books-template.xlsx"', "Cache-Control": "no-store"},
+    )
+
+
+@router.post("/import", response_model=schemas.ImportOut)
+def import_books(
+    file: UploadFile,
+    apply: bool = False,
+    company_id: int | None = None,
+    principal: Principal = Depends(approve),
+    db: Session = Depends(get_session),
+):
+    """apply=false checks the file and changes nothing; apply=true imports a file without errors, all at once."""
+    return service.import_books(
+        db,
+        files.read_upload(file),
+        apply=apply,
+        company_id=company_id,
+        actor_user_id=principal.user_id,
+        **principal.scope,
+    )
+
+
 @router.get("/entries/{public_id}", response_model=schemas.EntryOut)
 def get_entry(public_id: uuid.UUID, principal: Principal = Depends(view), db: Session = Depends(get_session)):
     return service.get_entry(db, public_id, **principal.scope)
@@ -355,6 +405,12 @@ def discard_drafts(body: schemas.PickIn, principal: Principal = Depends(approve)
         **principal.scope,
     )
     return {"count": n}
+
+
+@router.delete("/entries/{public_id}", status_code=204)
+def delete_entry(public_id: uuid.UUID, principal: Principal = Depends(create), db: Session = Depends(get_session)):
+    """A manual or opening draft removed."""
+    service.delete_draft(db, public_id, actor_user_id=principal.user_id, **principal.scope)
 
 
 @router.post("/entries/{public_id}/reverse", response_model=schemas.EntryOut)

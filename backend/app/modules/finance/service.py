@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -18,7 +18,16 @@ from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
 from app.modules.files import service as files
 from app.modules.finance import posting
-from app.modules.finance.models import Account, AccountRole, Entry, EntryLine, Expense, ExpenseFile, ExpenseType
+from app.modules.finance.models import (
+    ENTRY_SEQ,
+    Account,
+    AccountRole,
+    Entry,
+    EntryLine,
+    Expense,
+    ExpenseFile,
+    ExpenseType,
+)
 from app.modules.i18n import service as i18n
 from app.modules.identity import service as identity
 from app.modules.org import service as org
@@ -40,6 +49,60 @@ def _need_all_companies(all_companies: bool) -> None:
     """The ledger is the whole business's: only a user over every company keeps it."""
     if not all_companies:
         raise AppError(403, "all_companies_required")
+
+
+# ------------------------------------------------------------------ how the books are kept (settings section finance)
+
+
+def books(db: Session):
+    return org.get_section(db, "finance")
+
+
+def fiscal_year_start(db: Session, day: date | None = None) -> date:
+    """The first day of the fiscal year day falls in (today's by default)."""
+    day = day or today()
+    m = books(db).fiscal_year_start_month
+    return date(day.year if day.month >= m else day.year - 1, m, 1)
+
+
+def config(db: Session) -> dict:
+    b = books(db)
+    return {
+        "entry_approval": b.entry_approval,
+        "fiscal_year_start_month": b.fiscal_year_start_month,
+        "fiscal_year_start": fiscal_year_start(db),
+        "books_start_date": b.books_start_date,
+        "opening_date": b.books_start_date - timedelta(days=1) if b.books_start_date else None,
+    }
+
+
+def _check_date(db: Session, day: date) -> None:
+    """Nothing is entered before the books start in this system: what came before is in the opening balances."""
+    start = books(db).books_start_date
+    if start and day < start:
+        raise AppError(422, "before_books_start", date=start.isoformat())
+
+
+def _auto(db: Session) -> bool:
+    return books(db).entry_approval == "auto"
+
+
+def _approve_by_system(db: Session, rows: list[Entry]) -> None:
+    """entry_approval "auto": the entries just made are approved at once, by the system (approved_by NULL)."""
+    if not rows:
+        return
+    db.flush()  # their lines first: an entry is approved only with balanced lines (finance.guard_entry)
+    now = utcnow()
+    for e in rows:
+        e.status, e.approved_by, e.approved_at = "approved", None, now
+    db.flush()
+    audit.record(
+        db,
+        action="finance.entries.approved",
+        entity_type="entry",
+        actor_user_id=None,
+        after={"numbers": sorted(e.number for e in rows), "auto": True},
+    )
 
 
 def _name(db: Session, name: dict) -> str:
@@ -506,6 +569,11 @@ def post(db: Session, first: date, last: date, *, actor_user_id: int, all_compan
     twice."""
     _need_all_companies(all_companies)
     _span(first, last, MAX_POST_DAYS)
+    start = books(db).books_start_date
+    if start and first < start:  # documents before the books start are in the opening balances, not entered
+        first = start
+        if last < first:
+            return {"created": 0, "by_kind": {}, "stale": [], "errors": []}
     docs = posting.documents(db, first, last)
     live = {
         (e.source_kind, e.source_id): e
@@ -532,7 +600,7 @@ def post(db: Session, first: date, last: date, *, actor_user_id: int, all_compan
     )
     roles = posting.role_accounts(db)
     created: dict[str, int] = defaultdict(int)
-    stale, errors, seen = [], [], set()
+    stale, errors, seen, made = [], [], set(), []
     for doc in docs:
         key = (doc.kind, doc.id)
         seen.add(key)
@@ -545,7 +613,9 @@ def post(db: Session, first: date, last: date, *, actor_user_id: int, all_compan
             continue
         try:
             with db.begin_nested():
-                posting.write(db, doc, description=_describe(db, doc), roles=roles, actor_user_id=actor_user_id)
+                made.append(
+                    posting.write(db, doc, description=_describe(db, doc), roles=roles, actor_user_id=actor_user_id)
+                )
             created[doc.kind] += 1
         except AppError as e:
             errors.append({"source_ref": doc.ref, "code": e.code, "params": e.params})
@@ -560,6 +630,8 @@ def post(db: Session, first: date, last: date, *, actor_user_id: int, all_compan
             actor_user_id=actor_user_id,
             after={"from": first, "to": last, "created": dict(created)},
         )
+    if _auto(db):
+        _approve_by_system(db, made)
     db.commit()
     return {"created": sum(created.values()), "by_kind": dict(created), "stale": stale, "errors": errors}
 
@@ -594,15 +666,23 @@ def _entries_out(db: Session, rows: list[Entry], *, with_lines: bool) -> list[di
     lines: dict[int, list[dict]] = defaultdict(list)
     sums: dict[int, Decimal] = defaultdict(lambda: ZERO)
     if ids:
-        for ln, a in db.execute(
+        found = db.execute(
             select(EntryLine, Account)
             .join(Account, Account.id == EntryLine.account_id)
             .where(EntryLine.entry_id.in_(ids))
             .order_by(EntryLine.entry_id, EntryLine.line_no)
-        ):
+        ).all()
+        named = people.names(db, {ln.employee_id for ln, _ in found if ln.employee_id}) if with_lines else {}
+        for ln, a in found:
             sums[ln.entry_id] += ln.debit
             lines[ln.entry_id].append(
-                {"account": {"id": a.id, "code": a.code, "name": a.name}, "debit": ln.debit, "credit": ln.credit}
+                {
+                    "account": {"id": a.id, "code": a.code, "name": a.name},
+                    "debit": ln.debit,
+                    "credit": ln.credit,
+                    "memo": ln.memo,
+                    "employee": named.get(ln.employee_id),
+                }
             )
     numbers = dict(
         db.execute(
@@ -687,7 +767,11 @@ def get_entry(db: Session, public_id, **scope) -> dict:
     return _entries_out(db, [_entry(db, public_id, **scope)], with_lines=True)[0]
 
 
-def _picked(db: Session, ids: list | None, date_from: date | None, date_to: date | None) -> list[Entry]:
+def _picked(
+    db: Session, ids: list | None, date_from: date | None, date_to: date | None, *, generated_only: bool = False
+) -> list[Entry]:
+    """Drafts by id, or every draft of a period; generated_only (discarding a period's drafts to make them again)
+    leaves the accountant's own entries alone: nothing would make them again."""
     q = select(Entry).where(Entry.status == "draft")
     if ids:
         q = q.where(Entry.public_id.in_(ids))
@@ -695,6 +779,8 @@ def _picked(db: Session, ids: list | None, date_from: date | None, date_to: date
         if date_from is None or date_to is None:
             raise AppError(422, "invalid_range")
         q = q.where(Entry.entry_date.between(date_from, date_to))
+        if generated_only:
+            q = q.where(Entry.source_kind.not_in(("manual", "opening")))
     return list(db.scalars(q.with_for_update()))
 
 
@@ -722,9 +808,10 @@ def approve_entries(
 def discard_drafts(
     db: Session, *, ids=None, date_from=None, date_to=None, actor_user_id: int, all_companies: bool, **_
 ) -> int:
-    """Drafts removed, to be made again (after the chart changed); their documents are entered at the next posting."""
+    """Drafts removed, to be made again (after the chart changed); their documents are entered at the next posting.
+    A period's discard keeps manual and opening drafts (deleted one by one, delete_draft)."""
     _need_all_companies(all_companies)
-    rows = _picked(db, ids, date_from, date_to)
+    rows = _picked(db, ids, date_from, date_to, generated_only=True)
     if rows:
         numbers = sorted(e.number for e in rows)
         db.execute(delete(Entry).where(Entry.id.in_([e.id for e in rows])))
@@ -750,8 +837,10 @@ def reverse_entry(
         raise AppError(409, "entry_not_approved")
     if entry.reversed_by_id is not None or entry.source_kind == "reversal":
         raise AppError(409, "entry_already_reversed")
+    day = day or today()
+    _check_date(db, day)
     reversal = Entry(
-        entry_date=day or today(),
+        entry_date=day,
         source_kind="reversal",
         source_ref=entry.source_ref,
         company_id=entry.company_id,
@@ -767,7 +856,13 @@ def reverse_entry(
     for ln in db.scalars(select(EntryLine).where(EntryLine.entry_id == entry.id).order_by(EntryLine.line_no)):
         db.add(
             EntryLine(
-                entry_id=reversal.id, line_no=ln.line_no, account_id=ln.account_id, debit=ln.credit, credit=ln.debit
+                entry_id=reversal.id,
+                line_no=ln.line_no,
+                account_id=ln.account_id,
+                debit=ln.credit,
+                credit=ln.debit,
+                memo=ln.memo,
+                employee_id=ln.employee_id,
             )
         )
     db.flush()
@@ -894,7 +989,7 @@ def ledger(db: Session, account_id: int, date_from: date, date_to: date, *, all_
     if account is None:
         raise AppError(404, "account_not_found")
     rows = db.execute(
-        select(Entry, EntryLine.debit, EntryLine.credit)
+        select(Entry, EntryLine.debit, EntryLine.credit, EntryLine.employee_id)
         .join(EntryLine, EntryLine.entry_id == Entry.id)
         .where(EntryLine.account_id == account_id, Entry.status == "approved", Entry.entry_date <= date_to)
         .order_by(Entry.entry_date, Entry.number, EntryLine.line_no)
@@ -909,14 +1004,20 @@ def ledger(db: Session, account_id: int, date_from: date, date_to: date, *, all_
     }
 
     def source(e: Entry) -> tuple[str, int] | None:
-        return origins.get(e.reverses_id) if e.reverses_id else (e.source_kind, e.source_id)
+        found = origins.get(e.reverses_id) if e.reverses_id else (e.source_kind, e.source_id)
+        return None if found is None or found[1] is None else found
 
     parties = _parties(db, {s for e, *_ in rows if (s := source(e)) is not None})
+    # a line that names its employee (a manual or opening line) is with him, before its document says anything
+    named = people.names(db, {emp for *_, emp in rows if emp})
     opening = ZERO
     lines, holders = [], {}
     period_debit = period_credit = ZERO
-    for e, debit, credit in rows:
-        party = parties.get(source(e))
+    for e, debit, credit, employee_id in rows:
+        if employee_id in named:
+            party = {"type": "employee", "id": named[employee_id]["id"], "name": named[employee_id]["name"]}
+        else:
+            party = parties.get(source(e))
         if party is not None:
             key = (party["type"], party["id"] or party["name"]["ar"])
             h = holders.setdefault(key, {"party": party, "debit": ZERO, "credit": ZERO})
@@ -962,3 +1063,325 @@ def auto_post(db: Session) -> dict:
     """The daily posting (beat): the last 45 days, so a document approved late is entered too."""
     last = today()
     return post(db, last - timedelta(days=44), last, actor_user_id=None, all_companies=True)
+
+
+# ------------------------------------------------------------------ the accountant's own entries: manual and opening
+
+MANUAL_MAX_LINES = 200
+
+
+def _lines(db: Session, raw: list[dict], *, scope: dict) -> list[dict]:
+    """The lines as written: each on an open account, one side only; the employee named by his public id."""
+    ids = {ln["account_id"] for ln in raw}
+    accounts = {a.id: a for a in db.scalars(select(Account).where(Account.id.in_(ids)))}
+    out = []
+    for ln in raw:
+        account = accounts.get(ln["account_id"])
+        if account is None:
+            raise AppError(404, "account_not_found")
+        if not account.active:
+            raise AppError(422, "account_inactive", code=account.code)
+        debit, credit = Decimal(ln.get("debit") or 0), Decimal(ln.get("credit") or 0)
+        if debit < 0 or credit < 0 or (debit > 0) == (credit > 0):
+            raise AppError(422, "line_one_side", code=account.code)
+        employee = ln.get("employee_id")
+        if employee is not None and not isinstance(employee, int):
+            employee = people.ref_by_public_id(db, employee, **scope).id
+        out.append(
+            {"account": account, "debit": debit, "credit": credit, "memo": ln.get("memo"), "employee_id": employee}
+        )
+    return out
+
+
+def _difference(lines: list[dict]) -> Decimal:
+    return sum((ln["debit"] - ln["credit"] for ln in lines), ZERO)
+
+
+def _check_company(db: Session, company_id: int | None) -> None:
+    if company_id is not None and not org.company_ids_exist(db, [company_id]):
+        raise AppError(404, "company_not_found")
+
+
+def _write(
+    db: Session,
+    *,
+    kind: str,
+    day: date,
+    ref: str,
+    description: str,
+    company_id: int | None,
+    lines: list[dict],
+    actor_user_id: int,
+) -> Entry:
+    """A manual or opening entry with its lines, as a draft; ref "MAN" / "OPEN" takes the entry's number."""
+    number = db.scalar(ENTRY_SEQ.next_value())
+    entry = Entry(
+        number=number,
+        entry_date=day,
+        source_kind=kind,
+        source_ref=ref if ref.startswith("OLD-") else f"{ref}-{number}",
+        company_id=company_id,
+        description=description,
+        created_by=actor_user_id,
+    )
+    db.add(entry)
+    db.flush()
+    for n, ln in enumerate(lines, start=1):
+        db.add(
+            EntryLine(
+                entry_id=entry.id,
+                line_no=n,
+                account_id=ln["account"].id,
+                debit=ln["debit"],
+                credit=ln["credit"],
+                memo=ln.get("memo"),
+                employee_id=ln.get("employee_id"),
+            )
+        )
+    return entry
+
+
+def create_manual(
+    db: Session, data: dict, *, actor_user_id: int, all_companies: bool, company_ids, commit: bool = True
+) -> dict:
+    """A balanced entry the accountant writes himself (an accrual, a correction after a reversal...): a draft for
+    finance.approve, or approved at once when entries are approved automatically (settings finance)."""
+    _need_all_companies(all_companies)
+    scope = {"all_companies": all_companies, "company_ids": company_ids}
+    _check_company(db, data.get("company_id"))
+    _check_date(db, data["entry_date"])
+    lines = _lines(db, data["lines"], scope=scope)
+    if not 2 <= len(lines) <= MANUAL_MAX_LINES:
+        raise AppError(422, "entry_lines_count", min=2, max=MANUAL_MAX_LINES)
+    difference = _difference(lines)
+    if difference:
+        raise AppError(422, "entry_unbalanced", difference=f"{difference:.3f}")
+    entry = _write(
+        db,
+        kind="manual",
+        day=data["entry_date"],
+        ref=data.get("ref") or "MAN",
+        description=data["description"],
+        company_id=data.get("company_id"),
+        lines=lines,
+        actor_user_id=actor_user_id,
+    )
+    audit.record(
+        db,
+        action="finance.entry.manual",
+        entity_type="entry",
+        entity_id=entry.public_id,
+        actor_user_id=actor_user_id,
+        company_id=entry.company_id,
+        after={"number": entry.number, "ref": entry.source_ref, "date": entry.entry_date, "lines": len(lines)},
+    )
+    if _auto(db):
+        _approve_by_system(db, [entry])
+    if not commit:
+        return {"entry": entry}
+    db.commit()
+    return _entries_out(db, [entry], with_lines=True)[0]
+
+
+def _opening_lock(db: Session) -> None:
+    """One opening at a time: the check for an existing one and the new one are then never interleaved."""
+    db.execute(text("SELECT pg_advisory_xact_lock(hashtext('finance.opening'))"))
+
+
+def opening_exists(db: Session, company_id: int | None) -> bool:
+    same = Entry.company_id.is_(None) if company_id is None else Entry.company_id == company_id
+    return (
+        db.scalar(select(Entry.id).where(Entry.source_kind == "opening", Entry.reversed_by_id.is_(None), same).limit(1))
+        is not None
+    )
+
+
+def create_opening(
+    db: Session, data: dict, *, actor_user_id: int, all_companies: bool, company_ids, commit: bool = True
+) -> dict:
+    """The books' opening balances, dated the day before they start: the lines as given, and what does not balance
+    on the opening balances account (role opening_equity) as one line, said in the answer. Once per company (or once
+    for the books without a company) unless the earlier one is reversed (or a draft deleted)."""
+    _need_all_companies(all_companies)
+    scope = {"all_companies": all_companies, "company_ids": company_ids}
+    start = books(db).books_start_date
+    if start is None:
+        raise AppError(422, "books_start_required")
+    company_id = data.get("company_id")
+    _check_company(db, company_id)
+    _opening_lock(db)
+    if opening_exists(db, company_id):
+        raise AppError(409, "opening_exists")
+    lines = _lines(db, data["lines"], scope=scope)
+    if not lines:
+        raise AppError(422, "entry_lines_count", min=1, max=MANUAL_MAX_LINES)
+    difference = _difference(lines)  # debits over credits
+    equity = posting.role_accounts(db).get("opening_equity")
+    if difference:
+        if equity is None:
+            raise AppError(422, "account_role_missing", role="opening_equity")
+        if not equity.active:
+            raise AppError(422, "account_inactive", code=equity.code)
+        lines.append(
+            {
+                "account": equity,
+                "debit": -difference if difference < 0 else ZERO,
+                "credit": difference if difference > 0 else ZERO,
+                "memo": None,
+                "employee_id": None,
+            }
+        )
+    lang = i18n.default_language(db).code
+    entry = _write(
+        db,
+        kind="opening",
+        day=start - timedelta(days=1),
+        ref="OPEN",
+        description=" ".join(i18n.t(db, lang, "finance_source.opening", date=start.isoformat()).split()),
+        company_id=company_id,
+        lines=lines,
+        actor_user_id=actor_user_id,
+    )
+    audit.record(
+        db,
+        action="finance.entry.opening",
+        entity_type="entry",
+        entity_id=entry.public_id,
+        actor_user_id=actor_user_id,
+        company_id=company_id,
+        after={"number": entry.number, "lines": len(lines), "difference": difference},
+    )
+    if _auto(db):
+        _approve_by_system(db, [entry])
+    out = {
+        "difference": difference,
+        "equity_account": {"id": equity.id, "code": equity.code, "name": equity.name} if equity else None,
+    }
+    if not commit:
+        return out | {"entry": entry}
+    db.commit()
+    return out | {"entry": _entries_out(db, [entry], with_lines=True)[0]}
+
+
+def delete_draft(db: Session, public_id, *, actor_user_id: int, all_companies: bool, **scope) -> None:
+    """A manual or opening draft removed (a generated one is discarded with its period, to be made again)."""
+    _need_all_companies(all_companies)
+    entry = _entry(db, public_id, lock=True, all_companies=all_companies, **scope)
+    if entry.status != "draft" or entry.source_kind not in ("manual", "opening"):
+        raise AppError(409, "entry_not_deletable")
+    number = entry.number
+    db.execute(delete(Entry).where(Entry.id == entry.id))
+    audit.record(
+        db,
+        action="finance.entries.discarded",
+        entity_type="entry",
+        entity_id=public_id,
+        actor_user_id=actor_user_id,
+        after={"numbers": [number]},
+    )
+    db.commit()
+
+
+# ------------------------------------------------------------------ an old system's books, from Excel
+
+
+def import_template() -> bytes:
+    from app.modules.finance import oldbooks
+
+    return oldbooks.template()
+
+
+def import_books(
+    db: Session,
+    data: bytes,
+    *,
+    apply: bool,
+    company_id: int | None,
+    actor_user_id: int,
+    all_companies: bool,
+    company_ids,
+) -> dict:
+    """The old system's opening balances and entries, checked (apply=false changes nothing) or imported all at once
+    in one transaction (apply=true, only without errors): one opening entry (the difference to opening balances) and
+    one manual entry per old entry number, referenced OLD-<number>, approved as the settings say."""
+    from app.modules.finance import oldbooks
+
+    _need_all_companies(all_companies)
+    _check_company(db, company_id)
+    scope = {"all_companies": all_companies, "company_ids": company_ids}
+    start = books(db).books_start_date
+    accounts = {a.code: a for a in db.scalars(select(Account))}
+    found = oldbooks.read(data)
+    result = oldbooks.check(found, accounts=accounts, books_start=start, civil_ids=_civil_ids(db, found))
+    if found.opening:
+        if start is None:
+            result.error(oldbooks.OPENING, None, "books_start_required")
+        elif opening_exists(db, company_id):
+            result.error(oldbooks.OPENING, None, "opening_exists")
+    numbers = sorted(result.entries)
+    taken = sorted(
+        r[4:]
+        for r in db.scalars(
+            select(Entry.source_ref).where(
+                Entry.source_kind == "manual",
+                Entry.reversed_by_id.is_(None),
+                Entry.source_ref.in_([f"OLD-{n}" for n in numbers]),
+            )
+        )
+    )
+    if taken and apply:
+        raise AppError(409, "old_entries_imported", numbers=", ".join(taken))
+    for n in taken:
+        result.error(oldbooks.ENTRIES, result.entries[n]["row"], "old_entry_imported", number=n)
+    out = result.summary()
+    if not apply or result.errors:
+        return out | {"applied": False, "numbers": []}
+
+    made: list[int] = []
+    lang = i18n.default_language(db).code
+    if result.opening:
+        _opening_lock(db)
+        opened = create_opening(
+            db,
+            {"company_id": company_id, "lines": result.opening},
+            actor_user_id=actor_user_id,
+            commit=False,
+            **scope,
+        )
+        made.append(opened["entry"].number)
+    for n in numbers:
+        old = result.entries[n]
+        made_entry = create_manual(
+            db,
+            {
+                "entry_date": old["date"],
+                "description": old["description"] or i18n.t(db, lang, "finance_source.imported", number=n),
+                "company_id": company_id,
+                "lines": old["lines"],
+                "ref": f"OLD-{n}",
+            },
+            actor_user_id=actor_user_id,
+            commit=False,
+            **scope,
+        )
+        made.append(made_entry["entry"].number)
+    audit.record(
+        db,
+        action="finance.books.imported",
+        entity_type="entry",
+        actor_user_id=actor_user_id,
+        company_id=company_id,
+        after={"opening": bool(result.opening), "entries": len(numbers), "numbers": made},
+    )
+    db.commit()
+    return out | {"applied": True, "numbers": made}
+
+
+def _civil_ids(db: Session, found) -> dict[str, int]:
+    """The employees the file names by civil ID: those found (the others are a warning)."""
+    out = {}
+    for civil_id in found.civil_ids():
+        ref = people.find(db, civil_id=civil_id, phone=None)
+        if ref is not None:
+            out[civil_id] = ref.id
+    return out
