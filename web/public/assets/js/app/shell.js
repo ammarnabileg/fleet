@@ -103,7 +103,15 @@
   /* يعرض التحميل ثم المحتوى، أو رسالة خطأ مع إعادة المحاولة. el مثبّت عند بداية الصفحة. */
   A.load = function (el, promise, render) {
     BT.render(el, A.spinner());
-    return Promise.resolve(promise).then(function (data) { if (document.contains(el)) { BT.render(el, render(data)); } return data; }, function (err) {
+    return Promise.resolve(promise).then(function (data) {
+      if (document.contains(el)) {
+        try { BT.render(el, render(data)); } catch (e) { // a screen's own bug: said, not an endless spinner
+          if (window.console) console.error(e);
+          BT.render(el, A.errorBox(e));
+        }
+      }
+      return data;
+    }, function (err) {
       if (err instanceof api.ApiError && err.status === 401) return;
       if (document.contains(el)) BT.render(el, A.errorBox(err));
       throw err;
@@ -237,13 +245,66 @@
       if (!rows.length) { BT.render(list, BT.empty('bell', 'لا توجد تنبيهات مفتوحة')); return; }
       BT.render(list, h`${rows.map(function (a) {
         var tone = { critical: 'danger', warning: 'warning', info: 'info' }[a.severity];
-        return h`<div class="notif" style="cursor:default"><span class="li-ic" style="width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--${tone}-soft);color:var(--${tone}-text)">${icon(a.severity === 'critical' ? 'siren' : a.severity === 'warning' ? 'triangle-alert' : 'info', 16)}</span><span class="flex-1"><span class="n-t" style="display:block">${a.message}</span><span class="n-d">${BT.fmt.since(a.created_at)}</span></span><button type="button" class="btn btn-sm btn-ghost" data-ack="${a.id}" title="تم الاطلاع">${icon('check', 14)}</button></div>`;
+        return h`<div class="notif" style="cursor:default"><span class="li-ic" style="width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--${tone}-soft);color:var(--${tone}-text)">${icon(a.severity === 'critical' ? 'siren' : a.severity === 'warning' ? 'triangle-alert' : 'info', 16)}</span><span class="flex-1"><span class="n-t" style="display:block">${a.message}</span><span class="n-d">${BT.fmt.since(a.created_at)}</span>${A.alertTarget(a) ? h`<span style="display:block;margin-top:6px">${A.alertButton(a)}</span>` : ''}</span><button type="button" class="btn btn-sm btn-ghost" data-ack="${a.id}" title="تم الاطلاع">${icon('check', 14)}</button></div>`;
       })}`);
       BT.on(list, 'click', '[data-ack]', function (e, b) {
         b.disabled = true;
         api.post('/alerts/' + b.getAttribute('data-ack') + '/ack').then(function () { b.closest('.notif').remove(); A.counts.alerts = Math.max(0, (A.counts.alerts || 1) - 1); A.updateBell(); A.renderNav(A.router.current.split('/')[0]); }, function (err) { b.disabled = false; BT.toast(api.message(err), { type: 'error' }); });
       });
     }, function (err) { var list = pop.querySelector('[data-alerts]'); if (list) BT.render(list, BT.empty('wifi-off', api.message(err))); });
+  };
+
+  /* ---------- من التنبيه إلى ما يخصه ----------
+     كل تنبيه يفتح السجل الذي يتكلم عنه، حيث يُتخذ القرار: طلب التسجيل بزرّي «اعتماد» و«إعادة للسائق»، العهدة،
+     المخالفة، طلب الصيانة، الحادث؛ وما لا يُفتح وحده بعد يفتح صفحته التي فيها القرار. الزر يظهر لمن يملك كل
+     صلاحيات الوصول إليه، فلا يقود أحداً إلى صفحة مغلقة عليه. */
+  var DEVICE_KINDS = ['otp_delivery_failed', 'device_replaced', 'mock_location'];
+  var CASH_KINDS = ['cash_balance_high', 'driver_left_with_cash'];
+  // the expiring-documents list wide enough for the alert's document (a commercial licence warns 60 days ahead)
+  function docsWindow(a) { var n = Number(a.params.days) || 0; return [30, 60, 90, 180, 365].filter(function (d) { return d >= n; })[0] || 365; }
+  A.alertTargets = {
+    onboarding: { perm: ['employees.onboarding'], label: 'مراجعة واعتماد', primary: true, open: function (a, after) { A.reviewRegistration(a.entity_id, after); } },
+    employee: { perm: function (a) { return CASH_KINDS.indexOf(a.kind) >= 0 ? ['cash.view'] : ['employees.view']; }, open: function (a) {
+      if (CASH_KINDS.indexOf(a.kind) >= 0) A.go('cash'); // where his cash is collected or settled
+      else A.employee(a.entity_id, DEVICE_KINDS.indexOf(a.kind) >= 0 ? 'device' : null);
+    } },
+    custody: { perm: ['custody.view'], open: function (a, after) { A.custody(a.entity_id, after); } },
+    vehicle: { perm: ['custody.view', 'custody.assign'], open: function () { A.go('custody'); } }, // the change requests box with its buttons
+    odometer_reading: { perm: ['odometer.view'], open: function () { A.go('odometer'); } },
+    document: { perm: ['employees.view', 'documents.view'], open: function (a) { A.go('employees?tab=docs&days=' + docsWindow(a)); } },
+    document_renewal: { perm: ['employees.view', 'documents.view', 'documents.manage'], label: 'مراجعة', open: function () { A.go('employees?tab=docs'); } },
+    daily_report: { perm: ['daily_reports.view'], open: function (a) { A.go('daily' + (a.params.date ? '?date=' + encodeURIComponent(a.params.date) : '')); } },
+    maintenance_request: { perm: ['maintenance.view'], open: function (a) { A.go('maintenance/' + a.entity_id); } },
+    maintenance_invoice: { perm: ['invoices.view'], open: function () { A.go('maintenance?tab=invoices'); } },
+    accident: { perm: ['accidents.view'], open: function (a) { A.go('accidents/' + a.entity_id); } },
+    fine: { perm: ['fines.view'], open: function (a, after) { A.fine(a.entity_id, after); } }
+    // approval_escalated: no button. It goes to every approvals.view holder, but only the approvers have it in their inbox
+  };
+  A.alertTarget = function (a) {
+    var t = a && a.entity_type && a.entity_id ? A.alertTargets[a.entity_type] : null;
+    var perms = t ? [].concat(typeof t.perm === 'function' ? t.perm(a) : t.perm) : [];
+    return t && perms.every(function (p) { return api.can(p); }) ? t : null;
+  };
+  var shownAlerts = {}; // the alerts on screen, by id, for the button's click
+  // plain: a closed alert (a decided registration) keeps a quiet «فتح», not the call to decide
+  A.alertButton = function (a, plain) {
+    var t = A.alertTarget(a);
+    if (!t) return raw('');
+    shownAlerts[a.id] = a;
+    var primary = t.primary && !plain;
+    return h`<button type="button" class="btn btn-sm ${primary ? 'btn-primary' : 'btn-soft'}" data-action="alert-open" data-arg="${a.id}">${icon(primary ? 'user-round-check' : 'arrow-left', 13)} ${(!plain && t.label) || 'فتح'}</button>`;
+  };
+  BT.actions['alert-open'] = function (id) {
+    var a = shownAlerts[id], t = A.alertTarget(a);
+    if (!t) return;
+    BT.closeMenu(); // the bell's menu, so the drawer is not under it
+    t.open(a, function () {
+      // the decision closed the alert on the server: redraw what is on screen (by the route drawn, which after
+      // sign-in is the default page with no hash), keeping the alerts table's chip and page
+      A.refreshCounts();
+      if (A.router.current === 'alerts' && A._alertsTable) A._alertsTable.refresh();
+      else A.router.refresh();
+    });
   };
 
   /* ---------- قائمة المستخدم ---------- */

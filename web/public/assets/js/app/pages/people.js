@@ -69,7 +69,7 @@
       drawn[t] = true;
       if (t === 'list') listTable(q.status);
       if (t === 'docs') {
-        docsPanel(document.getElementById('doc-panel'));
+        docsPanel(document.getElementById('doc-panel'), +q.days || null);
         if (api.can('documents.manage')) renewals(document.getElementById('doc-renewals'));
       }
       if (t === 'reg') regTable();
@@ -127,8 +127,8 @@
   }
 
   /* ---------- المستندات التي تنتهي ---------- */
-  function docsPanel(el) {
-    var days = 30;
+  function docsPanel(el, startDays) {
+    var days = startDays || 30; // an alert opens it wide enough for its document
     function draw() {
       A.load(el, Promise.all([api.get('/documents/expiring', { within_days: days }), loadDocTypes()]), function (res) {
         var docs = res[0];
@@ -149,7 +149,7 @@
             empty: { icon: 'circle-check', title: 'لا توجد مستندات تنتهي خلال ' + days + ' يوماً' }
           });
         });
-        return h`<div class="card"><div class="card-h"><h3>${BT.fmt.int(docs.length)} مستند ينتهي أو انتهى</h3><select class="select ms-auto" data-days style="width:auto">${[15, 30, 60, 90, 180].map(function (n) { return h`<option value="${n}"${n === days ? raw(' selected') : ''}>خلال ${n} يوماً</option>`; })}</select></div><div data-docs></div></div>`;
+        return h`<div class="card"><div class="card-h"><h3>${BT.fmt.int(docs.length)} مستند ينتهي أو انتهى</h3><select class="select ms-auto" data-days style="width:auto">${[15, 30, 60, 90, 180, 365].concat([15, 30, 60, 90, 180, 365].indexOf(days) < 0 ? [days] : []).sort(function (x, y) { return x - y; }).map(function (n) { return h`<option value="${n}"${n === days ? raw(' selected') : ''}>خلال ${n} يوماً</option>`; })}</select></div><div data-docs></div></div>`;
       }).catch(function () {});
     }
     BT.on(el, 'change', '[data-days]', function (e, s) { days = +s.value; draw(); });
@@ -491,7 +491,7 @@
     });
   }
 
-  A.reviewRegistration = function (id) {
+  A.reviewRegistration = function (id, after) {
     var dlg = BT.drawer.open({ title: 'طلب تسجيل', icon: 'user-round-check', size: 'lg', body: A.spinner(), buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] });
     Promise.all([api.get('/onboarding/' + id), loadDocTypes()]).then(function (res) {
       var r = res[0], data = r.data || {}, veh = data.vehicle || {}, file = function (sha) { return api.url('/onboarding/' + id + '/files/' + sha); };
@@ -516,7 +516,7 @@
       if (r.status !== 'submitted' || !api.can('employees.onboarding')) return;
       var foot = dlg.panel.querySelector('.modal-f');
       BT.render(foot, h`<span class="spacer"></span><button type="button" class="btn btn-outline" data-x="reject">${icon('x', 15)}إعادة للسائق مع السبب</button><button type="button" class="btn btn-primary" data-x="approve">${icon('check', 15)}اعتماد</button>`);
-      var done = function () { dlg.close(); A.refreshCounts(); A.refreshIfAt('employees'); };
+      var done = function () { dlg.close(); A.refreshCounts(); A.refreshIfAt('employees'); if (after) after(); };
       BT.on(foot, 'click', '[data-x]', function (ev, b) {
         if (b.getAttribute('data-x') === 'reject') {
           A.confirmRun({ title: 'إعادة الطلب للسائق', message: 'يصل السبب للسائق على واتساب وفي التطبيق، فيصحح ويرسل من جديد.', confirmText: 'إعادة للسائق', tone: 'warn', icon: 'rotate-ccw', reason: { label: 'السبب', required: true, placeholder: 'مثال: صورة الإقامة غير واضحة' },

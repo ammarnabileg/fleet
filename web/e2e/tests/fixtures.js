@@ -37,10 +37,11 @@ class Api {
     return JSON.parse(text).sha256;
   }
 
-  /** A driver's phone, signed in through an activation link as the app does: returns a client for /driver/*. */
-  async driverPhone(employeeId, deviceUid) {
+  /** A driver's phone, signed in through an activation link as the app does: returns a client for /driver/*.
+   *  With onboarding, the link opens his self-registration. */
+  async driverPhone(employeeId, deviceUid, { onboarding = false } = {}) {
     await this.put(`/employees/${employeeId}/app-access`, { app_access: 'active' });
-    const link = await this.post(`/employees/${employeeId}/activation-link`, { channel: 'manual', onboarding: false });
+    const link = await this.post(`/employees/${employeeId}/activation-link`, { channel: 'manual', onboarding });
     const token = link.url.split('#t=')[1];
     const t = await this.call('POST', '/driver/auth/activate', { token, device_uid: deviceUid, model: 'E2E' });
     const auth = { Authorization: 'Bearer ' + t.access_token };

@@ -151,10 +151,12 @@
         { key: 'message', label: 'التنبيه', render: function (a) { return h`<span style="white-space:normal">${a.message}</span>`; } },
         { key: 'created_at', label: 'الوقت', render: function (a) { return h`${fmt.dt(a.created_at)}<span class="sub">${fmt.since(a.created_at)}</span>`; } },
         { key: 'company', label: 'الشركة', render: function (a) { return a.company_id ? api.company(a.company_id) : '—'; } },
+        { key: 'open', label: '', render: function (a) { return A.alertButton(a, !open); } },
         { key: 'ack', label: '', render: function (a) { return a.acknowledged_at ? h`<span class="muted fs-sm">${icon('check', 13)} ${fmt.dt(a.acknowledged_at)}</span>` : h`<button type="button" class="btn btn-sm btn-soft" data-ack="${a.id}">${icon('check', 13)} تم الاطلاع</button>`; } }
       ],
       empty: { icon: 'circle-check', title: 'لا توجد تنبيهات' }
     });
+    A._alertsTable = t; // redrawn in place after a decision taken from one of its alerts
     BT.on(v, 'click', '[data-ack]', function (e, b) {
       b.disabled = true;
       api.post('/alerts/' + b.getAttribute('data-ack') + '/ack').then(function () { BT.toast('تم تسجيل الاطلاع'); t.refresh(); A.refreshCounts(); }, function (err) { b.disabled = false; BT.toast(api.message(err), { type: 'error' }); });

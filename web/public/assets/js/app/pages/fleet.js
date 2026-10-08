@@ -217,7 +217,7 @@
   };
   BT.actions['handover-new'] = function () { A.handover({}, function () { if (A.refreshCustody) A.refreshCustody(); }); };
 
-  A.custody = function (id) {
+  A.custody = function (id, after) {
     var dlg = BT.drawer.open({ title: 'العهدة', icon: 'key-round', size: 'lg', body: A.spinner(), buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] });
     api.get('/custodies/' + id).then(function (c) {
       dlg.panel.querySelector('.modal-h h3').textContent = 'عهدة ' + (c.vehicle.plate_number || '');
@@ -236,7 +236,7 @@
       if (!btns.length) return;
       var foot = dlg.panel.querySelector('.modal-f');
       BT.render(foot, h`<span class="spacer"></span>${btns}<button type="button" class="btn btn-secondary" data-close>إغلاق</button>`);
-      var done = function () { dlg.close(); if (A.refreshCustody) A.refreshCustody(); if (A.router.current === 'vehicles/:id') A.router.refresh(); };
+      var done = function () { dlg.close(); if (A.refreshCustody) A.refreshCustody(); if (A.router.current === 'vehicles/:id') A.router.refresh(); if (after) after(); };
       BT.on(foot, 'click', '[data-x]', function (e, b) {
         if (b.getAttribute('data-x') === 'return') A.returnVehicle(id, { plate_number: c.vehicle.plate_number }, done);
         else A.confirmRun({ title: 'مراجعة العهدة الطارئة', message: 'اكتب ما تحققت منه (المستندات، حالة السيارة، سبب الطوارئ).', confirmText: 'تمت المراجعة', tone: 'success', reason: { label: 'ملاحظة المراجعة', required: true }, run: function (note) { return api.post('/custodies/' + id + '/review', { note: note }); }, done: 'تمت المراجعة', after: done });
