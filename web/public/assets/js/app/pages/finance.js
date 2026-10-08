@@ -13,7 +13,7 @@
   var ROLES = ['treasury', 'bank', 'driver_cash', 'cod_clearing', 'suppliers_payable', 'salaries_expense', 'salaries_payable',
     'employee_receivable', 'payroll_recovery', 'maintenance_expense', 'traffic_fines_expense', 'deduction_accident',
     'deduction_fine', 'deduction_advance', 'deduction_sim', 'deduction_other', 'cash_adjustments', 'cash_writeoff', 'opening_equity',
-    'driver_salaries_expense'];
+    'driver_salaries_expense', 'fuel_expense'];
   var CLASSES = ['1', '2', '3', '4', '5', '6'];
 
   function amt(v) { return v == null ? '—' : BT.amt(Number(v)); }

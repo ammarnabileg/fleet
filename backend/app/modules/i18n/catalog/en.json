@@ -91,7 +91,8 @@
     "vehicles.view": "View vehicles",
     "employees.onboarding": "Review and approve drivers' self-registration",
     "payroll.schemes": "Pay schemes and requests to change them",
-    "daily_reports.escalations": "Overdue report escalations (manager)"
+    "daily_reports.escalations": "Overdue report escalations (manager)",
+    "cash.fuel_review": "Review and approve drivers' fuel claims"
   },
   "modules": {
     "accidents": "Accidents",
@@ -453,7 +454,16 @@
     "deduction_decided": "This deduction was already decided",
     "claim_open_app_off": "“No” for the app, but he has an open initial password he can sign in with: revoke it on the driver's page if he should not have the app",
     "import_column_ignored": "Column “{column}” has a header we do not know, so it was not imported: the driver columns are “تفعيل التطبيق (نعم/لا)”, “كلمة المرور المبدئية” and “صلاحية كلمة المرور (يوم)”",
-    "import_password_needs_devices": "The file has an initial password column: setting drivers' passwords needs the “manage driver devices” permission. Choose “none” for that column or ask for the permission"
+    "import_password_needs_devices": "The file has an initial password column: setting drivers' passwords needs the “manage driver devices” permission. Choose “none” for that column or ask for the permission",
+    "fuel_exists": "This fuel claim is already recorded",
+    "fuel_too_old": "The fuel receipt is older than {days} days and cannot be claimed",
+    "fuel_amount_too_high": "The fuel amount is above the allowed maximum ({max} KWD)",
+    "fuel_receipt_used": "This receipt photo was already used in another fuel claim",
+    "fuel_card_driver": "You have a company fuel card: fuel is not claimed from your cash",
+    "fuel_not_covered": "Fuel is on the driver under his pay scheme: it is not charged to the company",
+    "fuel_no_vehicle": "No vehicle was in your custody at the receipt's time",
+    "fuel_decided": "This fuel claim was already decided",
+    "fuel_claim_not_found": "Fuel claim not found"
   },
   "settings": {
     "branding": "Branding",
@@ -463,6 +473,7 @@
     "cash": "Cash",
     "cash.driver_balance_alert": "Driver balance alert (KWD)",
     "cash.report_review_hours": "Daily report review deadline (hours)",
+    "cash.fuel_max_amount": "Maximum amount of one fuel claim (KWD)",
     "daily_report": "Daily report",
     "daily_report.require_cash": "Cash required",
     "daily_report.require_orders_count": "Order count required",
@@ -576,7 +587,8 @@
     "daily_report_change_requested": "{driver} asks to change the report of {date}",
     "vehicle_change_requested": "{driver} asks to change the vehicle {plate}: {reason}",
     "document_renewal_submitted": "{driver} sent a renewed {document}, valid until {date}: check and approve it",
-    "daily_report_missing": "{driver} started the day {date} but sent no report"
+    "daily_report_missing": "{driver} started the day {date} but sent no report",
+    "fuel_claim": "Fuel claim from {name} for {amount} KWD awaits review"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -656,7 +668,8 @@
     "settlement": "Final settlement",
     "writeoff": "Write-off",
     "reversal": "Reversal",
-    "opening": "Opening balance"
+    "opening": "Opening balance",
+    "fuel": "Fuel"
   },
   "journal_status": {
     "pending": "Unapproved",
@@ -857,7 +870,8 @@
     "day": "Start and end of the day (odometer, custody, tracking)",
     "onboarding": "Self-registration (set in the self-registration settings)",
     "permissions": "Phone permissions (location, camera)",
-    "schemes": "Pay schemes and change requests"
+    "schemes": "Pay schemes and change requests",
+    "fuel": "Fuel paid from cash"
   },
   "daily_field": {
     "orders": "Orders",
@@ -1045,7 +1059,8 @@
     "expense": "Expense",
     "expense_type": "Expense type",
     "workflow": "Approval workflow",
-    "delegation": "Delegation"
+    "delegation": "Delegation",
+    "fuel_claim": "Fuel claim"
   },
   "audit_actor": {
     "user": "User",
@@ -1145,7 +1160,8 @@
     "maintenance_expense": "Maintenance expense",
     "traffic_fines_expense": "Traffic fines expense",
     "cash_writeoff": "Driver cash written off",
-    "driver_salaries_expense": "Drivers' salaries expense"
+    "driver_salaries_expense": "Drivers' salaries expense",
+    "fuel_expense": "Fuel paid from drivers' cash"
   },
   "approval_process": {
     "daily_report": "Daily reports",
@@ -1223,6 +1239,8 @@
     "document_expired": "Your {document} expired on {date}. Renew it now and give the copy to the office.",
     "scheme_request_approved": "Your request was approved: pay scheme {scheme} from {month}.",
     "scheme_request_rejected": "Your request to change to pay scheme {scheme} was refused: {reason}",
-    "report_missing": "You started your day {date} but have not sent your report yet. Send it now from the app."
+    "report_missing": "You started your day {date} but have not sent your report yet. Send it now from the app.",
+    "fuel_approved": "Your fuel claim was approved for {amount} KWD and taken off the cash you hold",
+    "fuel_rejected": "Your fuel claim was rejected: {reason}"
   }
 }

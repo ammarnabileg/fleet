@@ -7,6 +7,7 @@ import 'package:fleet_driver/core/api.dart';
 import 'package:fleet_driver/core/models.dart' show kuwaitDay;
 import 'package:fleet_driver/core/tokens.dart';
 import 'package:fleet_driver/main.dart';
+import 'package:fleet_driver/ui/screens/fuel.dart';
 import 'package:fleet_driver/ui/photos.dart';
 import 'package:fleet_driver/ui/theme.dart';
 import 'package:flutter/material.dart';
@@ -63,6 +64,7 @@ Future<World> world({
   List<Map<String, dynamic>>? maintenance,
   List<Map<String, dynamic>>? accidents,
   List<Map<String, dynamic>>? fines,
+  Map<String, dynamic>? fuel,
   Future<String?> Function(
     Map<String, dynamic> config, {
     required void Function(String token) onRefresh,
@@ -188,6 +190,8 @@ Future<World> world({
   server.on('GET', '/api/v1/driver/maintenance/form', (r) => (200, {'direct_to_center': false, 'centers': []}));
   server.on('GET', '/api/v1/driver/accidents', (r) => (200, accidents ?? []));
   server.on('GET', '/api/v1/driver/fines', (r) => (200, fines ?? []));
+  // no fuel route by default: an older server, the app offers no fuel
+  if (fuel != null) server.on('GET', '/api/v1/driver/fuel', (r) => (200, fuel));
   return World(state, server);
 }
 
@@ -2551,5 +2555,239 @@ void main() {
     await settle(tester);
     expect(find.byKey(const Key('report-queued')), findsOneWidget);
     expect(find.byKey(const Key('send-report')), findsNothing);
+  });
+
+  Map<String, dynamic> fuelView({bool allowed = true, String? reason, List<Map<String, dynamic>>? claims}) => {
+    'allowed': allowed,
+    'reason': reason,
+    'max_amount': '50.000',
+    'claims': claims ?? [],
+  };
+
+  testWidgets('fuel from the cash: the receipt from the camera, the amount with 3 decimals, the odometer optional', (
+    tester,
+  ) async {
+    final claims = <Map<String, dynamic>>[];
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on('GET', '/api/v1/driver/fuel', (r) => (200, fuelView(claims: claims)));
+    final img = await tester.runAsync(testImage);
+    final taken = DateTime.now().subtract(const Duration(minutes: 7));
+    Photos.camera = (_) async => TakenPhoto(img!, taken);
+    Photos.gallery = () async => fail('the receipt comes from the camera only');
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'f' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('POST', '/api/v1/driver/fuel', (r) {
+      final b = jsonDecode(r.body) as Map<String, dynamic>;
+      final claim = {
+        'id': 'fc1',
+        'paid_at': b['paid_at'],
+        'amount': b['amount'],
+        'approved_amount': null,
+        'status': 'pending',
+        'decision_note': null,
+        'odometer_km': b['odometer_km'],
+        'notes': null,
+        'vehicle_plate': '18/23456',
+        'created_at': '2026-10-08T08:00:00Z',
+      };
+      claims.add(claim);
+      return (201, claim);
+    });
+    await pumpApp(tester, w);
+    await reveal(tester, find.byKey(const Key('fuel')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('fuel')));
+    await idle(tester);
+    expect(find.byKey(const Key('fuel-off')), findsNothing);
+
+    // no photo: not sent; above the maximum: not sent
+    await tester.enterText(find.byKey(const Key('fuel-amount')), '60');
+    await reveal(tester, find.byKey(const Key('fuel-send')));
+    await tester.tap(find.byKey(const Key('fuel-send')));
+    await idle(tester);
+    expect(find.byKey(const Key('fuel-photo-missing')), findsOneWidget);
+    expect(find.textContaining('أقصى مبلغ للفاتورة'), findsOneWidget);
+    expect(w.server.calls('/api/v1/driver/fuel', method: 'POST'), isEmpty);
+
+    await reveal(tester, find.byKey(const Key('fuel-amount')));
+    await tester.enterText(find.byKey(const Key('fuel-amount')), '7.5');
+    await reveal(tester, find.byKey(const Key('fuel-photo')));
+    await tester.tap(find.byKey(const Key('fuel-photo')));
+    await idle(tester);
+    expect(find.byKey(const Key('fuel-photo-missing')), findsNothing);
+    await shot(tester, '30-fuel');
+    await reveal(tester, find.byKey(const Key('fuel-send')));
+    await tester.tap(find.byKey(const Key('fuel-send')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/fuel', method: 'POST').single.body) as Map;
+    expect((body['amount'], body['receipt_sha256']), ('7.500', 'f' * 64));
+    expect(body.containsKey('odometer_km') || body.containsKey('notes'), isFalse, reason: 'optional, left empty');
+    expect(DateTime.parse(body['paid_at'] as String).isAtSameMomentAs(taken), isTrue, reason: 'the photo\'s time');
+    expect((body['client_ref'] as String).length, 36);
+    expect(w.server.calls('/api/v1/driver/files').single.url.queryParameters['source'], 'camera');
+    expect(find.text('تم الإرسال'), findsOneWidget);
+
+    // back on home, opened again: the receipt waits for the accountant
+    await tester.tap(find.text('تم'));
+    await settle(tester);
+    await reveal(tester, find.byKey(const Key('fuel')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('fuel')));
+    await idle(tester);
+    await reveal(tester, find.byKey(const Key('fuel-claim-fc1')));
+    expect(
+      find.descendant(of: find.byKey(const Key('fuel-claim-fc1')), matching: find.text('بانتظار المراجعة')),
+      findsOne,
+    );
+  });
+
+  testWidgets('fuel decided: approved at its amount, rejected with the reason; in the cash tab as fuel', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(
+      () => world(
+        fuel: fuelView(
+          claims: [
+            {
+              'id': 'a',
+              'paid_at': '2026-10-07T06:00:00Z',
+              'amount': '7.250',
+              'approved_amount': '7.000',
+              'status': 'approved',
+              'decision_note': 'المبلغ في الفاتورة 7.000',
+              'odometer_km': 45210,
+              'notes': null,
+              'vehicle_plate': '18/23456',
+              'created_at': '2026-10-07T06:01:00Z',
+            },
+            {
+              'id': 'b',
+              'paid_at': '2026-10-06T06:00:00Z',
+              'amount': '4.000',
+              'approved_amount': null,
+              'status': 'rejected',
+              'decision_note': 'فاتورة غير واضحة',
+              'odometer_km': null,
+              'notes': null,
+              'vehicle_plate': '18/23456',
+              'created_at': '2026-10-06T06:01:00Z',
+            },
+          ],
+        ),
+      ),
+    ))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/cash',
+      (r) => (
+        200,
+        {
+          'posted': '-7.000',
+          'pending': '0.000',
+          'total': '-7.000',
+          'alert_limit': '80.000',
+          'receipts': [],
+          'lines': [
+            {
+              'journal_id': 'j1',
+              'kind': 'fuel',
+              'status': 'posted',
+              'amount': '-7.000',
+              'business_date': '2026-10-07',
+              'reason': 'المبلغ في الفاتورة 7.000',
+              'source_type': 'fuel_claim',
+              'created_at': '2026-10-08T06:00:00Z',
+            },
+          ],
+        },
+      ),
+    );
+    await pumpApp(tester, w);
+    await reveal(tester, find.byKey(const Key('fuel')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('fuel')));
+    await idle(tester);
+    await reveal(tester, find.byKey(const Key('fuel-claim-b')));
+    expect(find.text('تم القبول (\u20667.000\u2069 د.ك)'), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const Key('fuel-claim-b')), matching: find.text('مرفوض')), findsOne);
+    expect(find.textContaining('فاتورة غير واضحة'), findsOneWidget);
+    await tester.tap(find.byType(BackButton));
+    await settle(tester);
+    await reveal(tester, find.byKey(const Key('qa-cash')));
+    await tester.tap(find.byKey(const Key('qa-cash')));
+    await settle(tester);
+    expect(find.text('بنزين'), findsOneWidget);
+  });
+
+  testWidgets('fuel not offered: a fuel card, fuel on the driver, no car; an older server', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    await pumpApp(tester, w);
+    expect(find.byKey(const Key('fuel')), findsNothing, reason: 'the server has no fuel route');
+    expect(w.state.fuel, isNull);
+    final texts = {
+      'fuel_card': 'كارت بنزين',
+      'not_covered': 'البنزين عليك حسب نظام الدفع',
+      'no_vehicle': 'لا توجد سيارة في عهدتك',
+    };
+    for (final MapEntry(key: reason, value: text) in texts.entries) {
+      w.server.on('GET', '/api/v1/driver/fuel', (r) => (200, fuelView(allowed: false, reason: reason)));
+      await tester.runAsync(() => w.state.refresh());
+      await idle(tester);
+      expect(find.byKey(const Key('fuel')), findsNothing, reason: reason);
+      // the screen itself (opened before his scheme changed) says why, with no form
+      final nav = tester.state<NavigatorState>(find.byType(Navigator).first);
+      unawaited(nav.push(MaterialPageRoute<void>(builder: (_) => FuelScreen(state: w.state))));
+      await idle(tester);
+      expect(find.byKey(const Key('fuel-off')), findsOneWidget, reason: reason);
+      expect(find.textContaining(text), findsOneWidget, reason: reason);
+      expect(find.byKey(const Key('fuel-amount')), findsNothing, reason: reason);
+      expect(find.byKey(const Key('fuel-send')), findsNothing, reason: reason);
+      nav.pop();
+      await settle(tester);
+    }
+  });
+
+  testWidgets('fuel with no signal: kept on the phone with its receipt and sent later', (tester) async {
+    final w = (await tester.runAsync(() => world(fuel: fuelView())))!;
+    final img = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.now());
+    w.server.on('POST', '/api/v1/driver/files', (r) => throw const SocketException('offline'));
+    await pumpApp(tester, w);
+    await reveal(tester, find.byKey(const Key('fuel')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('fuel')));
+    await idle(tester);
+    await tester.enterText(find.byKey(const Key('fuel-amount')), '3.25');
+    await tester.enterText(find.byKey(const Key('fuel-km')), '45210');
+    await reveal(tester, find.byKey(const Key('fuel-photo')));
+    await tester.tap(find.byKey(const Key('fuel-photo')));
+    await idle(tester);
+    await reveal(tester, find.byKey(const Key('fuel-send')));
+    await tester.tap(find.byKey(const Key('fuel-send')));
+    await idle(tester);
+    expect(find.text('حُفظ على الهاتف'), findsOneWidget);
+    await tester.tap(find.text('تم'));
+    await idle(tester);
+    expect(find.text('فاتورة بنزين'), findsOneWidget);
+    final item = w.state.queued.single;
+    expect((item.kind, item.payload['amount'], item.payload['odometer_km']), ('fuel', '3.250', 45210));
+    expect(item.files.keys, ['receipt_sha256']);
+
+    // the network is back: sent with the receipt uploaded from the camera
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'e' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('POST', '/api/v1/driver/fuel', (r) => (409, {'code': 'fuel_exists'})); // its first try got there
+    await tester.runAsync(() => w.state.outbox.flush(w.state.api));
+    await tester.runAsync(() => w.state.reloadLocal());
+    await idle(tester);
+    expect(w.state.queued, isEmpty, reason: 'a resend already recorded is done');
+    final body = jsonDecode(w.server.calls('/api/v1/driver/fuel', method: 'POST').single.body) as Map;
+    expect((body['receipt_sha256'], body['amount']), ('e' * 64, '3.250'));
   });
 }

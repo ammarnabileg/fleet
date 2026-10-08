@@ -1451,4 +1451,79 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notSentYet => 'Not sent yet';
+
+  @override
+  String get fuel => 'Fuel';
+
+  @override
+  String get qaFuelSub => 'Fuel you paid from cash';
+
+  @override
+  String get fuelTitle => 'Fuel paid from cash';
+
+  @override
+  String get fuelIntro =>
+      'Photograph the fuel receipt and enter the amount. The accountant reviews it when he receives your cash; once approved, the amount comes off the cash you hold.';
+
+  @override
+  String get fuelReceipt => 'Fuel receipt photo';
+
+  @override
+  String get fuelTakeReceipt => 'Photograph the receipt';
+
+  @override
+  String get fuelReceiptMissing => 'The receipt photo is required';
+
+  @override
+  String get fuelAmount => 'Amount paid';
+
+  @override
+  String get fuelAmountInvalid => 'Enter the amount in KWD, up to 3 decimals';
+
+  @override
+  String fuelAmountMax(String max) {
+    return 'The most one receipt may be is $max KWD';
+  }
+
+  @override
+  String get fuelOdometer => 'Odometer reading (optional)';
+
+  @override
+  String get fuelNotes => 'Notes (optional)';
+
+  @override
+  String get fuelSend => 'Send for review';
+
+  @override
+  String get fuelMine => 'Fuel receipts';
+
+  @override
+  String get fuelNone => 'No fuel receipts yet';
+
+  @override
+  String get fuelPending => 'Awaiting review';
+
+  @override
+  String fuelApproved(String amount) {
+    return 'Approved ($amount)';
+  }
+
+  @override
+  String get fuelRejected => 'Rejected';
+
+  @override
+  String get fuelOff_fuel_card =>
+      'You have a company fuel card: the office tops it up, and fuel is not claimed from your cash.';
+
+  @override
+  String get fuelOff_not_covered => 'Fuel is yours under your pay scheme, so it is not charged to the company.';
+
+  @override
+  String get fuelOff_no_vehicle => 'No vehicle is in your custody now: fuel is recorded for the car you hold.';
+
+  @override
+  String get kind_fuel => 'Fuel receipt';
+
+  @override
+  String get moveFuel => 'Fuel';
 }

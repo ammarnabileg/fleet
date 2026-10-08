@@ -29,7 +29,7 @@ def test_defaults_validation_versioning_audit_and_event(admin_client, db):
     ok = admin_client.put("/api/v1/settings/cash", json={"version": 0, "value": {"driver_balance_alert": "75.500"}})
     assert ok.status_code == 200 and ok.json() == {
         "version": 1,
-        "value": {"driver_balance_alert": "75.500", "report_review_hours": 24},
+        "value": {"driver_balance_alert": "75.500", "report_review_hours": 24, "fuel_max_amount": "50.000"},
     }
     stale = admin_client.put("/api/v1/settings/cash", json={"version": 0, "value": {}})
     assert stale.status_code == 409 and stale.json()["code"] == "version_conflict"

@@ -77,6 +77,7 @@ class AppState extends ChangeNotifier {
   PlatformStatus? statements;
   List<Payslip> payslips = [];
   DriverSchemes? schemes;
+  Fuel? fuel; // null until loaded, or when the server has no fuel for him: the app offers none
   Notices? notices;
   List<OutboxItem> queued = [];
   Map<String, dynamic> tracking = {};
@@ -399,6 +400,7 @@ class AppState extends ChangeNotifier {
     statements = null;
     payslips = [];
     schemes = null;
+    fuel = null;
     notices = null;
   }
 
@@ -420,6 +422,7 @@ class AppState extends ChangeNotifier {
         if (shows('daily_report')) loadReports(),
         if (shows('maintenance')) _quietly(loadMaintenance),
         if (shows('accidents')) _quietly(loadAccidents),
+        if (shows('fuel')) _quietly(loadFuel),
         _quietly(loadNotices),
         _quietly(loadProfile),
       ]);
@@ -518,6 +521,17 @@ class AppState extends ChangeNotifier {
       direct: f['direct_to_center'] == true,
       centers: [for (final c in f['centers'] as List? ?? []) MaintenanceCenter.fromJson(c as Map<String, dynamic>)],
     );
+  }
+
+  /// Whether he may claim fuel and his last claims. A refusal (an older server, the screen hidden) means none is
+  /// offered; a network failure keeps what was loaded.
+  Future<void> loadFuel() async {
+    try {
+      fuel = Fuel.fromJson(await api.get('/driver/fuel') as Map<String, dynamic>);
+    } on ApiError catch (e) {
+      if (e.isTransient) rethrow;
+      fuel = null;
+    }
   }
 
   Future<void> loadAccidents() async => accidents = [
@@ -810,6 +824,29 @@ class AppState extends ChangeNotifier {
       {'file_sha256': photoPath},
     );
     return _sendNow(id, after: loadAccidents);
+  }
+
+  /// Fuel he paid from his cash: the amount (3 decimals), the receipt's camera photo and its time, the odometer if
+  /// he gives it. Through the outbox: sent now, or queued until the network is back.
+  Future<SendResult> sendFuel({
+    required DateTime paidAt,
+    required String amount,
+    int? odometerKm,
+    String? notes,
+    required String receiptPath,
+  }) async {
+    final id = await outbox.add(
+      'fuel',
+      {
+        'client_ref': const Uuid().v4(),
+        'paid_at': paidAt.toUtc().toIso8601String(),
+        'amount': amount,
+        'odometer_km': ?odometerKm,
+        'notes': ?notes,
+      },
+      {'receipt_sha256': receiptPath},
+    );
+    return _sendNow(id, after: loadFuel);
   }
 
   /// The month's statement: screenshots of the platform's monthly summary and the figures read on them.

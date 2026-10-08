@@ -189,6 +189,7 @@
             ['الجنسية', e.nationality || '—'], ['القسم / الوظيفة', [e.department, e.job_title].filter(Boolean).join(' · ') || '—'],
             ['تاريخ الالتحاق', e.hire_date ? h`<span class="num">${fmt.date(e.hire_date)}</span>` : '—'],
             ['سائق', e.is_driver ? 'نعم' : 'لا'],
+            e.is_driver ? ['كارت بنزين', e.fuel_card ? 'عنده كارت بنزين من الشركة' : 'لا'] : null,
             ['الراتب الأساسي', e.basic_salary != null ? BT.amt(Number(e.basic_salary)) : raw('<span class="muted">محجوب (صلاحية الرواتب)</span>')],
             ['IBAN', e.iban ? h`<span class="num ltr">${e.iban}</span>` : '—'],
             e.bank_name || e.payment_method ? ['البنك / طريقة الدفع', [e.bank_name, e.payment_method ? api.t('payment_method', e.payment_method) : null].filter(Boolean).join(' · ')] : null,
@@ -434,6 +435,7 @@
           ${editing ? '' : BT.f.select({ name: 'status_code', label: 'الحالة', required: true, value: 'active', placeholder: false, options: statuses.filter(function (s) { return s.is_active && !s.is_terminal; }).map(function (s) { return { v: s.code, t: api.name(s.name) }; }) })}
           ${BT.f.select({ name: 'platform_id', label: 'منصة التوصيل', optional: true, value: e.platform_id || '', placeholder: '— لا يوجد —', options: plats.filter(function (x) { return x.is_active || x.id === e.platform_id; }).map(function (x) { return { v: x.id, t: api.name(x.name) }; }) })}
           ${BT.f.input({ name: 'platform_driver_id', label: 'رقمه في المنصة (driver id)', optional: true, value: e.platform_driver_id })}
+          <div>${BT.f.switch({ name: 'fuel_card', label: 'عنده كارت بنزين', checked: !!e.fuel_card })}<div class="hint">يُعبّأ الكارت كمصروف واحد للشركة: لا يسجّل السائق البنزين من الكاش</div></div>
           ${salary ? h`${BT.f.money({ name: 'basic_salary', id: 'f-basic-salary', label: 'الراتب الأساسي', optional: true, value: e.basic_salary, hint: 'للموظفين: السائق يُحاسب بنظام الدفع (بالطلب أو الباتش أو التارجت)' })}${BT.f.input({ name: 'iban', label: 'IBAN', optional: true, value: e.iban, placeholder: 'KW..' })}${BT.f.input({ name: 'bank_name', label: 'البنك', optional: true, value: e.bank_name })}${BT.f.select({ name: 'payment_method', label: 'طريقة الدفع', optional: true, value: e.payment_method || '', placeholder: '—', options: [{ v: 'bank', t: api.t('payment_method', 'bank') }, { v: 'cash', t: api.t('payment_method', 'cash') }] })}` : ''}
         </div>`,
         submit: function (v) {
@@ -442,7 +444,8 @@
             is_driver: !!v.is_driver, phone: A.phoneE164(v.phone), civil_id: v.civil_id || null,
             company_id: +v.company_id, branch_id: +v.branch_id, nationality: v.nationality ? A.picked('nationality', v.nationality) : null, hire_date: v.hire_date || null,
             department: v.department || null, job_title: v.job_title || null,
-            platform_id: v.platform_id ? +v.platform_id : null, platform_driver_id: v.platform_driver_id ? v.platform_driver_id.trim() : null
+            platform_id: v.platform_id ? +v.platform_id : null, platform_driver_id: v.platform_driver_id ? v.platform_driver_id.trim() : null,
+            fuel_card: !!v.fuel_card
           };
           if (salary) { if (!v.is_driver) body.basic_salary = v.basic_salary === '' ? null : String(v.basic_salary); body.iban = v.iban ? v.iban.replace(/\s/g, '').toUpperCase() : null; body.bank_name = v.bank_name || null; body.payment_method = v.payment_method || null; }
           if (!editing) { body.status_code = v.status_code; return api.post('/employees', body); }

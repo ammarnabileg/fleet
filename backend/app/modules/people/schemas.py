@@ -69,6 +69,7 @@ class EmployeeIn(BaseModel):
     payment_method: Literal["bank", "cash"] | None = None
     platform_id: int | None = None  # the delivery platform he works on (payroll)
     platform_driver_id: Short | None = None  # his ID on that platform
+    fuel_card: bool = False  # his fuel is on a company card (topped up as one expense): he claims no fuel
 
 
 class EmployeeUpdateIn(BaseModel):
@@ -92,6 +93,7 @@ class EmployeeUpdateIn(BaseModel):
     payment_method: Literal["bank", "cash"] | None = None
     platform_id: int | None = None
     platform_driver_id: Short | None = None
+    fuel_card: bool | None = None
 
 
 class EmployeeOut(BaseModel):
@@ -117,6 +119,7 @@ class EmployeeOut(BaseModel):
     payment_method: str | None
     platform_id: int | None
     platform_driver_id: str | None
+    fuel_card: bool = False
     version: int
 
 
@@ -161,6 +164,7 @@ class ProfileOut(BaseModel):
     bank_name: str | None
     iban_last4: str | None
     payment_method: str | None
+    fuel_card: bool = False
 
 
 class EmployeeFacetsOut(BaseModel):

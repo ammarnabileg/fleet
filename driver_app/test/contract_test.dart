@@ -955,4 +955,81 @@ void main() {
     skip: backend == null ? 'set BACKEND_URL to run against a real backend' : null,
     timeout: const Timeout(Duration(minutes: 2)),
   );
+
+  test(
+    'fuel from the cash: offered on a scheme that covers fuel, sent with the receipt, approved off his balance',
+    () async {
+      final admin = await signedInAdmin();
+      final n = DateTime.now().millisecondsSinceEpoch % 10000000;
+      final platform = await admin.call('POST', '/payroll/platforms', {
+        'code': 'g$n',
+        'name': {'ar': 'منصة البنزين', 'en': 'Fuel platform'},
+      });
+      final covers = await admin.call('POST', '/payroll/schemes', {
+        'platform_id': platform['id'],
+        'code': 'gas',
+        'name': {'ar': 'البنزين على الشركة', 'en': 'Fuel on the company'},
+        'calculator': 'per_order',
+        'per_order': '0.350',
+        'company_covers': ['gas'],
+      });
+      final company = await companyId(admin);
+      final driver = await admin.call('POST', '/employees', {
+        'employee_number': 'G$n',
+        'name': {'ar': 'سائق البنزين', 'en': 'Fuel Driver'},
+        'company_id': company,
+        'is_driver': true,
+        'phone': '+9655${n.toString().padLeft(7, '0')}',
+        'platform_id': platform['id'],
+      });
+      final month = DateTime.now().toUtc().add(const Duration(hours: 3)).toIso8601String().substring(0, 7);
+      await admin.call('POST', '/payroll/schemes/${covers['id']}/assign', {
+        'employee_ids': [driver['id']],
+        'month': '$month-01',
+      });
+      final vehicle = await admin.call('POST', '/vehicles', {
+        'plate_number': '55/$n',
+        'company_id': company,
+        'last_odometer_km': 1000,
+      });
+      await admin.call('POST', '/custodies', {
+        'vehicle_id': vehicle['id'],
+        'driver_id': driver['id'],
+        'odometer_km': 1000,
+        'photo_sha256': await admin.upload(await jpeg('handover')),
+        'started_at': DateTime.now().toUtc().subtract(const Duration(hours: 2)).toIso8601String(),
+      });
+      await admin.call('PUT', '/employees/${driver['id']}/app-access', {'app_access': 'active'});
+      final link = await admin.call('POST', '/employees/${driver['id']}/activation-link', {
+        'channel': 'manual',
+        'onboarding': false,
+      });
+      final state = appAgainstBackend(await testDb());
+      await state.activate(AppState.activationToken(Uri.parse(link['url'] as String))!);
+
+      await state.loadFuel();
+      expect((state.fuel!.allowed, state.fuel!.reason, state.fuel!.maxAmount), (true, null, '50.000'));
+      final receipt = await jpeg('fuel');
+      final sent = await state.sendFuel(
+        paidAt: DateTime.now().subtract(const Duration(minutes: 10)),
+        amount: '6.750',
+        odometerKm: 1100,
+        receiptPath: receipt.path,
+      );
+      expect(sent, SendResult.sent);
+      final mine = state.fuel!.claims.single;
+      expect((mine.status, mine.amount, mine.odometerKm, mine.plate), ('pending', '6.750', 1100, '55/$n'));
+
+      await admin.call('POST', '/cash/fuel-claims/${mine.id}/approve', {'amount': '6.500', 'note': 'per receipt'});
+      await state.loadFuel();
+      expect((state.fuel!.claims.single.status, state.fuel!.claims.single.approvedAmount), ('approved', '6.500'));
+      await state.loadCash();
+      expect(
+        (state.cash!.total, state.cash!.lines.first.kind, state.cash!.lines.first.amount),
+        ('-6.500', 'fuel', '-6.500'),
+      );
+    },
+    skip: backend == null ? 'set BACKEND_URL to run against a real backend' : null,
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 }

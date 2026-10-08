@@ -1,14 +1,22 @@
 import uuid
+from datetime import date
 from decimal import Decimal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.db import get_session
 from app.core.errors import AppError
-from app.modules.cash import schemas, service
+from app.modules.cash import fuel, schemas, service
 from app.modules.files import service as files
-from app.modules.identity.service import DevicePrincipal, Principal, require_device, require_permission
+from app.modules.identity.service import (
+    DevicePrincipal,
+    Principal,
+    get_principal,
+    require_device,
+    require_permission,
+)
 from app.modules.org import service as org
 from app.modules.people import service as people
 
@@ -169,3 +177,87 @@ def journal_attachment(
 ):
     """The bank receipt's photo of a deposit."""
     return files.response(db, service.journal_attachment(db, public_id))
+
+
+# ---- fuel the driver paid from his cash
+
+
+@router.get("/driver/fuel", response_model=schemas.DriverFuelOut, dependencies=[Depends(org.screen("fuel"))])
+def my_fuel(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
+    """Whether he may claim fuel now (and why not), the most one claim may be, and his last claims."""
+    return fuel.driver_view(db, device.employee_id)
+
+
+@router.post(
+    "/driver/fuel",
+    response_model=schemas.DriverFuelClaimOut,
+    status_code=201,
+    dependencies=[Depends(org.screen("fuel"))],
+)
+def claim_fuel(
+    body: schemas.FuelClaimIn, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
+):
+    return fuel.driver_claim(db, employee_id=device.employee_id, device_id=device.device_id, data=body.model_dump())
+
+
+def _fuel_reader(principal: Principal = Depends(get_principal)) -> Principal:
+    """The cash ledger's readers and the fuel reviewers see the claims."""
+    if not (principal.has("cash.view") or principal.has("cash.fuel_review")):
+        raise AppError(403, "permission_denied", permission="cash.fuel_review")
+    return principal
+
+
+@router.get("/cash/fuel-claims", response_model=list[schemas.FuelClaimOut])
+def fuel_claims(
+    status: Literal["pending", "approved", "rejected"] | None = None,
+    driver_id: str | None = None,
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 200,
+    principal: Principal = Depends(_fuel_reader),
+    db: Session = Depends(get_session),
+):
+    driver = _driver(db, driver_id, principal).id if driver_id else None
+    return fuel.list_claims(
+        db,
+        status=status,
+        driver_id=driver,
+        date_from=date_from,
+        date_to=date_to,
+        limit=limit,
+        **principal.scope,
+    )
+
+
+@router.get("/cash/fuel-claims/pending-count", response_model=schemas.CountOut)
+def fuel_pending(principal: Principal = Depends(_fuel_reader), db: Session = Depends(get_session)):
+    return {"count": fuel.pending_count(db, **principal.scope)}
+
+
+@router.get("/cash/fuel-claims/{public_id}/receipt")
+def fuel_receipt(
+    public_id: uuid.UUID, principal: Principal = Depends(_fuel_reader), db: Session = Depends(get_session)
+):
+    return files.response(db, fuel.receipt(db, public_id, **principal.scope))
+
+
+@router.post("/cash/fuel-claims/{public_id}/approve", response_model=schemas.FuelClaimOut)
+def approve_fuel(
+    public_id: uuid.UUID,
+    body: schemas.FuelApproveIn,
+    principal: Principal = Depends(require_permission("cash.fuel_review")),
+    db: Session = Depends(get_session),
+):
+    return fuel.approve(
+        db, public_id, amount=body.amount, note=body.note, actor_user_id=principal.user_id, **principal.scope
+    )
+
+
+@router.post("/cash/fuel-claims/{public_id}/reject", response_model=schemas.FuelClaimOut)
+def reject_fuel(
+    public_id: uuid.UUID,
+    body: schemas.FuelRejectIn,
+    principal: Principal = Depends(require_permission("cash.fuel_review")),
+    db: Session = Depends(get_session),
+):
+    return fuel.reject(db, public_id, reason=body.reason, actor_user_id=principal.user_id, **principal.scope)

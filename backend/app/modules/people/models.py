@@ -79,6 +79,7 @@ class Employee(Base):
     platform_driver_id: Mapped[str | None] = mapped_column(Text)  # the driver's ID on his platform
     status_code: Mapped[str] = mapped_column(Text, ForeignKey("people.employment_statuses.code"))
     app_access: Mapped[str] = mapped_column(Text, server_default=text("'none'"))
+    fuel_card: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))  # fuel on a company card
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))

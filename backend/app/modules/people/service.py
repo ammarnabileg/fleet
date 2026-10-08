@@ -37,9 +37,10 @@ FIELDS = (
     "hire_date",
     "platform_id",
     "platform_driver_id",
+    "fuel_card",
 )
 SALARY_FIELDS = ("basic_salary", "iban", "bank_name", "payment_method")
-REQUIRED = ("employee_number", "name", "company_id", "branch_id", "is_driver")
+REQUIRED = ("employee_number", "name", "company_id", "branch_id", "is_driver", "fuel_card")
 UNIQUE_ERRORS = {
     "employees_employee_number_key": "employee_number_taken",
     "employees_civil_id_key": "civil_id_taken",
@@ -69,6 +70,7 @@ class EmployeeRef:
     branch_id: int = 0
     civil_id: str | None = None
     platform_id: int | None = None
+    fuel_card: bool = False  # his fuel is on a company card: nothing to claim from his cash
 
     @property
     def can_use_app(self) -> bool:
@@ -574,6 +576,7 @@ def _ref(e: Employee, s: EmploymentStatus) -> EmployeeRef:
         e.branch_id,
         e.civil_id,
         e.platform_id,
+        e.fuel_card,
     )
 
 
@@ -862,4 +865,5 @@ def profile(db: Session, employee_id: int) -> dict:
         "bank_name": e.bank_name,
         "iban_last4": e.iban[-4:] if e.iban else None,
         "payment_method": e.payment_method,
+        "fuel_card": e.fuel_card,
     }

@@ -453,5 +453,42 @@
   "ordersN": "{n} orders",
   "workReportDueHintDays": "Send the orders and whether the day counted as valid",
   "qaReportSubDays": "Today's orders and valid day",
-  "notSentYet": "Not sent yet"
+  "notSentYet": "Not sent yet",
+  "fuel": "Fuel",
+  "qaFuelSub": "Fuel you paid from cash",
+  "fuelTitle": "Fuel paid from cash",
+  "fuelIntro": "Photograph the fuel receipt and enter the amount. The accountant reviews it when he receives your cash; once approved, the amount comes off the cash you hold.",
+  "fuelReceipt": "Fuel receipt photo",
+  "fuelTakeReceipt": "Photograph the receipt",
+  "fuelReceiptMissing": "The receipt photo is required",
+  "fuelAmount": "Amount paid",
+  "fuelAmountInvalid": "Enter the amount in KWD, up to 3 decimals",
+  "fuelAmountMax": "The most one receipt may be is {max} KWD",
+  "@fuelAmountMax": {
+    "placeholders": {
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "fuelOdometer": "Odometer reading (optional)",
+  "fuelNotes": "Notes (optional)",
+  "fuelSend": "Send for review",
+  "fuelMine": "Fuel receipts",
+  "fuelNone": "No fuel receipts yet",
+  "fuelPending": "Awaiting review",
+  "fuelApproved": "Approved ({amount})",
+  "@fuelApproved": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "fuelRejected": "Rejected",
+  "fuelOff_fuel_card": "You have a company fuel card: the office tops it up, and fuel is not claimed from your cash.",
+  "fuelOff_not_covered": "Fuel is yours under your pay scheme, so it is not charged to the company.",
+  "fuelOff_no_vehicle": "No vehicle is in your custody now: fuel is recorded for the car you hold.",
+  "kind_fuel": "Fuel receipt",
+  "moveFuel": "Fuel"
 }

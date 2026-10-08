@@ -1444,4 +1444,78 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get notSentYet => 'لم يُرسل بعد';
+
+  @override
+  String get fuel => 'البنزين';
+
+  @override
+  String get qaFuelSub => 'بنزين دفعته من الكاش';
+
+  @override
+  String get fuelTitle => 'البنزين من الكاش';
+
+  @override
+  String get fuelIntro =>
+      'صوّر فاتورة البنزين واكتب المبلغ. يراجعها المحاسب عند استلام الكاش منك، وعند القبول ينقص المبلغ من رصيد الكاش لديك.';
+
+  @override
+  String get fuelReceipt => 'صورة فاتورة البنزين';
+
+  @override
+  String get fuelTakeReceipt => 'صوّر الفاتورة';
+
+  @override
+  String get fuelReceiptMissing => 'صورة الفاتورة مطلوبة';
+
+  @override
+  String get fuelAmount => 'المبلغ المدفوع';
+
+  @override
+  String get fuelAmountInvalid => 'اكتب المبلغ بالدينار، حتى 3 خانات عشرية';
+
+  @override
+  String fuelAmountMax(String max) {
+    return 'أقصى مبلغ للفاتورة $max د.ك';
+  }
+
+  @override
+  String get fuelOdometer => 'قراءة العداد (اختياري)';
+
+  @override
+  String get fuelNotes => 'ملاحظات (اختياري)';
+
+  @override
+  String get fuelSend => 'إرسال للمراجعة';
+
+  @override
+  String get fuelMine => 'فواتير البنزين';
+
+  @override
+  String get fuelNone => 'لا توجد فواتير بنزين بعد';
+
+  @override
+  String get fuelPending => 'بانتظار المراجعة';
+
+  @override
+  String fuelApproved(String amount) {
+    return 'تم القبول ($amount)';
+  }
+
+  @override
+  String get fuelRejected => 'مرفوض';
+
+  @override
+  String get fuelOff_fuel_card => 'لديك كارت بنزين من الشركة: يُعبّأ الكارت من المكتب، ولا يُسجَّل البنزين من الكاش.';
+
+  @override
+  String get fuelOff_not_covered => 'البنزين عليك حسب نظام الدفع الخاص بك، فلا يُسجَّل على الشركة.';
+
+  @override
+  String get fuelOff_no_vehicle => 'لا توجد سيارة في عهدتك الآن: يُسجَّل البنزين للسيارة التي معك.';
+
+  @override
+  String get kind_fuel => 'فاتورة بنزين';
+
+  @override
+  String get moveFuel => 'بنزين';
 }
