@@ -87,6 +87,11 @@ test('fines: the driver at the ticket time, charged, paid, nobody driving, cance
   same(f2.occurred_at, at('14:30'));
   expect(f2.driver).toBeNull();
   await expect(admin.locator('.toast').last()).toContainText('لم تكن السيارة مسلّمة لأحد');
+  // the alert it raised comes in with the next look at the alerts: the bell counts it, but the officer who just
+  // saw this in the save message is not told it again as "new"
+  const toasts = await admin.locator('.toast').count();
+  await admin.evaluate(() => window.BT.A.pollAlerts());
+  await expect(admin.locator('.toast')).toHaveCount(toasts);
   await expect(top()).toContainText('لا يمكن الخصم');
   await expect(button('خصم من السائق')).toHaveCount(0);
   const alerted = async () => (await api.get('/alerts?kind=fine_no_driver&limit=200')).some((x) => x.entity_id === f2.id);

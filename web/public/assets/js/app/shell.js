@@ -250,7 +250,9 @@
       A.updateBell();
       if (!before) return; // the first look only notes where things stand
       var arrived = latest && latest !== before.latest && s.open > before.open;
-      if (arrived) {
+      // one alert born of what this user just did (he saw it when saving): the bell counts it, no second toast
+      var own = arrived && s.open - before.open === 1 && api.touchedRecently(s.latest.entity_id);
+      if (arrived && !own) {
         var n = s.open - before.open;
         BT.toast(n > 1 ? h`${n} تنبيهات جديدة · آخرها: ${s.latest.message}` : s.latest.message, {
           type: { critical: 'error', warning: 'warning' }[s.latest.severity] || 'info', timeout: 8000,

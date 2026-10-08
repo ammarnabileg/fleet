@@ -41,13 +41,24 @@
         if (res.status === 204) return null;
         var json = (res.headers.get('content-type') || '').indexOf('json') > -1;
         return (json ? res.json() : res.text()).then(function (data) {
-          if (res.ok) return data;
+          if (res.ok) { if (method !== 'GET') api.touched(path, data); return data; }
           var err = new ApiError(res.status, json ? data : {});
           if (res.status === 401 && !opts.noRedirect) api.toLogin();
           throw err;
         });
       }, function () { throw new ApiError(0, { code: 'network' }); });
   };
+  /* ما غيّره هذا المستخدم للتو (المعرّفات في المسار وفي الجواب): تنبيه يولد من فعله نفسه، كمخالفة سجّلها بلا سائق،
+     رآه في رسالة الحفظ، فلا يُعرض له مرة ثانية كتنبيه جديد */
+  var touched = [];
+  api.touched = function (path, data) {
+    var now = Date.now(), ids = (path.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) || []);
+    if (data && typeof data === 'object' && typeof data.id === 'string') ids.push(data.id);
+    ids.forEach(function (id) { touched.push({ id: id, at: now }); });
+    touched = touched.filter(function (t) { return now - t.at < 120000; }).slice(-50);
+  };
+  api.touchedRecently = function (id) { var now = Date.now(); return !!id && touched.some(function (t) { return t.id === id && now - t.at < 120000; }); };
+
   api.get = function (path, query, opts) { return api.request('GET', path, Object.assign({ query: query }, opts)); };
   api.post = function (path, body, query) { return api.request('POST', path, { body: body === undefined ? {} : body, query: query }); };
   api.put = function (path, body) { return api.request('PUT', path, { body: body === undefined ? {} : body }); };
