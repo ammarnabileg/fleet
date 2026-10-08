@@ -13,30 +13,38 @@
 
   var IMPORT_PERMS = ['employees.create', 'employees.update', 'vehicles.create', 'vehicles.update', 'documents.manage'];
 
-  /* ---------- القائمة الجانبية: لا يظهر إلا ما يملك المستخدم صلاحيته ---------- */
+  /* ---------- القائمة الجانبية: مجموعات بأسماء واضحة، ولا يظهر إلا ما يملك المستخدم صلاحيته ----------
+     أعلاها ما يُفتح كل يوم (اللوحة والتنبيهات والاعتمادات والتقارير)، ثم السيارات، ثم المحاسبة، ثم الموظفون،
+     ثم الإدارة. كل مجموعة تُطوى وتُفتح بضغطة، ومجموعة الصفحة المفتوحة مفتوحة دائماً. */
   A.NAV = [
     { sec: null, items: [
       { key: 'dashboard', icon: 'house', label: 'لوحة التحكم', any: ['dashboard.view'] },
-      { key: 'tracking', icon: 'map', label: 'التتبع الحي', any: ['tracking.live'], count: 'signal_lost', hot: true },
       { key: 'alerts', icon: 'bell-ring', label: 'التنبيهات', count: 'alerts', hot: true },
+      { key: 'approvals', icon: 'list-checks', label: 'طلبات تنتظر اعتمادك', any: ['approvals.view'], count: 'approvals', hot: true },
+      { key: 'reports', icon: 'chart-column', label: 'التقارير', any: ['reports.view', 'cash.view'] }
+    ] },
+    { sec: 'السيارات والتشغيل', id: 'fleet', icon: 'car', items: [
+      { key: 'tracking', icon: 'map', label: 'التتبع الحي', any: ['tracking.live'], count: 'signal_lost', hot: true },
       { key: 'vehicles', icon: 'car', label: 'السيارات', any: ['vehicles.view'] },
-      { key: 'custody', icon: 'key-round', label: 'العُهد والتسليم', any: ['custody.view'] },
+      { key: 'custody', icon: 'key-round', label: 'تسليم واستلام السيارات', any: ['custody.view'] },
       { key: 'odometer', icon: 'gauge', label: 'العداد', any: ['odometer.view'], count: 'odometer' },
       { key: 'daily', icon: 'clipboard-list', label: 'التقارير اليومية', any: ['daily_reports.view'], count: 'daily' },
       { key: 'maintenance', icon: 'wrench', label: 'الصيانة', any: ['maintenance.view', 'invoices.view'], count: 'maintenance' },
       { key: 'accidents', icon: 'shield-alert', label: 'الحوادث', any: ['accidents.view'], count: 'accidents' },
-      { key: 'fines', icon: 'file-warning', label: 'المخالفات المرورية', any: ['fines.view'], count: 'fines' },
-      { key: 'cash', icon: 'wallet', label: 'الكاش والخزينة', any: ['cash.view', 'treasury.view'] },
-      { key: 'finance', icon: 'landmark', label: 'المالية', any: ['finance.view'], count: 'expenses' },
-      { key: 'deductions', icon: 'minus-circle', label: 'الخصومات', any: ['deductions.view'] },
-      { key: 'payroll', icon: 'banknote', label: 'الرواتب', any: ['payroll.view', 'settings.update'], count: 'payroll' },
-      { key: 'employees', icon: 'users', label: 'الموظفون والسائقون', any: ['employees.view'], count: 'onboarding' },
-      { key: 'attendance', icon: 'calendar-x', label: 'الغياب والإجازات', any: ['leaves.view'], count: 'leaves' },
-      { key: 'reports', icon: 'chart-column', label: 'التقارير', any: ['reports.view', 'cash.view'] },
-      { key: 'approvals', icon: 'list-checks', label: 'مسارات الاعتماد', any: ['approvals.view'], count: 'approvals', hot: true }
+      { key: 'fines', icon: 'file-warning', label: 'المخالفات المرورية', any: ['fines.view'], count: 'fines' }
     ] },
-    { sec: 'الإدارة', items: [
-      { key: 'import', icon: 'file-spreadsheet', label: 'استيراد البيانات', all: IMPORT_PERMS },
+    { sec: 'المحاسبة والفلوس', id: 'money', icon: 'calculator', items: [
+      { key: 'cash', icon: 'wallet', label: 'الكاش والخزينة', any: ['cash.view', 'treasury.view'], count: 'cash' },
+      { key: 'finance', icon: 'landmark', label: 'المصروفات والقيود', any: ['finance.view'], count: 'expenses' },
+      { key: 'deductions', icon: 'minus-circle', label: 'الخصومات', any: ['deductions.view'] },
+      { key: 'payroll', icon: 'banknote', label: 'الرواتب', any: ['payroll.view', 'settings.update'], count: 'payroll' }
+    ] },
+    { sec: 'الموظفون', id: 'people', icon: 'users', items: [
+      { key: 'employees', icon: 'users', label: 'الموظفون والسائقون', any: ['employees.view'], count: 'onboarding' },
+      { key: 'attendance', icon: 'calendar-x', label: 'الغياب والإجازات', any: ['leaves.view'], count: 'leaves' }
+    ] },
+    { sec: 'الإدارة', id: 'admin', icon: 'settings', items: [
+      { key: 'import', icon: 'file-spreadsheet', label: 'استيراد من إكسل', all: IMPORT_PERMS },
       { key: 'settings', icon: 'settings', label: 'الإعدادات والصلاحيات', any: ['settings.view', 'users.view', 'roles.view', 'companies.view', 'branches.manage', 'i18n.manage'] },
       { key: 'integrations', icon: 'puzzle', label: 'التكاملات', any: ['integrations.manage'] },
       { key: 'audit', icon: 'shield-check', label: 'سجل التدقيق', any: ['audit.view'] }
@@ -50,14 +58,36 @@
   A.navItem = function (key) { var f = null; A.NAV.forEach(function (s) { s.items.forEach(function (i) { if (i.key === key) f = i; }); }); return f; };
   A.firstAllowed = function () { var f = null; A.NAV.forEach(function (s) { s.items.forEach(function (i) { if (!f && A.allowed(i)) f = i.key; }); }); return f || 'alerts'; };
 
+  /* المجموعات المطوية تُحفظ على هذا الجهاز فقط (كلها مفتوحة أول مرة) */
+  var NAV_SHUT = 'bt.nav.shut';
+  function shutGroups() { try { return JSON.parse(localStorage.getItem(NAV_SHUT) || '[]'); } catch (e) { return []; } }
+  A.toggleNavGroup = function (id) {
+    var shut = shutGroups();
+    shut = shut.indexOf(id) >= 0 ? shut.filter(function (x) { return x !== id; }) : shut.concat([id]);
+    try { localStorage.setItem(NAV_SHUT, JSON.stringify(shut)); } catch (e) { /* بلا تخزين: تبقى مفتوحة */ }
+    A.renderNav(A._navActive);
+  };
+
   A.renderNav = function (active) {
+    A._navActive = active;
+    var shut = shutGroups();
+    function link(it) {
+      var c = it.count ? A.counts[it.count] : null;
+      return h`<a class="nav-item${it.key === active ? ' active' : ''}" href="#/${it.key}"${it.key === active ? raw(' aria-current="page"') : ''}>${icon(it.icon, 17)}<span>${it.label}</span>${c ? h`<span class="count${it.hot ? ' hot' : ''}">${c >= 200 ? '200+' : c}</span>` : ''}</a>`;
+    }
     BT.render(document.getElementById('nav'), h`${A.NAV.map(function (s) {
       var items = s.items.filter(A.allowed);
       if (!items.length) return '';
-      return h`${s.sec ? h`<div class="nav-sec">${s.sec}</div>` : ''}${items.map(function (it) {
-        var c = it.count ? A.counts[it.count] : null;
-        return h`<a class="nav-item${it.key === active ? ' active' : ''}" href="#/${it.key}"${it.key === active ? raw(' aria-current="page"') : ''}>${icon(it.icon, 17)}<span>${it.label}</span>${c ? h`<span class="count${it.hot ? ' hot' : ''}">${c >= 200 ? '200+' : c}</span>` : ''}</a>`;
-      })}`;
+      if (!s.id) return h`<div class="nav-top">${items.map(link)}</div>`;
+      var here = items.some(function (it) { return it.key === active; });
+      var open = here || shut.indexOf(s.id) < 0;
+      // مطوية: مجموع ما ينتظر فيها يظهر على عنوانها، فلا يختفي شيء
+      var waiting = open ? 0 : items.reduce(function (n, it) { return n + ((it.count && A.counts[it.count]) || 0); }, 0);
+      var hot = items.some(function (it) { return it.hot && it.count && A.counts[it.count]; });
+      return h`<div class="nav-group${open ? ' open' : ''}">
+        <button type="button" class="nav-head" data-action="nav-group" data-arg="${s.id}" aria-expanded="${open ? 'true' : 'false'}">${icon(s.icon, 15)}<span>${s.sec}</span>${waiting ? h`<span class="count${hot ? ' hot' : ''}">${waiting >= 200 ? '200+' : waiting}</span>` : ''}<span class="chev">${icon('chevron-down', 14)}</span></button>
+        <div class="nav-items">${items.map(link)}</div>
+      </div>`;
     })}`);
   };
 
@@ -423,6 +453,7 @@
     });
   };
   BT.actions['search'] = function () { BT.openSearch(); };
+  BT.actions['nav-group'] = function (id) { A.toggleNavGroup(id); };
   BT.actions['toggle-nav'] = function () { document.getElementById('app').classList.toggle('nav-open'); };
   BT.actions['theme'] = function () { BT.theme.toggle(); };
 
