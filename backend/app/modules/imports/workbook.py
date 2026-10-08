@@ -188,7 +188,28 @@ def parse_decimal(v, *, signed: bool = False) -> Decimal | None:
     return d if signed or d >= 0 else None
 
 
-def read(data: bytes) -> dict[str, list[Row]]:
+# hints once shown in the template's example row: a copied row must not make them a driver's password
+PLACEHOLDERS = {"(8 أحرف على الأقل)", "8 أحرف على الأقل"}
+
+
+def shown(v) -> str:
+    """A cell's value as an error may repeat it: a value that could be a password (long, letters with digits, or
+    symbols) is masked, since a mis-picked column can be the password column."""
+    t = _text(v)
+    if len(t) > 12 or (re.search(r"\d", t) and re.search(r"[^\d\s.]", t)) or re.search(r"[^\w\s.\u0600-\u06FF]", t):
+        return "••••"
+    return t
+
+
+def _parts(header) -> list[str]:
+    """The header and its parts ("كلمة المرور - Password"): an optional column is found by any of them."""
+    whole = norm(header)
+    return [whole] + [
+        p.strip() for p in re.split(r"\s[-–/|]\s|\s-|-\s|[()]", whole) if p.strip() and p.strip() != whole
+    ]
+
+
+def read(data: bytes, ignored: list | None = None) -> dict[str, list[Row]]:
     """Rows of the sheets imported now (vehicles, people, opening balances); maintenance centres come with M3."""
     import openpyxl  # with defusedxml installed, openpyxl parses the XML safely
 
@@ -208,9 +229,11 @@ def read(data: bytes) -> dict[str, list[Row]]:
         extra: dict[str, int] = {}  # optional column -> its index, the first one with that header
         if sheet == PEOPLE:
             for i in range(len(columns), len(header)):
-                key = optional.get(norm(header[i]))
+                key = next((optional[p] for p in _parts(header[i]) if p in optional), None)
                 if key and key not in extra:
                     extra[key] = i
+                elif not key and _text(header[i]) and ignored is not None:
+                    ignored.append(_text(header[i]))  # said so: an app or password column is never dropped unseen
         width = max([len(columns), *(i + 1 for i in extra.values())])
         out[sheet] = []
         for number, values in enumerate(rows, start=2):
@@ -268,7 +291,7 @@ EXAMPLES = {
         "30/09/2027",
         "Samsung A15",
         "نعم",
-        "(8 أحرف على الأقل)",
+        None,  # the password: left empty (a hint here would be a public password copied with the row)
         14,
     ],
     OPENING: ["اسم السائق", "290010112345", "12.500", "01/10/2026", "اسم المحاسب"],

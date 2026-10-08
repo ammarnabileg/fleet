@@ -95,17 +95,19 @@ def _app_columns(cells: dict, civil_id: str | None) -> tuple[bool | None, str | 
     if wb._text(cells.get("app_access")):
         app = wb.parse_yes_no(cells["app_access"])
         if app is None:
-            raise _RowError("invalid_yes_no", field="app_access", value=wb._text(cells["app_access"]))
+            raise _RowError("invalid_yes_no", field="app_access", value=wb.shown(cells["app_access"]))
     if wb._text(cells.get("initial_password")):
         password = wb.parse_password(cells["initial_password"])
         if password is None:  # never with the value: the error list is on screen and in saved network recordings
+            raise _RowError("invalid_initial_password", field="initial_password")
+        if password in wb.PLACEHOLDERS:  # the template's hint, public: never a password
             raise _RowError("invalid_initial_password", field="initial_password")
         if password.replace(" ", "") == civil_id:
             raise _RowError("initial_password_is_civil_id")
     if wb._text(cells.get("password_days")):
         days = wb.parse_days(cells["password_days"])
         if days is None:
-            raise _RowError("claim_days_out_of_range", value=wb._text(cells["password_days"]))
+            raise _RowError("claim_days_out_of_range", value=wb.shown(cells["password_days"]))
     return app, password, days
 
 
@@ -156,6 +158,10 @@ class _DriverApp:
         if app is False:
             if employee.app_access in ("active", "suspended"):
                 warnings.append(Issue(sheet, number, "app_access_kept"))
+            else:
+                claim = identity.claim_status(db, employee.id)
+                if claim and claim["open"] and not claim["used_at"]:  # his initial password would still let him in
+                    warnings.append(Issue(sheet, number, "claim_open_app_off"))
             return
         if (app or given) and employee.is_terminal:
             raise _RowError("employment_ended")
@@ -179,6 +185,9 @@ class _DriverApp:
         claim = identity.claim_status(db, employee.id)
         if claim and claim["used_at"]:
             warnings.append(Issue(sheet, number, "claim_already_used"))
+        elif identity.has_bound_device(db, employee.id):
+            # he is in on a phone (a code or a link): a shared password must not reopen his account
+            warnings.append(Issue(sheet, number, "device_already_bound"))
         elif claim and claim["open"]:
             expires = business_date(claim["expires_at"]).strftime("%d/%m/%Y")
             warnings.append(Issue(sheet, number, "claim_already_open", {"date": expires}))
@@ -372,9 +381,11 @@ def run(
     can_manage_devices: bool = False,
     **scope,
 ) -> dict:
-    sheets = wb.read(data)
+    ignored: list[str] = []
+    sheets = wb.read(data, ignored)
     errors: list[Issue] = []
-    warnings: list[Issue] = []
+    # a column after the people's that is not one of the driver columns: its header is not one we know
+    warnings: list[Issue] = [Issue(PEOPLE, 1, "import_column_ignored", {"column": c}) for c in ignored]
     counts = {"vehicles": Counter(), "people": Counter(), "opening": Counter(), "documents": 0}
     dupes = {
         VEHICLES: _duplicates(

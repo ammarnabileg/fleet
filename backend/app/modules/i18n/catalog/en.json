@@ -450,7 +450,10 @@
     "delegation_not_found": "Delegation not found",
     "correction_at_last_step": "The cash amount is corrected at the last approval step",
     "mfa_code_invalid": "The authenticator code is not correct",
-    "deduction_decided": "This deduction was already decided"
+    "deduction_decided": "This deduction was already decided",
+    "claim_open_app_off": "“No” for the app, but he has an open initial password he can sign in with: revoke it on the driver's page if he should not have the app",
+    "import_column_ignored": "Column “{column}” has a header we do not know, so it was not imported: the driver columns are “تفعيل التطبيق (نعم/لا)”, “كلمة المرور المبدئية” and “صلاحية كلمة المرور (يوم)”",
+    "import_password_needs_devices": "The file has an initial password column: setting drivers' passwords needs the “manage driver devices” permission. Choose “none” for that column or ask for the permission"
   },
   "settings": {
     "branding": "Branding",

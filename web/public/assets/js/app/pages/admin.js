@@ -77,7 +77,9 @@
     }
     function mappingRows(sheet, kind) {
       var picked = kind === sheet.kind ? sheet.mapping : {};
-      return pv.fields[kind].map(function (f) {
+      // drivers' passwords need «إدارة أجهزة السائقين»: without it the password and its days are not offered
+      var shown = pv.fields[kind].filter(function (f) { return api.can('devices.manage') || (f.key !== 'initial_password' && f.key !== 'password_days'); });
+      return shown.map(function (f) {
         return h`<tr><td>${api.t('import_field', f.key)}${f.required ? raw('<span class="req">*</span>') : ''}</td><td>${BT.f.select({ name: 'col_' + f.key, value: picked[f.key] != null ? picked[f.key] : '', placeholder: false, options: options(sheet, kind, f.key) })}</td></tr>`;
       });
     }

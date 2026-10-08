@@ -423,9 +423,12 @@ def test_the_template_to_fill_has_the_driver_columns(admin_client, new_client, c
     ):
         ws = book[title]
         assert [c.value for c in ws[1]] == columns, title
-        assert ws["A2"].value == "مثال" and len([c for c in ws[2] if c.value is not None]) == len(columns), title
+        # every example filled, but the password: a hint there would be a public password copied with the row
+        empty = 1 if title == PEOPLE else 0
+        filled = len([c for c in ws[2] if c.value is not None])
+        assert ws["A2"].value == "مثال" and filled == len(columns) - empty, title
     ws = book[PEOPLE]
-    assert [ws[f"{col}2"].value for col in "NOP"] == ["نعم", "(8 أحرف على الأقل)", 14]
+    assert [ws[f"{col}2"].value for col in "NOP"] == ["نعم", None, 14]
     assert ws["O3"].number_format == "@" and ws.column_dimensions["O"].number_format == "@"  # 01234567 stays text
     rules = {str(v.sqref): (v.type, v.formula1, v.formula2) for v in ws.data_validations.dataValidation}
     assert rules == {"N2:N1000": ("list", '"نعم,لا"', None), "P2:P1000": ("whole", "1", "60")}
@@ -443,3 +446,34 @@ def test_the_template_to_fill_has_the_driver_columns(admin_client, new_client, c
     c = new_client()
     login(c, "viewer")
     assert c.get("/api/v1/imports/workbook/template").status_code == 403
+
+
+def test_driver_headers_written_differently_are_found_and_unknown_ones_said(admin_client, companies, main_branch):
+    a, b = "290010112371", "290010112372"
+    data = workbook(
+        people=[
+            person("A", civil=a, phone="98765471", branch=main_branch, app="نعم"),
+            person("B", civil=b, phone="98765472", branch=main_branch, app="لا"),
+        ],
+        driver_columns=True,
+    )
+    book = openpyxl.load_workbook(io.BytesIO(data))
+    ws = book[PEOPLE]
+    ws.cell(1, len(PEOPLE_COLUMNS) + 1).value = "تفعيل التطبيق - App"  # a part of the header is enough
+    ws.cell(1, len(PEOPLE_COLUMNS) + 4).value = "ملاحظات"
+    buf = io.BytesIO()
+    book.save(buf)
+    out = post(admin_client, buf.getvalue(), apply=True).json()
+    assert out["applied"] and out["activated"] == 1, out  # B said no, and the no was read
+    assert [(w["code"], w["params"]) for w in out["warnings"]] == [("import_column_ignored", {"column": "ملاحظات"})]
+    staff = {e["civil_id"]: e for e in admin_client.get("/api/v1/employees", params={"limit": 50}).json()}
+    assert (staff[a]["app_access"], staff[b]["app_access"]) == ("active", "none")
+
+
+def test_the_template_hint_is_never_a_password(admin_client, companies, main_branch):
+    data = workbook(
+        people=[person("A", civil="290010112381", branch=main_branch, password="(8 أحرف على الأقل)")],
+        driver_columns=True,
+    )
+    out = post(admin_client, data).json()
+    assert [(e["row"], e["code"]) for e in out["errors"]] == [(3, "invalid_initial_password")], out  # after the example

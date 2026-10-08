@@ -207,6 +207,9 @@ def suggest(sheet: Sheet) -> tuple[str | None, dict[str, int]]:
                         continue
                     parts = _parts(sheet.headers[c])
                     hit = parts[0] in f.aliases if exact else any(p in f.aliases for p in parts[1:])
+                    if hit and f.key in ("app_access", "password_days") and set(parts) & set(PASSWORD.aliases):
+                        hit = False  # "كلمة المرور (التطبيق)" is the password, not the app yes/no
+
                     test = CONTENT.get(f.key)
                     if hit and (test is None or _share(values[c], test) >= 0.8):
                         mapping[f.key] = c

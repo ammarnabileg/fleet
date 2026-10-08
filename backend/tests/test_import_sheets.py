@@ -420,3 +420,47 @@ def test_a_shared_password_or_a_yes_no_column_is_not_guessed(admin_client):
     sheet = preview(admin_client, employees_book(None, rows))["sheets"][0]
     assert sheet["header_row"] is None and sheet["kind"] == "employees"
     assert sheet["mapping"] == {"civil_id": 1, "name": 2, "job_title": 5}  # one profession for all is still one
+
+
+def test_a_driver_on_a_phone_never_gets_the_shared_password_again(admin_client, client, company, owner_db):
+    """He bound his phone by a code (or a link) and never used the initial password: once it expired, a re-import of
+    the same file must not reopen it, or anyone with the batch password and his civil ID takes his account."""
+    from sqlalchemy import text
+
+    from tests.conftest import bind_device
+
+    header = ["الرقم المدني", "الاسم", "المهنة", "الهاتف", "كلمة المرور"]
+    data = employees_book(header, [(ALI, "علي", "سائق", "65001122", "Row-pass-66")])
+    plan = plan_from(preview(admin_client, data), company["id"])
+    out = run(admin_client, data, plan, apply=True).json()
+    assert out["applied"] and out["claims"] == 1, out
+    bind_device(client, "+96565001122")
+    owner_db.execute(text("UPDATE identity.driver_claims SET expires_at = now() - interval '1 day'"))
+    owner_db.commit()
+    phone_codes(admin_client, False)
+    out = run(admin_client, data, plan, apply=True).json()
+    assert out["claims"] == 0 and [(w["row"], w["code"]) for w in out["warnings"]] == [(2, "device_already_bound")]
+    assert sign_in(client, ALI, "Row-pass-66", "phone-0042").status_code == 401
+
+
+def test_no_for_the_app_says_when_an_open_password_would_still_let_him_in(admin_client, company):
+    header = ["الرقم المدني", "الاسم", "المهنة", "تفعيل التطبيق", "كلمة المرور"]
+    data = employees_book(header, [(OMAR, "عمر", "سائق", None, "Row-pass-77")])
+    plan = plan_from(preview(admin_client, data), company["id"])
+    assert run(admin_client, data, plan, apply=True).json()["claims"] == 1
+    data = employees_book(header, [(OMAR, "عمر", "سائق", "لا", None)])
+    out = run(admin_client, data, plan, apply=True).json()
+    assert [(w["row"], w["code"]) for w in out["warnings"]] == [(2, "claim_open_app_off")], out
+
+
+def test_a_password_header_with_the_word_app_is_the_password_and_never_echoed(admin_client, company):
+    header = ["الرقم المدني", "الاسم", "المهنة", "كلمة المرور (التطبيق)"]
+    data = employees_book(header, [(ALI, "علي", "سائق", "Ali@Pass2026")])
+    pv = preview(admin_client, data)
+    mapping = pv["sheets"][0]["mapping"]
+    assert mapping.get("initial_password") == 3 and "app_access" not in mapping, mapping
+    # mapped by hand to the app column anyway: the error does not repeat the value
+    plan = plan_from(pv, company["id"])
+    plan["sheets"][0]["columns"] = {"civil_id": 0, "name": 1, "job_title": 2, "app_access": 3}
+    r = run(admin_client, data, plan)
+    assert "Ali@Pass2026" not in r.text and r.json()["errors"][0]["code"] == "invalid_yes_no", r.text

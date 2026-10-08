@@ -46,6 +46,11 @@ def _bound(db: Session, employee_id: int) -> bool:
     return db.scalar(q) is not None
 
 
+def has_bound_device(db: Session, employee_id: int) -> bool:
+    """He uses the app on a phone (by a code, a link or his password): an initial password must not reopen it."""
+    return _bound(db, employee_id)
+
+
 # ------------------------------------------------------------------ the office
 
 
