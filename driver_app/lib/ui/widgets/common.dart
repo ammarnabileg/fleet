@@ -199,7 +199,13 @@ class PhotoTile extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if (path != null) Image.file(File(path!), fit: BoxFit.cover, errorBuilder: (_, _, _) => const SizedBox()),
+              if (path != null)
+                Image.file(
+                  File(path!),
+                  fit: BoxFit.cover,
+                  cacheWidth: 720, // decoded at tile size, not the photo's full resolution
+                  errorBuilder: (_, _, _) => const SizedBox(),
+                ),
               if (path == null)
                 Column(
                   mainAxisAlignment: MainAxisAlignment.center,

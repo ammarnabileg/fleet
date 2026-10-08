@@ -13,7 +13,7 @@ flutter build apk --release \
 ```
 
 - `API_URL`: عنوان الخادم (نفس عنوان لوحة الإدارة). الافتراضي `http://10.0.2.2:8000` لمحاكي أندرويد مع خادم محلي (نسخ debug فقط تسمح بـ http).
-- **توقيع الإصدار**: ملف `android/key.properties` (لا يدخل git) بالحقول `storeFile` و `storePassword` و `keyAlias` و `keyPassword`. بدونه يُوقَّع بمفتاح debug.
+- **توقيع الإصدار**: ملف `android/key.properties` (لا يدخل git) بالحقول `storeFile` و `storePassword` و `keyAlias` و `keyPassword`. بدونه يُوقَّع بمفتاح debug. في CI يُكتب من الأسرار `ANDROID_KEYSTORE_BASE64` و`ANDROID_KEYSTORE_PASSWORD` و`ANDROID_KEY_ALIAS` و`ANDROID_KEY_PASSWORD` (الطريقة في README الرئيسي، خطوة النشر 9).
 - **App Link**: ليفتح رابط التفعيل `https://<الخادم>/activate#t=...` التطبيق مباشرة، يجب نشر `/.well-known/assetlinks.json` على الخادم ببصمة SHA-256 لشهادة التوقيع: انسخ `deploy/assetlinks.example.json` إلى `web/public/.well-known/assetlinks.json` بالبصمة الصحيحة قبل بناء صورة `web` (nginx يخدمه كما هو). بدونه تعمل الصفحة الاحتياطية `activate.html` وزرها `btfleet://activate?t=...`.
 
 ## التصميم
@@ -45,7 +45,7 @@ flutter build apk --release \
 
 ## ما لم يُختبر
 
-- **لم يعمل على هاتف حقيقي بعد.** الكاميرا، والخدمة الأمامية، والتتبع في الخلفية، وفتح الروابط، والصلاحيات تحتاج جهازاً: هذا هو الاختبار الميداني 3 أيام (شرط قبول M1). الـ APK يُبنى في CI (artifact باسم `driver-app-debug-apk`).
+- **لم يعمل على هاتف حقيقي بعد.** الكاميرا، والخدمة الأمامية، والتتبع في الخلفية، وفتح الروابط، والصلاحيات تحتاج جهازاً: هذا هو الاختبار الميداني 3 أيام (شرط قبول M1). الـ APK يُبنى في CI نسخة release (artifact باسم `driver-app-apk`).
 - بعض الهواتف (Xiaomi، Huawei، Oppo) تقتل الخدمات في الخلفية رغم إعفاء البطارية: تحتاج تفعيل «التشغيل التلقائي» يدوياً. سيظهر في الاختبار الميداني عبر تنبيهات «توقف التتبع».
 - iOS غير مدعوم في هذه النسخة (التتبع في الخلفية على iOS مختلف جذرياً).
 - اللغات: العربية والإنجليزية فقط. لغات السائقين الأخرى (أردو، هندي، نيبالي…) تُضاف بملف `.arb` لكل لغة.

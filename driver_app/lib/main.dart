@@ -20,6 +20,8 @@ import 'ui/screens/waiting.dart';
 import 'ui/theme.dart';
 import 'ui/widgets/common.dart';
 
+final _theme = appTheme(); // built once, not on every rebuild
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final db = await AppDb.open();
@@ -119,7 +121,7 @@ class _DriverAppState extends State<DriverApp> {
     return MaterialApp(
       title: 'Driver',
       debugShowCheckedModeBanner: false,
-      theme: appTheme(),
+      theme: _theme,
       locale: Locale(widget.state.lang),
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [

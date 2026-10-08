@@ -122,7 +122,7 @@ jobs:
 
   driver-app:
     runs-on: ubuntu-latest
-    timeout-minutes: 25  # a hung step fails here instead of running for GitHub's six hours
+    timeout-minutes: 35  # a hung step fails here instead of running for GitHub's six hours
     services:
       postgres:
         image: postgres:16
@@ -176,15 +176,54 @@ jobs:
         env:
           BACKEND_URL: http://127.0.0.1:8000
         run: flutter test --tags contract || (cat /tmp/api.log; exit 1)
+      # the permanent signing key, when the repository has it (Settings -> Secrets -> Actions). Without it the APK is
+      # signed with this runner's throw-away debug key, so it cannot install over the one before (uninstall first)
+      - name: signing key
+        working-directory: driver_app/android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::no ANDROID_KEYSTORE_BASE64 secret: this APK is signed with a throw-away key and cannot update an installed one"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > app/release.jks
+          printf 'storeFile=release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$STORE_PASSWORD" "$KEY_ALIAS" "${KEY_PASSWORD:-$STORE_PASSWORD}" > key.properties
       - name: build the APK
         working-directory: driver_app
         # the deployed address the app talks to and the activation links open; the repository variable
-        # DRIVER_API_URL replaces it (another deployment) without touching this file
+        # DRIVER_API_URL replaces it (another deployment) without touching this file. A release build: the debug
+        # build drivers had runs the app's code unoptimised, several times slower on the phone
         env:
           API_URL: ${{ vars.DRIVER_API_URL || 'https://fleet.kuw1.com' }}
-        run: flutter build apk --debug --dart-define=API_URL="$API_URL"
+        run: |
+          HOST=$(echo "$API_URL" | sed -E 's#^https?://([^/:]+).*#\1#')
+          flutter build apk --release --dart-define=API_URL="$API_URL" --android-project-arg activationHost="$HOST"
+      - name: check the APK
+        working-directory: driver_app/build/app/outputs/flutter-apk
+        run: |
+          TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)
+          if "$TOOLS/aapt" dump badging app-release.apk | grep -q "application-debuggable"; then
+            echo "::error::the APK is debuggable"; exit 1
+          fi
+          "$TOOLS/aapt" dump xmltree app-release.apk AndroidManifest.xml | grep -A2 'android:host' | head -4
+          "$TOOLS/apksigner" verify --print-certs app-release.apk | tee certs.txt
+          {
+            echo "### Driver app"
+            echo "Size: $(du -h app-release.apk | cut -f1)"
+            echo
+            echo "Signing certificate (put its SHA-256 in /.well-known/assetlinks.json):"
+            echo '```'
+            grep -E "SHA-256|DN:" certs.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          mv app-release.apk driver-app.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: driver-app-debug-apk
-          path: driver_app/build/app/outputs/flutter-apk/app-debug.apk
+          name: driver-app-apk
+          path: driver_app/build/app/outputs/flutter-apk/driver-app.apk
           retention-days: 14

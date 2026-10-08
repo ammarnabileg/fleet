@@ -137,7 +137,7 @@ class AppState extends ChangeNotifier {
   }
 
   void _startPolling() {
-    if (pollEvery != null) _poll ??= Timer.periodic(pollEvery!, (_) => _readLocal());
+    if (pollEvery != null) _poll ??= Timer.periodic(pollEvery!, (_) => pollLocal());
   }
 
   Future<void> setLang(String value) async {
@@ -355,7 +355,8 @@ class AppState extends ChangeNotifier {
       if (onboarding!.mustFill) return _set(Phase.onboarding);
       if (onboarding!.waiting) return _set(Phase.waiting);
       if (!await platform.permissionsOk()) return _set(Phase.permissions);
-      await platform.startTracking();
+      // the home screen does not wait for the tracking service to come up, nor fails with it
+      unawaited(platform.startTracking().catchError((Object _) {}));
       await Future.wait([
         loadToday(),
         if (shows('cash')) loadCash(),
@@ -525,12 +526,27 @@ class AppState extends ChangeNotifier {
   }
 
   /// The tracking service's state and the outbox, as stored by either engine.
-  Future<void> _readLocal() async {
+  /// [onlyIfChanged] (the periodic look): the screens are rebuilt only when the tracking state or the outbox moved.
+  Future<void> _readLocal({bool onlyIfChanged = false}) async {
     final raw = await db.get('tracking_state');
-    tracking = raw == null ? {} : Map<String, dynamic>.from(jsonDecode(raw) as Map);
-    queued = await outbox.items();
+    final items = await outbox.items();
+    final state = raw == null ? <String, dynamic>{} : Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    // updated_at moves with every point and no screen shows it
+    final seen = Map<String, dynamic>.from(state)..remove('updated_at');
+    final mark =
+        '${jsonEncode(seen)}|${[for (final i in items) '${i.id}:${i.state}:${i.attempts}:${i.lastError}'].join(',')}';
+    if (onlyIfChanged && mark == _localMark) return;
+    _localMark = mark;
+    tracking = state;
+    queued = items;
     notifyListeners();
   }
+
+  String? _localMark;
+
+  /// The periodic look at what the tracking service and the outbox wrote (they run apart from the screens).
+  @visibleForTesting
+  Future<void> pollLocal() => _readLocal(onlyIfChanged: true);
 
   Future<void> reloadLocal() => _readLocal();
 

@@ -69,38 +69,50 @@ class WorkNotice {
   static const green = Color(0xFF15803D);
   static const grey = Color(0xFF6B7280);
 
-  Future<void> init() => _plugin.initialize(
-    settings: const InitializationSettings(android: AndroidInitializationSettings('ic_bg_service_small')),
-  );
+  bool _ready = false;
 
-  Future<void> show({required String lang, required Map<String, dynamic>? company, required bool working}) {
+  /// A notice that cannot be set up (say its icon went missing from a build) leaves the service's own notification
+  /// in place; it never stops the tracking.
+  Future<void> init() async {
+    try {
+      await _plugin.initialize(
+        settings: const InitializationSettings(android: AndroidInitializationSettings('ic_bg_service_small')),
+      );
+      _ready = true;
+    } catch (_) {}
+  }
+
+  Future<void> show({required String lang, required Map<String, dynamic>? company, required bool working}) async {
+    if (!_ready) return;
     final l = lookupAppLocalizations(Locale(lang == 'en' ? 'en' : 'ar'));
     final title = (company?[lang] ?? company?['ar'] ?? l.appTitle) as String;
     final status = '● ${working ? l.driverWorking : l.driverNotWorking}';
-    return _plugin.show(
-      id: TrackingService.notificationId,
-      title: title,
-      body: working ? '<b>$status</b>' : '<font color="#6B7280"><b>$status</b></font>',
-      notificationDetails: NotificationDetails(
-        android: AndroidNotificationDetails(
-          channel,
-          'Background Service',
-          ongoing: true,
-          autoCancel: false,
-          onlyAlertOnce: true,
-          showWhen: false,
-          playSound: false,
-          enableVibration: false,
-          importance: Importance.low,
-          priority: Priority.low,
-          category: AndroidNotificationCategory.service,
-          icon: 'ic_bg_service_small',
-          color: working ? green : grey,
-          colorized: working,
-          styleInformation: const DefaultStyleInformation(true, true),
+    try {
+      await _plugin.show(
+        id: TrackingService.notificationId,
+        title: title,
+        body: working ? '<b>$status</b>' : '<font color="#6B7280"><b>$status</b></font>',
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            channel,
+            'Background Service',
+            ongoing: true,
+            autoCancel: false,
+            onlyAlertOnce: true,
+            showWhen: false,
+            playSound: false,
+            enableVibration: false,
+            importance: Importance.low,
+            priority: Priority.low,
+            category: AndroidNotificationCategory.service,
+            icon: 'ic_bg_service_small',
+            color: working ? green : grey,
+            colorized: working,
+            styleInformation: const DefaultStyleInformation(true, true),
+          ),
         ),
-      ),
-    );
+      );
+    } catch (_) {}
   }
 }
 

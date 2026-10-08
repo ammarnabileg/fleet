@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -55,6 +56,7 @@ class World {
 Future<World> world({
   bool signedIn = true,
   Map<String, dynamic>? onboarding,
+  Future<void> Function()? startTracking,
   Map<String, dynamic>? today,
   List<Map<String, dynamic>>? maintenance,
   List<Map<String, dynamic>>? accidents,
@@ -77,7 +79,7 @@ Future<World> world({
     pollEvery: null,
     platform: PhoneHooks(
       permissionsOk: () async => true,
-      startTracking: () async => trackingStarts++,
+      startTracking: startTracking ?? () async => trackingStarts++,
       stopTracking: () async {},
       deviceMeta: () async => {'platform': 'android', 'model': 'Test phone', 'app_version': '0.1.0'},
       pushToken: pushToken,
@@ -1146,6 +1148,37 @@ void main() {
     expect(AppState.activationToken(Uri.parse('btfleet://activate?t=$token')), token);
     expect(AppState.activationToken(Uri.parse('https://fleet.example.com/other#t=$token')), isNull);
     expect(AppState.activationToken(Uri.parse('https://fleet.example.com/activate#t=short')), isNull);
+  });
+
+  testWidgets('the periodic look rebuilds the screens only when the tracking state or the outbox moved', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    await pumpApp(tester, w);
+    var rebuilds = 0;
+    w.state.addListener(() => rebuilds++);
+    await tester.runAsync(() async {
+      await w.state.pollLocal();
+      await w.state.pollLocal();
+    });
+    expect(rebuilds, 0, reason: 'nothing changed: no rebuild every 15 s');
+    await tester.runAsync(() async {
+      await w.state.db.put('tracking_state', '{"required": true, "queue": 2, "updated_at": "a"}');
+      await w.state.pollLocal();
+    });
+    expect(rebuilds, 1);
+    await tester.runAsync(() async {
+      await w.state.db.put('tracking_state', '{"required": true, "queue": 2, "updated_at": "b"}');
+      await w.state.pollLocal();
+    });
+    expect(rebuilds, 1, reason: 'only the time stamp moved, which no screen shows');
+  });
+
+  testWidgets('the home screen does not wait for the tracking service to come up', (tester) async {
+    final never = Completer<void>();
+    final w = (await tester.runAsync(() => world(startTracking: () => never.future)))!;
+    await pumpApp(tester, w);
+    expect(find.byKey(const Key('start-day')), findsOneWidget);
   });
 
   testWidgets('maintenance: type, description and camera photos go out as one request', (tester) async {
