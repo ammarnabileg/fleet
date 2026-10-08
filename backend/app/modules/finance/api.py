@@ -369,6 +369,17 @@ def reverse_entry(
     )
 
 
+@router.get("/ledger", response_model=schemas.LedgerOut)
+def ledger(
+    account_id: int,
+    date_from: date,
+    date_to: date,
+    principal: Principal = Depends(view),
+    db: Session = Depends(get_session),
+):
+    return service.ledger(db, account_id, date_from, date_to, **principal.scope)
+
+
 @router.get("/trial-balance", response_model=list[schemas.BalanceOut])
 def trial_balance(
     date_from: date, date_to: date, principal: Principal = Depends(view), db: Session = Depends(get_session)

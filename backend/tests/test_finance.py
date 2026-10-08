@@ -498,3 +498,56 @@ def test_the_default_chart_is_structured_and_salaries_go_to_two_accounts(admin_c
 
 def by_code_of(accounts, account_id) -> str:
     return next(a["code"] for a in accounts if a["id"] == account_id)
+
+
+def test_an_account_opens_to_what_happened_on_it_and_with_whom(admin_client, company):
+    """The trial balance's row opened: each line with the driver, employee, center or supplier it was with, the
+    running balance, and what each of them holds on the account."""
+    ali = make_driver(admin_client, company["id"], name={"ar": "علي", "en": "Ali Driver"})
+    omar = make_driver(admin_client, company["id"], name={"ar": "عمر", "en": "Omar Driver"})
+    for d, amount in ((ali, "20.000"), (omar, "5.000"), (ali, "-3.000")):
+        r = admin_client.post(
+            "/api/v1/cash/adjustments", json={"driver_id": d["id"], "amount": amount, "reason": "count"}
+        )
+        assert r.status_code == 201, r.text
+    approve(admin_client, expense(admin_client, company["id"], amount="4.000", supplier="Gulf Station"))
+    post(admin_client)
+    assert admin_client.post(f"{F}/entries/approve", json=period()).status_code == 200
+    accounts = {a["code"]: a["id"] for a in admin_client.get(f"{F}/accounts").json()}
+
+    r = admin_client.get(f"{F}/ledger", params=period() | {"account_id": accounts["1130"]})
+    assert r.status_code == 200, r.text
+    book = r.json()
+    assert [(ln["party"]["name"]["en"], ln["debit"], ln["credit"], ln["balance"]) for ln in book["lines"]] == [
+        ("Ali Driver", "20.000", "0.000", "20.000"),
+        ("Omar Driver", "5.000", "0.000", "25.000"),
+        ("Ali Driver", "0.000", "3.000", "22.000"),
+    ]
+    assert (book["opening"], book["debit"], book["credit"], book["closing"]) == ("0.000", "25.000", "3.000", "22.000")
+    assert [(p["party"]["name"]["en"], p["balance"]) for p in book["parties"]] == [
+        ("Ali Driver", "17.000"),
+        ("Omar Driver", "5.000"),
+    ]
+    assert book["parties"][0]["party"] == {
+        "type": "employee",
+        "id": ali["id"],
+        "name": {"ar": "علي", "en": "Ali Driver"},
+    }
+
+    # the expense paid from the treasury: with the supplier written on it
+    book = admin_client.get(f"{F}/ledger", params=period() | {"account_id": accounts["1110"]}).json()
+    assert [(ln["party"]["name"]["en"], ln["credit"]) for ln in book["lines"]] == [("Gulf Station", "4.000")]
+    assert book["lines"][0]["party"]["type"] == "supplier"
+
+    # a reversal is with whoever the entry it reverses was with
+    [omar_entry] = [
+        ln
+        for ln in admin_client.get(f"{F}/ledger", params=period() | {"account_id": accounts["1130"]}).json()["lines"]
+        if ln["party"]["name"]["en"] == "Omar Driver"
+    ]
+    r = admin_client.post(f"{F}/entries/{omar_entry['entry_id']}/reverse", json={"reason": "wrong driver"})
+    assert r.status_code == 200, r.text
+    book = admin_client.get(f"{F}/ledger", params=period() | {"account_id": accounts["1130"]}).json()
+    assert [(ln["party"]["name"]["en"], ln["reversal"]) for ln in book["lines"]][-1] == ("Omar Driver", True)
+    assert [(p["party"]["name"]["en"], p["balance"]) for p in book["parties"]] == [("Ali Driver", "17.000")]
+    assert admin_client.get(f"{F}/ledger", params=period() | {"account_id": 999_999}).status_code == 404

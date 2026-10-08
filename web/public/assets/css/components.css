@@ -500,3 +500,9 @@ button.li:hover, a.li:hover { background: var(--surface-hover); text-decoration:
 .veh-mark.sel { outline: 3px solid var(--primary); outline-offset: 1px; }
 .side-list { max-height: calc(100vh - 230px); overflow: auto; }
 .toolbar .page-actions .select, .toolbar .page-actions .input { width: auto; min-width: 150px; }
+
+/* trial balance: a row opens its account's statement under it */
+table.t tr[data-account] svg { transition: transform .15s; color: var(--text-3); }
+table.t tr[data-account].open svg { transform: rotate(-90deg); }
+table.t tr[data-account].open td { background: var(--primary-soft); }
+table.t td.ledger-cell { background: var(--surface-2); padding: 12px 16px 16px; }

@@ -232,6 +232,43 @@ class BalanceAccount(LineAccount):
     type: str
 
 
+class Party(BaseModel):
+    type: str  # employee | center | supplier
+    id: str | None
+    name: dict[str, str]  # {ar, en}: a supplier written on an expense is the same words in both
+
+
+class LedgerLine(BaseModel):
+    entry_id: uuid.UUID
+    number: int
+    date: date
+    ref: str
+    description: str
+    reversal: bool
+    party: Party | None
+    debit: Decimal
+    credit: Decimal
+    balance: Decimal
+
+
+class PartyBalance(BaseModel):
+    party: Party
+    debit: Decimal
+    credit: Decimal
+    balance: Decimal
+
+
+class LedgerOut(BaseModel):
+    account: BalanceAccount
+    opening: Decimal
+    debit: Decimal
+    credit: Decimal
+    closing: Decimal
+    lines: list[LedgerLine]
+    truncated: bool
+    parties: list[PartyBalance]
+
+
 class BalanceOut(BaseModel):
     account: BalanceAccount
     opening: Decimal

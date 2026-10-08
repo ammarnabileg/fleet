@@ -1531,6 +1531,27 @@ def repair_summary(db: Session, request_id: int | None) -> dict | None:
 # ------------------------------------------------------------------ for finance
 
 
+def center_names(db: Session, center_ids) -> dict[int, dict]:
+    ids = list(set(center_ids))
+    if not ids:
+        return {}
+    rows = db.execute(select(Center.id, Center.public_id, Center.name).where(Center.id.in_(ids)))
+    return {i: {"type": "center", "id": str(p), "name": {"ar": n, "en": n}} for i, p, n in rows}
+
+
+def invoice_centers(db: Session, invoice_ids) -> dict[int, dict]:
+    """The center of each invoice, for finance's account statements."""
+    ids = list(set(invoice_ids))
+    if not ids:
+        return {}
+    rows = db.execute(
+        select(Invoice.id, Center.public_id, Center.name)
+        .join(Center, Center.id == Invoice.center_id)
+        .where(Invoice.id.in_(ids))
+    )
+    return {i: {"type": "center", "id": str(p), "name": {"ar": n, "en": n}} for i, p, n in rows}
+
+
 def invoices_for_posting(db: Session, first, last) -> dict[str, list[dict]]:
     """Invoices approved, and invoices paid, on Kuwait days first..last: finance enters each once."""
     approved_on = func.date(func.timezone("Asia/Kuwait", Invoice.decided_at))

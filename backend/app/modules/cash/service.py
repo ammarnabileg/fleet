@@ -845,6 +845,19 @@ def treasury(db: Session) -> list[dict]:
 # ------------------------------------------------------------------ invariants (nightly)
 
 
+def journal_drivers(db: Session, journal_ids: Iterable[int]) -> dict[int, int]:
+    """The driver each journal moved money for (his account's line), for finance's account statements."""
+    ids = list(set(journal_ids))
+    if not ids:
+        return {}
+    rows = db.execute(
+        select(JournalLine.journal_id, Account.driver_id)
+        .join(Account, Account.id == JournalLine.account_id)
+        .where(JournalLine.journal_id.in_(ids), Account.driver_id.is_not(None))
+    )
+    return {j: d for j, d in rows}
+
+
 def posted_journals(db: Session, first: date, last: date) -> list[dict]:
     """Posted journals of business dates first..last with their lines by account kind, for finance's entries: every
     collection, receipt, bank deposit, adjustment, settlement, write-off, opening balance and reversal."""

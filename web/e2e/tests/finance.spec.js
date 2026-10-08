@@ -84,6 +84,16 @@ test('an expense from registration to its entry, reversed, exported, and the boo
   await settled(admin);
   await expect(admin.locator('[data-tb-total]')).toHaveText('0.000');
 
+  // ---- a row opens its account's statement: each movement with whom it was (the supplier here), then closes
+  const treasury = admin.locator('#view tr[data-account]', { hasText: '1110' });
+  await treasury.click();
+  const book = admin.locator('#view tr[data-ledger] [data-ledger-lines]');
+  const mineInBook = book.locator('tbody tr', { hasText: 'محطة ' + n });
+  await expect(mineInBook).toHaveCount(2); // the expense and its reversal, both with the supplier
+  await expect(mineInBook.nth(1)).toContainText('عكسي');
+  await treasury.click();
+  await expect(admin.locator('#view tr[data-ledger]')).toHaveCount(0);
+
   // ---- the vehicle's file lists it
   await admin.goto('/admin.html#/vehicles/' + vehicle.id);
   await settled(admin);

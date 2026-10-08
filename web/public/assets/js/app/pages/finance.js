@@ -283,13 +283,46 @@
         if (!rows.length) return BT.empty('scale', 'لا قيود معتمدة حتى نهاية الفترة', 'اعتمد القيود أولاً من تبويب «القيود»');
         var sum = function (k) { return rows.reduce(function (s, x) { return s + Number(x[k]); }, 0); };
         return h`<div class="table-wrap"><table class="t compact"><thead><tr><th>الحساب</th><th>النوع</th><th class="num">أول المدة</th><th class="num">مدين</th><th class="num">دائن</th><th class="num">آخر المدة</th></tr></thead><tbody>
-          ${rows.map(function (x) { return h`<tr data-account="${x.account.id}"><td><span class="num">${x.account.code}</span> ${api.name(x.account.name)}</td><td>${api.t('account_type', x.account.type)}</td><td class="num">${fmt.money(x.opening)}</td><td class="num">${fmt.money(x.debit)}</td><td class="num">${fmt.money(x.credit)}</td><td class="num"><b>${fmt.money(x.closing)}</b></td></tr>`; })}
+          ${rows.map(function (x) { return h`<tr data-account="${x.account.id}" class="clickable" title="اضغط لكشف الحساب: كل حركة ومع مين"><td>${icon('chevron-left', 13)} <span class="num">${x.account.code}</span> ${api.name(x.account.name)}</td><td>${api.t('account_type', x.account.type)}</td><td class="num">${fmt.money(x.opening)}</td><td class="num">${fmt.money(x.debit)}</td><td class="num">${fmt.money(x.credit)}</td><td class="num"><b>${fmt.money(x.closing)}</b></td></tr>`; })}
           </tbody><tfoot><tr><td colspan="2">الإجمالي</td><td class="num">${fmt.money(sum('opening'))}</td><td class="num">${fmt.money(sum('debit'))}</td><td class="num">${fmt.money(sum('credit'))}</td><td class="num"><b data-tb-total>${fmt.money(sum('closing'))}</b></td></tr></tfoot></table></div>
-          <div class="hint mt-8">مجموع «آخر المدة» صفر دائماً: كل قيد متوازن. الأرصدة المدينة موجبة والدائنة سالبة.</div>`;
+          <div class="hint mt-8">اضغط على أي حساب يفتح تحته كشفه: كل حركة في الفترة ومع مين (السائق أو الموظف أو المركز أو المورد)، والرصيد بعدها، ورصيد كل طرف. مجموع «آخر المدة» صفر دائماً: كل قيد متوازن.</div>`;
       }).catch(function () {});
     }
+    // a row opens its account's statement under it (a second click closes it)
+    BT.on(el, 'click', 'tr[data-account]', function (e, row) {
+      var next = row.nextElementSibling;
+      if (next && next.hasAttribute('data-ledger')) { next.remove(); row.classList.remove('open'); return; }
+      var holder = document.createElement('tr');
+      holder.setAttribute('data-ledger', row.getAttribute('data-account'));
+      holder.innerHTML = '<td colspan="6" class="ledger-cell"></td>';
+      row.after(holder);
+      row.classList.add('open');
+      ledger(holder.firstChild, row.getAttribute('data-account'), r);
+    });
     wireRange(el, r, load);
     load();
+  }
+
+  function party(p) {
+    if (!p) return h`<span class="muted">—</span>`;
+    var kind = { employee: 'user-round', center: 'wrench', supplier: 'store' }[p.type] || 'user-round';
+    return h`<span class="nowrap">${icon(kind, 13)} ${api.name(p.name)}</span>`;
+  }
+
+  /* كشف حساب: رصيد أول المدة، كل سطر بطرفه ورصيده، ورصيد كل طرف حتى آخر المدة */
+  function ledger(cell, accountId, r) {
+    A.load(cell, api.get('/finance/ledger', { account_id: accountId, date_from: r.from, date_to: r.to }), function (b) {
+      var parties = b.parties.length ? h`<div class="mt-8"><div class="fw-600 mb-4">رصيد كل طرف حتى ${fmt.date(r.to)}</div><div class="table-wrap"><table class="t compact" data-ledger-parties><thead><tr><th>الطرف</th><th class="num">مدين</th><th class="num">دائن</th><th class="num">الرصيد</th></tr></thead><tbody>
+        ${b.parties.map(function (x) { return h`<tr><td>${party(x.party)}</td><td class="num">${money(x.debit)}</td><td class="num">${money(x.credit)}</td><td class="num"><b>${fmt.money(x.balance)}</b></td></tr>`; })}
+        </tbody></table></div></div>` : '';
+      var lines = b.lines.length ? h`<div class="table-wrap mt-8"><table class="t compact" data-ledger-lines><thead><tr><th>التاريخ</th><th>القيد</th><th>البيان</th><th>مع مين</th><th class="num">مدين</th><th class="num">دائن</th><th class="num">الرصيد</th></tr></thead><tbody>
+        <tr class="muted"><td colspan="6">رصيد أول المدة</td><td class="num">${fmt.money(b.opening)}</td></tr>
+        ${b.lines.map(function (ln) { return h`<tr><td class="nowrap">${fmt.date(ln.date)}</td><td><a href="#" data-ledger-entry="${ln.entry_id}" class="num">#${ln.number}</a>${ln.reversal ? h` ${BT.pill('عكسي', 'n')}` : ''}<span class="sub ltr">${ln.ref}</span></td><td style="white-space:normal">${ln.description}</td><td>${party(ln.party)}</td><td class="num">${money(ln.debit)}</td><td class="num">${money(ln.credit)}</td><td class="num">${fmt.money(ln.balance)}</td></tr>`; })}
+        </tbody><tfoot><tr><td colspan="4">رصيد آخر المدة</td><td class="num">${fmt.money(b.debit)}</td><td class="num">${fmt.money(b.credit)}</td><td class="num"><b>${fmt.money(b.closing)}</b></td></tr></tfoot></table></div>
+        ${b.truncated ? h`<div class="hint">ظاهر أول ${b.lines.length} حركة: ضيّق الفترة لترى الباقي.</div>` : ''}` : h`<div class="muted mt-8">لا حركات في الفترة. رصيد أول المدة ${fmt.money(b.opening)}.</div>`;
+      return h`<div class="ledger"><div class="fw-600">كشف حساب <span class="num">${b.account.code}</span> ${api.name(b.account.name)}</div>${parties}${lines}</div>`;
+    }).catch(function () {});
+    BT.on(cell, 'click', '[data-ledger-entry]', function (e, a) { e.preventDefault(); entry(a.getAttribute('data-ledger-entry')); });
   }
 
   /* ================= دليل الحسابات ================= */

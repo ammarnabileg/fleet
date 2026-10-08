@@ -346,6 +346,14 @@ def counts(db: Session, *, all_companies: bool, company_ids: Iterable[int]) -> d
 # ------------------------------------------------------------------ for finance
 
 
+def fine_drivers(db: Session, fine_ids) -> dict[int, int]:
+    """The driver each fine was charged to, for finance's account statements."""
+    ids = list(set(fine_ids))
+    if not ids:
+        return {}
+    return {i: d for i, d in db.execute(select(Fine.id, Fine.driver_id).where(Fine.id.in_(ids))) if d}
+
+
 def paid_for_posting(db: Session, first, last) -> list[dict]:
     """Fines paid to the traffic department on Kuwait days first..last: finance enters each once."""
     paid_on = func.date(func.timezone("Asia/Kuwait", Fine.paid_at))

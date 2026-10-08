@@ -432,6 +432,14 @@ def runs_for_posting(db: Session, first: date, last: date) -> dict[str, list[dic
     return runs.runs_for_posting(db, first, last)
 
 
+def deduction_employees(db: Session, deduction_ids) -> dict[int, int]:
+    """The employee of each deduction, for finance's account statements."""
+    ids = list(set(deduction_ids))
+    if not ids:
+        return {}
+    return dict(db.execute(select(Deduction.id, Deduction.employee_id).where(Deduction.id.in_(ids))).all())
+
+
 def deductions_for_posting(db: Session, first: date, last: date) -> list[dict]:
     from app.modules.payroll import runs
 

@@ -832,6 +832,132 @@ def trial_balance(db: Session, date_from: date, date_to: date, *, all_companies:
     ]
 
 
+def _parties(db: Session, sources: set[tuple[str, int]]) -> dict[tuple[str, int], dict]:
+    """Who each entry was with, from its document: the driver whose cash moved, the employee of a deduction or an
+    expense, the maintenance center of an invoice, the supplier written on an expense. Payroll runs have none."""
+    from app.modules.cash import service as cash
+    from app.modules.fines import service as fines
+    from app.modules.maintenance import service as maintenance
+    from app.modules.payroll import service as payroll
+
+    by_kind: dict[str, set[int]] = defaultdict(set)
+    for kind, source_id in sources:
+        by_kind[kind].add(source_id)
+    employees: dict[tuple[str, int], int] = {}
+    out: dict[tuple[str, int], dict] = {}
+    for j, d in cash.journal_drivers(db, by_kind["cash_journal"]).items():
+        employees[("cash_journal", j)] = d
+    for f, d in fines.fine_drivers(db, by_kind["fine_payment"]).items():
+        employees[("fine_payment", f)] = d
+    for x, e in payroll.deduction_employees(db, by_kind["deduction"]).items():
+        employees[("deduction", x)] = e
+    for kind in ("maintenance_invoice", "invoice_payment"):
+        for i, center in maintenance.invoice_centers(db, by_kind[kind]).items():
+            out[(kind, i)] = center
+    expense_ids = by_kind["expense"] | by_kind["expense_payment"]
+    if expense_ids:
+        centers = {}
+        rows = db.execute(
+            select(Expense.id, Expense.employee_id, Expense.center_id, Expense.supplier).where(
+                Expense.id.in_(expense_ids)
+            )
+        ).all()
+        if any(c for _, _, c, _ in rows):
+            centers = maintenance.center_names(db, {c for _, _, c, _ in rows if c})
+        for x, employee_id, center_id, supplier in rows:
+            for kind in ("expense", "expense_payment"):
+                if (kind, x) not in sources:
+                    continue
+                if employee_id:
+                    employees[(kind, x)] = employee_id
+                elif center_id and center_id in centers:
+                    out[(kind, x)] = centers[center_id]
+                elif supplier:
+                    out[(kind, x)] = {"type": "supplier", "id": None, "name": {"ar": supplier, "en": supplier}}
+    names = people.names(db, set(employees.values()))
+    for key, employee_id in employees.items():
+        if employee_id in names:
+            out[key] = {"type": "employee", "id": names[employee_id]["id"], "name": names[employee_id]["name"]}
+    return out
+
+
+LEDGER_LINES = 2000
+
+
+def ledger(db: Session, account_id: int, date_from: date, date_to: date, *, all_companies: bool, **_) -> dict:
+    """An account's statement (approved entries): its balance before the period, each line in it with whom it was
+    with and the running balance, and what each party (driver, employee, center, supplier) holds on it up to the end:
+    the trial balance's row opened to show what happened and with whom."""
+    _need_all_companies(all_companies)
+    _span(date_from, date_to, 400)
+    account = db.get(Account, account_id)
+    if account is None:
+        raise AppError(404, "account_not_found")
+    rows = db.execute(
+        select(Entry, EntryLine.debit, EntryLine.credit)
+        .join(EntryLine, EntryLine.entry_id == Entry.id)
+        .where(EntryLine.account_id == account_id, Entry.status == "approved", Entry.entry_date <= date_to)
+        .order_by(Entry.entry_date, Entry.number, EntryLine.line_no)
+    ).all()
+    # a reversal is with whoever the entry it reverses was with
+    reversed_ids = {e.reverses_id for e, *_ in rows if e.reverses_id}
+    origins = {
+        i: (k, s)
+        for i, k, s in db.execute(
+            select(Entry.id, Entry.source_kind, Entry.source_id).where(Entry.id.in_(reversed_ids))
+        )
+    }
+
+    def source(e: Entry) -> tuple[str, int] | None:
+        return origins.get(e.reverses_id) if e.reverses_id else (e.source_kind, e.source_id)
+
+    parties = _parties(db, {s for e, *_ in rows if (s := source(e)) is not None})
+    opening = ZERO
+    lines, holders = [], {}
+    period_debit = period_credit = ZERO
+    for e, debit, credit in rows:
+        party = parties.get(source(e))
+        if party is not None:
+            key = (party["type"], party["id"] or party["name"]["ar"])
+            h = holders.setdefault(key, {"party": party, "debit": ZERO, "credit": ZERO})
+            h["debit"] += debit
+            h["credit"] += credit
+        if e.entry_date < date_from:
+            opening += debit - credit
+            continue
+        period_debit += debit
+        period_credit += credit
+        if len(lines) < LEDGER_LINES:
+            lines.append(
+                {
+                    "entry_id": e.public_id,
+                    "number": e.number,
+                    "date": e.entry_date,
+                    "ref": e.source_ref,
+                    "description": e.description,
+                    "reversal": e.reverses_id is not None,
+                    "party": party,
+                    "debit": debit,
+                    "credit": credit,
+                }
+            )
+    balance = opening
+    for ln in lines:
+        balance += ln["debit"] - ln["credit"]
+        ln["balance"] = balance
+    held = sorted(holders.values(), key=lambda h: -abs(h["debit"] - h["credit"]))
+    return {
+        "account": {"id": account.id, "code": account.code, "name": account.name, "type": account.type},
+        "opening": opening,
+        "debit": period_debit,
+        "credit": period_credit,
+        "closing": opening + period_debit - period_credit,
+        "lines": lines,
+        "truncated": len(lines) == LEDGER_LINES,
+        "parties": [{**h, "balance": h["debit"] - h["credit"]} for h in held if h["debit"] != h["credit"]],
+    }
+
+
 def auto_post(db: Session) -> dict:
     """The daily posting (beat): the last 45 days, so a document approved late is entered too."""
     last = today()
