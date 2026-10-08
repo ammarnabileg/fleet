@@ -215,22 +215,23 @@
     api.get('/portal/requests/' + p.id).then(function (r) {
       if (!document.contains(v)) return;
       setTitle('طلب #' + r.number + ' · ' + r.vehicle.plate_number, [['السيارات المحالة', 'requests'], ['#' + r.number]]);
-      var acts = [], s = r.status, direct = !!(P.center && P.center.direct_to_center);
+      // الطلب من السائق مباشرة (r.direct): الإصلاح لا ينتظر عرض سعر ما لم ترفض الإدارة عرضاً له (r.shortcut)،
+      // والفاتورة قبل إبلاغ السائق، والسائق يؤكد الاستلام من تطبيقه
+      var acts = [], s = r.status, direct = !!r.direct, shortcut = !!r.shortcut;
       var hasInvoice = r.invoices.some(function (i) { return i.status !== 'rejected'; });
       var early = ['received', 'inspection'].indexOf(s) > -1;
       if (s === 'referred') acts.push(['تسجيل الاستلام', 'log-in', 'btn-primary', 'receive']);
       if (s === 'received') acts.push(['بدء الفحص', 'search', 'btn-secondary', 'inspection']);
-      // الطلب من السائق مباشرة: الإصلاح لا ينتظر عرض سعر (العرض اختياري)، والفاتورة قبل إبلاغ السائق
-      if (direct && early) acts.push(['بدء الإصلاح', 'wrench', 'btn-secondary', 'start_repair']);
-      if (early && api.can('portal.quotes')) acts.push([direct ? 'عرض سعر (اختياري)' : 'إرسال عرض السعر', 'file-plus', direct ? 'btn-ghost' : 'btn-primary', 'quote']);
+      if (shortcut && early) acts.push(['بدء الإصلاح', 'wrench', 'btn-secondary', 'start_repair']);
+      if (early && api.can('portal.quotes')) acts.push([shortcut ? 'عرض سعر (اختياري)' : 'إرسال عرض السعر', 'file-plus', shortcut ? 'btn-ghost' : 'btn-primary', 'quote']);
       if (['in_repair', 'waiting_parts'].indexOf(s) > -1 && api.can('portal.quotes')) acts.push(['عرض سعر معدّل', 'file-plus', 'btn-ghost', 'quote']);
       if (s === 'in_repair') acts.push(['بانتظار قطع', 'package', 'btn-secondary', 'waiting_parts']);
       if (s === 'waiting_parts') acts.push(['استئناف الإصلاح', 'wrench', 'btn-secondary', 'in_repair']);
-      if (['in_repair', 'waiting_parts'].indexOf(s) > -1 || (direct && early)) acts.push(['اكتمل الإصلاح', 'circle-check', 'btn-primary', 'complete']);
+      if (['in_repair', 'waiting_parts'].indexOf(s) > -1 || (shortcut && early)) acts.push(['اكتمل الإصلاح', 'circle-check', 'btn-primary', 'complete']);
       if (['completed', 'ready', 'picked_up'].indexOf(s) > -1 && !hasInvoice && api.can('portal.invoices')) acts.push(['إدخال الفاتورة', 'receipt-text', s === 'picked_up' || (direct && s === 'completed') ? 'btn-primary' : 'btn-outline', 'invoice']);
       if (s === 'completed' && (!direct || hasInvoice)) acts.push(['جاهزة للاستلام', 'bell-ring', 'btn-primary', 'ready']);
       if (s === 'ready' && !direct) acts.push(['تم الاستلام', 'log-out', 'btn-secondary', 'picked']);
-      var hint = !direct ? '' : s === 'completed' && !hasInvoice ? 'أدخل فاتورة الصيانة، ثم «جاهزة للاستلام» ليُبلَّغ السائق.' : s === 'ready' ? 'أُبلغ السائق. يؤكد الاستلام من تطبيقه عند خروج السيارة، فتعود في عهدته.' : '';
+      var hint = !direct ? '' : s === 'completed' && !hasInvoice ? (api.can('portal.invoices') ? 'أدخل فاتورة الصيانة، ثم «جاهزة للاستلام» ليُبلَّغ السائق.' : 'تُدخل الفاتورة أولاً (حساب الفواتير في المركز أو الإدارة)، ثم تُبلغ السائق أن السيارة جاهزة.') : s === 'ready' ? 'أُبلغ السائق. يؤكد الاستلام من تطبيقه عند خروج السيارة، فتعود في عهدته.' : early && direct && !shortcut ? 'رفضت الإدارة عرض السعر: لا يبدأ الإصلاح إلا بعرض تعتمده.' : '';
       BT.render(v, h`${head(h`${M.vehicleLine(r.vehicle)} · طلب <span class="num">#${r.number}</span>`, h`${M.status(r.status)} · ${M.kind(r.kind)}${r.emergency ? ' · طارئة' : ''}`, h`${acts.map(function (a) { return h`<button type="button" class="btn ${a[2]}" data-act="${a[3]}">${icon(a[1], 15)}${a[0]}</button>`; })}`)}
         ${hint ? h`<div class="banner info mb-16" data-direct-hint>${icon('info', 16)}<div>${hint}</div></div>` : ''}
         ${M.detail(r, fileUrl(r.id))}`);
@@ -300,7 +301,7 @@
     ready: function (r) {
       form({
         title: 'السيارة جاهزة للاستلام', subtitle: r.vehicle.plate_number, icon: 'bell-ring', size: 'sm',
-        body: h`<p>${P.center && P.center.direct_to_center ? 'يُبلَّغ السائق ليأتي ويستلمها، ويؤكد الاستلام من التطبيق. وتراها الإدارة.' : 'تُبلَّغ الإدارة فوراً، ويرى السائق أن سيارته جاهزة في التطبيق.'}</p><div class="form mt-12">${BT.f.textarea({ name: 'note', label: 'ملاحظة (موعد الاستلام مثلاً)', optional: true, rows: 2 })}</div>`,
+        body: h`<p>${r.direct ? 'يُبلَّغ السائق ليأتي ويستلمها، ويؤكد الاستلام من التطبيق. وتراها الإدارة.' : 'تُبلَّغ الإدارة فوراً، ويرى السائق أن سيارته جاهزة في التطبيق.'}</p><div class="form mt-12">${BT.f.textarea({ name: 'note', label: 'ملاحظة (موعد الاستلام مثلاً)', optional: true, rows: 2 })}</div>`,
         submitText: 'جاهزة', done: 'أُبلغت الإدارة والسائق',
         submit: function (f) { return api.post('/portal/requests/' + r.id + '/ready', { note: f.note || null }); }
       });

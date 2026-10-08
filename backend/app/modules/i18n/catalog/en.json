@@ -255,6 +255,7 @@
     "invoice_required": "Upload the repair invoice first, then tell the driver the car is ready",
     "day_already_ended": "You already ended the day: start again if you are working once more",
     "day_already_started": "Your day is already open: end it before starting again",
+    "invalid_session": "The server has not seen this work session start yet: send its start reading first",
     "reading_not_found": "Reading not found",
     "reason_required": "A reason is required",
     "receipt_not_found": "Receipt not found",

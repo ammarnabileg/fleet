@@ -152,8 +152,10 @@ def dashboard(
                 select(Report.employee_id).where(scope, Report.business_date == day, Report.status != "rejected")
             )
         )
-        approved_today = db.scalar(
-            select(func.count()).where(scope, Report.business_date == day, Report.status == "approved")
+        approved_today = db.scalar(  # drivers, like today_sent (a driver's two sessions are one)
+            select(func.count(Report.employee_id.distinct())).where(
+                scope, Report.business_date == day, Report.status == "approved"
+            )
         )
         out["daily_reports"] = {
             "today_approved": approved_today,
@@ -393,7 +395,7 @@ def daily_summary(
             Employee.employee_number,
             Employee.name,
             Employee.company_id,
-            func.count().filter(live).label("days"),
+            func.count(Report.business_date.distinct()).filter(live).label("days"),  # a day with two sessions: one
             func.coalesce(func.sum(Report.orders_count).filter(live), 0).label("orders"),
             func.coalesce(func.sum(Report.cash_amount).filter(live), 0).label("reported_cash"),
             func.coalesce(func.sum(Report.approved_cash).filter(Report.status == "approved"), 0).label("approved_cash"),

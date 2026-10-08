@@ -162,7 +162,9 @@ class Tracker {
   Future<void> _onFix(Fix f) async {
     if (!required || _stopped) return;
     lastFixAt = f.at;
-    final speed = f.speedKmh ?? _derivedSpeed(_prev, f);
+    final speed = f.speedKmh ?? _derivedSpeed(_prev, f, maxGap: _gapLimit);
+    // parked, the fixes are far apart: a clear move away from the last one wakes the tracker whatever the speed
+    final moved = _parked && _prev != null && _farFrom(_prev!, f);
     _prev = f;
     // the platform may deliver faster than asked: keep one point per interval
     if (_lastKept != null && f.at.difference(_lastKept!) < (_interval ?? moving) * 0.8) return;
@@ -176,14 +178,17 @@ class Tracker {
       heading: f.heading,
       isMock: f.isMock, // sent as it is: the server rejects it and alerts the supervisors
     );
-    _adapt(f, speed);
+    _adapt(f, moved ? movingSpeedKmh : speed);
     unawaited(sync()); // each point goes at once (the live map moves with it); offline it waits in the queue
   }
 
   /// Parked for a while: ask for fewer fixes (battery); moving again: back to the moving interval. An unknown speed
   /// (first fix, no measurement) neither parks nor wakes.
   void _adapt(Fix f, double? speed) {
-    if (speed == null) return;
+    if (speed == null) {
+      _stillSince = null; // two minutes of stillness must be two minutes known still
+      return;
+    }
     if (speed < stillSpeedKmh) {
       _stillSince ??= f.at;
       if (!_parked && f.at.difference(_stillSince!) >= stillFor) _parked = true;
@@ -194,16 +199,31 @@ class Tracker {
     if (_interval != _wanted) _listen(_wanted);
   }
 
+  /// The longest gap a speed is worked out over: a little more than the interval asked for (the parked one may be
+  /// set long), never under 10 minutes.
+  Duration get _gapLimit {
+    final asked = (_interval ?? moving) * 1.5;
+    return asked > const Duration(minutes: 10) ? asked : const Duration(minutes: 10);
+  }
+
+  /// A move clearly beyond both positions' accuracy (approximate positions are not trusted for it).
+  static bool _farFrom(Fix a, Fix b) {
+    if ((a.accuracyM ?? 0) > 100 || (b.accuracyM ?? 0) > 100) return false;
+    return _metres(a.lat, a.lng, b.lat, b.lng) > math.max(150, 2 * math.max(a.accuracyM ?? 0, b.accuracyM ?? 0));
+  }
+
   /// The speed between two fixes when the phone measured none (km/h), or null when it cannot be told: too close in
   /// time or too far apart, approximate positions (over 100 m), or an impossible jump. Within the positions' own
-  /// accuracy it is a stop, not wifi jitter.
-  static double? _derivedSpeed(Fix? a, Fix b) {
+  /// accuracy it is a stop, not wifi jitter, but only over a window long enough for that to mean under the still
+  /// speed (a few metres in a few seconds may well be a slow crawl).
+  static double? _derivedSpeed(Fix? a, Fix b, {Duration maxGap = const Duration(minutes: 10)}) {
     if (a == null) return null;
     final secs = b.at.difference(a.at).inMilliseconds / 1000;
-    if (secs < 3 || secs > 600) return null;
+    if (secs < 3 || secs > maxGap.inSeconds) return null;
     if ((a.accuracyM ?? 0) > 100 || (b.accuracyM ?? 0) > 100) return null;
     final metres = _metres(a.lat, a.lng, b.lat, b.lng);
-    if (metres < math.max(20, math.max(a.accuracyM ?? 0, b.accuracyM ?? 0))) return 0;
+    final within = math.max(20.0, math.max(a.accuracyM ?? 0, b.accuracyM ?? 0));
+    if (metres < within) return within / secs * 3.6 < stillSpeedKmh ? 0 : null;
     final kmh = metres / secs * 3.6;
     return kmh > 250 ? null : kmh;
   }
@@ -258,7 +278,7 @@ class Tracker {
         'company': company,
       }),
     );
-    final shown = jsonEncode([company, onDuty]);
+    final shown = jsonEncode([company, onDuty, api.lang]); // the driver changed language: shown again in it
     if (shown != _shown) {
       _shown = shown;
       notify?.call(company, onDuty);

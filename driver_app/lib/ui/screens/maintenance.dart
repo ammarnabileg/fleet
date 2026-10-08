@@ -85,7 +85,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
         description: _description.text.trim(),
         km: int.tryParse(_km.text),
         photoPaths: [for (final p in photos) p.path],
-        centerId: widget.state.maintenanceForm.direct ? centerId : null,
+        centerId: widget.state.maintenanceForm.direct ? centerId : null, // none to pick: through the office
       );
       if (mounted) Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ResultScreen(result: r)));
     } catch (e) {
@@ -99,6 +99,8 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
     final custody = widget.state.today?.custody;
     final requests = widget.state.maintenance;
     final form = widget.state.maintenanceForm;
+    // straight to a center he picks; with none open to pick, through the office as before
+    final direct = form.direct && form.centers.isNotEmpty;
     final picked = [
       for (final c in form.centers)
         if (c.id == centerId) c,
@@ -122,11 +124,11 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                 Text(l.mntNew, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
                 Text(
-                  form.direct ? l.mntDirectIntro : l.mntIntro,
+                  direct ? l.mntDirectIntro : l.mntIntro,
                   style: const TextStyle(color: AppColors.muted, height: 1.6),
                 ),
                 const SizedBox(height: 16),
-                if (form.direct) ...[
+                if (direct) ...[
                   DropdownButtonFormField<String>(
                     key: const Key('mnt-center'),
                     initialValue: centerId,
@@ -268,7 +270,7 @@ class ReadyBanner extends StatelessWidget {
       tone: BannerTone.success,
       icon: Icons.car_repair,
     );
-    if (!state.maintenanceForm.direct) return banner;
+    if (!request.direct) return banner; // through the office: the office records the pickup and hands over
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

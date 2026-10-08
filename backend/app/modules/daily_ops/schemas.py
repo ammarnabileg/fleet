@@ -17,6 +17,9 @@ class ReportIn(BaseModel):
     valid_day: bool | None = None  # when the driver's platform asks: did the platform count the day
     screenshot_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")] | None = None
     notes: str | None = Field(None, max_length=500)
+    # the day's work session it is written for, fixed when the driver filled it: a retry, or a report that arrives
+    # after a new start, keeps its own session (an older app sends none: the sessions known on arrival)
+    session: int | None = Field(None, ge=1, le=50)
 
 
 class ReportFormOut(BaseModel):
@@ -82,9 +85,11 @@ class Average(BaseModel):
 
 
 class EvidenceOut(BaseModel):
-    start: ReadingBrief | None
+    start: ReadingBrief | None  # the sessions this report covers: since the day's previous report
     end: ReadingBrief | None
     km: int | None
+    day_km: int | None = None  # the whole day, all its sessions
+    sessions: int = 0  # the day's work sessions
     average: Average
     deviations: list[str]
 

@@ -126,6 +126,44 @@ void main() {
     expect(await box.waiting(), 2);
   });
 
+  test('send-now never overtakes what waits before it: the older go first, in order', () async {
+    final (db, _, api, server) = await session();
+    final box = Outbox(db);
+    final order = <String>[];
+    var offline = true;
+    server.on('POST', '/api/v1/driver/reports', (req) {
+      final day = jsonDecode(req.body)['business_date'] as String;
+      if (offline) throw ApiError(0, 'network');
+      order.add(day);
+      return (201, {'id': day});
+    });
+    await box.add('report', {'business_date': '2026-10-02'}, {});
+    final second = await box.add('report', {'business_date': '2026-10-03'}, {});
+    expect(await box.sendNow(second, api), SendResult.queued, reason: 'the older one is held back: so is this one');
+    expect(await box.waiting(), 2);
+    offline = false;
+    final third = await box.add('report', {'business_date': '2026-10-04'}, {});
+    expect(await box.sendNow(third, api), SendResult.sent);
+    expect(order, ['2026-10-02', '2026-10-03', '2026-10-04']);
+    expect(await box.items(), isEmpty);
+  });
+
+  test('send-now behind older items: its own final refusal is still thrown and removed', () async {
+    final (db, _, api, server) = await session();
+    final box = Outbox(db);
+    server.on('POST', '/api/v1/driver/reports', (req) {
+      final day = jsonDecode(req.body)['business_date'] as String;
+      return day == '2020-01-01' ? (422, {'code': 'invalid_business_date'}) : (201, {'id': day});
+    });
+    await box.add('report', {'business_date': '2026-10-02'}, {});
+    final bad = await box.add('report', {'business_date': '2020-01-01'}, {});
+    await expectLater(
+      box.sendNow(bad, api),
+      throwsA(isA<ApiError>().having((e) => e.code, 'code', 'invalid_business_date')),
+    );
+    expect(await box.items(), isEmpty);
+  });
+
   test('an item being sent by the other engine is not sent twice', () async {
     final (db, _, api, server) = await session();
     final box = Outbox(db);

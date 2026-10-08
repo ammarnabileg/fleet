@@ -2,7 +2,7 @@
 request reaches it at once, with no office approval or referral; the center repairs without a quote, uploads its
 invoice before calling the driver, and the driver's pickup in the app gives him the vehicle back."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -17,6 +17,7 @@ from tests.test_maintenance import (
     driver_request,
     invoice,
     make_setup,
+    quote,
     receive,
     statuses,
 )
@@ -43,11 +44,11 @@ def deactivate(admin_client, c) -> None:
     assert r.status_code == 200, r.text
 
 
-def pickup(client, s, rid, km=20_170, photo=None):
+def pickup(client, s, rid, km=20_170, photo=None, at=None):
     body = {
         "odometer_km": km,
         "odometer_photo": photo or camera(client, s["h"]),
-        "picked_up_at": datetime.now(UTC).isoformat(),
+        "picked_up_at": (at or datetime.now(UTC)).isoformat(),
     }
     return client.post(f"{DRIVER}/{rid}/picked-up", json=body, headers=s["h"])
 
@@ -175,3 +176,67 @@ def test_the_default_flow_is_unchanged(admin_client, client, s):
     r = complete(s, rid)
     assert r.status_code == 409
     assert s["portal"].get(f"{P}/me").json()["direct_to_center"] is False
+
+
+def ready_for_pickup(admin_client, client, s) -> str:
+    direct(admin_client)
+    rid = driver_request(client, s, center_id=s["center"]["id"]).json()["id"]
+    receive(s, rid)
+    complete(s, rid)
+    invoice(s, rid)
+    assert s["portal"].post(f"{P}/requests/{rid}/ready", json={}).status_code == 200
+    return rid
+
+
+def test_the_request_keeps_its_way_whatever_the_switch_says_later(admin_client, client, s):
+    rid = ready_for_pickup(admin_client, client, s)
+    detail = admin_client.get(f"{M}/requests/{rid}").json()
+    assert (detail["direct"], detail["source"]) == (True, "driver")
+    direct(admin_client, False)  # turned off meanwhile: this request still ends with the driver's own pickup
+    early = datetime.now(UTC) - timedelta(days=1)
+    r = pickup(client, s, rid, at=early)  # before the car was ready: refused
+    assert r.status_code == 422 and r.json()["code"] == "invalid_recorded_at"
+    assert pickup(client, s, rid).status_code == 200
+    # a request through the office, while the switch is off, keeps the office's rules
+    office = driver_request(client, s)
+    assert office.status_code == 201 and office.json()["status"] == "requested"
+    assert admin_client.get(f"{M}/requests/{office.json()['id']}").json()["direct"] is False
+
+
+def test_a_pickup_the_office_recorded_is_not_reported_to_the_driver_as_his(admin_client, client, s):
+    rid = ready_for_pickup(admin_client, client, s)
+    assert admin_client.post(f"{M}/requests/{rid}/picked-up").status_code == 200
+    r = pickup(client, s, rid)
+    assert r.status_code == 409 and r.json()["code"] == "pickup_by_office"  # the office hands the car over
+
+
+def test_a_refused_quote_is_not_bypassed(admin_client, client, s):
+    direct(admin_client)
+    rid = driver_request(client, s, center_id=s["center"]["id"]).json()["id"]
+    receive(s, rid)
+    assert quote(s, rid, "900.000").json()["status"] == "quote_pending"  # above the limit: the office decides
+    qid = admin_client.get(f"{M}/requests/{rid}").json()["quotes"][0]["id"]
+    r = admin_client.post(f"{M}/quotes/{qid}/reject", json={"reason": "Too expensive"})
+    assert r.json()["status"] == "inspection"
+    r = s["portal"].post(f"{P}/requests/{rid}/status", json={"status": "in_repair"})
+    assert r.status_code == 409
+    assert complete(s, rid).status_code == 409
+    # a quote within the limit, approved at once, lets the repair start
+    assert quote(s, rid, "80.000").json()["status"] == "in_repair"
+
+
+def test_a_vehicle_in_an_accident_and_a_center_nobody_can_open_go_through_the_office(admin_client, client, s, owner_db):
+    from sqlalchemy import text  # noqa: PLC0415
+
+    direct(admin_client)
+    empty = center(admin_client, "No Portal Garage")  # active, but no account to receive the car
+    form = client.get(f"{DRIVER}/form", headers=s["h"]).json()
+    assert empty["id"] not in [c["id"] for c in form["centers"]]
+    r = driver_request(client, s, center_id=empty["id"])
+    assert r.status_code == 409 and r.json()["code"] == "center_inactive"
+    owner_db.execute(
+        text("UPDATE fleet.vehicles SET status = 'accident' WHERE public_id = :v"), {"v": s["vehicle"]["id"]}
+    )
+    owner_db.commit()
+    r = driver_request(client, s, center_id=s["center"]["id"])
+    assert r.status_code == 201 and r.json()["status"] == "requested"  # the accident's repair is the office's

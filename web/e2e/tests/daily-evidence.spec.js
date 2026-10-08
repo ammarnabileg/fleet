@@ -56,7 +56,9 @@ test('the report after a started day needs its end-of-day reading; the reviewer 
   await expect(row).toHaveCount(1);
   await row.click();
   const ev2 = admin.locator('.overlay[data-open]').last().locator('[data-evidence]');
-  await expect(ev2).toContainText('عداد بداية اليوم 12,010 كم');
-  await expect(ev2).toContainText('عداد نهاية اليوم 12,150 كم');
-  await expect(ev2).toContainText('مسافة اليوم135 كم');
+  // reviewed on its own session, with the whole day beside it
+  await expect(ev2).toContainText('عداد بداية الفترة 12,100 كم');
+  await expect(ev2).toContainText('عداد نهاية الفترة 12,150 كم');
+  await expect(ev2).toContainText('مسافة الفترة50 كم');
+  await expect(ev2).toContainText('135 كم');
 });

@@ -43,8 +43,9 @@ class _ReportScreenState extends State<ReportScreen> {
   Report? get _editing => widget.report;
   bool get _endDue => _editing == null && daysBack == 0 && widget.state.endReadingDue;
 
-  /// Today's work session: after ending the day the driver may start again, and that session sends its own report.
-  int get _session => daysBack == 0 ? (widget.state.today?.sessions ?? 0) : 0;
+  /// The day's work session this report is for: after ending the day the driver may start again, and each session
+  /// sends its own report. A day before: the sessions the server counted for it.
+  int get _session => daysBack == 0 ? widget.state.sessionsToday : (widget.state.today?.recent[_day(daysBack)] ?? 0);
 
   /// This session's report already sent (not refused): it is edited, never sent twice. A report of an earlier
   /// session today is not it: the new one adds to it.
@@ -146,6 +147,7 @@ class _ReportScreenState extends State<ReportScreen> {
         validDay: asks.contains('valid_day') ? validDay : null,
         screenshotPath: shot?.path,
         notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+        session: _session,
       );
       if (mounted) Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ResultScreen(result: r)));
     } catch (e) {

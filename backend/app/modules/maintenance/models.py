@@ -116,6 +116,8 @@ class Request(Base):
     description: Mapped[str] = mapped_column(Text)
     odometer_km: Mapped[int | None] = mapped_column(Integer)
     emergency: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # sent by the driver straight to the center he picked: no quote needed, the invoice before "ready", his pickup
+    direct: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     status: Mapped[str] = mapped_column(Text, server_default=text("'requested'"))
     client_ref: Mapped[uuid.UUID | None] = mapped_column(UUID, unique=True)
     created_by_user: Mapped[int | None] = mapped_column(BigInteger)

@@ -104,13 +104,15 @@
   function evidence(r, ev) {
     var a = ev.average, km = function (n) { return n == null ? '—' : h`<span class="num">${fmt.int(n)}</span> كم`; };
     var photos = [];
-    if (ev.start) photos.push({ src: api.url('/daily-reports/' + r.id + '/odometer/start'), caption: 'عداد بداية اليوم ' + fmt.int(ev.start.km) + ' كم' });
-    if (ev.end) photos.push({ src: api.url('/daily-reports/' + r.id + '/odometer/end'), caption: (ev.end.kind === 'return' ? 'عداد استلام السيارة ' : 'عداد نهاية اليوم ') + fmt.int(ev.end.km) + ' كم' });
+    // يوم بأكثر من فترة: التقرير يُراجع على فترته (من تقريره السابق في اليوم)، ومسافة اليوم كله بجانبها
+    var part = ev.sessions > 1 ? 'الفترة' : 'اليوم';
+    if (ev.start) photos.push({ src: api.url('/daily-reports/' + r.id + '/odometer/start'), caption: 'عداد بداية ' + part + ' ' + fmt.int(ev.start.km) + ' كم' });
+    if (ev.end) photos.push({ src: api.url('/daily-reports/' + r.id + '/odometer/end'), caption: (ev.end.kind === 'return' ? 'عداد استلام السيارة ' : 'عداد نهاية ' + part + ' ') + fmt.int(ev.end.km) + ' كم' });
     var avg = a.days ? h`<span class="num">${fmt.int(a.days)}</span> يوم معتمد: الطلبات <span class="num">${a.orders == null ? '—' : a.orders}</span> · الكاش ${a.cash == null ? '—' : amt(a.cash)}${a.km != null ? h` · <span class="num">${fmt.int(a.km)}</span> كم` : ''}` : h`<span class="muted">لا توجد تقارير معتمدة في آخر 30 يوماً</span>`;
     return h`<div class="section-t mt-16">العداد والمتوسط</div>
       <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
         <div>${photos.length ? A.thumbs(photos) : BT.empty('gauge', 'لا قراءة عداد لهذا اليوم', 'لم يبدأ السائق يومه بقراءة')}</div>
-        <div>${BT.kv([['مسافة اليوم', ev.km != null ? km(ev.km) : (ev.start ? h`<span class="muted">لم يُغلق اليوم بقراءة</span>` : '—')], ['متوسط آخر 30 يوماً', avg], ev.deviations.length ? ['انحراف', h`${ev.deviations.map(function (f) { return BT.pill(f === 'orders' ? 'الطلبات بعيدة عن متوسطه' : 'الكاش بعيد عن متوسطه', 'o'); })}`] : null].filter(Boolean))}</div>
+        <div>${BT.kv([['مسافة ' + part, ev.km != null ? km(ev.km) : (ev.start ? h`<span class="muted">${ev.sessions > 1 ? 'لم تُغلق الفترة بقراءة' : 'لم يُغلق اليوم بقراءة'}</span>` : '—')], ev.sessions > 1 ? ['مسافة اليوم كله (' + fmt.int(ev.sessions) + ' فترات)', ev.day_km != null ? km(ev.day_km) : '—'] : null, ['متوسط آخر 30 يوماً', avg], ev.deviations.length ? ['انحراف', h`${ev.deviations.map(function (f) { return BT.pill(f === 'orders' ? 'الطلبات بعيدة عن متوسطه' : 'الكاش بعيد عن متوسطه', 'o'); })}`] : null].filter(Boolean))}</div>
       </div>`;
   }
 

@@ -641,7 +641,96 @@ void main() {
     await tester.tap(find.byKey(const Key('send-report')));
     await idle(tester);
     final report = jsonDecode(w.server.calls('/api/v1/driver/reports', method: 'POST').single.body) as Map;
-    expect((report['business_date'], report['orders_count']), (today, 6));
+    expect(
+      (report['business_date'], report['orders_count'], report['session']),
+      (today, 6, 2),
+      reason: 'the session it was written for goes with it: a retry stays in it',
+    );
+  });
+
+  Map<String, dynamic> ended({int? sessions, Map<String, int>? recent}) => {
+    'custody': {
+      'id': 'c1',
+      'plate_number': '18/23456',
+      'started_at': '2026-10-02T05:00:00Z',
+      'last_odometer_km': 45210,
+    },
+    'start_day_done': true,
+    'end_day_done': true,
+    'sessions': ?sessions,
+    'recent': ?recent,
+  };
+
+  testWidgets('an older server that knows one session a day: no "start again" to refuse', (tester) async {
+    final w = (await tester.runAsync(() => world(today: ended())))!;
+    await pumpApp(tester, w);
+    expect(find.text('أنهيت اليوم'), findsOneWidget);
+    expect(find.byKey(const Key('start-again')), findsNothing);
+  });
+
+  testWidgets('started again with no signal: the queued start counts, so the session can be ended', (tester) async {
+    final w = (await tester.runAsync(() => world(today: ended(sessions: 1))))!;
+    final img = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.now());
+    await pumpApp(tester, w);
+    w.server.routes.remove('POST /api/v1/driver/files');
+    w.server.on('POST', '/api/v1/driver/files', (r) => throw const SocketException('offline'));
+    await tester.tap(find.byKey(const Key('start-again')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('odo-photo')));
+    await idle(tester);
+    await tester.enterText(find.byKey(const Key('km')), '45300');
+    await tester.tap(find.byKey(const Key('send-reading')));
+    await idle(tester);
+    await tester.tap(find.text('تم'));
+    await settle(tester);
+    expect(find.byKey(const Key('start-again')), findsNothing, reason: 'a second tap would only be refused');
+    expect(find.byKey(const Key('end-day')), findsOneWidget);
+    expect(w.state.sessionsToday, 2);
+  });
+
+  testWidgets('yesterday\'s second session: its report can still be sent, on its own', (tester) async {
+    final yesterday = DateTime.now()
+        .toUtc()
+        .add(const Duration(hours: 3))
+        .subtract(const Duration(days: 1))
+        .toIso8601String()
+        .substring(0, 10);
+    final w = (await tester.runAsync(() => world(today: ended(sessions: 0, recent: {yesterday: 2}))))!;
+    final screenshot = await tester.runAsync(testImage);
+    Photos.gallery = () async => TakenPhoto(screenshot!, DateTime.now());
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'd' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('GET', '/api/v1/driver/reports', (r) => (200, [sentReport('y1', yesterday, 'approved')]));
+    w.server.on('POST', '/api/v1/driver/reports', (r) => (201, {'id': 'n'}));
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('daily-report')));
+    await settle(tester);
+    await tester.tap(find.text('أمس'));
+    await settle(tester);
+    expect(find.byKey(const Key('report-exists')), findsNothing);
+    expect(find.byKey(const Key('report-adds')), findsOneWidget);
+    final list = find.byType(Scrollable).first;
+    Future<void> reach(String key) async {
+      await tester.scrollUntilVisible(find.byKey(Key(key)), 120, scrollable: list);
+      await tester.pumpAndSettle();
+    }
+
+    await reach('orders');
+    await tester.enterText(find.byKey(const Key('orders')), '5');
+    await reach('cash');
+    await tester.enterText(find.byKey(const Key('cash')), '2');
+    await reach('screenshot');
+    await tester.tap(find.byKey(const Key('screenshot')));
+    await idle(tester);
+    await reach('send-report');
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/reports', method: 'POST').single.body) as Map;
+    expect((body['business_date'], body['orders_count'], body['session']), (yesterday, 5, 2));
   });
 
   testWidgets('a report sent back: the office note, then corrected in place, never sent twice', (tester) async {
@@ -1446,6 +1535,7 @@ void main() {
             'ready_at': '2026-10-04T09:00:00Z',
             'picked_up_at': null,
             'decision_note': null,
+            'direct': true,
           },
         ],
       ),

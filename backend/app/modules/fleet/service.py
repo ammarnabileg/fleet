@@ -509,22 +509,30 @@ def driver_reading(
     if photo.source != "camera" or photo.uploaded_by_device != device_id:
         raise AppError(422, "photo_not_from_camera")
     vehicle = db.scalar(select(Vehicle).where(Vehicle.id == custody.vehicle_id).with_for_update())
-    # The day may hold several work sessions (he starts again after ending it), one open at a time: under the
-    # vehicle's lock, the custody's last start or end of this business day must not be the same kind. The same
-    # reading sent again (the app's queue retrying) is already there; another one is refused for what it is.
-    last = db.execute(
-        select(OdometerReading.kind, OdometerReading.recorded_at)
+    # The same reading sent again (the app's queue retrying, whatever came after it) is already there.
+    if db.scalar(
+        select(OdometerReading.id).where(
+            OdometerReading.custody_id == custody.id,
+            OdometerReading.kind == kind,
+            OdometerReading.recorded_at == recorded_at,
+        )
+    ):
+        raise AppError(409, "reading_exists")
+    # Several work sessions a day (he starts again after ending it), one open at a time: under the vehicle's lock,
+    # the custody's last start or end before this one must not be the same kind. A night shift's session stays open
+    # past midnight; one left open longer than any shift (forgotten) no longer holds the next start.
+    last = db.scalar(
+        select(OdometerReading.kind)
         .where(
             OdometerReading.custody_id == custody.id,
             OdometerReading.kind.in_(("start_day", "end_day")),
-            OdometerReading.business_date == business_date(recorded_at),
+            OdometerReading.recorded_at < recorded_at,
+            OdometerReading.recorded_at > recorded_at - SESSION_HOLDS,
         )
         .order_by(OdometerReading.recorded_at.desc(), OdometerReading.id.desc())
         .limit(1)
-    ).first()
-    if last is not None and last.kind == kind:
-        if last.recorded_at == recorded_at:
-            raise AppError(409, "reading_exists")
+    )
+    if last == kind:
         raise AppError(409, "day_already_started" if kind == "start_day" else "day_already_ended")
     reading = _add_reading(
         db,
@@ -1190,10 +1198,17 @@ def driver_today(db: Session, employee_id: int) -> dict:
     """What the driver app shows on its home screen."""
     custody = db.scalar(select(Custody).where(Custody.driver_id == employee_id, Custody.ended_at.is_(None)))
     if custody is None:
-        return {"custody": None, "start_day_done": False, "end_day_done": False, "sessions": 0}
+        return {"custody": None, "start_day_done": False, "end_day_done": False, "sessions": 0, "recent": {}}
     vehicle = db.get(Vehicle, custody.vehicle_id)
-    day = driver_days(db, employee_id, today(), today()).get(today())
+    first = today() - timedelta(days=RECENT_DAYS)
+    days = driver_days(db, employee_id, first, today())
+    day = days.get(today())
     last = day["sessions"][-1] if day else None  # he may start again after ending the day
+    if last is None and (yesterday := days.get(today() - timedelta(days=1))):
+        # a night shift: yesterday's last session, still open within a day, is the one he ends now
+        night = yesterday["sessions"][-1]
+        if night["end"] is None and night["start"]["recorded_at"] > utcnow() - SESSION_HOLDS:
+            last = night
     started = last is not None and last["start"]["custody_id"] == custody.id
     return {
         "custody": {
@@ -1205,6 +1220,8 @@ def driver_today(db: Session, employee_id: int) -> dict:
         "start_day_done": started,
         "end_day_done": started and last["end"] is not None,
         "sessions": len(day["sessions"]) if day else 0,
+        # the days before, for a report sent late: how many sessions each had
+        "recent": {d.isoformat(): len(x["sessions"]) for d, x in days.items() if d < today()},
     }
 
 
@@ -1221,6 +1238,8 @@ def _brief(r: OdometerReading) -> dict:
 
 
 DAY_CLOSES_WITHIN = timedelta(hours=24)
+RECENT_DAYS = 2  # a report may be sent up to two days late (daily_ops MAX_DAYS_BACK)
+SESSION_HOLDS = timedelta(hours=16)  # longer than any shift: a session open longer was forgotten
 
 
 def driver_days(db: Session, employee_id: int, first, last) -> dict:

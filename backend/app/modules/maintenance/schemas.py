@@ -272,6 +272,7 @@ class RequestOut(BaseModel):
     emergency_reviewed: bool
     status: str
     source: str
+    direct: bool = False  # the driver sent it straight to the center
     center: dict | None
     created_at: datetime
     referred_at: datetime | None
@@ -288,6 +289,7 @@ class RequestOut(BaseModel):
 
 
 class RequestDetailOut(RequestOut):
+    shortcut: bool = False  # sent straight to the center: the repair may start or finish without a quote
     condition_note: str | None
     repair_details: str | None
     final_km: int | None
@@ -311,3 +313,4 @@ class DriverRequestOut(BaseModel):
     ready_at: datetime | None
     picked_up_at: datetime | None
     decision_note: str | None
+    direct: bool = False  # sent straight to the center: he confirms the pickup in the app

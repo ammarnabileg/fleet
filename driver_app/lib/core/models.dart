@@ -15,21 +15,28 @@ class Custody {
   final int? lastKm;
 }
 
+/// The business day (yyyy-mm-dd) of a moment, by Kuwait's clock (UTC+3, no daylight saving), as the server counts.
+String kuwaitDay(DateTime t) => t.toUtc().add(const Duration(hours: 3)).toIso8601String().substring(0, 10);
+
 class Today {
-  Today({this.custody, required this.startDayDone, this.endDayDone = false, int? sessions})
-    : sessions = sessions ?? (startDayDone ? 1 : 0);
+  Today({this.custody, required this.startDayDone, this.endDayDone = false, int? sessions, this.recent = const {}})
+    : sessions = sessions ?? (startDayDone ? 1 : 0),
+      canStartAgain = sessions != null;
 
   factory Today.fromJson(Map<String, dynamic> j) => Today(
     custody: j['custody'] == null ? null : Custody.fromJson(j['custody'] as Map<String, dynamic>),
     startDayDone: j['start_day_done'] as bool? ?? false,
     endDayDone: j['end_day_done'] as bool? ?? false,
     sessions: (j['sessions'] as num?)?.toInt(), // an older server: one session a day
+    recent: {for (final e in (j['recent'] as Map? ?? {}).entries) e.key as String: (e.value as num).toInt()},
   );
 
   final Custody? custody;
   final bool startDayDone;
   final bool endDayDone; // closed by the end-of-day reading, or the vehicle returned
   final int sessions; // today's work sessions: after ending the day he may start again
+  final bool canStartAgain; // the server knows sessions (an older one refuses a second start)
+  final Map<String, int> recent; // the two days before: their sessions, for a report sent late
 }
 
 class Receipt {
@@ -283,6 +290,7 @@ class MaintenanceRequest {
     this.centerAddress,
     this.readyAt,
     this.rejectedReason,
+    this.direct = false,
   });
 
   factory MaintenanceRequest.fromJson(Map<String, dynamic> j) {
@@ -300,6 +308,7 @@ class MaintenanceRequest {
       centerAddress: center?['address'] as String?,
       readyAt: j['ready_at'] == null ? null : DateTime.parse(j['ready_at'] as String),
       rejectedReason: j['decision_note'] as String?,
+      direct: j['direct'] as bool? ?? false,
     );
   }
 
@@ -317,6 +326,7 @@ class MaintenanceRequest {
   final String? rejectedReason;
 
   bool get isReady => status == 'ready';
+  final bool direct; // sent straight to the center: he confirms the pickup himself
 }
 
 /// A deduction as the driver sees it: the total and its monthly installments (amounts as the server sends them).

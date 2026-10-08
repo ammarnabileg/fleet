@@ -113,8 +113,24 @@ class AppState extends ChangeNotifier {
   List<DriverDocument> documents = [];
 
   /// Today's report waits for the end-of-day odometer: the day was started on a vehicle still held and not closed.
-  bool get endReadingDue =>
-      reportForm.endReading && today?.custody != null && today!.startDayDone && !today!.endDayDone;
+  bool get endReadingDue => reportForm.endReading && today?.custody != null && dayStarted && !dayEnded;
+
+  /// Starts and ends of day still in the queue (no signal yet), oldest first: the screens count them already, so
+  /// the driver can end the session he started offline, or report it, without waiting for the network.
+  List<String> get _queuedDay => [
+    for (final i in queued)
+      if (i.kind == 'odometer' && i.state != 'failed' && _isToday(i.payload['recorded_at'] as String?))
+        i.payload['kind'] as String,
+  ];
+
+  bool _isToday(String? at) => at != null && kuwaitDay(DateTime.parse(at)) == kuwaitDay(DateTime.now());
+
+  /// The day as the driver left it, the queue included.
+  bool get dayStarted => _queuedDay.isNotEmpty || (today?.startDayDone ?? false);
+  bool get dayEnded => _queuedDay.isNotEmpty ? _queuedDay.last == 'end_day' : (today?.endDayDone ?? false);
+
+  /// Today's work sessions as known, the starts still queued included.
+  int get sessionsToday => (today?.sessions ?? 0) + _queuedDay.where((k) => k == 'start_day').length;
 
   /// [deviceLang]: the phone's language at first launch; afterwards the driver's choice is kept.
   Future<void> boot({String deviceLang = 'ar'}) async {
@@ -151,6 +167,8 @@ class AppState extends ChangeNotifier {
     await catalog.load(api, value);
     notifyListeners();
     unawaited(registerPush()); // pushes are written in the app's language
+    // the tracking notification too: the service reads the language again and redraws it
+    if (phase == Phase.ready) unawaited(platform.startTracking().catchError((Object _) {}));
   }
 
   // ---------------------------------------------------------------- sign in
@@ -560,8 +578,11 @@ class AppState extends ChangeNotifier {
     if (onlyIfChanged && mark == _localMark) return;
     _localMark = mark;
     tracking = state;
+    final delivered = queued.any((i) => i.kind != 'report' && i.kind.isNotEmpty && !items.any((x) => x.id == i.id));
     queued = items;
     notifyListeners();
+    // something the home screen shows was delivered meanwhile (a reading, a pickup): its state from the server
+    if (delivered && today != null) unawaited(_quietly(loadToday).then((_) => notifyListeners()));
   }
 
   String? _localMark;
@@ -607,6 +628,7 @@ class AppState extends ChangeNotifier {
     String? screenshotPath,
     String? notes,
     bool queueOnly = false,
+    int? session,
   }) async {
     final id = await outbox.add(
       'report',
@@ -616,6 +638,8 @@ class AppState extends ChangeNotifier {
         'cash_amount': ?cash,
         'valid_day': ?validDay,
         'notes': notes,
+        // the session it is written for, fixed now: a retry or a late delivery stays in it (an older server: none)
+        if (session != null && session > 0 && (today?.canStartAgain ?? false)) 'session': session,
       },
       {'screenshot_sha256': ?screenshotPath},
     );

@@ -156,6 +156,63 @@ void main() {
     await t.stop();
   });
 
+  test(
+    'parked with a long interval: a clear move away wakes it, though the gap is too long to work out a speed',
+    () async {
+      final (t, _) = await make();
+      status = {...status, 'interval_stationary_s': 900};
+      await t.start();
+      final t0 = DateTime.utc(2026, 10, 4, 9);
+      for (var s = 0; s <= 150; s += 30) {
+        gps.add(fix(t0.add(Duration(seconds: s)), speed: 0));
+        await settle();
+      }
+      expect(asked.last, const Duration(seconds: 900));
+      // fifteen minutes later, 3 km away, the phone measured no speed
+      gps.add(fix(t0.add(const Duration(seconds: 1050)), speed: null, lat: 29.327));
+      await settle();
+      expect(asked.last, const Duration(seconds: 30));
+      await t.stop();
+    },
+  );
+
+  test('a fix of unknown speed breaks the still streak: parking needs two minutes known still', () async {
+    final (t, _) = await make();
+    await t.start();
+    final t0 = DateTime.utc(2026, 10, 4, 9);
+    gps.add(fix(t0, speed: 0));
+    await settle();
+    gps.add(fix(t0.add(const Duration(seconds: 30)), speed: null, accuracy: 500)); // no speed, approximate
+    await settle();
+    gps.add(fix(t0.add(const Duration(seconds: 150)), speed: 0)); // 150 s after the first, 0 s after the break
+    await settle();
+    expect(asked, [const Duration(seconds: 30)], reason: 'not parked: the streak restarted');
+    await t.stop();
+  });
+
+  test('a few metres in a few seconds is not a stop: no speed rather than a fake 0', () async {
+    final (t, server) = await make();
+    status = {...status, 'interval_moving_s': 5};
+    await t.start();
+    final t0 = DateTime.utc(2026, 10, 4, 9);
+    gps.add(fix(t0, speed: null));
+    await settle();
+    gps.add(fix(t0.add(const Duration(seconds: 5)), speed: null, lat: 29.3 + 0.0001)); // 11 m in 5 s: 8 km/h crawl
+    await settle();
+    expect([for (final p in sentPoints(server)) p['speed_kmh']], [null, null]);
+    await t.stop();
+  });
+
+  test('the driver changes the language: the notification is shown again in it', () async {
+    final (t, _) = await make();
+    await t.start();
+    expect(shown, hasLength(1));
+    t.api.lang = 'en';
+    await t.heartbeat();
+    expect(shown, hasLength(2));
+    await t.stop();
+  });
+
   test('a change in the settings reaches the running tracker at the next heartbeat', () async {
     final (t, _) = await make();
     await t.start();

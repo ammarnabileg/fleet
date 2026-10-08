@@ -213,7 +213,7 @@ class HomeTab extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           if (custody != null) ...[
-            today!.startDayDone
+            state.dayStarted
                 ? Banner2(text: l.startDayDone, tone: BannerTone.success, icon: Icons.check_circle_outline)
                 : FilledButton.icon(
                     key: const Key('start-day'),
@@ -235,22 +235,24 @@ class HomeTab extends StatelessWidget {
               onPressed: () =>
                   Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReportScreen(state: state))),
             ),
-          if (custody != null && today!.startDayDone) ...[
+          if (custody != null && state.dayStarted) ...[
             const SizedBox(height: 10),
-            if (today.endDayDone) ...[
+            if (state.dayEnded) ...[
               Banner2(text: l.endDayDone, tone: BannerTone.success, icon: Icons.nightlight_outlined),
-              const SizedBox(height: 10),
-              // working once more the same day: a new session, its orders add to the day's
-              FilledButton.icon(
-                key: const Key('start-again'),
-                icon: const Icon(Icons.replay),
-                label: Text(l.startAgain),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => OdometerScreen(state: state, kind: 'start_day'),
+              // working once more the same day: a new session, its orders add to the day's (an older server: no)
+              if (today!.canStartAgain) ...[
+                const SizedBox(height: 10),
+                FilledButton.icon(
+                  key: const Key('start-again'),
+                  icon: const Icon(Icons.replay),
+                  label: Text(l.startAgain),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => OdometerScreen(state: state, kind: 'start_day'),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ] else
               OutlinedButton.icon(
                 key: const Key('end-day'),

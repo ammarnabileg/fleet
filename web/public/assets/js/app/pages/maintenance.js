@@ -147,7 +147,9 @@
       submit: function (f) { return api.post('/maintenance/requests/' + req().id + '/review-emergency', { note: f.note || null }); }, after: refreshAll });
   };
   BT.actions['mnt-picked'] = function () {
-    A.confirmRun({ title: 'استلام السيارة من المركز', message: 'تعود السيارة «متاحة» للتسليم لسائق.', confirmText: 'تم الاستلام', run: function () { return api.post('/maintenance/requests/' + req().id + '/picked-up'); }, done: 'سُجّل الاستلام', after: refreshAll });
+    // الطلب المرسل من السائق للمركز مباشرة يستلمه السائق من تطبيقه فتعود في عهدته؛ تسجيله هنا لا يعيدها إليه
+    var direct = req().direct && req().driver;
+    A.confirmRun({ title: 'استلام السيارة من المركز', message: direct ? 'هذا الطلب أرسله السائق للمركز مباشرة: هو يؤكد الاستلام من تطبيقه فتعود في عهدته. إن سجّلته هنا تعود السيارة «متاحة» فقط، وعليك تسليمها له من العُهد.' : 'تعود السيارة «متاحة» للتسليم لسائق.', confirmText: 'تم الاستلام', run: function () { return api.post('/maintenance/requests/' + req().id + '/picked-up'); }, done: 'سُجّل الاستلام', after: refreshAll });
   };
   BT.actions['mnt-refer'] = function () {
     api.get('/maintenance/centers', { active: true }).then(function (centers) {

@@ -102,12 +102,17 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
         raise AppError(422, "invalid_business_date")
     asked = _validate(db, driver, device_id, data)
     started = fleet.driver_days(db, employee_id, day, day).get(day)
-    if asked["end_reading"] and day == today():
-        if started is not None and started["end"] is None:  # drove today: the day's closing reading comes first
+    # The session the driver wrote it for (the app fixes it when he fills the form), so a retry or a report that
+    # arrives after his next start stays in its own session; an older app sends none: the sessions known now.
+    # Sent again for the same session, it is that session's report (report_exists).
+    known = max(1, len(started["sessions"]) if started else 0)
+    session = data.get("session") or known
+    if session > known:
+        raise AppError(422, "invalid_session")  # a session the server has not seen started
+    if asked["end_reading"] and day == today() and started is not None:
+        # drove today and this session is still open: its closing reading comes first
+        if started["end"] is None and session == len(started["sessions"]):
             raise AppError(409, "end_reading_required")
-    # the report covers the day's sessions up to now: after he starts again, his next report is the next session's
-    # and adds to the first; sent again without a new start, it is the same session's (report_exists)
-    session = max(1, len(started["sessions"]) if started else 0)
     custodies = fleet.custodies_for_driver(db, employee_id, utcnow() - timedelta(days=MAX_DAYS_BACK + 1), utcnow())
     custody = custodies[-1] if custodies else None
     amount = Decimal(data.get("cash_amount") or 0)
@@ -254,9 +259,11 @@ def _day_totals(db: Session, reports: list[Report]) -> dict[int, tuple]:
         .group_by(Report.employee_id, Report.business_date)
     )
     days = {(e, d): (o, c) for e, d, o, c in rows}
-    # a rejected report is judged on its own
+    # a rejected report is judged on its own (also one rejected meanwhile, no longer in the day's total)
     return {
-        r.id: (r.orders_count, r.cash_amount) if r.status == "rejected" else days[r.employee_id, r.business_date]
+        r.id: (r.orders_count, r.cash_amount)
+        if r.status == "rejected"
+        else days.get((r.employee_id, r.business_date), (r.orders_count, r.cash_amount))
         for r in reports
     }
 
@@ -284,11 +291,25 @@ def evidence(db: Session, public_id, **scope) -> dict:
         _history(db, {report.employee_id}, day - timedelta(days=AVERAGE_DAYS), day)[report.employee_id], day
     )
     kms = [d["km"] for d_day, d in days.items() if d_day < day and d["km"] is not None]
-    this = days.get(day) or {"start": None, "end": None, "km": None}
+    this = days.get(day)
+    sessions = this["sessions"] if this else []
+    # the sessions this report covers: after the day's previous live report, up to its own session
+    previous = db.scalar(
+        select(func.max(Report.session)).where(
+            Report.employee_id == report.employee_id,
+            Report.business_date == day,
+            Report.status != "rejected",
+            Report.session < report.session,
+        )
+    )
+    span = sessions[(previous or 0) : report.session] or sessions[-1:]
+    closed = [x["km"] for x in span if x["km"] is not None]
     return {
-        "start": this["start"],
-        "end": this["end"],
-        "km": this["km"],
+        "start": span[0]["start"] if span else None,
+        "end": span[-1]["end"] if span else None,
+        "km": sum(closed) if closed else None,
+        "day_km": this["km"] if this else None,
+        "sessions": len(sessions),
         "average": average | {"km": round(sum(kms) / len(kms)) if kms else None, "km_days": len(kms)},
         "deviations": _deviations(
             _day_totals(db, [report])[report.id],

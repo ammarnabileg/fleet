@@ -92,8 +92,21 @@ class Outbox {
   }
 
   /// Sends one item now (right after the driver pressed send). A final refusal removes it and is thrown, so the
-  /// driver can correct and send again; no network leaves it queued.
+  /// driver can correct and send again; no network leaves it queued. Older items still waiting go first, in order:
+  /// a new start of day never overtakes the end before it, nor a report the reading it follows.
   Future<SendResult> sendNow(int id, Api api) async {
+    final older = await db.raw.rawQuery("SELECT count(*) AS n FROM outbox WHERE id < ? AND state != 'failed'", [id]);
+    if ((older.first['n'] as int) > 0) {
+      await flush(api);
+      final rows = await db.raw.query('outbox', where: 'id = ?', whereArgs: [id]);
+      if (rows.isEmpty) return SendResult.sent;
+      final left = OutboxItem.fromRow(rows.first);
+      if (left.state == 'failed') {
+        await discard(id); // the server's final answer for this one: the driver sees it, as below
+        throw ApiError(422, left.lastError ?? '');
+      }
+      return SendResult.queued; // still behind something the network holds back
+    }
     final item = await _claim(id);
     if (item == null) return SendResult.queued;
     try {

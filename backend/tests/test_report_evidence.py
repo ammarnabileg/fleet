@@ -57,8 +57,13 @@ def test_todays_report_waits_for_the_end_of_day_reading(admin_client, client, ne
     yesterday = today() - timedelta(days=1)
     assert read(client, h, "start_day", 30_010, at(yesterday, 10)).status_code == 201
     assert send_report(client, h, yesterday)["late"] is True
-    # today: started, the report is refused until the day is closed
-    assert read(client, h, "start_day", 30_200).status_code == 201
+    # today: started (yesterday's session, if still within a shift's length, is ended first), the report is
+    # refused until the day is closed
+    r = read(client, h, "start_day", 30_200)
+    if r.status_code == 409 and r.json()["code"] == "day_already_started":
+        assert read(client, h, "end_day", 30_190).status_code == 201
+        r = read(client, h, "start_day", 30_200)
+    assert r.status_code == 201, r.text
     shot = client.post(
         "/api/v1/driver/files", params={"source": "upload"}, headers=h, files={"file": ("s.jpg", jpeg(), "image/jpeg")}
     ).json()["sha256"]
@@ -83,6 +88,7 @@ def test_todays_report_waits_for_the_end_of_day_reading(admin_client, client, ne
         "start_day_done": False,
         "end_day_done": False,
         "sessions": 0,
+        "recent": {},
     }
     send_report(other, h2, today())
 
