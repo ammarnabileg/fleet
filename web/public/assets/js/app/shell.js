@@ -37,7 +37,8 @@
       { key: 'cash', icon: 'wallet', label: 'الكاش والخزينة', any: ['cash.view', 'treasury.view', 'cash.fuel_review'], count: 'fuel' },
       { key: 'finance', icon: 'landmark', label: 'المصروفات والقيود', any: ['finance.view'], count: 'expenses' },
       { key: 'deductions', icon: 'minus-circle', label: 'الخصومات', any: ['deductions.view'] },
-      { key: 'payroll', icon: 'banknote', label: 'الرواتب', any: ['payroll.view', 'settings.update'], count: 'payroll' }
+      { key: 'payroll', icon: 'banknote', label: 'الرواتب', any: ['payroll.view', 'settings.update'], count: 'payroll' },
+      { key: 'guide', icon: 'book-open', label: 'إرشادات المحاسبة', any: ['finance.view', 'cash.view', 'treasury.view'] }
     ] },
     { sec: 'الموظفون', id: 'people', icon: 'users', items: [
       { key: 'employees', icon: 'users', label: 'الموظفون والسائقون', any: ['employees.view'], count: 'onboarding' },

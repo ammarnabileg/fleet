@@ -506,3 +506,8 @@ table.t tr[data-account] svg { transition: transform .15s; color: var(--text-3);
 table.t tr[data-account].open svg { transform: rotate(-90deg); }
 table.t tr[data-account].open td { background: var(--primary-soft); }
 table.t td.ledger-cell { background: var(--surface-2); padding: 12px 16px 16px; }
+
+/* the accountant's guide */
+.guide p { margin: 0 0 8px; line-height: 1.8; }
+.guide-list { margin: 0; padding-inline-start: 20px; line-height: 1.9; }
+.guide-list li { margin-bottom: 4px; }
