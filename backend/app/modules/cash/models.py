@@ -22,7 +22,17 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.db import Base
 
 SCHEMA = {"schema": "cash"}
-ACCOUNT_KINDS = ("driver", "treasury", "bank", "cod_clearing", "adjustments", "payroll_recovery", "writeoff", "opening")
+ACCOUNT_KINDS = (
+    "driver",
+    "treasury",
+    "bank",
+    "cod_clearing",
+    "adjustments",
+    "payroll_recovery",
+    "writeoff",
+    "opening",
+    "fuel",
+)
 
 
 class Account(Base):
@@ -30,7 +40,7 @@ class Account(Base):
     __table_args__ = (
         CheckConstraint(
             "kind IN ('driver', 'treasury', 'bank', 'cod_clearing', 'adjustments', 'payroll_recovery', 'writeoff', "
-            "'opening')",
+            "'opening', 'fuel')",
             name="kind",
         ),
         CheckConstraint("(kind = 'driver') = (driver_id IS NOT NULL)", name="driver"),
@@ -54,7 +64,7 @@ class Journal(Base):
     __table_args__ = (
         CheckConstraint(
             "kind IN ('collection', 'adjustment', 'deposit', 'bank_deposit', 'settlement', 'writeoff', 'reversal', "
-            "'opening')",
+            "'opening', 'fuel')",
             name="kind",
         ),
         CheckConstraint("status IN ('pending', 'posted', 'rejected')", name="status"),
@@ -68,7 +78,7 @@ class Journal(Base):
             "kind",
             unique=True,
             postgresql_where=text(
-                "status <> 'rejected' AND kind IN ('collection', 'deposit', 'settlement', 'opening')"
+                "status <> 'rejected' AND kind IN ('collection', 'deposit', 'settlement', 'opening', 'fuel')"
             ),
         ),
         Index("journals_one_reversal", "reverses_id", unique=True, postgresql_where=text("kind = 'reversal'")),
@@ -123,3 +133,46 @@ class Receipt(Base):
     created_by: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     driver_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class FuelClaim(Base):
+    """Fuel a driver paid from the cash he holds, claimed from the app with the receipt's photo; the accountant
+    approves it (posting a fuel journal when the company covers his fuel) or rejects it."""
+
+    __tablename__ = "fuel_claims"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="amount"),
+        CheckConstraint("odometer_km >= 0", name="odometer_km"),
+        CheckConstraint("char_length(notes) <= 500", name="notes"),
+        CheckConstraint("status IN ('pending', 'approved', 'rejected')", name="status"),
+        CheckConstraint("approved_amount > 0", name="approved_amount"),
+        CheckConstraint(
+            "(status = 'pending') = (decided_at IS NULL) AND (status <> 'approved' OR approved_amount IS NOT NULL) "
+            "AND (status <> 'rejected' OR decision_note IS NOT NULL)",
+            name="decision",
+        ),
+        Index("fuel_claims_employee_id_idx", "employee_id", "paid_at"),
+        Index("fuel_claims_status_idx", "status", "created_at"),
+        Index("fuel_claims_created_at_idx", "created_at"),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    company_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("org.companies.id"))
+    branch_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("org.branches.id"))
+    vehicle_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("fleet.vehicles.id"))
+    client_ref: Mapped[uuid.UUID] = mapped_column(UUID, unique=True)  # the app's id: a resend is recognised
+    paid_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 3))
+    odometer_km: Mapped[int | None] = mapped_column(Integer)
+    receipt_sha256: Mapped[str] = mapped_column(Text, ForeignKey("files.files.sha256"), unique=True)
+    notes: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
+    approved_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    decision_note: Mapped[str | None] = mapped_column(Text)
+    decided_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("identity.users.id"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    journal_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("cash.journals.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

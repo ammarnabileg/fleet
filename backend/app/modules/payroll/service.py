@@ -68,6 +68,18 @@ def scheme_from_registration(db: Session, driver: people.EmployeeRef, scheme_pub
     return True
 
 
+def company_covers(db: Session, employee_id: int, day: date) -> list[str]:
+    """What the driver's pay scheme of that day's month puts on the company (maintenance, housing, gas, sim); nothing
+    without a scheme, or when his scheme is of a platform he has left (as the payroll run ignores it)."""
+    from app.modules.payroll import schemes
+
+    scheme = schemes.scheme_of(db, employee_id, month_start(day))
+    driver = people.ref(db, employee_id)
+    if scheme is None or driver is None or scheme.platform_id != driver.platform_id:
+        return []
+    return list(scheme.company_covers or [])
+
+
 def month_locked(db: Session, company_id: int, month: date) -> bool:
     """Whether the company's payroll for that month is approved or paid (its inputs may no longer change)."""
     from app.modules.payroll.statements import locked_months

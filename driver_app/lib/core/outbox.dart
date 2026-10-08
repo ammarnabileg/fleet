@@ -25,7 +25,7 @@ class OutboxItem {
 
   final int id;
   final String
-  kind; // odometer | report | report_edit | report_change | maintenance | accident | police_report | statement
+  kind; // odometer | report | report_edit | report_change | maintenance | accident | police_report | statement | fuel
   final Map<String, dynamic> payload;
   final Map<String, String> files; // payload field -> local file still to upload
   final DateTime createdAt;
@@ -61,6 +61,8 @@ class Outbox {
     'police_report': ('/driver/accidents/{accident_id}/police-report', 'upload', {'police_report_exists'}, 'POST'),
     // the month's screenshots from the platform's app (from the gallery)
     'statement': ('/driver/statements', 'upload', {'statement_exists'}, 'POST'),
+    // fuel he paid from his cash, with the receipt's camera photo (a resend is recognised by its client_ref)
+    'fuel': ('/driver/fuel', 'camera', {'fuel_exists'}, 'POST'),
   };
   static const _claimTimeout = Duration(minutes: 2);
 

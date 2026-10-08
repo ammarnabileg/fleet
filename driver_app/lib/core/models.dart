@@ -735,7 +735,7 @@ class CashLine {
     reason: j['reason'] as String?,
   );
 
-  final String kind; // collection | receipt | adjustment | reversal | settlement | opening
+  final String kind; // collection | receipt | adjustment | reversal | settlement | opening | fuel
   final String status; // pending | posted | rejected
   final String amount; // + the driver owes more, - less
   final String date;
@@ -784,4 +784,56 @@ class DriverDocument {
   bool get renewable => raw['renewable'] == true;
   Map<String, dynamic>? get renewal => raw['renewal'] == null ? null : Map<String, dynamic>.from(raw['renewal'] as Map);
   bool get renewalPending => renewal?['status'] == 'pending';
+}
+
+/// Fuel the driver paid from the cash he holds, sent with the receipt's photo for the accountant to review.
+class FuelClaim {
+  FuelClaim({
+    required this.id,
+    required this.paidAt,
+    required this.amount,
+    required this.status,
+    this.approvedAmount,
+    this.decisionNote,
+    this.odometerKm,
+    this.plate,
+  });
+
+  factory FuelClaim.fromJson(Map<String, dynamic> j) => FuelClaim(
+    id: j['id'] as String,
+    paidAt: DateTime.parse(j['paid_at'] as String),
+    amount: j['amount'] as String,
+    status: j['status'] as String,
+    approvedAmount: j['approved_amount'] as String?,
+    decisionNote: j['decision_note'] as String?,
+    odometerKm: j['odometer_km'] as int?,
+    plate: j['vehicle_plate'] as String?,
+  );
+
+  final String id;
+  final DateTime paidAt;
+  final String amount;
+  final String status; // pending | approved | rejected
+  final String? approvedAmount;
+  final String? decisionNote; // the reason of a rejection, or of a corrected amount
+  final int? odometerKm;
+  final String? plate;
+}
+
+/// Whether the app offers him fuel (his pay scheme puts fuel on the company, no fuel card, a car in his custody),
+/// the most one claim may be, and his last claims.
+class Fuel {
+  Fuel({required this.allowed, this.reason, required this.maxAmount, required this.claims});
+
+  factory Fuel.fromJson(Map<String, dynamic> j) => Fuel(
+    allowed: j['allowed'] as bool,
+    reason: j['reason'] as String?,
+    maxAmount: j['max_amount'] as String,
+    claims: [for (final c in j['claims'] as List) FuelClaim.fromJson(c as Map<String, dynamic>)],
+  );
+
+  final bool allowed;
+  final String? reason; // fuel_card | not_covered | no_vehicle
+  final String maxAmount;
+  final List<FuelClaim> claims;
 }

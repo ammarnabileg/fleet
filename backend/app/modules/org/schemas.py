@@ -28,6 +28,7 @@ class TrackingSettings(_Section):
 class CashSettings(_Section):
     driver_balance_alert: Decimal = Field(Decimal("80.000"), ge=0, max_digits=12, decimal_places=3)
     report_review_hours: int = Field(24, ge=1, le=168)
+    fuel_max_amount: Decimal = Field(Decimal("50.000"), gt=0, max_digits=12, decimal_places=3)  # one fuel claim
 
 
 class OdometerSettings(_Section):
@@ -75,7 +76,17 @@ class DriverSignInSettings(_Section):
 
 # the driver app's screens an office may hide; sign-in, the day's start and end (custody, odometer, tracking),
 # the self-registration and the phone permissions are not here: the app does not work without them
-APP_SCREENS = ("daily_report", "cash", "maintenance", "accidents", "fines", "statement", "payslips", "schemes")
+APP_SCREENS = (
+    "daily_report",
+    "cash",
+    "maintenance",
+    "accidents",
+    "fines",
+    "statement",
+    "payslips",
+    "schemes",
+    "fuel",
+)
 LOCKED_SCREENS = ("sign_in", "day", "onboarding", "permissions")
 
 

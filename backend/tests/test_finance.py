@@ -444,7 +444,7 @@ def test_the_default_chart_is_structured_and_salaries_go_to_two_accounts(admin_c
     assert by_code["5110"]["roles"] == ["driver_salaries_expense"] and by_code["6110"]["roles"] == ["salaries_expense"]
     assert {"2210", "3120", "6150"} <= set(by_code)  # end-of-service provision, owner's account, government fees
     mapped = {r["role"] for r in admin_client.get(f"{F}/roles").json()}
-    assert len(mapped) == 20
+    assert len(mapped) == 21
     assert {
         t["code"]: by_code_of(accounts, t["account_id"]) for t in admin_client.get(f"{F}/expense-types").json()
     } == {
@@ -468,7 +468,8 @@ def test_the_default_chart_is_structured_and_salaries_go_to_two_accounts(admin_c
     drivers = next(row for row in rows if row[0] == "5110")
     assert drivers[1:5] == ("رواتب السائقين", "تكاليف التشغيل", "مصروفات", "رواتب السائقين")
     fuel = next(row for row in rows if row[0] == "5120")
-    assert fuel[4] == "وقود" and len(rows) == 1 + len(accounts)
+    # the fuel drivers pay from their cash (when the company covers it) and the fuel expense type
+    assert fuel[4] == "مصروف البنزين المدفوع من كاش السائقين، وقود" and len(rows) == 1 + len(accounts)
     # a month with a driver (200, of which 20 an advance taken back) and an office employee (300): the drivers'
     # salaries are what they cost, net and installments, apart from the office's
     driver = make_driver(admin_client, company["id"], basic_salary="200.000", payment_method="cash")

@@ -91,7 +91,8 @@
     "vehicles.view": "عرض السيارات",
     "employees.onboarding": "مراجعة واعتماد التسجيل الذاتي للسائقين",
     "payroll.schemes": "أنظمة الدفع وطلبات تغييرها",
-    "daily_reports.escalations": "تصعيد التقارير المتأخرة (للمدير)"
+    "daily_reports.escalations": "تصعيد التقارير المتأخرة (للمدير)",
+    "cash.fuel_review": "مراجعة بنزين السائقين واعتماده"
   },
   "modules": {
     "accidents": "الحوادث",
@@ -453,7 +454,16 @@
     "deduction_decided": "تم البت في هذا الخصم من قبل",
     "claim_open_app_off": "«لا» للتطبيق، لكن له كلمة مرور مبدئية مفتوحة يدخل بها: ألغها من صفحة السائق إن لم يكن له التطبيق",
     "import_column_ignored": "عمود «{column}» لم يُفهم عنوانه فلم يُستورد: عناوين أعمدة السائقين «تفعيل التطبيق (نعم/لا)» و«كلمة المرور المبدئية» و«صلاحية كلمة المرور (يوم)»",
-    "import_password_needs_devices": "في الملف عمود كلمة مرور مبدئية: كتابة كلمات مرور السائقين تحتاج صلاحية «إدارة أجهزة السائقين». اختر «لا يوجد» لهذا العمود أو اطلب الصلاحية"
+    "import_password_needs_devices": "في الملف عمود كلمة مرور مبدئية: كتابة كلمات مرور السائقين تحتاج صلاحية «إدارة أجهزة السائقين». اختر «لا يوجد» لهذا العمود أو اطلب الصلاحية",
+    "fuel_exists": "هذه الفاتورة مسجّلة من قبل",
+    "fuel_too_old": "فاتورة البنزين أقدم من {days} أيام، لا تُقبل",
+    "fuel_amount_too_high": "مبلغ البنزين أعلى من الحد المسموح ({max} د.ك)",
+    "fuel_receipt_used": "صورة هذه الفاتورة استُخدمت في طلب بنزين آخر",
+    "fuel_card_driver": "لديك كارت بنزين من الشركة، لا يُسجَّل البنزين من الكاش",
+    "fuel_not_covered": "البنزين على السائق حسب نظام الدفع، لا يُسجَّل على الشركة",
+    "fuel_no_vehicle": "لم تكن في عهدتك سيارة وقت الفاتورة",
+    "fuel_decided": "طلب البنزين اتُّخذ فيه قرار من قبل",
+    "fuel_claim_not_found": "طلب البنزين غير موجود"
   },
   "settings": {
     "branding": "الهوية",
@@ -463,6 +473,7 @@
     "cash": "الكاش",
     "cash.driver_balance_alert": "حد تنبيه رصيد السائق (د.ك)",
     "cash.report_review_hours": "مهلة مراجعة التقرير اليومي (ساعة)",
+    "cash.fuel_max_amount": "أقصى مبلغ لفاتورة البنزين الواحدة (د.ك)",
     "daily_report": "التقرير اليومي",
     "daily_report.require_cash": "الكاش إلزامي",
     "daily_report.require_orders_count": "عدد الطلبات إلزامي",
@@ -576,7 +587,8 @@
     "daily_report_change_requested": "{driver} يطلب تعديل تقرير {date}",
     "vehicle_change_requested": "{driver} يطلب تغيير السيارة {plate}: {reason}",
     "document_renewal_submitted": "{driver} أرسل {document} مجدداً حتى {date}: راجعه واعتمده",
-    "daily_report_missing": "{driver} بدأ يومه {date} ولم يرسل تقريره"
+    "daily_report_missing": "{driver} بدأ يومه {date} ولم يرسل تقريره",
+    "fuel_claim": "طلب بنزين من {name} بمبلغ {amount} د.ك بانتظار المراجعة"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
@@ -656,7 +668,8 @@
     "settlement": "تسوية نهاية خدمة",
     "writeoff": "إعدام",
     "reversal": "عكس",
-    "opening": "رصيد افتتاحي"
+    "opening": "رصيد افتتاحي",
+    "fuel": "بنزين"
   },
   "journal_status": {
     "pending": "غير معتمد",
@@ -857,7 +870,8 @@
     "day": "بداية اليوم ونهايته (العداد والعهدة والتتبع)",
     "onboarding": "التسجيل الذاتي (يُضبط من إعدادات التسجيل الذاتي)",
     "permissions": "أذونات الهاتف (الموقع والكاميرا)",
-    "schemes": "أنظمة الدفع وطلب التغيير"
+    "schemes": "أنظمة الدفع وطلب التغيير",
+    "fuel": "البنزين المدفوع من الكاش"
   },
   "daily_field": {
     "orders": "عدد الطلبات",
@@ -1045,7 +1059,8 @@
     "expense": "مصروف",
     "expense_type": "نوع مصروف",
     "workflow": "مسار اعتماد",
-    "delegation": "تفويض"
+    "delegation": "تفويض",
+    "fuel_claim": "طلب بنزين"
   },
   "audit_actor": {
     "user": "مستخدم",
@@ -1145,7 +1160,8 @@
     "maintenance_expense": "مصروف الصيانة",
     "traffic_fines_expense": "مصروف المخالفات",
     "cash_writeoff": "كاش سائقين مشطوب",
-    "driver_salaries_expense": "رواتب السائقين"
+    "driver_salaries_expense": "رواتب السائقين",
+    "fuel_expense": "مصروف البنزين المدفوع من كاش السائقين"
   },
   "approval_process": {
     "daily_report": "التقارير اليومية",
@@ -1223,6 +1239,8 @@
     "document_expired": "{document} انتهى في {date}. جدّده فوراً وسلّم النسخة للمكتب.",
     "scheme_request_approved": "اعتُمد طلبك: نظام الدفع {scheme} من شهر {month}.",
     "scheme_request_rejected": "رُفض طلب تغيير نظام الدفع إلى {scheme}: {reason}",
-    "report_missing": "بدأت يومك {date} ولم ترسل تقريرك بعد. أرسله الآن من التطبيق."
+    "report_missing": "بدأت يومك {date} ولم ترسل تقريرك بعد. أرسله الآن من التطبيق.",
+    "fuel_approved": "قُبلت فاتورة البنزين بمبلغ {amount} د.ك وخُصمت من رصيد الكاش لديك",
+    "fuel_rejected": "رُفضت فاتورة البنزين: {reason}"
   }
 }

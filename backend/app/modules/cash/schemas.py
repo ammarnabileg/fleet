@@ -1,6 +1,7 @@
+import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -133,3 +134,78 @@ class DriverCashOut(BaseModel):
     near_limit: bool  # from 80% of the limit up to it; above it the office is alerted
     receipts: list[ReceiptOut]
     lines: list[StatementLine]  # his movements, newest first (FR-APP-03)
+
+
+# ---- fuel the driver paid from his cash
+
+Note = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+
+class FuelClaimIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    client_ref: uuid.UUID  # the app's id: a resend is answered fuel_exists
+    paid_at: datetime  # when the receipt's photo was taken
+    amount: Amount
+    odometer_km: Annotated[int, Field(ge=0, le=10_000_000)] | None = None
+    receipt_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]  # a camera photo of the receipt
+    notes: Note | None = None
+
+
+class DriverFuelClaimOut(BaseModel):
+    id: str
+    paid_at: datetime
+    amount: Decimal
+    approved_amount: Decimal | None
+    status: str  # pending | approved | rejected
+    decision_note: str | None
+    odometer_km: int | None
+    notes: str | None
+    vehicle_plate: str | None
+    created_at: datetime
+
+
+class DriverFuelOut(BaseModel):
+    allowed: bool
+    reason: Literal["fuel_card", "not_covered", "no_vehicle"] | None  # why the app offers no fuel claim
+    max_amount: Decimal
+    claims: list[DriverFuelClaimOut]
+
+
+class FuelClaimOut(BaseModel):
+    id: str
+    driver: PersonRef
+    company_id: int
+    branch_id: int
+    vehicle_plate: str | None
+    paid_at: datetime
+    amount: Decimal
+    approved_amount: Decimal | None
+    odometer_km: int | None
+    notes: str | None
+    status: str
+    decision_note: str | None
+    decided_by: str | None
+    decided_at: datetime | None
+    covered: bool  # the company pays his fuel (his scheme of that month, no fuel card), as it stands now
+    fuel_card: bool
+    journal_id: str | None  # the posted fuel journal of an approved claim covered by the company
+    receipt_url: str
+    created_at: datetime
+
+
+class FuelApproveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    amount: Amount | None = None  # the claimed amount when omitted; a different one needs a note
+    note: Note | None = None
+
+
+class FuelRejectIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: Reason
+
+
+class CountOut(BaseModel):
+    count: int

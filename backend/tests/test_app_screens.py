@@ -18,6 +18,7 @@ SCREENS = {
     "statement": "/api/v1/driver/statements",
     "payslips": "/api/v1/driver/payslips",
     "schemes": "/api/v1/driver/schemes",
+    "fuel": "/api/v1/driver/fuel",
 }
 SOME = uuid.uuid4()
 SENDS = [  # what the driver sends from each screen
@@ -28,6 +29,7 @@ SENDS = [  # what the driver sends from each screen
     f"/api/v1/driver/accidents/{SOME}/police-report",
     "/api/v1/driver/statements",
     "/api/v1/driver/scheme-requests",
+    "/api/v1/driver/fuel",
 ]
 
 

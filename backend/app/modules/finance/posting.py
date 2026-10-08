@@ -46,6 +46,7 @@ ROLES = (
     "maintenance_expense",
     "traffic_fines_expense",
     "cash_writeoff",
+    "fuel_expense",
 )
 CASH_ROLE = {
     "driver": "driver_cash",
@@ -56,6 +57,7 @@ CASH_ROLE = {
     "payroll_recovery": "payroll_recovery",
     "writeoff": "cash_writeoff",
     "opening": "opening_equity",
+    "fuel": "fuel_expense",
 }
 PAID_FROM = {"treasury": "treasury", "bank": "bank", "payable": "suppliers_payable"}
 

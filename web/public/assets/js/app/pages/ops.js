@@ -170,20 +170,23 @@
   /* ================= الكاش والخزينة ================= */
   BT.pages['cash'] = function (p, q) {
     A.setTitle('الكاش والخزينة');
-    var v = A.view(), tab = q.tab === 'treasury' ? 'treasury' : 'balances';
+    var v = A.view(), tab = q.tab === 'treasury' || q.tab === 'fuel' ? q.tab : 'balances';
     var tabs = [];
     if (api.can('cash.view')) tabs.push(['balances', 'أرصدة السائقين']);
     if (api.can('treasury.view')) tabs.push(['treasury', 'الخزينة والبنك']);
+    if (api.canAny(['cash.view', 'cash.fuel_review'])) tabs.push(['fuel', 'البنزين', A.counts.fuel || null]);
     if (!tabs.some(function (t) { return t[0] === tab; })) tab = tabs[0][0];
     BT.render(v, h`${A.head('دفتر الكاش', 'كل حركة قيد مزدوج لا يُحذف: التصحيح بقيد تسوية أو عكس مع السبب. رصيد السائق = ما في ذمته للشركة', api.can('cash.collect') ? A.btn('استلام كاش بإيصال', { icon: 'hand-coins', cls: 'btn-primary', action: 'cash-receipt' }) : '')}
       ${tabs.length > 1 ? BT.tabs('cash', tabs, tab, 'tabs-line') : ''}
       <div data-panel="balances" data-group="cash" class="${tab === 'balances' ? 'active' : ''}"><div id="bal-panel"></div></div>
-      <div data-panel="treasury" data-group="cash" class="${tab === 'treasury' ? 'active' : ''}"><div id="tre-panel"></div></div>`);
+      <div data-panel="treasury" data-group="cash" class="${tab === 'treasury' ? 'active' : ''}"><div id="tre-panel"></div></div>
+      <div data-panel="fuel" data-group="cash" class="${tab === 'fuel' ? 'active' : ''}"><div id="fuel-panel"></div></div>`);
     var drawn = {};
     function show(t) {
       if (drawn[t]) return; drawn[t] = true;
       if (t === 'balances') balancesPanel(document.getElementById('bal-panel'));
       if (t === 'treasury') treasuryPanel(document.getElementById('tre-panel'));
+      if (t === 'fuel') fuelPanel(document.getElementById('fuel-panel'));
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); });
     show(tab);
@@ -307,6 +310,88 @@
       after: refreshCash
     });
   };
+
+  /* ================= البنزين المدفوع من كاش السائق =================
+     يُسجَّل في الدفتر فقط إن كان البنزين على الشركة حسب نظام دفع السائق: القبول ينقص ما في ذمته
+     (مدين مصروف الوقود / دائن كاش السائقين). الخطأ في القبول يُصحَّح بعكس القيد من كشف الحساب. */
+  var FUEL_STATUS = { pending: ['بانتظار المراجعة', 'o'], approved: ['مقبول', 'g'], rejected: ['مرفوض', 'r'] };
+  function fuelStatus(c) { var s = FUEL_STATUS[c.status] || [c.status, 'n']; return BT.pill(s[0], s[1]); }
+  function fuelReceipt(c) { return A.thumbs([{ src: api.url('/cash/fuel-claims/' + c.id + '/receipt'), caption: 'فاتورة ' + fmt.money(c.amount) }]); }
+  function fuelCovered(c) {
+    if (c.covered) return '';
+    return h`<div class="banner warn fs-sm mt-8" data-not-covered>${icon('triangle-alert', 15)}<div>${c.fuel_card ? 'لديه كارت بنزين من الشركة' : 'البنزين على السائق حسب نظام دفعه الآن'}: لا يُقبل، ارفضه مع السبب.</div></div>`;
+  }
+  function fuelApprove(c, after) {
+    A.formModal({
+      title: 'قبول فاتورة البنزين', subtitle: api.name(c.driver.name) + ' — ' + fmt.money(c.amount) + ' ' + BT.config.currency, icon: 'fuel', size: 'sm', submitText: 'قبول وترحيل', done: 'قُبلت الفاتورة ونقص رصيد السائق',
+      body: h`<div class="form">${BT.f.money({ name: 'amount', label: 'المبلغ المعتمد', required: true, min: 0.001, value: c.amount })}${BT.f.textarea({ name: 'note', label: 'ملاحظة', optional: true, rows: 2, hint: 'مطلوبة إن غيّرت المبلغ' })}
+        <div class="hint">يُرحّل فوراً: ينقص رصيد كاش السائق بالمبلغ المعتمد، ويُقيَّد مدين مصروف الوقود / دائن كاش السائقين.</div></div>`,
+      submit: function (v) {
+        var amount = Number(v.amount).toFixed(3);
+        return api.post('/cash/fuel-claims/' + c.id + '/approve', { amount: amount, note: v.note || null });
+      },
+      after: after
+    });
+  }
+  function fuelReject(c, after) {
+    A.confirmRun({ title: 'رفض فاتورة البنزين', message: api.name(c.driver.name) + ' — ' + fmt.money(c.amount) + ' ' + BT.config.currency + '. لا يُسجَّل شيء في الكاش، ويصل السبب للسائق.', confirmText: 'رفض', tone: 'danger', icon: 'x', reason: { label: 'السبب', required: true },
+      run: function (reason) { return api.post('/cash/fuel-claims/' + c.id + '/reject', { reason: reason }); }, done: 'رُفضت الفاتورة', after: after });
+  }
+  function fuelPanel(el) {
+    var month = BT.config.today.slice(0, 7);
+    var review = api.can('cash.fuel_review');
+    BT.render(el, h`<div data-fuel-queue></div><div class="card"><div class="card-h"><div class="card-t">${icon('fuel', 16)} كل فواتير البنزين</div><div class="ms-auto" style="min-width:160px">${BT.f.input({ name: 'fuel_month', label: '', type: 'month', value: month })}</div></div><div data-fuel-all></div></div>`);
+    var queue = el.querySelector('[data-fuel-queue]'), all = el.querySelector('[data-fuel-all]');
+    function reload() { drawQueue(); drawAll(); A.refreshCounts(); }
+    function drawQueue() {
+      api.get('/cash/fuel-claims', { status: 'pending', limit: 500 }).then(function (list) {
+        if (!document.contains(queue)) return;
+        if (!list.length) { BT.render(queue, ''); return; }
+        BT.render(queue, h`<div class="card mb-16" data-pending="fuel"><div class="card-h"><div class="card-t">${icon('fuel', 16)} بانتظار المراجعة ${BT.pill(fmt.int(list.length), 'o')}</div><span class="card-meta">راجع الفاتورة عند استلام كاش السائق</span></div><div class="card-b">${list.map(function (c) {
+          return h`<div class="between mb-12" data-pending-id="${c.id}" style="gap:12px;align-items:flex-start"><div style="width:96px">${fuelReceipt(c)}</div><div class="flex-1">
+            <div><b>${api.name(c.driver.name)}</b> <span class="muted fs-sm">${c.vehicle_plate || ''}</span></div>
+            <div class="fs-sm">دُفع في <span class="num">${fmt.dt(c.paid_at)}</span> · <b class="num">${fmt.money(c.amount)}</b> ${BT.config.currency}${c.odometer_km != null ? h` · العداد <span class="num">${fmt.int(c.odometer_km)}</span> كم` : ''}</div>
+            ${c.notes ? h`<div class="fs-sm muted">${c.notes}</div>` : ''}${fuelCovered(c)}</div>
+            ${review ? h`<div class="nowrap">${c.covered ? h`<button type="button" class="btn btn-sm btn-success" data-fuel-approve>${icon('check', 13)} قبول</button> ` : ''}<button type="button" class="btn btn-sm btn-outline" data-fuel-reject>${icon('x', 13)} رفض</button></div>` : ''}</div>`;
+        })}</div></div>`);
+        queue.querySelectorAll('[data-pending-id]').forEach(function (row) {
+          var c = list.find(function (x) { return x.id === row.getAttribute('data-pending-id'); });
+          var ok = row.querySelector('[data-fuel-approve]'), no = row.querySelector('[data-fuel-reject]');
+          if (ok) ok.onclick = function () { fuelApprove(c, reload); };
+          if (no) no.onclick = function () { fuelReject(c, reload); };
+        });
+      }, function () { BT.render(queue, ''); });
+    }
+    function drawAll() {
+      var p = month.split('-'), y = +p[0], m = +p[1], last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      A.load(all, api.get('/cash/fuel-claims', { from: month + '-01', to: month + '-' + last, limit: 500 }), function (rows) {
+        setTimeout(function () {
+          var t = all.querySelector('[data-fuel-table]');
+          if (!t) return;
+          BT.table(t, {
+            rows: rows, pageSize: 25,
+            search: { placeholder: 'اسم السائق أو اللوحة…', text: function (c) { return api.name(c.driver.name) + ' ' + (c.vehicle_plate || ''); } },
+            chips: { key: 'status', all: 'الكل', options: [{ v: 'pending', t: 'بانتظار المراجعة' }, { v: 'approved', t: 'مقبولة' }, { v: 'rejected', t: 'مرفوضة' }], match: function (c, v) { return c.status === v; } },
+            columns: [
+              { key: 'paid_at', label: 'دُفع في', render: function (c) { return h`<span class="num">${fmt.dt(c.paid_at)}</span>`; } },
+              { key: 'driver', label: 'السائق', render: function (c) { return A.person(c.driver, c.vehicle_plate || ''); } },
+              { key: 'amount', label: 'المبلغ', num: true, render: function (c) { return amt(c.amount); } },
+              { key: 'approved_amount', label: 'المعتمد', num: true, render: function (c) { return c.approved_amount ? amt(c.approved_amount) : raw('<span class="muted">—</span>'); } },
+              { key: 'status', label: 'الحالة', render: function (c) { return h`${fuelStatus(c)}${c.decision_note ? h`<span class="sub">${c.decision_note}</span>` : ''}`; } }
+            ],
+            rowClick: function (c) {
+              BT.lightbox([{ src: api.url('/cash/fuel-claims/' + c.id + '/receipt'), caption: api.name(c.driver.name) + ' — ' + fmt.money(c.amount) }], 0);
+            },
+            empty: { icon: 'fuel', title: 'لا توجد فواتير بنزين في هذا الشهر', text: 'يسجلها السائق من التطبيق عندما يكون البنزين على الشركة حسب نظام دفعه' }
+          });
+        });
+        return h`<div data-fuel-table></div>`;
+      }).catch(function () {});
+    }
+    var input = el.querySelector('[name=fuel_month]');
+    if (input) input.addEventListener('change', function () { if (input.value) { month = input.value; drawAll(); } });
+    drawQueue(); drawAll();
+  }
 
   function treasuryPanel(el) {
     A.load(el, api.get('/cash/treasury'), function (rows) {

@@ -2647,6 +2647,144 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'لم يُرسل بعد'**
   String get notSentYet;
+
+  /// No description provided for @fuel.
+  ///
+  /// In ar, this message translates to:
+  /// **'البنزين'**
+  String get fuel;
+
+  /// No description provided for @qaFuelSub.
+  ///
+  /// In ar, this message translates to:
+  /// **'بنزين دفعته من الكاش'**
+  String get qaFuelSub;
+
+  /// No description provided for @fuelTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'البنزين من الكاش'**
+  String get fuelTitle;
+
+  /// No description provided for @fuelIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'صوّر فاتورة البنزين واكتب المبلغ. يراجعها المحاسب عند استلام الكاش منك، وعند القبول ينقص المبلغ من رصيد الكاش لديك.'**
+  String get fuelIntro;
+
+  /// No description provided for @fuelReceipt.
+  ///
+  /// In ar, this message translates to:
+  /// **'صورة فاتورة البنزين'**
+  String get fuelReceipt;
+
+  /// No description provided for @fuelTakeReceipt.
+  ///
+  /// In ar, this message translates to:
+  /// **'صوّر الفاتورة'**
+  String get fuelTakeReceipt;
+
+  /// No description provided for @fuelReceiptMissing.
+  ///
+  /// In ar, this message translates to:
+  /// **'صورة الفاتورة مطلوبة'**
+  String get fuelReceiptMissing;
+
+  /// No description provided for @fuelAmount.
+  ///
+  /// In ar, this message translates to:
+  /// **'المبلغ المدفوع'**
+  String get fuelAmount;
+
+  /// No description provided for @fuelAmountInvalid.
+  ///
+  /// In ar, this message translates to:
+  /// **'اكتب المبلغ بالدينار، حتى 3 خانات عشرية'**
+  String get fuelAmountInvalid;
+
+  /// No description provided for @fuelAmountMax.
+  ///
+  /// In ar, this message translates to:
+  /// **'أقصى مبلغ للفاتورة {max} د.ك'**
+  String fuelAmountMax(String max);
+
+  /// No description provided for @fuelOdometer.
+  ///
+  /// In ar, this message translates to:
+  /// **'قراءة العداد (اختياري)'**
+  String get fuelOdometer;
+
+  /// No description provided for @fuelNotes.
+  ///
+  /// In ar, this message translates to:
+  /// **'ملاحظات (اختياري)'**
+  String get fuelNotes;
+
+  /// No description provided for @fuelSend.
+  ///
+  /// In ar, this message translates to:
+  /// **'إرسال للمراجعة'**
+  String get fuelSend;
+
+  /// No description provided for @fuelMine.
+  ///
+  /// In ar, this message translates to:
+  /// **'فواتير البنزين'**
+  String get fuelMine;
+
+  /// No description provided for @fuelNone.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد فواتير بنزين بعد'**
+  String get fuelNone;
+
+  /// No description provided for @fuelPending.
+  ///
+  /// In ar, this message translates to:
+  /// **'بانتظار المراجعة'**
+  String get fuelPending;
+
+  /// No description provided for @fuelApproved.
+  ///
+  /// In ar, this message translates to:
+  /// **'تم القبول ({amount})'**
+  String fuelApproved(String amount);
+
+  /// No description provided for @fuelRejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'مرفوض'**
+  String get fuelRejected;
+
+  /// No description provided for @fuelOff_fuel_card.
+  ///
+  /// In ar, this message translates to:
+  /// **'لديك كارت بنزين من الشركة: يُعبّأ الكارت من المكتب، ولا يُسجَّل البنزين من الكاش.'**
+  String get fuelOff_fuel_card;
+
+  /// No description provided for @fuelOff_not_covered.
+  ///
+  /// In ar, this message translates to:
+  /// **'البنزين عليك حسب نظام الدفع الخاص بك، فلا يُسجَّل على الشركة.'**
+  String get fuelOff_not_covered;
+
+  /// No description provided for @fuelOff_no_vehicle.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد سيارة في عهدتك الآن: يُسجَّل البنزين للسيارة التي معك.'**
+  String get fuelOff_no_vehicle;
+
+  /// No description provided for @kind_fuel.
+  ///
+  /// In ar, this message translates to:
+  /// **'فاتورة بنزين'**
+  String get kind_fuel;
+
+  /// No description provided for @moveFuel.
+  ///
+  /// In ar, this message translates to:
+  /// **'بنزين'**
+  String get moveFuel;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

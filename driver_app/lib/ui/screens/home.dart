@@ -11,6 +11,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import 'accident.dart';
 import 'fines.dart';
+import 'fuel.dart';
 import 'maintenance.dart';
 import 'me.dart';
 import 'notifications.dart';
@@ -220,6 +221,7 @@ class HomeTab extends StatelessWidget {
         if (state.shows('daily_report')) state.loadReports(),
         if (state.shows('maintenance')) state.loadMaintenance(),
         if (state.shows('accidents')) state.loadAccidents(),
+        if (state.shows('fuel')) state.loadFuel(),
         state.loadNotices(),
       ]);
       await state.loadProfile();
@@ -275,6 +277,15 @@ class HomeTab extends StatelessWidget {
           subtitle: l.qaAccidentSub,
           danger: true,
           onTap: () => _push(context, AccidentScreen(state: state)),
+        ),
+      // only when his pay scheme puts fuel on the company (no fuel card, a car with him)
+      if (state.shows('fuel') && state.fuel?.allowed == true)
+        QuickAction(
+          key: const Key('fuel'),
+          icon: Icons.local_gas_station,
+          title: l.fuel,
+          subtitle: l.qaFuelSub,
+          onTap: () => _push(context, FuelScreen(state: state)),
         ),
       if (state.shows('cash') && cash != null && cash.receipts.isNotEmpty)
         QuickAction(
@@ -628,6 +639,7 @@ class _QueuedTile extends StatelessWidget {
       'maintenance_pickup' => l.kind_pickup,
       'accident' => l.kind_accident,
       'police_report' => l.kind_police_report,
+      'fuel' => l.kind_fuel,
       _ => l.kind_report,
     };
     final reason = failed
@@ -993,6 +1005,7 @@ class CashTab extends StatelessWidget {
                           'reversal' => l.moveReversal,
                           'settlement' => l.moveSettlement,
                           'opening' => l.moveOpening,
+                          'fuel' => l.moveFuel,
                           _ => m.kind,
                         },
                         subtitle: [

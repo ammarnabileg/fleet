@@ -26,7 +26,7 @@
       { key: 'maintenance', icon: 'wrench', label: 'الصيانة', any: ['maintenance.view', 'invoices.view'], count: 'maintenance' },
       { key: 'accidents', icon: 'shield-alert', label: 'الحوادث', any: ['accidents.view'], count: 'accidents' },
       { key: 'fines', icon: 'file-warning', label: 'المخالفات المرورية', any: ['fines.view'], count: 'fines' },
-      { key: 'cash', icon: 'wallet', label: 'الكاش والخزينة', any: ['cash.view', 'treasury.view'] },
+      { key: 'cash', icon: 'wallet', label: 'الكاش والخزينة', any: ['cash.view', 'treasury.view', 'cash.fuel_review'], count: 'fuel' },
       { key: 'finance', icon: 'landmark', label: 'المالية', any: ['finance.view'], count: 'expenses' },
       { key: 'deductions', icon: 'minus-circle', label: 'الخصومات', any: ['deductions.view'] },
       { key: 'payroll', icon: 'banknote', label: 'الرواتب', any: ['payroll.view', 'settings.update'], count: 'payroll' },
@@ -223,6 +223,7 @@
     if (api.can('leaves.approve')) jobs.push(api.get('/leaves', { status: 'pending', limit: 200 }).then(function (r) { A.counts.leaves = r.length; }, function () {}));
     if (api.can('employees.onboarding')) jobs.push(api.get('/onboarding', { status: 'submitted', limit: 200 }).then(function (r) { A.counts.onboarding = r.length; }, function () {}));
     if (api.can('payroll.prepare')) jobs.push(api.get('/payroll/statements/counts').then(function (r) { A.counts.statements = r.submitted; }, function () {}));
+    if (api.can('cash.fuel_review')) jobs.push(api.get('/cash/fuel-claims/pending-count').then(function (r) { A.counts.fuel = r.count; }, function () {}));
     if (api.can('payroll.view')) jobs.push(api.get('/payroll/scheme-requests/counts').then(function (r) { A.counts.scheme_requests = r.pending; }, function () {}));
     return Promise.all(jobs).then(function () {
       A.counts.payroll = (A.counts.statements || 0) + (A.counts.scheme_requests || 0);
@@ -311,7 +312,8 @@
     maintenance_request: { perm: ['maintenance.view'], open: function (a) { A.go('maintenance/' + a.entity_id); } },
     maintenance_invoice: { perm: ['invoices.view'], open: function () { A.go('maintenance?tab=invoices'); } },
     accident: { perm: ['accidents.view'], open: function (a) { A.go('accidents/' + a.entity_id); } },
-    fine: { perm: ['fines.view'], open: function (a, after) { A.fine(a.entity_id, after); } }
+    fine: { perm: ['fines.view'], open: function (a, after) { A.fine(a.entity_id, after); } },
+    fuel_claim: { perm: ['cash.fuel_review'], label: 'مراجعة', open: function () { A.go('cash?tab=fuel'); } }
     // approval_escalated: no button. It goes to every approvals.view holder, but only the approvers have it in their inbox
   };
   A.alertTarget = function (a) {
