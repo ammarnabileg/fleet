@@ -170,23 +170,26 @@
   /* ================= الكاش والخزينة ================= */
   BT.pages['cash'] = function (p, q) {
     A.setTitle('الكاش والخزينة');
-    var v = A.view(), tab = q.tab === 'treasury' || q.tab === 'fuel' ? q.tab : 'balances';
+    var v = A.view(), tab = q.tab === 'treasury' || q.tab === 'fuel' || q.tab === 'petty' ? q.tab : 'balances';
     var tabs = [];
     if (api.can('cash.view')) tabs.push(['balances', 'أرصدة السائقين']);
     if (api.can('treasury.view')) tabs.push(['treasury', 'الخزينة والبنك']);
+    if (api.can('treasury.view') && api.me.all_companies) tabs.push(['petty', 'العهد النقدية']);
     if (api.canAny(['cash.view', 'cash.fuel_review'])) tabs.push(['fuel', 'البنزين', A.counts.fuel || null]);
     if (!tabs.some(function (t) { return t[0] === tab; })) tab = tabs[0][0];
     BT.render(v, h`${A.head('دفتر الكاش', 'كل حركة قيد مزدوج لا يُحذف: التصحيح بقيد تسوية أو عكس مع السبب. رصيد السائق = ما في ذمته للشركة', api.can('cash.collect') ? A.btn('استلام كاش بإيصال', { icon: 'hand-coins', cls: 'btn-primary', action: 'cash-receipt' }) : '')}
       ${tabs.length > 1 ? BT.tabs('cash', tabs, tab, 'tabs-line') : ''}
       <div data-panel="balances" data-group="cash" class="${tab === 'balances' ? 'active' : ''}"><div id="bal-panel"></div></div>
       <div data-panel="treasury" data-group="cash" class="${tab === 'treasury' ? 'active' : ''}"><div id="tre-panel"></div></div>
-      <div data-panel="fuel" data-group="cash" class="${tab === 'fuel' ? 'active' : ''}"><div id="fuel-panel"></div></div>`);
+      <div data-panel="fuel" data-group="cash" class="${tab === 'fuel' ? 'active' : ''}"><div id="fuel-panel"></div></div>
+      <div data-panel="petty" data-group="cash" class="${tab === 'petty' ? 'active' : ''}"><div id="petty-panel"></div></div>`);
     var drawn = {};
     function show(t) {
       if (drawn[t]) return; drawn[t] = true;
       if (t === 'balances') balancesPanel(document.getElementById('bal-panel'));
       if (t === 'treasury') treasuryPanel(document.getElementById('tre-panel'));
       if (t === 'fuel') fuelPanel(document.getElementById('fuel-panel'));
+      if (t === 'petty') pettyPanel(document.getElementById('petty-panel'));
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); });
     show(tab);
@@ -449,6 +452,57 @@
     }).catch(function () {});
   }
 
+  /* العهد النقدية: موظف يمسك كاش للمصروفات الصغيرة، يُصرف له من خزينة فرع ويرد الباقي إليها */
+  function pettyPanel(el) {
+    var manage = api.can('treasury.manage');
+    A.load(el, Promise.all([api.get('/cash/petty'), api.get('/cash/treasury')]), function (r) {
+      var rows = r[0];
+      return h`<div class="card"><div class="card-h"><div class="card-t">${icon('wallet', 16)} العهد النقدية</div>${manage ? h`<div class="ms-auto nowrap"><button type="button" class="btn btn-sm btn-outline" data-petty-return>${icon('rotate-ccw', 14)} رد عهدة</button> <button type="button" class="btn btn-sm btn-primary" data-petty-fund>${icon('hand-coins', 14)} صرف عهدة</button></div>` : ''}</div>
+        ${rows.length ? h`<div class="table-wrap"><table class="t compact" data-petty><thead><tr><th>الموظف</th><th>الفرع</th><th class="num">الرصيد</th><th>آخر حركة</th><th></th></tr></thead><tbody>
+          ${rows.map(function (x) {
+            return h`<tr data-holder="${x.employee.id}"><td>${api.name(x.employee.name)}</td><td>${x.branch_id ? api.branch(x.branch_id) : '—'}</td><td class="num"><b>${fmt.money(x.balance)}</b></td><td class="num">${x.last_movement ? fmt.date(x.last_movement) : '—'}</td>
+              <td class="num nowrap"><button type="button" class="btn btn-sm btn-ghost" data-petty-moves="${x.employee.id}">${icon('list', 13)} حركات</button></td></tr>`;
+          })}</tbody></table></div>` : BT.empty('wallet', 'لا عهد نقدية بعد', manage ? 'اصرف عهدة لموظف من خزينة فرع' : '')}
+        <div class="hint mt-8">العهدة تُصرف من خزينة فرع (تنقص الخزينة وتزيد العهدة)، ومصروفات الموظف تُسجَّل «من عهدة» فتنقص عهدته عند الاعتماد، والباقي يُرد للخزينة. في الدفاتر: حساب 1115 العهد النقدية.</div></div>`;
+    }).then(function (r) {
+      if (!r) return;
+      var rows = r[0], boxes = r[1], again = function () { pettyPanel(el); };
+      var branchSelect = function () { return BT.f.select({ name: 'branch_id', label: 'خزينة الفرع', required: true, placeholder: false, options: boxes.map(function (b) { return { v: b.branch.id, t: api.name(b.branch.name) + ' — ' + fmt.money(b.treasury) }; }) }); };
+      var move = function (kind, holderId) {
+        return function (v) {
+          var id = holderId(v);
+          if (!id) return Promise.reject(new Error('اختر الموظف من القائمة'));
+          return api.post('/cash/petty/' + id + '/' + kind, { branch_id: Number(v.branch_id), amount: String(v.amount), note: (v.note || '').trim() || null });
+        };
+      };
+      var f = el.querySelector('[data-petty-fund]');
+      if (f) f.onclick = function () {
+        A.allEmployees({}).catch(function () { return []; }).then(function (people) {
+          A.formModal({
+            title: 'صرف عهدة', subtitle: 'كاش من خزينة الفرع إلى موظف', icon: 'hand-coins', size: 'sm', done: 'تم صرف العهدة',
+            body: h`<div class="form">${A.picker({ name: 'holder', label: 'الموظف', required: true, items: people.map(function (x) { return { id: x.id, label: x.employee_number + ' · ' + api.name(x.name) }; }) })}${branchSelect()}${BT.f.money({ name: 'amount', label: 'المبلغ', required: true, min: 0.001 })}${BT.f.input({ name: 'note', label: 'ملاحظة', optional: true })}</div>`,
+            submit: move('fund', function (v) { return A.picked('holder', v.holder); }),
+            after: again
+          });
+        });
+      };
+      var b = el.querySelector('[data-petty-return]');
+      if (b) b.onclick = function () {
+        if (!rows.length) { BT.toast('لا عهد نقدية بعد', { type: 'error' }); return; }
+        A.formModal({
+          title: 'رد عهدة', subtitle: 'الباقي من العهدة إلى خزينة الفرع', icon: 'rotate-ccw', size: 'sm', done: 'تم رد العهدة',
+          body: h`<div class="form">${BT.f.select({ name: 'holder', label: 'الموظف', required: true, placeholder: false, options: rows.map(function (x) { return { v: x.employee.id, t: api.name(x.employee.name) + ' — ' + fmt.money(x.balance) }; }) })}${branchSelect()}${BT.f.money({ name: 'amount', label: 'المبلغ', required: true, min: 0.001 })}${BT.f.input({ name: 'note', label: 'ملاحظة', optional: true })}</div>`,
+          submit: move('return', function (v) { return v.holder; }),
+          after: again
+        });
+      };
+      A.delegate(el, 'click', '[data-petty-moves]', function (e, btn) {
+        var x = rows.find(function (y) { return y.employee.id === btn.getAttribute('data-petty-moves'); });
+        if (x) movements(null, again, { url: '/cash/petty/' + x.employee.id + '/movements', title: 'عهدة ' + api.name(x.employee.name) });
+      });
+    }).catch(function () {});
+  }
+
   /* آخر إقفالات الخزائن (كل الفروع): الرصيد في الدفاتر، المعدود، والفرق؛ «إعادة فتح» على آخر يوم مقفول في كل فرع */
   function closingsList(box, rows, changed) {
     var manage = api.can('treasury.manage');
@@ -527,17 +581,19 @@
   }
 
   /* حركات خزينة الفرع أو بنكه: رصيد أول المدة، كل حركة ورصيدها بعدها، ورصيد آخر المدة */
-  function movements(branch, changed) {
+  // opts {url, title}: another cash account's movements (a holder's petty cash custody), without the treasury/bank tabs
+  function movements(branch, changed, opts) {
+    opts = opts || {};
     var state = { account: 'treasury', from: BT.config.today.slice(0, 8) + '01', to: BT.config.today };
-    var dlg = BT.drawer.open({ title: 'حركات ' + api.name(branch.name), icon: 'list', size: 'lg', body: h`<div data-mv-tools></div><div data-mv class="mt-12"></div>`, buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] });
+    var dlg = BT.drawer.open({ title: opts.title || 'حركات ' + api.name(branch.name), icon: 'list', size: 'lg', body: h`<div data-mv-tools></div><div data-mv class="mt-12"></div>`, buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] });
     var tools = dlg.body.querySelector('[data-mv-tools]'), box = dlg.body.querySelector('[data-mv]');
-    var url = '/cash/treasury/' + branch.public_id + '/movements';
-    var query = function () { return { account: state.account, from: state.from, to: state.to }; };
+    var url = opts.url || '/cash/treasury/' + branch.public_id + '/movements';
+    var query = function () { return opts.url ? { from: state.from, to: state.to } : { account: state.account, from: state.from, to: state.to }; };
     function drawTools() {
       BT.render(tools, h`<div class="toolbar"><div class="page-actions" role="tablist">
-        ${[['treasury', 'الخزينة'], ['bank', 'البنك']].map(function (t) { return h`<button type="button" role="tab" aria-selected="${t[0] === state.account ? 'true' : 'false'}" class="btn btn-sm ${t[0] === state.account ? 'btn-primary' : 'btn-ghost'}" data-acc="${t[0]}">${t[1]}</button>`; })}
+        ${opts.url ? '' : [['treasury', 'الخزينة'], ['bank', 'البنك']].map(function (t) { return h`<button type="button" role="tab" aria-selected="${t[0] === state.account ? 'true' : 'false'}" class="btn btn-sm ${t[0] === state.account ? 'btn-primary' : 'btn-ghost'}" data-acc="${t[0]}">${t[1]}</button>`; })}
         <input class="input" type="date" data-from value="${state.from}" aria-label="من" title="من"><input class="input" type="date" data-to value="${state.to}" aria-label="إلى" title="إلى">
-        <button type="button" class="btn btn-sm btn-outline" data-mv-export>${icon('file-spreadsheet', 14)} Excel</button></div></div>`);
+        ${opts.url ? '' : h`<button type="button" class="btn btn-sm btn-outline" data-mv-export>${icon('file-spreadsheet', 14)} Excel</button>`}</div></div>`);
     }
     function kind(l) { return l.reverses_kind ? api.t('journal_kind', 'reversal') + ': ' + api.t('journal_kind', l.reverses_kind) : api.t('journal_kind', l.kind); }
     function describe(l) {

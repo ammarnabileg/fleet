@@ -500,7 +500,11 @@
     "period_closed": "شهر {month} مقفول في الدفاتر: لا قيود ولا حركات كاش بتاريخ فيه. استخدم تاريخاً في شهر مفتوح.",
     "period_not_ready": "شهر {month} عليه {count} ملاحظات لازم تتحل قبل الإقفال: شوف «فحص»",
     "period_not_latest": "يُعاد فتح آخر شهر مقفول فقط",
-    "invalid_month": "الشهر غير صحيح (مثال: 2026-09)"
+    "invalid_month": "الشهر غير صحيح (مثال: 2026-09)",
+    "petty_insufficient": "العهدة فيها أقل من المبلغ",
+    "petty_holder_inactive": "لا تُصرف عهدة لموظف انتهت خدمته",
+    "petty_holder_unknown": "الموظف ليس معه عهدة نقدية: اصرف له عهدة أولاً",
+    "expense_petty_holder_required": "اختر الموظف صاحب العهدة التي دفعت"
   },
   "settings": {
     "branding": "الهوية",
@@ -718,7 +722,9 @@
     "fuel": "بنزين",
     "disbursement": "صرف من الخزينة",
     "bank_withdrawal": "سحب من البنك",
-    "count_diff": "فرق جرد الخزينة"
+    "count_diff": "فرق جرد الخزينة",
+    "petty_fund": "صرف عهدة",
+    "petty_return": "رد عهدة"
   },
   "journal_status": {
     "pending": "غير معتمد",
@@ -1185,7 +1191,8 @@
   "expense_payment": {
     "treasury": "نقداً من الخزينة",
     "bank": "من البنك",
-    "payable": "آجل (فاتورة مورد)"
+    "payable": "آجل (فاتورة مورد)",
+    "petty": "من عهدة موظف"
   },
   "account_type": {
     "asset": "أصول",
@@ -1215,7 +1222,8 @@
     "traffic_fines_expense": "مصروف المخالفات",
     "cash_writeoff": "كاش سائقين مشطوب",
     "driver_salaries_expense": "رواتب السائقين",
-    "fuel_expense": "مصروف البنزين المدفوع من كاش السائقين"
+    "fuel_expense": "مصروف البنزين المدفوع من كاش السائقين",
+    "petty_cash": "العهد النقدية لدى الموظفين"
   },
   "approval_process": {
     "daily_report": "التقارير اليومية",
@@ -1307,7 +1315,8 @@
     "writeoff": "الإعدام",
     "opening": "أرصدة افتتاحية",
     "fuel": "البنزين",
-    "disbursements": "المصروف من الخزينة"
+    "disbursements": "المصروف من الخزينة",
+    "petty": "العهدة النقدية"
   },
   "treasury_column": {
     "treasury": "حركات الخزينة",

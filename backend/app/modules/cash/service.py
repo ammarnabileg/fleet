@@ -160,11 +160,14 @@ def _decide(db: Session, journal_id: int, status: str, actor_user_id: int | None
     )
 
 
-def lock_branches(db: Session, *, treasury: Iterable[int] = (), bank: Iterable[int] = ()) -> None:
-    """Serializes what reads a treasury's or a bank's balance before moving money out of it, until the transaction
-    ends. Always in one order, every treasury (by branch) before every bank, so two never wait on each other."""
-    for kind, branch_ids in (("treasury", treasury), ("bank", bank)):
-        for b in sorted(set(branch_ids)):
+def lock_branches(
+    db: Session, *, treasury: Iterable[int] = (), bank: Iterable[int] = (), petty: Iterable[int] = ()
+) -> None:
+    """Serializes what reads a treasury's, a bank's or a petty cash custody's balance before moving money out of it,
+    until the transaction ends. Always in one order, every treasury (by branch) before every bank, then every custody
+    (by its holder), so two never wait on each other."""
+    for kind, ids in (("treasury", treasury), ("bank", bank), ("petty", petty)):
+        for b in sorted(set(ids)):
             db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"), {"k": f"cash.{kind}:{b}"})
 
 
@@ -515,17 +518,25 @@ def reverse(db: Session, public_id, *, reason: str, actor_user_id: int, all_comp
         raise AppError(409, "count_diff_from_closing")
     lines = list(
         db.execute(
-            select(JournalLine.account_id, JournalLine.amount, Account.kind, Account.branch_id)
+            select(
+                JournalLine.account_id,
+                JournalLine.amount,
+                Account.kind,
+                func.coalesce(Account.employee_id, Account.branch_id),
+            )
             .join(Account, Account.id == JournalLine.account_id)
             .where(JournalLine.journal_id == original.id)
         )
     )
-    # every treasury and bank it touches locked first, in the one order; one the reversal takes money out of must
-    # hold it (as a deposit or a withdrawal would)
+    # every treasury, bank and custody it touches locked first, in the one order; one the reversal takes money out
+    # of must hold it (as a deposit or a withdrawal would)
     lock_branches(
-        db, treasury=[b for *_, k, b in lines if k == "treasury"], bank=[b for *_, k, b in lines if k == "bank"]
+        db,
+        treasury=[b for *_, k, b in lines if k == "treasury"],
+        bank=[b for *_, k, b in lines if k == "bank"],
+        petty=[e for *_, k, e in lines if k == "petty"],
     )
-    out_of = [(a, m, k, b) for a, m, k, b in lines if k in ("treasury", "bank") and m > 0]
+    out_of = [(a, m, k, b) for a, m, k, b in lines if k in ("treasury", "bank", "petty") and m > 0]
     for a, m, k, _ in out_of:
         if _posted(db, a) < m:
             raise AppError(422, f"{k}_insufficient")
@@ -1059,7 +1070,7 @@ def _branch(db: Session, branch_public_id) -> dict:
 
 
 MOVEMENTS_MAX = 2000
-REVERSIBLE_HERE = ("deposit", "bank_deposit", "bank_withdrawal")
+REVERSIBLE_HERE = ("deposit", "bank_deposit", "bank_withdrawal", "petty_fund", "petty_return")
 
 
 def movements(
@@ -1086,6 +1097,34 @@ def movements(
     branch = _branch(db, branch_public_id)
     acc = account(db, kind, branch_id=branch["id"])
     closed_through = last_closed_day(db, [branch["id"]]) if kind == "treasury" else None
+    out = _movements(
+        db,
+        acc,
+        date_from=date_from,
+        date_to=date_to,
+        limit=limit,
+        can_reverse=can_reverse,
+        all_companies=all_companies,
+        company_ids=company_ids,
+        closed_through=closed_through,
+    )
+    return {"branch": branch, "account": kind, "closed_through": closed_through} | out
+
+
+def _movements(
+    db: Session,
+    acc: int,
+    *,
+    date_from: date,
+    date_to: date,
+    limit: int,
+    can_reverse: bool,
+    all_companies: bool,
+    company_ids,
+    closed_through: date | None = None,
+) -> dict:
+    """One cash account's posted journals of business dates date_from..date_to with the running balance (a branch's
+    treasury or bank, a holder's petty cash custody)."""
     posted = (
         select(Journal, JournalLine.amount)
         .join(JournalLine, JournalLine.journal_id == Journal.id)
@@ -1161,9 +1200,6 @@ def movements(
         )
     db.commit()  # the account, made on first sight
     return {
-        "branch": branch,
-        "account": kind,
-        "closed_through": closed_through,
         "date_from": date_from,
         "date_to": date_to,
         "opening": Decimal(opening).quantize(FILS),
@@ -1175,6 +1211,197 @@ def movements(
         ),
         "lines": lines,
     }
+
+
+# ------------------------------------------------------------------ petty cash custody
+
+
+def _petty_account(db: Session, holder: people.EmployeeRef, *, create: bool) -> int | None:
+    """The holder's custody account (on his branch), made on first funding."""
+    acc = db.scalar(select(Account.id).where(Account.kind == "petty", Account.employee_id == holder.id))
+    if acc is None and create:
+        db.execute(
+            insert(Account)
+            .values(kind="petty", employee_id=holder.id, branch_id=holder.branch_id)
+            .on_conflict_do_nothing()
+        )
+        acc = db.scalar(select(Account.id).where(Account.kind == "petty", Account.employee_id == holder.id))
+    return acc
+
+
+def petty_balance(db: Session, employee_id: int) -> Decimal:
+    acc = db.scalar(select(Account.id).where(Account.kind == "petty", Account.employee_id == employee_id))
+    return _posted(db, acc) if acc else ZERO
+
+
+def _petty_move(
+    db: Session,
+    holder: people.EmployeeRef,
+    *,
+    kind: str,
+    branch_id: int,
+    amount: Decimal,
+    note: str | None,
+    actor_user_id: int,
+) -> dict:
+    if amount <= 0:
+        raise AppError(422, "amount_must_be_positive")
+    if branch_id not in {b["id"] for b in org.list_branches(db)}:
+        raise AppError(422, "branch_not_found")
+    if kind == "petty_fund" and holder.is_terminal:
+        raise AppError(422, "petty_holder_inactive")
+    petty = _petty_account(db, holder, create=kind == "petty_fund")
+    if petty is None:
+        raise AppError(422, "petty_insufficient")
+    treasury = account(db, "treasury", branch_id=branch_id)
+    lock_branches(db, treasury=[branch_id], petty=[holder.id])
+    _open_day(db, branch_id, today())
+    if kind == "petty_fund" and _posted(db, treasury) < amount:
+        raise AppError(422, "treasury_insufficient")
+    if kind == "petty_return" and _posted(db, petty) < amount:
+        raise AppError(422, "petty_insufficient")
+    sign = 1 if kind == "petty_fund" else -1
+    journal = _journal(
+        db,
+        kind,
+        source_type="petty",
+        source_id=holder.id,
+        lines=[(petty, sign * amount), (treasury, -sign * amount)],
+        actor_user_id=actor_user_id,
+        reason=note,
+        post=True,
+    )
+    audit.record(
+        db,
+        action=f"cash.{kind}",
+        entity_type="employee",
+        entity_id=holder.public_id,
+        actor_user_id=actor_user_id,
+        company_id=holder.company_id,
+        after={"branch_id": branch_id, "amount": amount, "note": note},
+    )
+    check_treasury(db, [branch_id])
+    db.commit()
+    return journal_out(db, journal)
+
+
+def petty_fund(
+    db: Session, holder: people.EmployeeRef, *, branch_id: int, amount: Decimal, note: str | None, actor_user_id: int
+) -> dict:
+    """Cash handed from a branch treasury to an employee to hold for small expenses: petty +X, treasury -X (Dr petty
+    cash / Cr treasury), refused when the treasury holds less or its day is closed."""
+    return _petty_move(
+        db, holder, kind="petty_fund", branch_id=branch_id, amount=amount, note=note, actor_user_id=actor_user_id
+    )
+
+
+def petty_return(
+    db: Session, holder: people.EmployeeRef, *, branch_id: int, amount: Decimal, note: str | None, actor_user_id: int
+) -> dict:
+    """What the holder brings back to a branch treasury: treasury +X, petty -X; never more than he holds."""
+    return _petty_move(
+        db, holder, kind="petty_return", branch_id=branch_id, amount=amount, note=note, actor_user_id=actor_user_id
+    )
+
+
+def petty_disburse(
+    db: Session,
+    *,
+    employee_id: int,
+    amount: Decimal,
+    source_type: str,
+    source_id: int,
+    reason: str,
+    actor_user_id: int | None,
+    business_date: date,
+    attachment_sha256: str | None = None,
+) -> None:
+    """In the caller's transaction: an expense paid from a holder's custody, posted at once: petty -X,
+    disbursements +X, refused when he holds less. Undone with its document (undo_disbursement). Like a treasury
+    disbursement it makes no entry: the expense's own entry credits petty cash."""
+    if amount <= 0:
+        raise AppError(422, "amount_must_be_positive")
+    petty = db.scalar(select(Account.id).where(Account.kind == "petty", Account.employee_id == employee_id))
+    lock_branches(db, petty=[employee_id])
+    if petty is None or _posted(db, petty) < amount:
+        raise AppError(422, "petty_insufficient")
+    _journal(
+        db,
+        "disbursement",
+        source_type=source_type,
+        source_id=source_id,
+        lines=[(petty, -amount), (account(db, "disbursements"), amount)],
+        actor_user_id=actor_user_id,
+        reason=reason,
+        post=True,
+        business_date=business_date,
+        attachment_sha256=attachment_sha256,
+    )
+
+
+def is_petty_holder(db: Session, employee_id: int) -> bool:
+    return db.scalar(select(Account.id).where(Account.kind == "petty", Account.employee_id == employee_id)) is not None
+
+
+def petty_holders(db: Session) -> list[dict]:
+    """Every custody with its holder, his branch, the balance, and the day it last moved; the largest first."""
+    rows = db.execute(select(Account.id, Account.employee_id, Account.branch_id).where(Account.kind == "petty")).all()
+    found = balances(db, [a for a, _, _ in rows])
+    last = dict(
+        db.execute(
+            select(JournalLine.account_id, func.max(Journal.business_date))
+            .join(Journal, Journal.id == JournalLine.journal_id)
+            .where(JournalLine.account_id.in_([a for a, _, _ in rows]), Journal.status == "posted")
+            .group_by(JournalLine.account_id)
+        ).all()
+    )
+    named = people.names(db, {e for _, e, _ in rows})
+    out = [
+        {
+            "employee": named[e],
+            "branch_id": b,
+            "balance": found.get(a, Balance(ZERO, ZERO)).posted,
+            "last_movement": last.get(a),
+        }
+        for a, e, b in rows
+        if e in named
+    ]
+    return sorted(out, key=lambda x: x["balance"], reverse=True)
+
+
+def petty_movements(
+    db: Session,
+    holder: people.EmployeeRef,
+    *,
+    date_from: date,
+    date_to: date,
+    limit: int,
+    can_reverse: bool,
+    all_companies: bool,
+    company_ids,
+) -> dict:
+    """A holder's custody as it moved, with its running balance (as a treasury's movements)."""
+    if not all_companies:  # a custody is not a company's
+        raise AppError(403, "company_out_of_scope")
+    if date_to < date_from:
+        raise AppError(422, "invalid_range")
+    acc = _petty_account(db, holder, create=False)
+    named = people.names(db, {holder.id})
+    out = {"employee": named.get(holder.id), "account": "petty"}
+    if acc is None:
+        zero = ZERO.quantize(FILS)
+        return out | {"date_from": date_from, "date_to": date_to, "opening": zero, "closing": zero, "truncated": False,
+                      "lines": []}  # fmt: skip
+    return out | _movements(
+        db,
+        acc,
+        date_from=date_from,
+        date_to=date_to,
+        limit=limit,
+        can_reverse=can_reverse,
+        all_companies=all_companies,
+        company_ids=company_ids,
+    )
 
 
 # ------------------------------------------------------------------ the treasury's daily count and close
@@ -1568,14 +1795,16 @@ def scan_treasury(db: Session, *, moment: str) -> int:
 
 
 def journal_drivers(db: Session, journal_ids: Iterable[int]) -> dict[int, int]:
-    """The driver each journal moved money for (his account's line), for finance's account statements."""
+    """The driver each journal moved money for (his account's line), or the holder of the petty cash custody it
+    moved, for finance's account statements and the movements."""
     ids = list(set(journal_ids))
     if not ids:
         return {}
+    holder = func.coalesce(Account.driver_id, Account.employee_id)
     rows = db.execute(
-        select(JournalLine.journal_id, Account.driver_id)
+        select(JournalLine.journal_id, holder)
         .join(Account, Account.id == JournalLine.account_id)
-        .where(JournalLine.journal_id.in_(ids), Account.driver_id.is_not(None))
+        .where(JournalLine.journal_id.in_(ids), holder.is_not(None))
     )
     return {j: d for j, d in rows}
 

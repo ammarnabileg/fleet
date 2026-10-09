@@ -302,3 +302,32 @@ class FuelRejectIn(BaseModel):
 
 class CountOut(BaseModel):
     count: int
+
+
+# ---- petty cash custody
+
+
+class PettyMoveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    branch_id: int  # the treasury it comes from, or goes back to
+    amount: Amount
+    note: Note | None = None
+
+
+class PettyHolderOut(BaseModel):
+    employee: PersonRef
+    branch_id: int | None
+    balance: Decimal
+    last_movement: date | None
+
+
+class PettyMovementsOut(BaseModel):
+    employee: PersonRef | None
+    account: str
+    date_from: date
+    date_to: date
+    opening: Decimal
+    closing: Decimal
+    truncated: bool
+    lines: list[MovementLine]

@@ -471,8 +471,8 @@ def test_the_default_chart_is_structured_and_salaries_go_to_two_accounts(admin_c
     by_code = {a["code"]: a for a in accounts}
     assert by_code["5110"]["roles"] == ["driver_salaries_expense"] and by_code["6110"]["roles"] == ["salaries_expense"]
     assert {"2210", "3120", "6150"} <= set(by_code)  # end-of-service provision, owner's account, government fees
-    mapped = {r["role"] for r in admin_client.get(f"{F}/roles").json()}
-    assert len(mapped) == 21
+    roles = admin_client.get(f"{F}/roles").json()
+    assert len({r["role"] for r in roles}) == 22 and all(r["account_id"] for r in roles)
     assert {
         t["code"]: by_code_of(accounts, t["account_id"]) for t in admin_client.get(f"{F}/expense-types").json()
     } == {

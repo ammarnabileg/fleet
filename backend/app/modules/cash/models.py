@@ -33,6 +33,7 @@ ACCOUNT_KINDS = (
     "opening",
     "fuel",
     "disbursements",
+    "petty",
 )
 
 
@@ -41,13 +42,20 @@ class Account(Base):
     __table_args__ = (
         CheckConstraint(
             "kind IN ('driver', 'treasury', 'bank', 'cod_clearing', 'adjustments', 'payroll_recovery', 'writeoff', "
-            "'opening', 'fuel', 'disbursements')",
+            "'opening', 'fuel', 'disbursements', 'petty')",
             name="kind",
         ),
         CheckConstraint("(kind = 'driver') = (driver_id IS NOT NULL)", name="driver"),
+        CheckConstraint("(kind = 'petty') = (employee_id IS NOT NULL)", name="petty"),
         UniqueConstraint(
-            "kind", "driver_id", "branch_id", name="accounts_kind_key", postgresql_nulls_not_distinct=True
+            "kind",
+            "driver_id",
+            "branch_id",
+            "employee_id",
+            name="accounts_kind_key",
+            postgresql_nulls_not_distinct=True,
         ),
+        Index("accounts_one_petty", "employee_id", unique=True, postgresql_where=text("kind = 'petty'")),
         SCHEMA,
     )
 
@@ -55,6 +63,7 @@ class Account(Base):
     kind: Mapped[str] = mapped_column(Text)
     driver_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
     branch_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("org.branches.id"))
+    employee_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("people.employees.id"))  # petty's holder
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -65,7 +74,7 @@ class Journal(Base):
     __table_args__ = (
         CheckConstraint(
             "kind IN ('collection', 'adjustment', 'deposit', 'bank_deposit', 'settlement', 'writeoff', 'reversal', "
-            "'opening', 'fuel', 'disbursement', 'bank_withdrawal', 'count_diff')",
+            "'opening', 'fuel', 'disbursement', 'bank_withdrawal', 'count_diff', 'petty_fund', 'petty_return')",
             name="kind",
         ),
         CheckConstraint("status IN ('pending', 'posted', 'rejected')", name="status"),

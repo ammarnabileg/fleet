@@ -4,7 +4,8 @@ for the client's accountant to confirm: what a role means is his decision, the s
 
     cash journal          its own lines, each cash account's kind to its role (balanced already); none for a
                           disbursement (and its reversal): its expense or advance enters the treasury's credit
-    expense               Dr its type's account / Cr treasury, bank, or suppliers payable (paid later)
+    expense               Dr its type's account / Cr treasury, bank, petty cash (a holder's custody), or suppliers
+                          payable (paid later)
     expense payment       Dr suppliers payable / Cr treasury or bank
     maintenance invoice   Dr maintenance expense / Cr suppliers payable
     invoice payment       Dr suppliers payable / Cr bank
@@ -48,6 +49,7 @@ ROLES = (
     "traffic_fines_expense",
     "cash_writeoff",
     "fuel_expense",
+    "petty_cash",
 )
 CASH_ROLE = {
     "driver": "driver_cash",
@@ -59,9 +61,10 @@ CASH_ROLE = {
     "writeoff": "cash_writeoff",
     "opening": "opening_equity",
     "fuel": "fuel_expense",
+    "petty": "petty_cash",
 }
 DISBURSEMENT = "disbursement"
-PAID_FROM = {"treasury": "treasury", "bank": "bank", "payable": "suppliers_payable"}
+PAID_FROM = {"treasury": "treasury", "bank": "bank", "payable": "suppliers_payable", "petty": "petty_cash"}
 
 
 @dataclass

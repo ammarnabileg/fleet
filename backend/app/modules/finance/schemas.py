@@ -60,7 +60,8 @@ class ExpenseIn(_In):
     expense_date: date
     amount: Amount
     quantity: Annotated[Decimal, Field(gt=0, max_digits=10, decimal_places=2)] | None = None
-    payment_method: Literal["treasury", "bank", "payable"]
+    payment_method: Literal["treasury", "bank", "payable", "petty"]
+    petty_employee_id: uuid.UUID | None = None  # whose petty cash custody paid: required when paid from one
     supplier: Short | None = None
     reference_no: Short | None = None
     vehicle_id: uuid.UUID | None = None
@@ -187,6 +188,7 @@ class ExpenseOut(BaseModel):
     reference_no: str | None
     vehicle: VehicleRef | None
     employee: Ref | None
+    petty_employee: Ref | None = None  # whose petty cash custody paid
     center: Ref | None
     notes: str | None
     status: str

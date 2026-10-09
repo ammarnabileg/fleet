@@ -336,6 +336,82 @@ def reopen_closing(
     return service.reopen_closing(db, public_id, reason=body.reason, actor_user_id=principal.user_id)
 
 
+# ---- petty cash custody (not a company's: an all-companies user)
+
+
+def _holder(db: Session, raw: uuid.UUID) -> people.EmployeeRef:
+    return people.ref_by_public_id(db, raw, all_companies=True, company_ids=[])
+
+
+@router.get("/cash/petty", response_model=list[schemas.PettyHolderOut])
+def petty_holders(
+    principal: Principal = Depends(require_permission("treasury.view")), db: Session = Depends(get_session)
+):
+    """Who holds a petty cash custody, how much, and when it last moved."""
+    _all_companies(principal)
+    return service.petty_holders(db)
+
+
+@router.post("/cash/petty/{employee_id}/fund", response_model=schemas.JournalOut, status_code=201)
+def petty_fund(
+    employee_id: uuid.UUID,
+    body: schemas.PettyMoveIn,
+    principal: Principal = Depends(require_permission("treasury.manage")),
+    db: Session = Depends(get_session),
+):
+    """Cash from a branch treasury to an employee's custody."""
+    _all_companies(principal)
+    return service.petty_fund(
+        db,
+        _holder(db, employee_id),
+        branch_id=body.branch_id,
+        amount=body.amount,
+        note=body.note,
+        actor_user_id=principal.user_id,
+    )
+
+
+@router.post("/cash/petty/{employee_id}/return", response_model=schemas.JournalOut, status_code=201)
+def petty_return(
+    employee_id: uuid.UUID,
+    body: schemas.PettyMoveIn,
+    principal: Principal = Depends(require_permission("treasury.manage")),
+    db: Session = Depends(get_session),
+):
+    """What is left of a custody, back to a branch treasury."""
+    _all_companies(principal)
+    return service.petty_return(
+        db,
+        _holder(db, employee_id),
+        branch_id=body.branch_id,
+        amount=body.amount,
+        note=body.note,
+        actor_user_id=principal.user_id,
+    )
+
+
+@router.get("/cash/petty/{employee_id}/movements", response_model=schemas.PettyMovementsOut)
+def petty_movements(
+    employee_id: uuid.UUID,
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    limit: Annotated[int, Query(ge=1, le=service.MOVEMENTS_MAX)] = 500,
+    principal: Principal = Depends(require_permission("treasury.view")),
+    db: Session = Depends(get_session),
+):
+    """A custody as it moved in a period (this month by default), with its running balance."""
+    _all_companies(principal)
+    return service.petty_movements(
+        db,
+        _holder(db, employee_id),
+        date_from=date_from or today().replace(day=1),
+        date_to=date_to or today(),
+        limit=limit,
+        can_reverse=principal.has("cash.reverse"),
+        **principal.scope,
+    )
+
+
 @router.get("/cash/journals/{public_id}/attachment")
 def journal_attachment(
     public_id: uuid.UUID,

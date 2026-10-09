@@ -363,7 +363,7 @@ def _expense_out(db: Session, rows: list[Expense]) -> list[dict]:
 
     types = {t.id: t for t in db.scalars(select(ExpenseType).where(ExpenseType.id.in_({e.type_id for e in rows})))}
     vehicles = fleet.vehicle_cards(db, {e.vehicle_id for e in rows if e.vehicle_id})
-    employees = people.names(db, {e.employee_id for e in rows if e.employee_id})
+    employees = people.names(db, {x for e in rows for x in (e.employee_id, e.petty_employee_id) if x})
     centers = maintenance.centers_brief(db, {e.center_id for e in rows if e.center_id})
     users = identity.user_names(db, {u for e in rows for u in (e.created_by, e.decided_by, e.paid_by) if u})
     attached: dict[int, list[str]] = defaultdict(list)
@@ -393,6 +393,7 @@ def _expense_out(db: Session, rows: list[Expense]) -> list[dict]:
                 "reference_no": e.reference_no,
                 "vehicle": {"id": vehicle["id"], "plate_number": vehicle["plate_number"]} if vehicle else None,
                 "employee": employees.get(e.employee_id),
+                "petty_employee": employees.get(e.petty_employee_id),
                 "center": {"id": center["id"], "name": center["name"]} if center else None,
                 "notes": e.notes,
                 "status": e.status,
@@ -453,6 +454,7 @@ def create_expense(db: Session, data: dict, *, actor_user_id: int, all_companies
         raise AppError(422, "expense_branch_required")
     if data["payment_method"] == "treasury":
         _treasury_day(db, data["expense_date"], branch_id)
+    holder = _petty_holder(db, data, all_companies) if data["payment_method"] == "petty" else None
     periods.check_open(db, data["expense_date"])  # it enters the books on its date
     expense = Expense(
         company_id=company_id,
@@ -462,6 +464,7 @@ def create_expense(db: Session, data: dict, *, actor_user_id: int, all_companies
         amount=data["amount"],
         quantity=data.get("quantity"),
         payment_method=data["payment_method"],
+        petty_employee_id=holder.id if holder else None,
         supplier=data.get("supplier"),
         reference_no=data.get("reference_no"),
         vehicle_id=vehicle.id if vehicle else None,
@@ -571,6 +574,45 @@ def _disburse(db: Session, expense: Expense, *, day: date, actor_user_id: int) -
     )
 
 
+def _petty_holder(db: Session, data: dict, all_companies: bool) -> people.EmployeeRef:
+    """Paid from an employee's petty cash custody: his, named, one who holds a custody; the custody is not a
+    company's, so an all-companies user only. Dated as money out of the treasury is (books start, not ahead)."""
+    from app.modules.cash import service as cash
+
+    if not all_companies:
+        raise AppError(403, "company_out_of_scope")
+    if not data.get("petty_employee_id"):
+        raise AppError(422, "expense_petty_holder_required")
+    holder = people.ref_by_public_id(db, data["petty_employee_id"], all_companies=True, company_ids=[])
+    if not cash.is_petty_holder(db, holder.id):
+        raise AppError(422, "petty_holder_unknown")
+    _treasury_day(db, data["expense_date"])
+    return holder
+
+
+def _disburse_petty(db: Session, expense: Expense, *, actor_user_id: int) -> None:
+    """Approved: the money leaves the holder's custody now (refused when he holds less), dated as the books date the
+    expense."""
+    from app.modules.cash import service as cash
+
+    _treasury_day(db, expense.expense_date)
+    t = db.get(ExpenseType, expense.type_id)
+    first_file = db.scalar(
+        select(ExpenseFile.sha256).where(ExpenseFile.expense_id == expense.id).order_by(ExpenseFile.position).limit(1)
+    )
+    cash.petty_disburse(
+        db,
+        employee_id=expense.petty_employee_id,
+        amount=expense.amount,
+        business_date=expense.expense_date,
+        source_type="expense",
+        source_id=expense.id,
+        reason=f"EXP-{expense.number} · {_name(db, t.name)}",
+        attachment_sha256=first_file,
+        actor_user_id=actor_user_id,
+    )
+
+
 def advances_from_treasury(db: Session) -> bool:
     """Whether an advance is paid out of the treasury in the books: its role (deduction_advance) is on the treasury's
     account, as the default chart has it. Then the advance is a disbursement of the employee's branch treasury."""
@@ -605,6 +647,8 @@ def decide_expense(db: Session, public_id, *, approve: bool, note: str | None, a
     # an expense entered before expenses named their branch (no branch) keeps the old way: the books only
     if approve and expense.payment_method == "treasury" and expense.branch_id is not None:
         _disburse(db, expense, day=expense.expense_date, actor_user_id=actor_user_id)
+    if approve and expense.payment_method == "petty":
+        _disburse_petty(db, expense, actor_user_id=actor_user_id)
     expense.status = "approved" if approve else "rejected"
     expense.decided_by, expense.decided_at, expense.decision_note = actor_user_id, utcnow(), note
     expense.version += 1

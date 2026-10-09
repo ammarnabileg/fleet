@@ -89,7 +89,7 @@
         { key: 'type', label: 'النوع', render: function (e) { return h`${api.name(e.type.name)}${e.supplier ? h`<span class="sub">${e.supplier}</span>` : ''}`; } },
         { key: 'company', label: 'الشركة', render: function (e) { return api.company(e.company_id); } },
         { key: 'links', label: 'يخص', render: function (e) { var l = links(e); return l.length ? h`${l.map(function (x, i) { return h`${i ? ' · ' : ''}${x}`; })}` : '—'; } },
-        { key: 'method', label: 'الدفع', render: function (e) { return h`${api.t('expense_payment', e.payment_method)}${e.branch_id ? h`<span class="sub">${api.branch(e.branch_id)}</span>` : ''}`; } },
+        { key: 'method', label: 'الدفع', render: function (e) { return h`${api.t('expense_payment', e.payment_method)}${e.petty_employee ? h`<span class="sub">${api.name(e.petty_employee.name)}</span>` : e.branch_id ? h`<span class="sub">${api.branch(e.branch_id)}</span>` : ''}`; } },
         { key: 'amount', label: 'المبلغ', num: true, render: function (e) { return amt(e.amount); } },
         { key: 'status', label: 'الحالة', render: expenseStatus }
       ],
@@ -110,9 +110,12 @@
   function newExpense(done) {
     var jobs = [api.get('/finance/expense-types'), A.all('/vehicles'), A.allEmployees({}),
       api.can('maintenance.view') ? api.get('/maintenance/centers') : Promise.resolve([]),
-      api.get('/companies/options').then(function (c) { api.companies = c; })]; // a company added since sign-in is listed
+      api.get('/companies/options').then(function (c) { api.companies = c; }), // a company added since sign-in is listed
+      // the petty cash custodies (not a company's): for a user over every company who sees the treasury
+      api.me.all_companies && api.can('treasury.view') ? api.get('/cash/petty') : Promise.resolve([])];
     Promise.all(jobs).then(function (r) {
-      var types = r[0].filter(function (t) { return t.active; }), vehicles = r[1], people = r[2], centers = r[3];
+      var types = r[0].filter(function (t) { return t.active; }), vehicles = r[1], people = r[2], centers = r[3], holders = r[5];
+      var methods = ['treasury', 'bank', 'payable'].concat(holders.length ? ['petty'] : []);
       var companies = api.companyOptions().filter(function (c) { return api.me.all_companies || api.me.company_ids.indexOf(c.v) > -1; });
       A.formModal({
         title: 'تسجيل مصروف', subtitle: 'يُعتمد ثم يدخل القيود تلقائياً', icon: 'receipt', size: 'lg',
@@ -121,8 +124,9 @@
           ${BT.f.select({ name: 'type', label: 'النوع', required: true, placeholder: false, options: types.map(function (t) { return { v: t.id, t: api.name(t.name) }; }) })}
           ${BT.f.input({ name: 'date', label: 'التاريخ', type: 'date', required: true, value: BT.config.today })}
           ${BT.f.money({ name: 'amount', label: 'المبلغ', required: true })}
-          ${BT.f.select({ name: 'method', label: 'الدفع', required: true, placeholder: false, options: A.options('expense_payment', ['treasury', 'bank', 'payable']) })}
+          ${BT.f.select({ name: 'method', label: 'الدفع', required: true, placeholder: false, options: A.options('expense_payment', methods) })}
           ${branchField()}
+          ${holders.length ? BT.f.select({ name: 'petty_holder', label: 'صاحب العهدة', placeholder: 'اختر الموظف…', options: holders.map(function (x) { return { v: x.employee.id, t: api.name(x.employee.name) + ' — ' + fmt.money(x.balance) }; }), hint: 'للدفع «من عهدة موظف»: تنقص عهدته عند الاعتماد' }) : ''}
           ${BT.f.input({ name: 'quantity', label: 'الكمية (لتر للوقود)', optional: true, num: true })}
           ${BT.f.input({ name: 'supplier', label: 'المورد', optional: true })}
           ${BT.f.input({ name: 'ref', label: 'رقم الفاتورة أو الإيصال', optional: true })}
@@ -138,11 +142,12 @@
           if (f.employee && !employee) return Promise.reject(new Error('اختر الموظف من القائمة'));
           var missing = needBranch(f.method, f.branch);
           if (missing) return missing;
+          if (f.method === 'petty' && !f.petty_holder) return Promise.reject(new Error('اختر الموظف صاحب العهدة التي دفعت'));
           var chosen = [].slice.call((dlg.form.querySelector('[name=files]') || {}).files || []);
           return Promise.all(chosen.map(function (file) { return api.upload(file).then(function (x) { return x.sha256; }); })).then(function (shas) {
             return api.post('/finance/expenses', {
               company_id: Number(f.company), branch_id: f.branch ? Number(f.branch) : null, type_id: Number(f.type), expense_date: f.date, amount: String(f.amount), payment_method: f.method,
-              quantity: f.quantity ? String(f.quantity) : null, supplier: f.supplier || null, reference_no: f.ref || null,
+              petty_employee_id: f.method === 'petty' ? f.petty_holder : null, quantity: f.quantity ? String(f.quantity) : null, supplier: f.supplier || null, reference_no: f.ref || null,
               vehicle_id: vehicle, employee_id: employee, center_id: f.center || null, notes: f.notes || null, files: shas
             });
           });
@@ -171,7 +176,7 @@
           ['المبلغ', amt(e.amount)],
           e.quantity ? ['الكمية', h`<span class="num">${e.quantity}</span>`] : null,
           e.branch_id ? ['الفرع', api.branch(e.branch_id)] : null,
-          ['الدفع', api.t('expense_payment', e.payment_method) + (e.paid_at ? ' · سُدد ' + api.t('expense_payment', e.paid_from) + ' ' + fmt.dt(e.paid_at) + (e.payment_ref ? ' · ' + e.payment_ref : '') : '')],
+          ['الدفع', api.t('expense_payment', e.payment_method) + (e.petty_employee ? ': ' + api.name(e.petty_employee.name) : '') + (e.paid_at ? ' · سُدد ' + api.t('expense_payment', e.paid_from) + ' ' + fmt.dt(e.paid_at) + (e.payment_ref ? ' · ' + e.payment_ref : '') : '')],
           e.supplier ? ['المورد', e.supplier] : null,
           e.reference_no ? ['رقم الفاتورة', h`<span class="num">${e.reference_no}</span>`] : null,
           e.vehicle ? ['السيارة', BT.plate(e.vehicle.plate_number)] : null,
@@ -189,7 +194,7 @@
     }, api.fail);
   }
   function approveExpense(e, done) {
-    A.confirmRun({ title: 'اعتماد المصروف', message: e.payment_method === 'treasury' && e.branch_id ? 'يُصرف المبلغ من خزينة ' + api.branch(e.branch_id) + ' الآن، ويدخل القيود عند التوليد التالي.' : 'يدخل القيود عند التوليد التالي.', confirmText: 'اعتماد', tone: 'success', run: function () { return api.post('/finance/expenses/' + e.id + '/approve', {}); }, after: function (res) {
+    A.confirmRun({ title: 'اعتماد المصروف', message: e.payment_method === 'treasury' && e.branch_id ? 'يُصرف المبلغ من خزينة ' + api.branch(e.branch_id) + ' الآن، ويدخل القيود عند التوليد التالي.' : e.petty_employee ? 'يُصرف المبلغ من عهدة ' + api.name(e.petty_employee.name) + ' الآن، ويدخل القيود عند التوليد التالي.' : 'يدخل القيود عند التوليد التالي.', confirmText: 'اعتماد', tone: 'success', run: function () { return api.post('/finance/expenses/' + e.id + '/approve', {}); }, after: function (res) {
       BT.toast(res.status === 'pending' ? 'سُجّل اعتمادك' : 'اعتُمد المصروف', res.status === 'pending' ? { sub: 'بانتظار الخطوة التالية من مسار الاعتماد' } : undefined); done(res);
     } });
   }
@@ -197,7 +202,7 @@
     A.confirmRun({ title: 'رفض المصروف', confirmText: 'رفض', tone: 'danger', reason: { label: 'السبب', required: true }, run: function (reason) { return api.post('/finance/expenses/' + e.id + '/reject', { note: reason }); }, done: 'رُفض المصروف', after: done });
   }
   function cancelExpense(e, done) {
-    A.confirmRun({ title: 'إلغاء المصروف', message: e.status === 'approved' ? 'لإدخال خاطئ. إن كان له قيد فسيظهر عند التوليد لعكسه' + (e.payment_method === 'treasury' && e.branch_id ? '، ويرجع مبلغه إلى خزينة الفرع الآن.' : '.') : 'لإدخال خاطئ.', confirmText: 'إلغاء المصروف', tone: 'danger', reason: { label: 'السبب', required: true }, run: function (reason) { return api.post('/finance/expenses/' + e.id + '/cancel', { reason: reason }); }, done: 'أُلغي المصروف', after: done });
+    A.confirmRun({ title: 'إلغاء المصروف', message: e.status === 'approved' ? 'لإدخال خاطئ. إن كان له قيد فسيظهر عند التوليد لعكسه' + (e.payment_method === 'treasury' && e.branch_id ? '، ويرجع مبلغه إلى خزينة الفرع الآن.' : e.petty_employee ? '، ويرجع مبلغه إلى العهدة الآن.' : '.') : 'لإدخال خاطئ.', confirmText: 'إلغاء المصروف', tone: 'danger', reason: { label: 'السبب', required: true }, run: function (reason) { return api.post('/finance/expenses/' + e.id + '/cancel', { reason: reason }); }, done: 'أُلغي المصروف', after: done });
   }
   function payExpense(e, done) {
     A.formModal({ title: 'سداد المصروف', subtitle: '#' + e.number + ' · ' + fmt.money(e.amount), icon: 'banknote', size: 'sm',

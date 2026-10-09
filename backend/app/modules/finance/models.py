@@ -27,7 +27,7 @@ SCHEMA = {"schema": "finance"}
 EXPENSE_SEQ = Sequence("expense_number_seq", schema="finance")
 ENTRY_SEQ = Sequence("entry_number_seq", schema="finance")
 ACCOUNT_TYPES = ("asset", "liability", "equity", "income", "expense")
-PAYMENT_METHODS = ("treasury", "bank", "payable")
+PAYMENT_METHODS = ("treasury", "bank", "payable", "petty")
 SOURCE_KINDS = (
     "cash_journal",
     "expense",
@@ -88,7 +88,8 @@ class Expense(Base):
     __table_args__ = (
         CheckConstraint("amount > 0", name="amount"),
         CheckConstraint("quantity > 0", name="quantity"),
-        CheckConstraint("payment_method IN ('treasury', 'bank', 'payable')", name="payment_method"),
+        CheckConstraint("payment_method IN ('treasury', 'bank', 'payable', 'petty')", name="payment_method"),
+        CheckConstraint("(payment_method = 'petty') = (petty_employee_id IS NOT NULL)", name="petty"),
         CheckConstraint("status IN ('pending', 'approved', 'rejected', 'cancelled')", name="status"),
         CheckConstraint("paid_from IN ('treasury', 'bank')", name="paid_from"),
         CheckConstraint("status <> 'rejected' OR decision_note IS NOT NULL", name="rejected"),
@@ -112,6 +113,8 @@ class Expense(Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 3))
     quantity: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     payment_method: Mapped[str] = mapped_column(Text)
+    # paid from this employee's petty cash custody (payment_method petty)
+    petty_employee_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
     supplier: Mapped[str | None] = mapped_column(Text)
     reference_no: Mapped[str | None] = mapped_column(Text)
     vehicle_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("fleet.vehicles.id"))
