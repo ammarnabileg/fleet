@@ -2,7 +2,8 @@
 that the chart maps to the accountant's accounts, except an expense's own account (its type's). These are defaults
 for the client's accountant to confirm: what a role means is his decision, the system only applies it.
 
-    cash journal          its own lines, each cash account's kind to its role (balanced already)
+    cash journal          its own lines, each cash account's kind to its role (balanced already); none for a
+                          disbursement (and its reversal): its expense or advance enters the treasury's credit
     expense               Dr its type's account / Cr treasury, bank, or suppliers payable (paid later)
     expense payment       Dr suppliers payable / Cr treasury or bank
     maintenance invoice   Dr maintenance expense / Cr suppliers payable
@@ -59,6 +60,7 @@ CASH_ROLE = {
     "opening": "opening_equity",
     "fuel": "fuel_expense",
 }
+DISBURSEMENT = "disbursement"
 PAID_FROM = {"treasury": "treasury", "bank": "bank", "payable": "suppliers_payable"}
 
 
@@ -102,6 +104,11 @@ def documents(db: Session, first: date, last: date) -> list[Doc]:
     journals = cash.posted_journals(db, first, last)
     owners = people.company_ids_of(db, {ln["driver_id"] for j in journals for ln in j["lines"] if ln["driver_id"]})
     for j in journals:
+        # money out of a treasury for a document (an expense paid from it, an advance), and its reversal when the
+        # document is cancelled: the document's own entry already credits the treasury, so the cash journal, which
+        # only keeps the treasury on screen equal to the books, makes no entry: the money is counted once.
+        if DISBURSEMENT in (j["kind"], j["reverses_kind"]):
+            continue
         driver = next((ln["driver_id"] for ln in j["lines"] if ln["driver_id"]), None)
         doc = Doc(
             "cash_journal",

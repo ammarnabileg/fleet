@@ -32,6 +32,7 @@ ACCOUNT_KINDS = (
     "writeoff",
     "opening",
     "fuel",
+    "disbursements",
 )
 
 
@@ -40,7 +41,7 @@ class Account(Base):
     __table_args__ = (
         CheckConstraint(
             "kind IN ('driver', 'treasury', 'bank', 'cod_clearing', 'adjustments', 'payroll_recovery', 'writeoff', "
-            "'opening', 'fuel')",
+            "'opening', 'fuel', 'disbursements')",
             name="kind",
         ),
         CheckConstraint("(kind = 'driver') = (driver_id IS NOT NULL)", name="driver"),
@@ -64,7 +65,7 @@ class Journal(Base):
     __table_args__ = (
         CheckConstraint(
             "kind IN ('collection', 'adjustment', 'deposit', 'bank_deposit', 'settlement', 'writeoff', 'reversal', "
-            "'opening', 'fuel')",
+            "'opening', 'fuel', 'disbursement', 'bank_withdrawal')",
             name="kind",
         ),
         CheckConstraint("status IN ('pending', 'posted', 'rejected')", name="status"),
@@ -78,7 +79,7 @@ class Journal(Base):
             "kind",
             unique=True,
             postgresql_where=text(
-                "status <> 'rejected' AND kind IN ('collection', 'deposit', 'settlement', 'opening')"
+                "status <> 'rejected' AND kind IN ('collection', 'deposit', 'settlement', 'opening', 'disbursement')"
             ),
         ),
         Index("journals_one_reversal", "reverses_id", unique=True, postgresql_where=text("kind = 'reversal'")),

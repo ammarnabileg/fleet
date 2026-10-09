@@ -10,7 +10,18 @@ from sqlalchemy import text
 
 from app.core.clock import KUWAIT, today
 from app.modules.cash import service as cash
-from tests.conftest import bearer, bind_device, hand_over, login, make_driver, make_user, make_vehicle, name, upload
+from tests.conftest import (
+    bearer,
+    bind_device,
+    fund_treasury,
+    hand_over,
+    login,
+    make_driver,
+    make_user,
+    make_vehicle,
+    name,
+    upload,
+)
 from tests.test_payroll_runs import IBAN, MONTH, P, platforms, set_cap, shot, staff  # noqa: F401 (fixtures)
 
 R = "/api/v1/reports"
@@ -307,8 +318,10 @@ def test_payroll_by_month_with_installments_by_source_and_what_was_carried(
     company,
     companies,
     new_client,
+    db,
 ):
     a, b = staff["a"], staff["b"]
+    fund_treasury(db)  # the advance is paid out of the treasury
     set_cap(admin_client, "50.00", "gross")
     h = bearer(bind_device(client, a["phone"]))
     client.post(

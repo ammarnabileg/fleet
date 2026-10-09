@@ -119,6 +119,18 @@ def _decide(db: Session, journal_id: int, status: str, actor_user_id: int | None
     )
 
 
+def lock_branches(db: Session, *, treasury: Iterable[int] = (), bank: Iterable[int] = ()) -> None:
+    """Serializes what reads a treasury's or a bank's balance before moving money out of it, until the transaction
+    ends. Always in one order, every treasury (by branch) before every bank, so two never wait on each other."""
+    for kind, branch_ids in (("treasury", treasury), ("bank", bank)):
+        for b in sorted(set(branch_ids)):
+            db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"), {"k": f"cash.{kind}:{b}"})
+
+
+def _posted(db: Session, account_id: int) -> Decimal:
+    return balances(db, [account_id]).get(account_id, Balance(ZERO, ZERO)).posted
+
+
 def balances(db: Session, account_ids: Iterable[int]) -> dict[int, Balance]:
     ids = list(account_ids)
     if not ids:
@@ -456,13 +468,29 @@ def reverse(db: Session, public_id, *, reason: str, actor_user_id: int, all_comp
         raise AppError(404, "journal_not_found")
     if original.status != "posted" or original.kind == "reversal":
         raise AppError(409, "journal_not_reversible")
-    lines = db.execute(select(JournalLine.account_id, JournalLine.amount).where(JournalLine.journal_id == original.id))
+    if original.kind == "disbursement":  # undone with its document (the expense cancelled), never on its own
+        raise AppError(409, "disbursement_from_expense")
+    lines = list(
+        db.execute(
+            select(JournalLine.account_id, JournalLine.amount, Account.kind, Account.branch_id)
+            .join(Account, Account.id == JournalLine.account_id)
+            .where(JournalLine.journal_id == original.id)
+        )
+    )
+    # a treasury or a bank the reversal takes money out of must hold it (as a deposit or a withdrawal would)
+    out_of = [(a, m, k, b) for a, m, k, b in lines if k in ("treasury", "bank") and m > 0]
+    lock_branches(
+        db, treasury=[b for _, _, k, b in out_of if k == "treasury"], bank=[b for *_, k, b in out_of if k == "bank"]
+    )
+    for a, m, k, _ in out_of:
+        if _posted(db, a) < m:
+            raise AppError(422, f"{k}_insufficient")
     journal = _journal(
         db,
         "reversal",
         source_type=original.source_type,
         source_id=original.source_id,
-        lines=[(a, -m) for a, m in lines],
+        lines=[(a, -m) for a, m, *_ in lines],
         actor_user_id=actor_user_id,
         reason=reason,
         reverses_id=original.id,
@@ -498,7 +526,8 @@ def bank_deposit(
     if branch_id not in {b["id"] for b in org.list_branches(db)}:
         raise AppError(422, "branch_not_found")
     treasury = account(db, "treasury", branch_id=branch_id)
-    if balances(db, [treasury]).get(treasury, Balance(ZERO, ZERO)).posted < amount:
+    lock_branches(db, treasury=[branch_id], bank=[branch_id])
+    if _posted(db, treasury) < amount:
         raise AppError(422, "treasury_insufficient")
     bank = account(db, "bank", branch_id=branch_id)
     journal = _journal(
@@ -525,10 +554,138 @@ def bank_deposit(
     return journal_out(db, journal)
 
 
-def journal_attachment(db: Session, public_id) -> files.FileInfo:
+def bank_withdrawal(
+    db: Session, *, branch_id: int, amount: Decimal, reference: str, attachment_sha256: str, actor_user_id: int
+) -> dict:
+    """Cash taken from the bank back to a branch treasury (treasury +Z, bank -Z), with the bank's reference and the
+    photo of its withdrawal slip."""
+    if amount <= 0:
+        raise AppError(422, "amount_must_be_positive")
+    files.get(db, attachment_sha256)
+    if branch_id not in {b["id"] for b in org.list_branches(db)}:
+        raise AppError(422, "branch_not_found")
+    bank = account(db, "bank", branch_id=branch_id)
+    lock_branches(db, treasury=[branch_id], bank=[branch_id])
+    if _posted(db, bank) < amount:
+        raise AppError(422, "bank_insufficient")
+    treasury = account(db, "treasury", branch_id=branch_id)
+    journal = _journal(
+        db,
+        "bank_withdrawal",
+        source_type="bank_withdrawal",
+        source_id=branch_id,
+        lines=[(treasury, amount), (bank, -amount)],
+        actor_user_id=actor_user_id,
+        reason=reference,
+        post=True,
+        attachment_sha256=attachment_sha256,
+    )
+    audit.record(
+        db,
+        action="cash.bank_withdrawal",
+        entity_type="journal",
+        entity_id=journal.public_id,
+        actor_user_id=actor_user_id,
+        after={"branch_id": branch_id, "amount": amount, "reference": reference, "slip": attachment_sha256},
+    )
+    check_treasury(db, [branch_id])
+    db.commit()
+    return journal_out(db, journal)
+
+
+# ------------------------------------------------------------------ money paid out of a treasury by another module
+
+
+def disburse(
+    db: Session,
+    *,
+    branch_id: int,
+    amount: Decimal,
+    source_type: str,
+    source_id: int,
+    reason: str,
+    actor_user_id: int | None,
+    business_date: date | None = None,
+    attachment_sha256: str | None = None,
+) -> None:
+    """In the caller's transaction: money out of a branch treasury for a document of another module (an expense paid
+    from it, an advance), posted at once: treasury -X, disbursements +X. Refused when the treasury holds less. One per
+    document; it is undone only with its document (undo_disbursement), never reversed on its own. The document's own
+    entry already credits the treasury in the books: this journal makes none (finance.posting)."""
+    if amount <= 0:
+        raise AppError(422, "amount_must_be_positive")
+    if branch_id not in {b["id"] for b in org.list_branches(db)}:
+        raise AppError(422, "branch_not_found")
+    treasury = account(db, "treasury", branch_id=branch_id)
+    lock_branches(db, treasury=[branch_id])
+    if _posted(db, treasury) < amount:
+        raise AppError(422, "treasury_insufficient")
+    _journal(
+        db,
+        "disbursement",
+        source_type=source_type,
+        source_id=source_id,
+        lines=[(treasury, -amount), (account(db, "disbursements"), amount)],
+        actor_user_id=actor_user_id,
+        reason=reason,
+        post=True,
+        business_date=business_date,
+        attachment_sha256=attachment_sha256,
+    )
+    check_treasury(db, [branch_id])
+
+
+def undo_disbursement(
+    db: Session,
+    *,
+    source_type: str,
+    source_id: int,
+    reason: str,
+    actor_user_id: int | None,
+    amount: Decimal | None = None,
+) -> bool:
+    """In the caller's transaction: the document was cancelled, its money is back in the treasury: the disbursement's
+    reversal, of all of it or (an advance partly recovered already) of `amount`. Nothing when there is none."""
+    original = db.scalar(
+        select(Journal).where(
+            Journal.source_type == source_type,
+            Journal.source_id == source_id,
+            Journal.kind == "disbursement",
+            Journal.status == "posted",
+        )
+    )
+    if original is None:
+        return False
+    lines = list(
+        db.execute(select(JournalLine.account_id, JournalLine.amount).where(JournalLine.journal_id == original.id))
+    )
+    full = max(m for _, m in lines)
+    back = full if amount is None else min(amount, full)
+    if back <= 0:
+        return False
+    _journal(
+        db,
+        "reversal",
+        source_type=source_type,
+        source_id=source_id,
+        lines=[(a, -back if m > 0 else back) for a, m in lines],
+        actor_user_id=actor_user_id,
+        reason=reason,
+        reverses_id=original.id,
+        post=True,
+    )
+    check_treasury(db)
+    return True
+
+
+def journal_attachment(db: Session, public_id, *, all_companies: bool, company_ids) -> files.FileInfo:
+    """A journal's attachment (a bank receipt, a withdrawal slip, an expense's receipt): a treasury or bank journal
+    (no driver in it) for an all-companies user only, a driver's for whoever sees the driver."""
     j = db.scalar(select(Journal).where(Journal.public_id == public_id))
     if j is None or j.attachment_sha256 is None:
         raise AppError(404, "file_not_found")
+    if not all_companies and not _visible(db, j.id, all_companies, company_ids):
+        raise AppError(403, "company_out_of_scope")
     return files.get(db, j.attachment_sha256)
 
 
@@ -847,6 +1004,124 @@ def treasury(db: Session) -> list[dict]:
     ]
 
 
+MOVEMENTS_MAX = 2000
+REVERSIBLE_HERE = ("deposit", "bank_deposit", "bank_withdrawal")
+
+
+def movements(
+    db: Session,
+    branch_public_id,
+    *,
+    kind: str,
+    date_from: date,
+    date_to: date,
+    limit: int,
+    can_reverse: bool,
+    all_companies: bool,
+    company_ids,
+) -> dict:
+    """A branch's treasury (or bank) as it moved: the balance at the start of date_from, every posted journal on it of
+    business dates date_from..date_to (oldest first) with the running balance, and the balance at the end. A driver's
+    receipt says whose cash it was; a disbursement, its document; a bank deposit or withdrawal, the bank's reference.
+    reversible: what this user may reverse from here (a receipt of a driver he sees, a bank deposit or withdrawal by
+    an all-companies user); a disbursement never (it goes with its document)."""
+    if not all_companies:  # a branch's treasury and bank are shared by all its companies
+        raise AppError(403, "company_out_of_scope")
+    if date_to < date_from:
+        raise AppError(422, "invalid_range")
+    branch = next((b for b in org.list_branches(db) if b["public_id"] == str(branch_public_id)), None)
+    if branch is None:
+        raise AppError(404, "branch_not_found")
+    acc = account(db, kind, branch_id=branch["id"])
+    posted = (
+        select(Journal, JournalLine.amount)
+        .join(JournalLine, JournalLine.journal_id == Journal.id)
+        .where(JournalLine.account_id == acc, Journal.status == "posted")
+    )
+    opening = db.scalar(
+        select(func.coalesce(func.sum(JournalLine.amount), 0))
+        .join(Journal, Journal.id == JournalLine.journal_id)
+        .where(JournalLine.account_id == acc, Journal.status == "posted", Journal.business_date < date_from)
+    )
+    period_total = db.scalar(
+        select(func.coalesce(func.sum(JournalLine.amount), 0))
+        .join(Journal, Journal.id == JournalLine.journal_id)
+        .where(
+            JournalLine.account_id == acc,
+            Journal.status == "posted",
+            Journal.business_date.between(date_from, date_to),
+        )
+    )
+    rows = db.execute(
+        posted.where(Journal.business_date.between(date_from, date_to))
+        .order_by(Journal.business_date, Journal.id)
+        .limit(min(limit, MOVEMENTS_MAX))
+    ).all()
+    ids = [j.id for j, _ in rows]
+    reversed_ids = set(
+        db.scalars(select(Journal.reverses_id).where(Journal.kind == "reversal", Journal.reverses_id.in_(ids)))
+    )
+    original_kinds = dict(
+        db.execute(
+            select(Journal.id, Journal.kind).where(Journal.id.in_({j.reverses_id for j, _ in rows if j.reverses_id}))
+        ).all()
+    )
+    receipts = {
+        r.id: r
+        for r in db.scalars(
+            select(Receipt).where(Receipt.id.in_([j.source_id for j, _ in rows if j.source_type == "receipt"]))
+        )
+    }
+    drivers = journal_drivers(db, ids)
+    types = {sha: files.get(db, sha).content_type for sha in {j.attachment_sha256 for j, _ in rows} if sha}
+    named = people.names(db, set(drivers.values()))
+    balance = Decimal(opening).quantize(FILS)
+    lines = []
+    for j, amount in rows:
+        balance += amount
+        receipt = receipts.get(j.source_id) if j.source_type == "receipt" else None
+        driver = named.get(drivers.get(j.id))
+        reversible = (
+            can_reverse
+            and j.kind in REVERSIBLE_HERE
+            and j.id not in reversed_ids
+            and (_visible(db, j.id, all_companies, company_ids) if j.kind == "deposit" else all_companies)
+        )
+        lines.append(
+            {
+                "journal_id": str(j.public_id),
+                "kind": j.kind,
+                "reverses_kind": original_kinds.get(j.reverses_id),
+                "business_date": j.business_date,
+                "created_at": j.created_at,
+                "driver": driver,
+                "receipt_no": receipt.receipt_no if receipt else None,
+                "description": j.reason,
+                "amount": amount,
+                "balance": balance,
+                "has_attachment": j.attachment_sha256 is not None,
+                "attachment_type": types.get(j.attachment_sha256),
+                "reversed": j.id in reversed_ids,
+                "reversible": reversible,
+            }
+        )
+    db.commit()  # the account, made on first sight
+    return {
+        "branch": branch,
+        "account": kind,
+        "date_from": date_from,
+        "date_to": date_to,
+        "opening": Decimal(opening).quantize(FILS),
+        "closing": (Decimal(opening) + Decimal(period_total)).quantize(FILS),
+        "truncated": len(rows) == min(limit, MOVEMENTS_MAX)
+        and len(rows)
+        < db.scalar(
+            select(func.count()).select_from(posted.where(Journal.business_date.between(date_from, date_to)).subquery())
+        ),
+        "lines": lines,
+    }
+
+
 # ------------------------------------------------------------------ the treasury's deposit rule (settings cash)
 
 
@@ -953,11 +1228,17 @@ def posted_journals(db: Session, first: date, last: date) -> list[dict]:
         .order_by(JournalLine.journal_id, JournalLine.amount.desc())
     ):
         lines[journal_id].append({"kind": kind, "amount": amount, "driver_id": driver_id, "branch_id": branch_id})
+    reversed_kinds = dict(
+        db.execute(
+            select(Journal.id, Journal.kind).where(Journal.id.in_({j.reverses_id for j in journals if j.reverses_id}))
+        ).all()
+    )
     return [
         {
             "id": j.id,
             "public_id": str(j.public_id),
             "kind": j.kind,
+            "reverses_kind": reversed_kinds.get(j.reverses_id),
             "date": j.business_date,
             "reason": j.reason,
             "lines": lines[j.id],

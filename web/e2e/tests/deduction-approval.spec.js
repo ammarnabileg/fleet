@@ -18,6 +18,8 @@ test('a manual deduction sent for approval, approved from the inbox, another ref
   const driver = await api.post('/employees', {
     employee_number: 'K' + uid(), name: { ar: 'سائق الخصم ' + n, en: 'Deduction driver ' + n }, company_id: company.id, is_driver: true, phone: phone(),
   });
+  // an advance is paid out of the driver's branch treasury: cash in it first (a receipt from him)
+  await api.post('/cash/receipts', { driver_id: driver.id, amount: '900' });
   const role = await api.post('/roles', { code: 'ded' + n, name: { ar: 'معتمد الخصومات ' + n, en: 'Deductions approver ' + n }, permissions: ['approvals.view', 'deductions.view'] });
   const password = 'approver-password-' + n;
   await api.post('/users', { username: 'ded' + n, full_name: 'معتمد ' + n, password, role_codes: [role.code], all_companies: true });

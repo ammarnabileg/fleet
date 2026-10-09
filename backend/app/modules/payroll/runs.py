@@ -313,6 +313,16 @@ def _fill(db: Session, run: Run) -> None:
     ids = [p["id"] for p in profiles]
     found = statements.for_month(db, ids, month)
     system = statements.system_counts(db, ids, month)
+    # their advances locked first: an advance cancelled at the same moment (payroll.service.cancel, which locks it
+    # too) is then either cancelled before this run reads it, or refused because this run took part of it
+    db.execute(
+        select(Deduction.id)
+        .where(
+            Deduction.employee_id.in_(ids or [0]), Deduction.source_type == "advance", Deduction.status == "approved"
+        )
+        .order_by(Deduction.id)
+        .with_for_update()
+    )
     dues = dues_for(db, ids, month)
     plats = platforms.all_by_id(db)
     assigned = schemes.for_month(db, ids, month)

@@ -11,7 +11,18 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.core.clock import today
-from tests.conftest import bearer, bind_device, jpeg, login, make_driver, make_employee, make_user, make_vehicle, upload
+from tests.conftest import (
+    bearer,
+    bind_device,
+    fund_treasury,
+    jpeg,
+    login,
+    make_driver,
+    make_employee,
+    make_user,
+    make_vehicle,
+    upload,
+)
 
 F = "/api/v1/finance"
 
@@ -27,6 +38,17 @@ def period() -> dict:
     return {"date_from": str(first), "date_to": str(last)}
 
 
+@pytest.fixture(autouse=True)
+def treasury_float(db):
+    """The main branch's treasury holds cash from before the tests' periods: an expense paid from it or an advance
+    can be approved (the treasury then goes down), and the books of the period are untouched."""
+    fund_treasury(db)
+
+
+def main_branch(client) -> int:
+    return next(b["id"] for b in client.get("/api/v1/branches").json() if b["is_default"])
+
+
 def types(admin_client) -> dict:
     return {t["code"]: t["id"] for t in admin_client.get(f"{F}/expense-types").json()}
 
@@ -39,6 +61,8 @@ def expense(admin_client, company_id, **kw) -> dict:
         "amount": "12.500",
         "payment_method": "treasury",
     } | kw
+    if body["payment_method"] == "treasury":
+        body.setdefault("branch_id", main_branch(admin_client))
     r = admin_client.post(f"{F}/expenses", json=body)
     assert r.status_code == 201, r.text
     return r.json()
@@ -345,7 +369,11 @@ def test_expense_rules(admin_client, companies):
     assert r.status_code == 409 and r.json()["code"] == "expense_not_payable"
     later = approve(admin_client, expense(admin_client, a, payment_method="payable"))
     assert admin_client.get(f"{F}/expenses", params={"unpaid": True}).json()[0]["id"] == later["id"]
-    paid = admin_client.post(f"{F}/expenses/{later['id']}/pay", json={"paid_from": "treasury"}).json()
+    r = admin_client.post(f"{F}/expenses/{later['id']}/pay", json={"paid_from": "treasury"})
+    assert r.status_code == 422 and r.json()["code"] == "expense_branch_required"  # whose treasury
+    paid = admin_client.post(
+        f"{F}/expenses/{later['id']}/pay", json={"paid_from": "treasury", "branch_id": main_branch(admin_client)}
+    ).json()
     assert paid["paid_from"] == "treasury" and not paid["unpaid"]
     twice = admin_client.post(f"{F}/expenses/{later['id']}/pay", json={"paid_from": "bank"})
     assert twice.status_code == 409 and twice.json()["code"] == "expense_not_payable"

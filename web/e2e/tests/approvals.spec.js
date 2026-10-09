@@ -2,7 +2,7 @@
 // small expense approved from the inbox in one step; a large one approved at its first step and moved on to the role;
 // its trail shown in the expense itself; a delegation given and cancelled. The workflow is switched off at the end, so
 // the other tests keep approving by permission.
-const { test, expect, uid, settled, clearToasts } = require('./fixtures');
+const { test, expect, uid, phone, settled, clearToasts } = require('./fixtures');
 
 test('a workflow configured, documents approved step by step from the inbox, and a delegation', async ({ admin, api }) => {
   test.setTimeout(150_000);
@@ -10,8 +10,14 @@ test('a workflow configured, documents approved step by step from the inbox, and
   const me = await api.get('/auth/me');
   const company = await api.post('/companies', { name: { ar: 'شركة الاعتماد ' + n, en: 'Approvals company ' + n } });
   const fuel = (await api.get('/finance/expense-types')).find((t) => t.code === 'fuel');
+  const branch = (await api.get('/branches')).find((b) => b.is_default);
+  // paid from the main branch's treasury: cash in it first (a driver's receipt)
+  const driver = await api.post('/employees', {
+    employee_number: 'W' + uid(), name: { ar: 'سائق الاعتماد ' + n, en: 'Approvals driver ' + n }, company_id: company.id, is_driver: true, phone: phone(),
+  });
+  await api.post('/cash/receipts', { driver_id: driver.id, amount: '200' });
   const expense = (amount) => api.post('/finance/expenses', {
-    company_id: company.id, type_id: fuel.id, expense_date: new Date().toISOString().slice(0, 10), amount, payment_method: 'treasury',
+    company_id: company.id, branch_id: branch.id, type_id: fuel.id, expense_date: new Date().toISOString().slice(0, 10), amount, payment_method: 'treasury',
   });
   const top = () => admin.locator('.overlay[data-open]').last();
   const toast = () => admin.locator('.toast').last();

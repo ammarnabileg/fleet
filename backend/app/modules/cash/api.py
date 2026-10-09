@@ -3,13 +3,17 @@ from datetime import date
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.core import sheets
+from app.core.clock import KUWAIT, today
 from app.core.db import get_session
 from app.core.errors import AppError
 from app.modules.cash import fuel, schemas, service
 from app.modules.files import service as files
+from app.modules.i18n import service as i18n
 from app.modules.identity.service import (
     DevicePrincipal,
     Principal,
@@ -21,6 +25,7 @@ from app.modules.org import service as org
 from app.modules.people import service as people
 
 router = APIRouter(prefix="/api/v1", tags=["cash"])
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def _driver(db: Session, raw: str, principal: Principal) -> people.EmployeeRef:
@@ -169,6 +174,105 @@ def bank_deposit(
     )
 
 
+@router.post("/cash/bank-withdrawals", response_model=schemas.JournalOut, status_code=201)
+def bank_withdrawal(
+    body: schemas.BankWithdrawalIn,
+    principal: Principal = Depends(require_permission("treasury.manage")),
+    db: Session = Depends(get_session),
+):
+    """Cash taken from the bank to a branch treasury, with the photo of the withdrawal slip."""
+    if not principal.sees_all_companies:  # the treasury and the bank are shared by every company of the branch
+        raise AppError(403, "company_out_of_scope")
+    return service.bank_withdrawal(
+        db,
+        branch_id=body.branch_id,
+        amount=body.amount,
+        reference=body.reference,
+        attachment_sha256=body.attachment_sha256,
+        actor_user_id=principal.user_id,
+    )
+
+
+def _movements(db: Session, principal: Principal, branch_public_id, account, date_from, date_to, limit) -> dict:
+    first = today().replace(day=1)
+    return service.movements(
+        db,
+        branch_public_id,
+        kind=account,
+        date_from=date_from or first,
+        date_to=date_to or today(),
+        limit=limit,
+        can_reverse=principal.has("cash.reverse"),
+        **principal.scope,
+    )
+
+
+@router.get("/cash/treasury/{branch_public_id}/movements", response_model=schemas.MovementsOut)
+def movements(
+    branch_public_id: uuid.UUID,
+    account: Literal["treasury", "bank"] = "treasury",
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    limit: Annotated[int, Query(ge=1, le=service.MOVEMENTS_MAX)] = 500,
+    principal: Principal = Depends(require_permission("treasury.view")),
+    db: Session = Depends(get_session),
+):
+    """A branch's treasury or bank as it moved in a period (this month by default), with its running balance."""
+    return _movements(db, principal, branch_public_id, account, date_from, date_to, limit)
+
+
+MOVEMENT_COLUMNS = ("date", "time", "kind", "description", "amount", "balance")
+
+
+@router.get("/cash/treasury/{branch_public_id}/movements/export")
+def export_movements(
+    branch_public_id: uuid.UUID,
+    account: Literal["treasury", "bank"] = "treasury",
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    accept_language: str | None = Header(None),
+    principal: Principal = Depends(require_permission("treasury.view")),
+    db: Session = Depends(get_session),
+):
+    """The same movements in Excel, with the opening and closing balances."""
+    out = _movements(db, principal, branch_public_id, account, date_from, date_to, service.MOVEMENTS_MAX)
+    lang = i18n.negotiate(db, principal.locale, accept_language)
+
+    def text(key: str, fallback: str) -> str:
+        value = i18n.t(db, lang, key)
+        return fallback if value == key else value
+
+    def describe(ln: dict) -> str:
+        parts = [i18n.pick(ln["driver"]["name"], lang, lang) if ln["driver"] else ""]
+        if ln["receipt_no"]:
+            parts.append(f"#{ln['receipt_no']}")
+        parts.append(ln["description"] or "")
+        return " · ".join(p for p in parts if p)
+
+    def kind(ln: dict) -> str:
+        label = text(f"journal_kind.{ln['kind']}", ln["kind"])
+        undone = ln["reverses_kind"]
+        return f"{label}: {text('journal_kind.' + undone, undone)}" if undone else label
+
+    body = [["", "", text("treasury_column.opening", "opening"), "", "", f"{out['opening']:.3f}"]]
+    body += [
+        [
+            ln["business_date"].isoformat(),
+            ln["created_at"].astimezone(KUWAIT).strftime("%H:%M"),
+            kind(ln),
+            describe(ln),
+            f"{ln['amount']:.3f}",
+            f"{ln['balance']:.3f}",
+        ]
+        for ln in out["lines"]
+    ]
+    body.append(["", "", text("treasury_column.closing", "closing"), "", "", f"{out['closing']:.3f}"])
+    header = [text(f"treasury_column.{c}", c) for c in MOVEMENT_COLUMNS]
+    content = sheets.to_xlsx(text(f"treasury_column.{account}", account), header, body, rtl=lang == "ar")
+    name = f"{account}-{out['date_from']}-{out['date_to']}.xlsx"
+    return Response(content, media_type=XLSX, headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
 @router.get("/cash/journals/{public_id}/attachment")
 def journal_attachment(
     public_id: uuid.UUID,
@@ -176,7 +280,7 @@ def journal_attachment(
     db: Session = Depends(get_session),
 ):
     """The bank receipt's photo of a deposit."""
-    return files.response(db, service.journal_attachment(db, public_id))
+    return files.response(db, service.journal_attachment(db, public_id, **principal.scope))
 
 
 # ---- fuel the driver paid from his cash

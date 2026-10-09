@@ -480,7 +480,14 @@
     "entry_number_missing": "The old system's entry number is empty",
     "date_invalid": "The date \"{value}\" is not understood: write it day/month/year",
     "entry_dates_differ": "The lines of old entry {number} have different dates",
-    "civil_id_not_found": "No employee with civil ID {civil_id}: the line is imported without a party"
+    "civil_id_not_found": "No employee with civil ID {civil_id}: the line is imported without a party",
+    "expense_branch_required": "Choose the branch whose treasury pays it",
+    "bank_insufficient": "The bank balance is less than the amount",
+    "disbursement_from_expense": "Cancel the expense instead: its treasury movement is reversed with it",
+    "reversal_date_future": "A reversal cannot be dated in the future",
+    "reversal_before_entry": "A reversal cannot be dated before the original entry ({date})",
+    "treasury_date_future": "An expense paid from the treasury cannot be dated in the future: enter it on the day it is paid",
+    "advance_partly_recovered": "Payroll already took part of this advance ({taken}): it cannot be cancelled. Correct it with a manual entry or an adjustment"
   },
   "settings": {
     "branding": "Branding",
@@ -694,7 +701,9 @@
     "writeoff": "Write-off",
     "reversal": "Reversal",
     "opening": "Opening balance",
-    "fuel": "Fuel"
+    "fuel": "Fuel",
+    "disbursement": "Paid from the treasury",
+    "bank_withdrawal": "Bank withdrawal"
   },
   "journal_status": {
     "pending": "Unapproved",
@@ -1271,5 +1280,29 @@
     "report_missing": "You started your day {date} but have not sent your report yet. Send it now from the app.",
     "fuel_approved": "Your fuel claim was approved for {amount} KWD and taken off the cash you hold",
     "fuel_rejected": "Your fuel claim was rejected: {reason}"
+  },
+  "cash_account": {
+    "driver": "Driver's cash",
+    "treasury": "Treasury",
+    "bank": "Bank",
+    "cod_clearing": "Cash-on-delivery clearing",
+    "adjustments": "Adjustments",
+    "payroll_recovery": "Recovered through payroll",
+    "writeoff": "Write-off",
+    "opening": "Opening balances",
+    "fuel": "Fuel",
+    "disbursements": "Paid out of the treasury"
+  },
+  "treasury_column": {
+    "treasury": "Treasury movements",
+    "bank": "Bank movements",
+    "date": "Date",
+    "time": "Time",
+    "kind": "Movement",
+    "description": "Description",
+    "amount": "Amount",
+    "balance": "Balance",
+    "opening": "Opening balance",
+    "closing": "Closing balance"
   }
 }

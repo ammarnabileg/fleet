@@ -2,7 +2,7 @@
 // approved with its lines, then reversed; the export carries both; the trial balance adds up to zero; the vehicle's file
 // lists the expense; the chart grouped by class and exported for the accountant; an account added to it.
 const fs = require('fs');
-const { test, expect, uid, settled, clearToasts } = require('./fixtures');
+const { test, expect, uid, phone, settled, clearToasts } = require('./fixtures');
 const { readXlsx } = require('./xlsx');
 
 test('an expense from registration to its entry, reversed, exported, and the books still balance', async ({ admin, api }) => {
@@ -10,6 +10,12 @@ test('an expense from registration to its entry, reversed, exported, and the boo
   const n = uid();
   const company = await api.post('/companies', { name: { ar: 'شركة المالية ' + n, en: 'Finance company ' + n } });
   const vehicle = await api.post('/vehicles', { company_id: company.id, plate_number: 'F' + n, make: 'Toyota', model: 'Yaris', last_odometer_km: 1000 });
+  // paid from the main branch's treasury: cash in it first (a driver's receipt)
+  const branch = (await api.get('/branches')).find((b) => b.is_default);
+  const driver = await api.post('/employees', {
+    employee_number: 'FD' + n, name: { ar: 'سائق المالية ' + n, en: 'Finance driver ' + n }, company_id: company.id, is_driver: true, phone: phone(),
+  });
+  await api.post('/cash/receipts', { driver_id: driver.id, amount: '20' });
   const top = () => admin.locator('.overlay[data-open]').last();
 
   // ---- registered with its vehicle, 40 litres for 12.500
@@ -20,6 +26,7 @@ test('an expense from registration to its entry, reversed, exported, and the boo
   await m.locator('[name=company]').selectOption(String(company.id));
   await m.locator('[name=type]').selectOption({ label: 'وقود' });
   await m.locator('[name=amount]').fill('12.5');
+  await m.locator('[name=branch]').selectOption(String(branch.id));
   await m.locator('[name=quantity]').fill('40');
   const label = await m.locator('[name=vehicle]').evaluate((el, p) => [...el.list.options].map((o) => o.value).find((v) => v.includes(p)), 'F' + n);
   await m.locator('[name=vehicle]').fill(label);
