@@ -1526,4 +1526,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get moveFuel => 'Fuel';
+
+  @override
+  String get vehicleChangePlate => 'Plate number of the other vehicle';
+
+  @override
+  String get vehicleChangePlateHint => '12-34567';
+
+  @override
+  String vehicleChangePendingFor(String plate) {
+    return 'Your request to change to $plate is under review';
+  }
 }

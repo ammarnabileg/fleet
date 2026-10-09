@@ -46,7 +46,7 @@ KINDS: dict[str, Kind] = {
     "daily_report_escalated": Kind("warning", "daily_reports.escalations", ("driver", "date", "hours")),
     "daily_report_missing": Kind("warning", "daily_reports.review", ("driver", "date")),
     "daily_report_change_requested": Kind("info", "daily_reports.review", ("driver", "date")),
-    "vehicle_change_requested": Kind("info", "custody.assign", ("driver", "plate", "reason")),
+    "vehicle_change_requested": Kind("info", "custody.assign", ("driver", "plate", "requested", "reason")),
     "document_renewal_submitted": Kind("info", "documents.manage", ("driver", "document", "date")),
     "ledger_invariant": Kind("critical", "cash.view", ("problem",)),
     "treasury_deposit_due": Kind("warning", "treasury.view", ("branch", "balance", "limit")),

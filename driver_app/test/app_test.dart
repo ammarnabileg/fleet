@@ -99,7 +99,11 @@ Future<World> world({
         'direction': 'rtl',
         'revision': 1,
         'messages': {
-          'errors': {'reading_exists': 'سُجّلت قراءة نهاية اليوم من قبل', 'otp_invalid': 'الرمز غير صحيح'},
+          'errors': {
+            'reading_exists': 'سُجّلت قراءة نهاية اليوم من قبل',
+            'otp_invalid': 'الرمز غير صحيح',
+            'vehicle_plate_not_found': 'رقم اللوحة ده مش متسجل عندنا. راجع الرقم ودخّله صح.',
+          },
         },
       },
     ),
@@ -972,7 +976,9 @@ void main() {
     await shot(tester, '34-profile');
   });
 
-  testWidgets('my car: the vehicle and its last reading, then another asked for with the reason', (tester) async {
+  testWidgets('my car: the vehicle and its last reading, then another asked for by its plate with the reason', (
+    tester,
+  ) async {
     final w = (await tester.runAsync(() => world()))!;
     Map<String, dynamic> car(Map<String, dynamic>? request) => {
       'vehicle': {
@@ -989,21 +995,24 @@ void main() {
       'change_request': request,
     };
     w.server.on('GET', '/api/v1/driver/vehicle', (r) => (200, car(null)));
-    w.server.on(
-      'POST',
-      '/api/v1/driver/vehicle-change-requests',
-      (r) => (
+    w.server.on('POST', '/api/v1/driver/vehicle-change-requests', (r) {
+      // a plate the office does not have is refused: he types it again
+      if ((jsonDecode(r.body) as Map)['requested_plate'] != '12-34567') {
+        return (422, {'code': 'vehicle_plate_not_found'});
+      }
+      return (
         201,
         car({
           'id': 'v1',
           'status': 'pending',
           'reason': 'المكيف لا يعمل',
+          'requested_plate': '12-34567',
           'note': null,
           'created_at': '2026-10-04T08:00:00Z',
           'decided_at': null,
         }),
-      ),
-    );
+      );
+    });
     await pumpApp(tester, w);
     await tester.tap(find.byKey(const Key('my-car')));
     await settle(tester);
@@ -1014,13 +1023,36 @@ void main() {
     await settle(tester);
     await tester.tap(find.byKey(const Key('send-change')));
     await settle(tester);
-    expect(w.server.calls('/api/v1/driver/vehicle-change-requests'), isEmpty, reason: 'the reason is required');
+    expect(
+      w.server.calls('/api/v1/driver/vehicle-change-requests'),
+      isEmpty,
+      reason: 'the plate and reason are required',
+    );
     await tester.enterText(find.byKey(const Key('change-reason')), 'المكيف لا يعمل');
     await tester.tap(find.byKey(const Key('send-change')));
+    await settle(tester);
+    expect(w.server.calls('/api/v1/driver/vehicle-change-requests'), isEmpty, reason: 'the plate is required');
+    final plateField = tester.widget<TextField>(
+      find.descendant(of: find.byKey(const Key('change-plate')), matching: find.byType(TextField)),
+    );
+    expect(plateField.textDirection, TextDirection.ltr);
+
+    // a plate not found: the message under the field, the dialog stays open
+    await tester.enterText(find.byKey(const Key('change-plate')), '99-1');
+    await tester.tap(find.byKey(const Key('send-change')));
     await idle(tester);
-    final body = jsonDecode(w.server.calls('/api/v1/driver/vehicle-change-requests').single.body) as Map;
-    expect(body, {'reason': 'المكيف لا يعمل'});
+    expect(find.text('رقم اللوحة ده مش متسجل عندنا. راجع الرقم ودخّله صح.'), findsOneWidget);
+    expect(find.byKey(const Key('send-change')), findsOneWidget);
+    expect(find.byKey(const Key('change-pending')), findsNothing);
+
+    await tester.enterText(find.byKey(const Key('change-plate')), ' 12-34567 ');
+    await tester.tap(find.byKey(const Key('send-change')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/vehicle-change-requests').last.body) as Map;
+    expect(body, {'requested_plate': '12-34567', 'reason': 'المكيف لا يعمل'});
+    expect(find.byKey(const Key('send-change')), findsNothing);
     expect(find.byKey(const Key('change-pending')), findsOneWidget);
+    expect(find.textContaining('12-34567'), findsOneWidget);
     expect(find.byKey(const Key('ask-change')), findsNothing);
     await shot(tester, '35-my-car');
   });

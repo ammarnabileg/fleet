@@ -61,8 +61,10 @@ def test_his_profile_without_the_full_iban(admin_client, client, company):
 
 def test_my_car_and_a_change_of_vehicle_asked_for(admin_client, client, new_client, company):
     d, h = phone(admin_client, client, company)
+    other = make_vehicle(admin_client, company["id"], plate_number="12-34567")
     assert client.get("/api/v1/driver/vehicle", headers=h).json() == {"vehicle": None, "change_request": None}
-    r = client.post("/api/v1/driver/vehicle-change-requests", headers=h, json={"reason": "المكيف لا يعمل"})
+    ask = {"requested_plate": "12-34567", "reason": "المكيف لا يعمل"}
+    r = client.post("/api/v1/driver/vehicle-change-requests", headers=h, json=ask)
     assert r.status_code == 409 and r.json()["code"] == "no_open_custody"
 
     v = make_vehicle(admin_client, company["id"], km=33_000, make="Kia", model="Pegas", year=2023, color="أبيض")
@@ -89,20 +91,37 @@ def test_my_car_and_a_change_of_vehicle_asked_for(admin_client, client, new_clie
     assert car["last_odometer_km"] == 33_010 and car["last_reading_at"] is not None
     assert car["registration_expiry"] == str(today() + timedelta(days=200))
 
-    # asked once, with the reason; the supervisor sees it
-    assert client.post("/api/v1/driver/vehicle-change-requests", headers=h, json={"reason": "x"}).status_code == 422
-    r = client.post("/api/v1/driver/vehicle-change-requests", headers=h, json={"reason": "المكيف لا يعمل"})
+    # asked once, naming the other car, with the reason; the supervisor sees it
+    url = "/api/v1/driver/vehicle-change-requests"
+    assert client.post(url, headers=h, json={**ask, "reason": "x"}).status_code == 422
+    assert client.post(url, headers=h, json={"reason": "المكيف لا يعمل"}).status_code == 422  # the plate is required
+    assert client.post(url, headers=h, json={**ask, "requested_plate": "  "}).status_code == 422
+    assert client.post(url, headers=h, json={**ask, "extra": 1}).status_code == 422
+    r = client.post(url, headers=h, json=ask)
     assert r.status_code == 201, r.text
-    assert r.json()["change_request"]["status"] == "pending"
-    again = client.post("/api/v1/driver/vehicle-change-requests", headers=h, json={"reason": "مرة ثانية"})
+    assert (r.json()["change_request"]["status"], r.json()["change_request"]["requested_plate"]) == (
+        "pending",
+        "12-34567",
+    )
+    assert client.get("/api/v1/driver/vehicle", headers=h).json()["change_request"]["requested_plate"] == "12-34567"
+    again = client.post(url, headers=h, json={**ask, "reason": "مرة ثانية"})
     assert again.status_code == 409 and again.json()["code"] == "vehicle_change_exists"
     make_user(admin_client, "sup5", permissions=["custody.view", "custody.assign"])
     sup = new_client()
     login(sup, "sup5")
     (alert,) = [a for a in sup.get("/api/v1/alerts").json() if a["kind"] == "vehicle_change_requested"]
     assert "المكيف لا يعمل" in alert["message"] and v["plate_number"] in alert["message"]
+    assert "12-34567" in alert["message"]
     (req,) = sup.get(V).json()
     assert (req["vehicle_plate"], req["driver"]["id"], req["reason"]) == (v["plate_number"], d["id"], "المكيف لا يعمل")
+    assert req["requested_plate"] == "12-34567"
+    assert req["requested_vehicle"] == {
+        "found": True,
+        "id": other["id"],
+        "plate": "12-34567",
+        "status": "available",
+        "holder": None,
+    }
 
     # refused with the note the driver reads
     assert sup.post(f"{V}/{req['id']}/reject", json={}).json()["code"] == "reason_required"
@@ -113,14 +132,20 @@ def test_my_car_and_a_change_of_vehicle_asked_for(admin_client, client, new_clie
     assert [a for a in sup.get("/api/v1/alerts").json() if a["kind"] == "vehicle_change_requested"] == []
 
     # asked again: the vehicle returned closes it as done
-    client.post("/api/v1/driver/vehicle-change-requests", headers=h, json={"reason": "المكيف ما زال معطلاً"})
+    client.post(url, headers=h, json={**ask, "reason": "المكيف ما زال معطلاً"})
     custody = admin_client.get("/api/v1/custodies", params={"open": "true"}).json()
     (c,) = [x for x in custody if x["vehicle"]["id"] == v["id"]]
     r = admin_client.post(
         f"/api/v1/custodies/{c['id']}/return", json={"odometer_km": 33_100, "photo_sha256": upload(admin_client)}
     )
     assert r.status_code == 200, r.text
-    assert [x["status"] for x in sup.get(V, params={"status": ""}).json()] == ["rejected", "done"]
+    # every request, newest first, with who closed it
+    history = sup.get(V, params={"status": ""}).json()
+    assert [x["status"] for x in history] == ["done", "rejected"]
+    assert [x["status"] for x in sup.get(V, params={"status": "all"}).json()] == ["done", "rejected"]
+    assert history[1]["decided_by"] == "User sup5 (sup5)" and history[1]["note"] == "يُصلح المكيف غداً"
+    assert history[0]["decided_by"] is not None and history[0]["decided_at"] is not None
+    assert sup.get(V).json() == []
     assert told(client, h)[0] == "vehicle_change_done"
 
 

@@ -276,8 +276,18 @@ void main() {
       expect(state.profile!.named('company'), isNotNull);
       await state.loadVehicle();
       expect((state.myVehicle!.vehicle!['plate_number'], state.myVehicle!.request), ('77/$n', null));
-      await state.requestVehicleChange('المكيف لا يعمل');
+      final other = await admin.call('POST', '/vehicles', {
+        'plate_number': '78-$n',
+        'company_id': company,
+        'last_odometer_km': 1000,
+      });
+      await expectLater(
+        state.requestVehicleChange('99-$n', 'المكيف لا يعمل'),
+        throwsA(isA<ApiError>().having((e) => e.code, 'code', 'vehicle_plate_not_found')),
+      );
+      await state.requestVehicleChange('78 $n', 'المكيف لا يعمل');
       expect(state.myVehicle!.requestPending, isTrue);
+      expect(state.myVehicle!.request!['requested_plate'], other['plate_number']);
       await state.loadCash();
       expect(state.cash!.lines.first.kind, 'collection');
       expect(state.cash!.lines.first.status, 'pending');

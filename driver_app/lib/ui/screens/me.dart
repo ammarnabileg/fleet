@@ -43,42 +43,11 @@ class _MyCarScreenState extends State<MyCarScreen> {
   }
 
   Future<void> _ask() async {
-    final l = context.l;
-    final reason = TextEditingController();
-    final form = GlobalKey<FormState>();
-    final ok = await showDialog<bool>(
+    final sent = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: Text(l.requestVehicleChange),
-        content: Form(
-          key: form,
-          child: TextFormField(
-            key: const Key('change-reason'),
-            controller: reason,
-            maxLines: 3,
-            decoration: InputDecoration(labelText: l.vehicleChangeReason),
-            validator: (v) => (v ?? '').trim().length < 3 ? l.required : null,
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(l.cancel)),
-          FilledButton(
-            key: const Key('send-change'),
-            onPressed: () {
-              if (form.currentState!.validate()) Navigator.pop(c, true);
-            },
-            child: Text(l.send),
-          ),
-        ],
-      ),
+      builder: (c) => _ChangeDialog(state: widget.state),
     );
-    if (ok != true) return;
-    try {
-      await widget.state.requestVehicleChange(reason.text.trim());
-      if (mounted) setState(() {});
-    } catch (e) {
-      if (mounted) showError(context, widget.state, e);
-    }
+    if (sent == true && mounted) setState(() {});
   }
 
   @override
@@ -138,7 +107,9 @@ class _MyCarScreenState extends State<MyCarScreen> {
                 if (request != null && request['status'] == 'pending')
                   Banner2(
                     key: const Key('change-pending'),
-                    text: l.vehicleChangePending,
+                    text: '${request['requested_plate'] ?? ''}'.isEmpty
+                        ? l.vehicleChangePending
+                        : l.vehicleChangePendingFor('\u2066${request['requested_plate']}\u2069'),
                     tone: BannerTone.warn,
                     icon: Icons.hourglass_top,
                   )
@@ -156,6 +127,103 @@ class _MyCarScreenState extends State<MyCarScreen> {
                 ],
               ],
             ),
+    );
+  }
+}
+
+/// The change of vehicle: the other car's plate and the reason. The request is sent from here, so a plate the
+/// server does not know shows its message under the field and the dialog stays open for him to correct it.
+class _ChangeDialog extends StatefulWidget {
+  const _ChangeDialog({required this.state});
+
+  final AppState state;
+
+  @override
+  State<_ChangeDialog> createState() => _ChangeDialogState();
+}
+
+class _ChangeDialogState extends State<_ChangeDialog> {
+  final plate = TextEditingController();
+  final reason = TextEditingController();
+  final form = GlobalKey<FormState>();
+  String? plateError;
+  bool sending = false;
+
+  static const _plateCodes = {'vehicle_plate_not_found', 'vehicle_change_same_vehicle'};
+
+  @override
+  void dispose() {
+    plate.dispose();
+    reason.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    setState(() => plateError = null);
+    if (!form.currentState!.validate()) return;
+    setState(() => sending = true);
+    try {
+      await widget.state.requestVehicleChange(plate.text.trim(), reason.text.trim());
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => sending = false);
+      if ((e is ApiError && _plateCodes.contains(e.code)) || invalidFields(e).contains('requested_plate')) {
+        setState(() => plateError = errorText(context, widget.state, e));
+      } else {
+        showError(context, widget.state, e);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    return AlertDialog(
+      title: Text(l.requestVehicleChange),
+      content: Form(
+        key: form,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              key: const Key('change-plate'),
+              controller: plate,
+              textDirection: TextDirection.ltr,
+              textCapitalization: TextCapitalization.characters,
+              decoration: InputDecoration(
+                labelText: l.vehicleChangePlate,
+                hintText: l.vehicleChangePlateHint,
+                hintTextDirection: TextDirection.ltr,
+                errorText: plateError,
+                errorMaxLines: 3,
+              ),
+              onChanged: (_) {
+                if (plateError != null) setState(() => plateError = null);
+              },
+              validator: (v) => (v ?? '').trim().isEmpty ? l.required : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              key: const Key('change-reason'),
+              controller: reason,
+              maxLines: 3,
+              decoration: InputDecoration(labelText: l.vehicleChangeReason),
+              validator: (v) => (v ?? '').trim().length < 3 ? l.required : null,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: sending ? null : () => Navigator.pop(context, false), child: Text(l.cancel)),
+        FilledButton(
+          key: const Key('send-change'),
+          onPressed: sending ? null : _send,
+          child: sending
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : Text(l.send),
+        ),
+      ],
     );
   }
 }

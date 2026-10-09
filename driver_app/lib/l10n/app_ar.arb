@@ -890,5 +890,9 @@
   "fuelOff_not_covered": "البنزين عليك حسب نظام الدفع الخاص بك، فلا يُسجَّل على الشركة.",
   "fuelOff_no_vehicle": "لا توجد سيارة في عهدتك الآن: يُسجَّل البنزين للسيارة التي معك.",
   "kind_fuel": "فاتورة بنزين",
-  "moveFuel": "بنزين"
+  "moveFuel": "بنزين",
+  "vehicleChangePlate": "رقم لوحة العربية التانية",
+  "vehicleChangePlateHint": "12-34567",
+  "vehicleChangePendingFor": "طلبك لتغيير العربية لـ {plate} قيد المراجعة",
+  "@vehicleChangePendingFor": {"placeholders": {"plate": {"type": "String"}}}
 }

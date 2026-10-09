@@ -143,8 +143,8 @@ class OdometerReading(Base):
 
 
 class VehicleChangeRequest(Base):
-    """The driver asks from the app for another vehicle, with his reason (BRD FR-ASG-04); the supervisor changes it
-    (the return closes the request) or refuses with a note."""
+    """The driver asks from the app for another vehicle, naming it by its plate, with his reason (BRD FR-ASG-04); the
+    supervisor changes it (the return closes the request) or refuses with a note."""
 
     __tablename__ = "vehicle_change_requests"
     __table_args__ = (
@@ -164,6 +164,8 @@ class VehicleChangeRequest(Base):
     company_id: Mapped[int] = mapped_column(BigInteger)
     custody_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("fleet.custodies.id"))
     vehicle_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("fleet.vehicles.id"))
+    requested_plate: Mapped[str] = mapped_column(Text)  # as he typed it, normalized; '' before it was asked
+    requested_vehicle_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("fleet.vehicles.id"))
     reason: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

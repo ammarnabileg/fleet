@@ -1518,4 +1518,15 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get moveFuel => 'بنزين';
+
+  @override
+  String get vehicleChangePlate => 'رقم لوحة العربية التانية';
+
+  @override
+  String get vehicleChangePlateHint => '12-34567';
+
+  @override
+  String vehicleChangePendingFor(String plate) {
+    return 'طلبك لتغيير العربية لـ $plate قيد المراجعة';
+  }
 }

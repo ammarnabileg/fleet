@@ -490,5 +490,8 @@
   "fuelOff_not_covered": "Fuel is yours under your pay scheme, so it is not charged to the company.",
   "fuelOff_no_vehicle": "No vehicle is in your custody now: fuel is recorded for the car you hold.",
   "kind_fuel": "Fuel receipt",
-  "moveFuel": "Fuel"
+  "moveFuel": "Fuel",
+  "vehicleChangePlate": "Plate number of the other vehicle",
+  "vehicleChangePlateHint": "12-34567",
+  "vehicleChangePendingFor": "Your request to change to {plate} is under review"
 }
