@@ -1,6 +1,14 @@
 /// The shapes the driver API returns. Amounts stay strings with three decimals, exactly as the server sends them.
 class Custody {
-  Custody({required this.id, required this.plate, required this.startedAt, this.lastKm, this.model});
+  Custody({
+    required this.id,
+    required this.plate,
+    required this.startedAt,
+    this.lastKm,
+    this.model,
+    this.inMaintenance = false,
+    this.maintenanceCenter,
+  });
 
   factory Custody.fromJson(Map<String, dynamic> j) => Custody(
     id: j['id'] as String,
@@ -8,6 +16,8 @@ class Custody {
     startedAt: DateTime.parse(j['started_at'] as String),
     lastKm: (j['last_odometer_km'] as num?)?.toInt(),
     model: [j['make'], j['model'], j['year']].whereType<Object>().join(' ').trim(),
+    inMaintenance: j['in_maintenance'] as bool? ?? false,
+    maintenanceCenter: j['maintenance_center'] as String?,
   );
 
   final String id;
@@ -15,6 +25,8 @@ class Custody {
   final DateTime startedAt;
   final int? lastKm;
   final String? model; // make, model and year as one line ("Toyota Yaris 2023"); empty from an older server
+  final bool inMaintenance; // at a center: still his, but no work day starts with it until he collects it
+  final String? maintenanceCenter;
 }
 
 /// The business day (yyyy-mm-dd) of a moment, by Kuwait's clock (UTC+3, no daylight saving), as the server counts.
@@ -304,7 +316,8 @@ class MaintenanceRequest {
     this.readyAt,
     this.rejectedReason,
     this.direct = false,
-  });
+    bool? pickupInApp,
+  }) : pickupInApp = pickupInApp ?? direct;
 
   factory MaintenanceRequest.fromJson(Map<String, dynamic> j) {
     final center = j['center'] as Map<String, dynamic>?;
@@ -322,6 +335,7 @@ class MaintenanceRequest {
       readyAt: j['ready_at'] == null ? null : DateTime.parse(j['ready_at'] as String),
       rejectedReason: j['decision_note'] as String?,
       direct: j['direct'] as bool? ?? false,
+      pickupInApp: j['pickup_in_app'] as bool?, // an older server: the requests sent straight to the center
     );
   }
 
@@ -339,7 +353,8 @@ class MaintenanceRequest {
   final String? rejectedReason;
 
   bool get isReady => status == 'ready';
-  final bool direct; // sent straight to the center: he confirms the pickup himself
+  final bool direct; // sent straight to the center
+  final bool pickupInApp; // ready and his to collect: he confirms the pickup himself
 }
 
 /// A deduction as the driver sees it: the total and its monthly installments (amounts as the server sends them).

@@ -640,11 +640,11 @@ class AppLocalizationsAr extends AppLocalizations {
   String get mntNew => 'طلب صيانة جديد';
 
   @override
-  String get mntIntro => 'صِف المشكلة وصوّرها من الكاميرا. يصل الطلب للمشرف ليعتمده ويحدد مركز الصيانة.';
+  String get mntIntro => 'صِف المشكلة وصوّرها من الكاميرا. سيارة في حادث يمر إصلاحها بالمكتب.';
 
   @override
   String get mntDirectIntro =>
-      'صِف المشكلة وصوّرها من الكاميرا، واختر مركز الصيانة الذي ستترك السيارة عنده. يصل الطلب للمركز مباشرة، ويُبلغك عندما تكون السيارة جاهزة.';
+      'صِف المشكلة وصوّرها من الكاميرا، واختر مركز الصيانة اللي هتودّي العربية عنده. الطلب يوصل للمركز على طول، والعربية تفضل في عهدتك، ونبلّغك لما تكون جاهزة.';
 
   @override
   String get mntCenter => 'مركز الصيانة';
@@ -704,7 +704,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get mntSent => 'أُرسل طلب الصيانة للمشرف';
+  String get mntSent => 'أُرسل طلب الصيانة للمركز';
 
   @override
   String get mntKind_periodic => 'صيانة دورية';
@@ -740,7 +740,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get mntStatus_rejected => 'مرفوض';
 
   @override
-  String get mntStatus_referred => 'محال لمركز الصيانة';
+  String get mntStatus_referred => 'أُرسل للمركز';
 
   @override
   String get mntStatus_at_center => 'في مركز الصيانة';
@@ -1564,4 +1564,19 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get kind_vehicle_claim => 'تسجيل عربية';
+
+  @override
+  String get mntNoCenter => 'مفيش مركز صيانة متاح، كلّم المكتب';
+
+  @override
+  String mntInMaintenance(String center) {
+    return 'عربيتك في الصيانة عند $center';
+  }
+
+  @override
+  String get mntInMaintenanceAny => 'عربيتك في الصيانة';
+
+  @override
+  String get mntInMaintenanceHint =>
+      'العربية لسه في عهدتك، بس مفيش يوم شغل بيها لحد ما تستلمها من المركز وتأكد الاستلام هنا.';
 }

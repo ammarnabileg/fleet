@@ -307,8 +307,8 @@
   "maintenanceTitle": "طلبات الصيانة",
   "kind_maintenance": "طلب صيانة",
   "mntNew": "طلب صيانة جديد",
-  "mntIntro": "صِف المشكلة وصوّرها من الكاميرا. يصل الطلب للمشرف ليعتمده ويحدد مركز الصيانة.",
-  "mntDirectIntro": "صِف المشكلة وصوّرها من الكاميرا، واختر مركز الصيانة الذي ستترك السيارة عنده. يصل الطلب للمركز مباشرة، ويُبلغك عندما تكون السيارة جاهزة.",
+  "mntIntro": "صِف المشكلة وصوّرها من الكاميرا. سيارة في حادث يمر إصلاحها بالمكتب.",
+  "mntDirectIntro": "صِف المشكلة وصوّرها من الكاميرا، واختر مركز الصيانة اللي هتودّي العربية عنده. الطلب يوصل للمركز على طول، والعربية تفضل في عهدتك، ونبلّغك لما تكون جاهزة.",
   "mntCenter": "مركز الصيانة",
   "mntPickedUp": "استلمت السيارة",
   "pickupTitle": "استلام السيارة من المركز",
@@ -356,7 +356,7 @@
       }
     }
   },
-  "mntSent": "أُرسل طلب الصيانة للمشرف",
+  "mntSent": "أُرسل طلب الصيانة للمركز",
   "mntKind_periodic": "صيانة دورية",
   "mntKind_mechanical": "ميكانيكا",
   "mntKind_electrical": "كهرباء",
@@ -368,7 +368,7 @@
   "mntStatus_requested": "بانتظار الاعتماد",
   "mntStatus_approved": "معتمد",
   "mntStatus_rejected": "مرفوض",
-  "mntStatus_referred": "محال لمركز الصيانة",
+  "mntStatus_referred": "أُرسل للمركز",
   "mntStatus_at_center": "في مركز الصيانة",
   "mntStatus_ready": "جاهزة للاستلام",
   "mntStatus_picked_up": "تم الاستلام",
@@ -906,5 +906,10 @@
   "@claimPending": {"placeholders": {"plate": {"type": "String"}}},
   "claimRejected": "المكتب رفض طلبك لاستلام العربية {plate}: {reason}",
   "@claimRejected": {"placeholders": {"plate": {"type": "String"}, "reason": {"type": "String"}}},
-  "kind_vehicle_claim": "تسجيل عربية"
+  "kind_vehicle_claim": "تسجيل عربية",
+  "mntNoCenter": "مفيش مركز صيانة متاح، كلّم المكتب",
+  "mntInMaintenance": "عربيتك في الصيانة عند {center}",
+  "@mntInMaintenance": {"placeholders": {"center": {"type": "String"}}},
+  "mntInMaintenanceAny": "عربيتك في الصيانة",
+  "mntInMaintenanceHint": "العربية لسه في عهدتك، بس مفيش يوم شغل بيها لحد ما تستلمها من المركز وتأكد الاستلام هنا."
 }

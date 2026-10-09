@@ -75,14 +75,20 @@ def test_a_receipt_and_the_review_of_a_report_reach_the_driver_alone(admin_clien
     assert client.get(N).status_code == 401
 
 
-def test_maintenance_decisions_and_the_vehicle_ready(admin_client, client, new_client, company):
-    from tests.test_maintenance import M, P, center, complete, driver_request, portal_client, quote, receive
+def test_maintenance_decisions_and_the_vehicle_ready(admin_client, client, new_client, company, owner_db):
+    """The office's decisions reach the driver for a request through the office (his car is in an accident); the
+    center's "ready" for every request."""
+    from sqlalchemy import text
+
+    from tests.test_maintenance import M, center, driver_request, portal_client, quote, ready, receive
 
     vehicle = make_vehicle(admin_client, company["id"], km=20_000)
     d, h = driver_with_app(admin_client, client, company)
     hand_over(admin_client, vehicle, d, km=20_000)
     c = center(admin_client)
     s = {"h": h, "center": c, "portal": portal_client(admin_client, new_client, c, "noor7")}
+    owner_db.execute(text("UPDATE fleet.vehicles SET status = 'accident' WHERE public_id = :v"), {"v": vehicle["id"]})
+    owner_db.commit()
     first = driver_request(client, s).json()
     admin_client.post(f"{M}/requests/{first['id']}/reject", json={"reason": "تم إصلاحها في الموقع"})
     second = driver_request(client, s).json()
@@ -90,8 +96,7 @@ def test_maintenance_decisions_and_the_vehicle_ready(admin_client, client, new_c
     assert admin_client.post(f"{M}/requests/{second['id']}/refer", json={"center_id": c["id"]}).status_code == 200
     assert receive(s, second["id"]).status_code == 200
     assert quote(s, second["id"], "10.000").json()["status"] == "in_repair"  # within the limit
-    assert complete(s, second["id"]).status_code == 200
-    assert s["portal"].post(f"{P}/requests/{second['id']}/ready", json={}).status_code == 200
+    assert ready(s, second["id"]).status_code == 200
     items = notices(client, h)["items"]
     assert [n["kind"] for n in items] == [
         "maintenance_ready",

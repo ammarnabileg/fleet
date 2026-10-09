@@ -261,7 +261,7 @@ def test_the_repair_goes_to_the_same_center_and_its_invoice_is_the_actual_cost(a
     assert repair["status"] == "referred" and repair["actual_cost"] is None
     assert admin_client.post(f"{A}/{aid}/repair").json()["code"] == "repair_exists"
 
-    # the center receives it: the custody ends, and the repair starts without a second quote
+    # the center receives it: the car stays with its driver, and the repair starts without a second quote
     rid = repair["id"]
     portal = s["portal"]
     body = {"odometer_km": 30_100, "odometer_photo": upload(portal)}
@@ -270,17 +270,13 @@ def test_the_repair_goes_to_the_same_center_and_its_invoice_is_the_actual_cost(a
     assert r.json()["status"] == "in_repair" and r.json()["quotes"][0]["amount"] == "150.000"
     assert [e["status"] for e in r.json()["events"]] == ["requested", "approved", "referred", "received", "in_repair"]
     assert vehicle_status(admin_client, s) == "maintenance"
-    body = {"repair_details": "Bumper replaced", "final_odometer_km": 30_105, "final_odometer_photo": upload(portal)}
-    assert portal.post(f"{P}/requests/{rid}/complete", json=body).status_code == 200
-    assert portal.post(f"{P}/requests/{rid}/ready", json={}).status_code == 200
-    assert portal.post(f"{P}/requests/{rid}/picked-up").status_code == 200
-    assert vehicle_status(admin_client, s) == "available"
+    assert admin_client.get(f"/api/v1/custodies/{s['custody']['id']}").json()["ended_at"] is None
 
-    # the invoice differs from the estimate: flagged, and the accident shows the difference once approved
-    inv = portal.post(
-        f"{P}/invoices",
+    # ready with its invoice, which differs from the estimate: flagged, and the accident shows the difference once
+    # approved
+    r = portal.post(
+        f"{P}/requests/{rid}/ready",
         json={
-            "request_id": rid,
             "number": "B-1",
             "invoice_date": str(today()),
             "total": "162.500",
@@ -288,11 +284,17 @@ def test_the_repair_goes_to_the_same_center_and_its_invoice_is_the_actual_cost(a
             "items": [{"kind": "part", "description": "Bumper", "unit_price": "162.500"}],
         },
     )
-    assert inv.status_code == 201, inv.text
-    assert inv.json()["flags"] == ["differs_from_quote"]
+    assert r.status_code == 200, r.text
+    (inv,) = r.json()["invoices"]
+    assert inv["flags"] == ["differs_from_quote"]
     pending = admin_client.get(f"{A}/{aid}").json()["repair"]
     assert pending["actual_cost"] is None and pending["invoices_pending"] == 1
-    admin_client.post(f"{M}/invoices/{inv.json()['id']}/approve")
+    # the driver collects it from the app: his again to work with
+    body = {"odometer_km": 30_110, "odometer_photo": camera(client, s["h"])}
+    r = client.post(f"/api/v1/driver/maintenance/{rid}/picked-up", json=body, headers=s["h"])
+    assert r.status_code == 200, r.text
+    assert vehicle_status(admin_client, s) == "assigned"
+    admin_client.post(f"{M}/invoices/{inv['id']}/approve")
     detail = admin_client.get(f"{A}/{aid}").json()
     assert detail["repair"]["actual_cost"] == "162.500" and detail["cost_difference"] == "12.500"
 

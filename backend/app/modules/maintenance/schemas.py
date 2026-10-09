@@ -80,9 +80,10 @@ class PortalUserOut(BaseModel):
 
 
 class RequestIn(_In):
-    """From the office: any vehicle in scope; an emergency is approved at once and reviewed afterwards."""
+    """From the office: any vehicle in scope, and the center it goes to (the request reaches it at once)."""
 
     vehicle_id: uuid.UUID
+    center_id: uuid.UUID | None = None  # required: named in the error when missing
     kind: Kind
     description: Text
     odometer_km: Annotated[int, Field(ge=0, le=5_000_000)] | None = None
@@ -92,7 +93,7 @@ class RequestIn(_In):
 
 class DriverRequestIn(_In):
     """From the driver app, for the vehicle the driver holds. client_ref: the app's id, so a retry is recognised.
-    center_id: the center he takes the car to, when requests go straight to the center (the settings)."""
+    center_id: the center he takes the car to (required, but for a vehicle in an accident: through the office)."""
 
     client_ref: uuid.UUID
     kind: Kind
@@ -111,7 +112,7 @@ class DriverCenterOut(BaseModel):
 
 
 class DriverFormOut(BaseModel):
-    direct_to_center: bool  # he picks the center and the request goes straight to it
+    direct_to_center: bool = True  # always: he picks the center and the request goes straight to it
     centers: list[DriverCenterOut]
 
 
@@ -170,6 +171,21 @@ class CompleteIn(_In):
     final_odometer_km: Annotated[int, Field(ge=0, le=5_000_000)]
     final_odometer_photo: Sha
     photos: list[Sha] = Field(default_factory=list, max_length=12)
+
+
+class ReadyIn(_In):
+    """Ready for pickup, with the invoice: file, number and total required (named in the error when missing, unless
+    the request already has its invoice); its date (today by default), items and notes optional."""
+
+    number: Annotated[str, StringConstraints(strip_whitespace=True, max_length=50)] | None = None
+    invoice_date: date | None = None
+    total: Annotated[Decimal, Field(max_digits=12, decimal_places=3)] | None = None
+    file_sha256: Sha | None = None
+    items: list[ItemIn] = Field(default_factory=list, max_length=200)
+    notes: Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)] | None = None
+    # when no driver holds the car (the company collects it): the odometer at the end of the repair, with its photo
+    final_odometer_km: Annotated[int, Field(ge=0, le=5_000_000)] | None = None
+    final_odometer_photo: Sha | None = None
 
 
 class InvoiceIn(_In):
@@ -289,6 +305,7 @@ class RequestOut(BaseModel):
     decision_note: str | None
     cancel_reason: str | None
     is_new: bool
+    driver_collects: bool = False  # at the center, a driver holds the car: he confirms the pickup in the app
     version: int
 
 
@@ -317,4 +334,5 @@ class DriverRequestOut(BaseModel):
     ready_at: datetime | None
     picked_up_at: datetime | None
     decision_note: str | None
-    direct: bool = False  # sent straight to the center: he confirms the pickup in the app
+    direct: bool = False  # sent straight to the center
+    pickup_in_app: bool = False  # ready and his to collect: he confirms the pickup in the app

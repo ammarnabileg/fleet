@@ -1,14 +1,14 @@
 /* =====================================================================
-   app/pages/maintenance.js — الصيانة: الطلبات والاعتماد والإحالة، عروض السعر،
-   فواتير المراكز واعتمادها ودفعها، ومراكز الصيانة وحسابات بوابتها.
+   app/pages/maintenance.js — الصيانة: الطلبات (من السائق أو المكتب للمركز مباشرة)،
+   فواتير المراكز واعتمادها ودفعها، ومراكز الصيانة وحسابات بوابتها. الطلبات القديمة
+   تكمل اعتمادها وإحالتها وعروض سعرها من هنا.
    ===================================================================== */
 (function () {
   'use strict';
   var BT = window.BT, h = BT.h, raw = BT.raw, icon = BT.icon, fmt = BT.fmt, api = BT.api, A = BT.A, M = BT.mnt;
 
   var GROUPS = {
-    pending: 'requested,quote_pending',
-    approved: 'approved',
+    pending: 'requested,approved,quote_pending', // طلبات قديمة أو سيارة في حادث: بانتظار المكتب
     at_center: 'referred,received,inspection,in_repair,waiting_parts,completed',
     ready: 'ready',
     done: 'picked_up,closed',
@@ -27,7 +27,7 @@
     if (api.can('invoices.view')) tabs.push(['invoices', 'الفواتير']);
     if (api.can('maintenance.view')) tabs.push(['centers', 'مراكز الصيانة']);
     var tab = tabs.some(function (t) { return t[0] === q.tab; }) ? q.tab : tabs[0][0];
-    BT.render(v, h`${A.head('الصيانة ومراكزها', 'طلب الإدارة يمر بالاعتماد ثم الإحالة لمركز يحدّث حالته من بوابته (وطلب السائق يذهب للمركز الذي يختاره مباشرة إن فُعّل ذلك في الإعدادات)؛ مدة البقاء والفواتير تُتابع هنا', h`${api.can('maintenance.create') ? A.btn('طلب صيانة', { icon: 'plus', cls: 'btn-primary', action: 'mnt-new' }) : ''}${api.can('invoices.create') ? A.btn('فاتورة من مركز', { icon: 'receipt-text', cls: 'btn-outline', action: 'mnt-invoice' }) : ''}`)}
+    BT.render(v, h`${A.head('الصيانة ومراكزها', 'الطلب يذهب من السائق أو المكتب للمركز المختار مباشرة؛ المركز يستلم السيارة ثم يجهزها بفاتورته، والسائق يؤكد الاستلام من تطبيقه. الفواتير تُعتمد هنا', h`${api.can('maintenance.create') ? A.btn('طلب صيانة', { icon: 'plus', cls: 'btn-primary', action: 'mnt-new' }) : ''}${api.can('invoices.create') ? A.btn('فاتورة من مركز', { icon: 'receipt-text', cls: 'btn-outline', action: 'mnt-invoice' }) : ''}`)}
       ${tabs.length > 1 ? BT.tabs('mnt', tabs, tab, 'tabs-line') : ''}
       ${tabs.map(function (t) { return h`<div data-panel="${t[0]}" data-group="mnt" class="${t[0] === tab ? 'active' : ''}"><div data-p="${t[0]}"></div></div>`; })}`);
     var drawn = {};
@@ -46,9 +46,9 @@
     BT.render(el, h`<div class="card"><div data-t></div></div>`);
     BT.table(el.querySelector('[data-t]'), {
       fetch: function (s) { return api.get('/maintenance/requests', { status: GROUPS[s.chip] || null, active: s.chip ? null : true, limit: s.limit, offset: s.offset }); },
-      chips: { value: q.status || 'pending', all: 'المفتوحة', options: [
-        { v: 'pending', t: 'بانتظار القرار' }, { v: 'approved', t: 'معتمدة للإحالة' }, { v: 'at_center', t: 'في المركز' },
-        { v: 'ready', t: 'جاهزة للاستلام' }, { v: 'done', t: 'المستلمة' }, { v: 'stopped', t: 'المرفوضة والملغاة' }
+      chips: { value: q.status || '', all: 'المفتوحة', options: [
+        { v: 'at_center', t: 'في المركز' }, { v: 'ready', t: 'جاهزة للاستلام' }, { v: 'done', t: 'المستلمة' },
+        { v: 'pending', t: 'بانتظار المكتب' }, { v: 'stopped', t: 'المرفوضة والملغاة' }
       ] },
       columns: [
         { key: 'number', label: 'الطلب', render: function (r) { return h`<span class="num">#${r.number}</span><span class="sub">${M.kind(r.kind)}${r.emergency ? ' · طارئة' : ''}</span>`; } },
@@ -74,24 +74,25 @@
 
   /* ---------- طلب جديد من الإدارة ---------- */
   function newRequest(vehicle) {
-    var jobs = [vehicle ? Promise.resolve([vehicle]) : allVehicles()];
+    var jobs = [vehicle ? Promise.resolve([vehicle]) : allVehicles(), api.get('/maintenance/centers', { active: true })];
     Promise.all(jobs).then(function (res) {
-      var vehicles = res[0];
+      var vehicles = res[0], centers = res[1];
+      if (!centers.length) { BT.toast('أضف مركز صيانة أولاً من تبويب المراكز', { type: 'warning' }); return; }
       A.formModal({
         title: 'طلب صيانة', icon: 'wrench', size: 'lg',
         body: h`<div class="form-grid">
           <div class="full">${A.picker({ name: 'vehicle', label: 'السيارة', required: true, items: vehicles.map(function (x) { return { id: x.id, label: A.vehicleLabel(x) }; }), value: vehicle && vehicle.id })}</div>
+          <div class="full">${BT.f.select({ name: 'center', label: 'مركز الصيانة', required: true, options: centers.map(function (c) { return { v: c.id, t: c.name + (c.specialty ? ' — ' + c.specialty : '') + (c.at_center ? ' · لديه ' + c.at_center : '') }; }) })}</div>
           ${BT.f.select({ name: 'kind', label: 'النوع', required: true, options: M.kindOptions() })}
           ${BT.f.input({ name: 'km', label: 'قراءة العداد', optional: true, num: true })}
           ${BT.f.textarea({ name: 'desc', label: 'الوصف', required: true, full: true, rows: 3 })}
-          ${BT.f.upload({ name: 'ph', label: 'صور', optional: true, multiple: true, full: true, accept: 'image/*', accept_label: 'صور فقط' })}
-          <div class="full">${BT.f.switch({ name: 'emergency', label: 'صيانة طارئة: تُعتمد الآن وتُراجع لاحقاً' })}</div></div>`,
-        submitText: 'إنشاء الطلب', done: 'أُنشئ طلب الصيانة',
-        submit: function (f, dlg) {
+          ${BT.f.upload({ name: 'ph', label: 'صور', optional: true, multiple: true, full: true, accept: 'image/*', accept_label: 'صور فقط' })}</div>
+          <div class="hint mt-8">يظهر الطلب فوراً في بوابة المركز؛ تبقى السيارة في عهدة سائقها أثناء الصيانة ويؤكد استلامها من تطبيقه.</div>`,
+        submitText: 'إرسال للمركز', done: 'أُرسل الطلب للمركز',
+        submit: function (f) {
           var vid = A.picked('vehicle', f.vehicle);
-          var emergency = dlg.form.querySelector('[name=emergency]').checked;
           return uploadAll(f.ph).then(function (photos) {
-            return api.post('/maintenance/requests', { vehicle_id: vid, kind: f.kind, description: f.desc, odometer_km: f.km === '' || f.km == null ? null : Math.round(f.km), emergency: emergency, photos: photos });
+            return api.post('/maintenance/requests', { vehicle_id: vid, center_id: f.center, kind: f.kind, description: f.desc, odometer_km: f.km === '' || f.km == null ? null : Math.round(f.km), photos: photos });
           });
         },
         after: function (r) { A.go('maintenance/' + r.id); A.refreshCounts(); }
@@ -111,7 +112,7 @@
       if ((s === 'approved' || s === 'referred') && api.can('maintenance.approve')) acts.push(A.btn(s === 'referred' ? 'تغيير المركز' : 'إحالة لمركز', { icon: 'send', cls: s === 'approved' ? 'btn-primary' : 'btn-outline', action: 'mnt-refer' }));
       if (r.emergency && !r.emergency_reviewed && api.can('maintenance.approve')) acts.push(A.btn('مراجعة الطارئة', { icon: 'shield-check', cls: 'btn-outline', action: 'mnt-review' }));
       if (['requested', 'approved', 'referred'].indexOf(s) > -1 && api.can('maintenance.create')) acts.push(A.btn('إلغاء', { icon: 'ban', cls: 'btn-ghost', action: 'mnt-cancel' }));
-      if (s === 'ready' && api.can('maintenance.create')) acts.push(A.btn('تم استلام السيارة', { icon: 'log-out', cls: 'btn-primary', action: 'mnt-picked' }));
+      if (s === 'ready' && !r.driver_collects && api.can('maintenance.create')) acts.push(A.btn('تم استلام السيارة', { icon: 'log-out', cls: 'btn-primary', action: 'mnt-picked' })); // وإلا يؤكده السائق من تطبيقه
       A._mnt = r;
       return h`${A.head(h`${M.vehicleLine(r.vehicle)} · طلب <span class="num">#${r.number}</span>`, h`${M.status(r.status)} · ${M.kind(r.kind)} · ${api.company(r.company_id)}`, acts)}
         ${M.detail(r, fileUrl(r.id), {
@@ -147,15 +148,14 @@
       submit: function (f) { return api.post('/maintenance/requests/' + req().id + '/review-emergency', { note: f.note || null }); }, after: refreshAll });
   };
   BT.actions['mnt-picked'] = function () {
-    // الطلب المرسل من السائق للمركز مباشرة يستلمه السائق من تطبيقه فتعود في عهدته؛ تسجيله هنا لا يعيدها إليه
-    var direct = req().direct && req().driver;
-    A.confirmRun({ title: 'استلام السيارة من المركز', message: direct ? 'هذا الطلب أرسله السائق للمركز مباشرة: هو يؤكد الاستلام من تطبيقه فتعود في عهدته. إن سجّلته هنا تعود السيارة «متاحة» فقط، وعليك تسليمها له من العُهد.' : 'تعود السيارة «متاحة» للتسليم لسائق.', confirmText: 'تم الاستلام', run: function () { return api.post('/maintenance/requests/' + req().id + '/picked-up'); }, done: 'سُجّل الاستلام', after: refreshAll });
+    // يظهر فقط حين لا يحمل السيارة سائق (أرجعها المكتب أثناء الصيانة مثلاً): وإلا يؤكد السائق الاستلام من تطبيقه
+    A.confirmRun({ title: 'استلام السيارة من المركز', message: 'لا يحمل السيارة سائق الآن: تعود «متاحة» للتسليم لسائق.', confirmText: 'تم الاستلام', run: function () { return api.post('/maintenance/requests/' + req().id + '/picked-up'); }, done: 'سُجّل الاستلام', after: refreshAll });
   };
   BT.actions['mnt-refer'] = function () {
     api.get('/maintenance/centers', { active: true }).then(function (centers) {
       if (!centers.length) { BT.toast('أضف مركز صيانة أولاً من تبويب المراكز', { type: 'warning' }); return; }
       A.formModal({
-        title: 'إحالة لمركز صيانة', subtitle: req().vehicle.plate_number + ' · طلب #' + req().number, icon: 'send',
+        title: req().status === 'referred' ? 'تغيير المركز' : 'إحالة لمركز صيانة', subtitle: req().vehicle.plate_number + ' · طلب #' + req().number, icon: 'send',
         body: h`<div class="form">${BT.f.select({ name: 'center', label: 'المركز', required: true, value: req().center && req().center.id, options: centers.map(function (c) { return { v: c.id, t: c.name + (c.specialty ? ' — ' + c.specialty : '') + (c.at_center ? ' · لديه ' + c.at_center : '') }; }) })}
           ${BT.f.textarea({ name: 'note', label: 'ملاحظة للمركز', optional: true, rows: 2 })}<div class="hint">يظهر الطلب فوراً في بوابة المركز.</div></div>`,
         submitText: 'إحالة', done: 'أُحيل الطلب للمركز',

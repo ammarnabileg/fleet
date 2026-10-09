@@ -528,6 +528,8 @@ def driver_reading(
     )
     if custody is None:
         raise AppError(409, "no_open_custody")
+    if kind == "start_day" and custody.id in in_maintenance(db, [custody.id], recorded_at):
+        raise AppError(409, "vehicle_in_maintenance")  # his car is at the center: no work with it meanwhile
     photo = _check_photo(db, photo_sha256)
     if photo.source != "camera" or photo.uploaded_by_device != device_id:
         raise AppError(422, "photo_not_from_camera")
@@ -1069,6 +1071,10 @@ def transfer(
         v.id: v for v in db.scalars(select(Vehicle).where(Vehicle.id.in_(ids)).order_by(Vehicle.id).with_for_update())
     }
     x, y = locked[target.id], locked[on_y.vehicle_id] if on_y else None
+    for car in (x, y):
+        if car is not None and car.status == "maintenance":
+            # it stays with its driver until he collects it from the center; the office may return it first
+            raise AppError(409, "vehicle_in_maintenance_transfer", plate=car.plate_number)
     other = people.ref(db, on_x.driver_id) if on_x else None  # B
     # the drivers who take a car: the normal checks (X and Y are freed in this same transaction)
     _check_can_take(db, x, driver, at)
@@ -1142,9 +1148,10 @@ def _vehicle_for_update(db: Session, vehicle_id: int) -> Vehicle:
 def received_for_maintenance(
     db: Session, vehicle_id: int, *, odometer_km: int, photo_sha256: str, at: datetime, actor_user_id: int
 ) -> CustodyRef | None:
-    """A maintenance center received the vehicle. The driver left it there, so an open custody ends at that moment
-    with the center's reading (tracking stops with it); otherwise the reading is recorded on its own. The vehicle
-    is "in maintenance" until it is picked up. Returns the custody that ended, if any."""
+    """A maintenance center received the vehicle. It stays in its driver's custody: he does not work with it while
+    it is at the center (no start of day, no tracking alerts), and collects it himself. The center's reading joins
+    the open custody's chain (or stands alone when nobody holds the car). The vehicle is "in maintenance" until it
+    is picked up. Returns the custody it stays in, if any."""
     _check_moment(at)
     _check_photo(db, photo_sha256)
     # the custody first, then the vehicle: the same order as return_vehicle, so the two never deadlock
@@ -1152,21 +1159,18 @@ def received_for_maintenance(
         select(Custody).where(Custody.vehicle_id == vehicle_id, Custody.ended_at.is_(None)).with_for_update()
     )
     vehicle = _vehicle_for_update(db, vehicle_id)
-    if custody is not None:
-        if at <= custody.started_at:
-            raise AppError(422, "ended_before_start")
-        _end_custody(db, custody, vehicle, at, odometer_km, photo_sha256, actor_user_id)
-    else:
-        _add_reading(
-            db,
-            vehicle,
-            None,
-            kind="maintenance_in",
-            value_km=odometer_km,
-            photo_sha256=photo_sha256,
-            recorded_at=at,
-            by_user=actor_user_id,
-        )
+    if custody is not None and at <= custody.started_at:
+        raise AppError(422, "received_before_custody")
+    _add_reading(
+        db,
+        vehicle,
+        custody,
+        kind="maintenance_in",
+        value_km=odometer_km,
+        photo_sha256=photo_sha256,
+        recorded_at=at,
+        by_user=actor_user_id,
+    )
     vehicle.status = "maintenance"
     vehicle.version += 1
     return _cref(custody) if custody is not None else None
@@ -1175,15 +1179,18 @@ def received_for_maintenance(
 def maintenance_reading(
     db: Session, vehicle_id: int, *, odometer_km: int, photo_sha256: str, at: datetime, actor_user_id: int
 ) -> None:
-    """The center's reading at the end of the repair: the next handover is compared with it, not with the
-    reception (a test drive is not distance off duty)."""
+    """The center's reading at the end of the repair (requests from before the simple flow): the next handover is
+    compared with it, not with the reception (a test drive is not distance off duty)."""
     _check_moment(at)
     _check_photo(db, photo_sha256)
+    custody = db.scalar(
+        select(Custody).where(Custody.vehicle_id == vehicle_id, Custody.ended_at.is_(None)).with_for_update()
+    )
     vehicle = _vehicle_for_update(db, vehicle_id)
     _add_reading(
         db,
         vehicle,
-        None,
+        custody,
         kind="maintenance_out",
         value_km=odometer_km,
         photo_sha256=photo_sha256,
@@ -1193,12 +1200,95 @@ def maintenance_reading(
     vehicle.version += 1
 
 
+def collected_from_maintenance(
+    db: Session, vehicle_id: int, driver_id: int, *, odometer_km: int, photo_sha256: str, at: datetime, device_id: int
+) -> None:
+    """The driver who kept the car in his custody while it was at the center collected it: his reading, from his
+    camera, closes the stay; the car is his to work with again (no new custody)."""
+    _check_photo(db, photo_sha256)
+    custody = db.scalar(
+        select(Custody)
+        .where(Custody.vehicle_id == vehicle_id, Custody.driver_id == driver_id, Custody.ended_at.is_(None))
+        .with_for_update()
+    )
+    if custody is None:
+        raise AppError(409, "pickup_by_office")
+    vehicle = _vehicle_for_update(db, vehicle_id)
+    _add_reading(
+        db,
+        vehicle,
+        custody,
+        kind="maintenance_out",
+        value_km=odometer_km,
+        photo_sha256=photo_sha256,
+        recorded_at=at,
+        by_device=device_id,
+    )
+    if vehicle.status == "maintenance":
+        vehicle.status = "assigned"
+    vehicle.version += 1
+
+
 def released_from_maintenance(db: Session, vehicle_id: int) -> None:
-    """Picked up from the center: available again for a handover."""
+    """Picked up from the center: back with the driver who holds it, otherwise available for a handover."""
     vehicle = _vehicle_for_update(db, vehicle_id)
     if vehicle.status == "maintenance":
-        vehicle.status = "available"
+        held = db.scalar(select(Custody.id).where(Custody.vehicle_id == vehicle_id, Custody.ended_at.is_(None)))
+        vehicle.status = "assigned" if held else "available"
         vehicle.version += 1
+
+
+def in_maintenance(db: Session, custody_ids: Iterable[int], at: datetime | None = None) -> set[int]:
+    """The custodies whose car was at a center at `at` (now by default): the center's reception on the custody with
+    no reading of it collected since. The driver keeps it, but does not work with it meanwhile."""
+    ids = list(custody_ids)
+    if not ids:
+        return set()
+    at = at or utcnow() + CLOCK_SKEW
+    last = (
+        select(OdometerReading.custody_id, OdometerReading.kind)
+        .where(
+            OdometerReading.custody_id.in_(ids),
+            OdometerReading.kind.in_(("maintenance_in", "maintenance_out")),
+            OdometerReading.recorded_at <= at,
+        )
+        .order_by(OdometerReading.custody_id, OdometerReading.recorded_at.desc(), OdometerReading.id.desc())
+        .distinct(OdometerReading.custody_id)
+    )
+    return {c for c, kind in db.execute(last) if kind == "maintenance_in"}
+
+
+def _maintenance_spans(db: Session, driver_ids: list[int], start: datetime, end: datetime) -> list[tuple]:
+    """(driver, from, to) for each stay at a center in custody overlapping [start, end): from the reception on the
+    custody to the reading that collected it, or the custody's end, or now."""
+    rows = db.execute(
+        select(
+            OdometerReading.custody_id,
+            OdometerReading.kind,
+            OdometerReading.recorded_at,
+            Custody.driver_id,
+            Custody.ended_at,
+        )
+        .join(Custody, Custody.id == OdometerReading.custody_id)
+        .where(
+            Custody.driver_id.in_(driver_ids),
+            Custody.started_at < end,
+            or_(Custody.ended_at.is_(None), Custody.ended_at > start),
+            OdometerReading.kind.in_(("maintenance_in", "maintenance_out")),
+        )
+        .order_by(OdometerReading.custody_id, OdometerReading.recorded_at, OdometerReading.id)
+    ).all()
+    spans, opened = [], {}
+    for custody_id, kind, t, driver_id, _ended in rows:
+        if kind == "maintenance_in":
+            opened.setdefault(custody_id, t)
+        elif custody_id in opened:
+            spans.append((driver_id, opened.pop(custody_id), t))
+    ends = {r.custody_id: (r.driver_id, r.ended_at) for r in rows}
+    for custody_id, t in opened.items():
+        driver_id, ended = ends[custody_id]
+        spans.append((driver_id, t, ended or utcnow()))
+    return [s for s in spans if s[2] > start and s[1] < end]
 
 
 # ------------------------------------------------------------------ accidents (in the caller's transaction)
@@ -1445,6 +1535,8 @@ def driver_today(db: Session, employee_id: int) -> dict:
             "year": vehicle.year,
             "started_at": custody.started_at,
             "last_odometer_km": vehicle.last_odometer_km,
+            # at a center: still his, but no day starts with it until he collects it
+            "in_maintenance": custody.id in in_maintenance(db, [custody.id]),
         },
         "start_day_done": started,
         "end_day_done": started and last["end"] is not None,
@@ -1588,11 +1680,13 @@ def on_duty_now(db: Session, custody_ids: Iterable[int]) -> set[int]:
         .order_by(OdometerReading.custody_id, OdometerReading.recorded_at.desc(), OdometerReading.id.desc())
         .distinct(OdometerReading.custody_id)
     )
-    return {c for c, kind, _ in db.execute(last) if kind == "start_day"}
+    working = {c for c, kind, _ in db.execute(last) if kind == "start_day"}
+    return working - in_maintenance(db, working)  # a car at the center is not at work
 
 
 def held_days(db: Session, driver_ids: Iterable[int], first, last) -> dict[int, set]:
-    """The Kuwait days, first to last inclusive, on which each driver held a vehicle for any part of the day."""
+    """The Kuwait days, first to last inclusive, on which each driver held a vehicle for any part of the day, but
+    for a day the vehicle spent wholly at a maintenance center (he keeps it there, without working with it)."""
     ids = list(driver_ids)
     out: dict[int, set] = {i: set() for i in ids}
     if not ids:
@@ -1608,7 +1702,33 @@ def held_days(db: Session, driver_ids: Iterable[int], first, last) -> dict[int, 
         while day <= stop:
             out[driver_id].add(day)
             day += timedelta(days=1)
+    for driver_id, days in days_at_center(db, ids, first, last).items():
+        out[driver_id] -= days  # he kept the car, but had nothing to work with
     return out
+
+
+def days_at_center(db: Session, driver_ids: Iterable[int], first, last) -> dict[int, set]:
+    """The Kuwait days, first to last inclusive, each driver's car spent wholly at a maintenance center while in his
+    custody: not work days (no start of day, no daily report)."""
+    ids = list(driver_ids)
+    out: dict[int, set] = {i: set() for i in ids}
+    if not ids:
+        return out
+    start = datetime.combine(first, datetime.min.time(), tzinfo=KUWAIT)
+    end = datetime.combine(last + timedelta(days=1), datetime.min.time(), tzinfo=KUWAIT)
+    for driver_id, a, b in _maintenance_spans(db, ids, start, end):
+        day = max(business_date(a), first)
+        while day <= min(business_date(b), last):
+            lo = datetime.combine(day, datetime.min.time(), tzinfo=KUWAIT)
+            if a <= lo and b >= lo + timedelta(days=1):
+                out[driver_id].add(day)
+            day += timedelta(days=1)
+    return out
+
+
+def maintenance_spans(db: Session, driver_id: int, start: datetime, end: datetime) -> list[tuple[datetime, datetime]]:
+    """When the driver's car was at a center in [start, end): his phone's points then are not the car's."""
+    return [(a, b) for _, a, b in _maintenance_spans(db, [driver_id], start, end)]
 
 
 def start_days(db: Session, employee_ids: Iterable[int], first, last) -> dict[int, set]:

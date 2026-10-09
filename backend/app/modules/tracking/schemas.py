@@ -81,6 +81,7 @@ class LiveVehicle(BaseModel):
     company_id: int
     position: LivePosition | None
     signal_lost: bool
+    in_maintenance: bool = False  # at a center: kept by its driver, not tracked meanwhile
     on_duty: bool = True  # the driver's day started and not ended (BRD FR-TRK-09)
     position_hidden: bool = False  # off duty, and the user may not see it (tracking.off_duty)
 

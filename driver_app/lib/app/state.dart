@@ -107,7 +107,7 @@ class AppState extends ChangeNotifier {
     endReading: false,
   );
 
-  /// The maintenance request form: straight to a center he picks, or through the office. Kept for offline.
+  /// The maintenance request form: the centers he may take the car to. Kept for offline.
   ({bool direct, List<MaintenanceCenter> centers}) maintenanceForm = (direct: false, centers: const []);
 
   Profile? profile;
@@ -611,7 +611,7 @@ class AppState extends ChangeNotifier {
       await db.put('maintenance_form', raw);
       _applyMaintenanceForm(raw);
     } on ApiError {
-      // an older server: through the office, as before
+      // an older server: the last form kept
     }
   }
 

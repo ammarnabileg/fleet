@@ -317,7 +317,15 @@ void main() {
       );
       expect(state.documents.firstWhere((d) => d.typeCode == 'residence').renewalPending, isTrue);
 
-      // ---- maintenance: a request for the vehicle held, with two camera photos; the office sees it with them
+      // ---- maintenance: a request for the vehicle held, to the center he picks, with two camera photos; the office
+      // sees it with them
+      final center = await admin.call('POST', '/maintenance/centers', {'name': 'Contract Garage $n'});
+      await admin.call('POST', '/maintenance/centers/${center['id']}/users', {
+        'username': 'cg$n',
+        'full_name': 'Contract Garage',
+        'password': 'correct-horse-battery-$n',
+      });
+      await state.loadMaintenance();
       final p1 = await jpeg('mnt1');
       final p2 = await jpeg('mnt2');
       expect(
@@ -326,10 +334,14 @@ void main() {
           description: 'Flat rear tyre',
           km: 30150,
           photoPaths: [p1.path, p2.path],
+          centerId: state.maintenanceForm.centers.firstWhere((c) => c.name == 'Contract Garage $n').id,
         ),
         SendResult.sent,
       );
-      expect(state.maintenance.single.status, 'requested');
+      expect(
+        (state.maintenance.single.status, state.maintenance.single.centerName),
+        ('referred', 'Contract Garage $n'),
+      );
       final office = await admin.call('GET', '/maintenance/requests?vehicle_id=${vehicle['id']}') as List;
       expect(
         (office.single['kind'], office.single['source'], office.single['driver']['id']),
@@ -367,12 +379,6 @@ void main() {
         (acc['driver']['id'], acc['source'], (acc['photos'] as List).length, acc['police_report_no'], acc['lat']),
         (driver['id'], 'driver', 3, 'PR-$n', 29.37),
       );
-      final center = await admin.call('POST', '/maintenance/centers', {'name': 'Contract Garage $n'});
-      await admin.call('POST', '/maintenance/centers/${center['id']}/users', {
-        'username': 'cg$n',
-        'full_name': 'Contract Garage',
-        'password': 'correct-horse-battery-$n',
-      });
       await admin.call('POST', '/accidents/${mine.id}/refer', {'center_id': center['id']});
       final portal = Admin(backend!);
       final portalLogin = await portal.call('POST', '/auth/login', {
@@ -706,20 +712,9 @@ void main() {
   );
 
   test(
-    'maintenance straight to the center: picked by the driver, repaired, invoiced, collected, his again',
+    'maintenance straight to the center: picked by the driver, received, ready with the invoice, collected',
     () async {
       final admin = await signedInAdmin();
-      Future<void> direct(bool on) async {
-        final settings = await admin.call('GET', '/settings') as Map;
-        final current = settings['maintenance'] as Map;
-        await admin.call('PUT', '/settings/maintenance', {
-          'version': current['version'],
-          'value': {...current['value'] as Map, 'direct_to_center': on},
-        });
-      }
-
-      await direct(true);
-      addTearDown(() => direct(false));
       final n = DateTime.now().millisecondsSinceEpoch % 10000000;
       final company = await companyId(admin);
       final driver = await admin.call('POST', '/employees', {
@@ -761,7 +756,6 @@ void main() {
 
       // ---- the driver picks the center: the request is there at once, no office step
       await state.loadMaintenance();
-      expect(state.maintenanceForm.direct, isTrue);
       final picked = state.maintenanceForm.centers.firstWhere((c) => c.name == 'Direct Garage $n');
       expect(picked.address, 'Shuwaikh, block 1');
       expect(
@@ -776,7 +770,7 @@ void main() {
       final mine = state.maintenance.single;
       expect((mine.status, mine.centerName), ('referred', 'Direct Garage $n'));
 
-      // ---- the center: reception, done, the invoice, then the driver is called
+      // ---- the center: reception, then ready with its invoice: the driver is called
       final portal = Admin(backend!);
       final login = await portal.call('POST', '/auth/login', {
         'username': 'dg$n',
@@ -787,14 +781,14 @@ void main() {
         'odometer_km': 40050,
         'odometer_photo': await portal.upload(await jpeg('in')),
       });
-      await portal.call('POST', '/portal/requests/${mine.id}/complete', {
-        'repair_details': 'Battery replaced',
-        'final_odometer_km': 40052,
-        'final_odometer_photo': await portal.upload(await jpeg('out')),
-      });
+      // the car stays his while it is at the center, but no day starts with it
+      await state.loadToday();
+      expect(
+        (state.today!.custody!.inMaintenance, state.today!.custody!.maintenanceCenter),
+        (true, 'Direct Garage $n'),
+      );
       final day = DateTime.now().toUtc().add(const Duration(hours: 3)).toIso8601String().substring(0, 10);
-      await portal.call('POST', '/portal/invoices', {
-        'request_id': mine.id,
+      await portal.call('POST', '/portal/requests/${mine.id}/ready', {
         'number': 'D-$n',
         'invoice_date': day,
         'total': '35.000',
@@ -803,12 +797,10 @@ void main() {
           {'kind': 'part', 'description': 'Battery', 'unit_price': '35.000'},
         ],
       });
-      await portal.call('POST', '/portal/requests/${mine.id}/ready', {});
       await state.loadMaintenance();
-      await state.loadToday();
-      expect((state.maintenance.single.isReady, state.today!.custody), (true, null));
+      expect((state.maintenance.single.isReady, state.maintenance.single.pickupInApp), (true, true));
 
-      // ---- he collects it: the car is his again, his day can start
+      // ---- he collects it: he works with it again, his day can start
       expect(
         await state.sendPickup(
           requestId: mine.id,
@@ -819,7 +811,10 @@ void main() {
         SendResult.sent,
       );
       expect(state.maintenance.single.status, 'picked_up');
-      expect((state.today!.custody!.plate, state.today!.custody!.lastKm), ('66/$n', 40060));
+      expect(
+        (state.today!.custody!.plate, state.today!.custody!.lastKm, state.today!.custody!.inMaintenance),
+        ('66/$n', 40060, false),
+      );
       // a retry from the queue is "already collected", not a failure
       expect(
         await state.sendPickup(

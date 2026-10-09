@@ -253,7 +253,7 @@
     "range_too_long": "The period is longer than {hours} hours",
     "reading_exists": "This reading was already recorded today",
     "already_picked_up": "The car was already collected from the center",
-    "pickup_by_office": "The office or the center records the pickup, then the office hands the car over",
+    "pickup_by_office": "The car is no longer in your custody: the office records the pickup from the center, then hands it over",
     "invoice_required": "Upload the repair invoice first, then tell the driver the car is ready",
     "day_already_ended": "You already ended the day: start again if you are working once more",
     "day_already_started": "Your day is already open: end it before starting again",
@@ -522,7 +522,13 @@
     "vehicle_claim_expired": "The request is too old: refuse it and ask the driver to register again",
     "vehicle_changed_since_claim": "Something happened to the car after the request (a reading or a custody): refuse it and have the driver register again",
     "vehicle_claim_stale": "The driver took or gave back a car after the request: refuse it and have him register again",
-    "transfer_before_last_reading": "The handover time is before the last odometer reading recorded in the custody: choose a time after it"
+    "transfer_before_last_reading": "The handover time is before the last odometer reading recorded in the custody: choose a time after it",
+    "vehicle_in_maintenance": "Your car is at the maintenance center: no work day starts and no report is sent with it until you collect it",
+    "vehicle_in_maintenance_transfer": "{plate} is at the maintenance center and stays in its driver's custody until he collects it: its custody cannot move now (the office may take it back first)",
+    "center_required": "Choose the maintenance center",
+    "pickup_by_driver": "The car is in its driver's custody: he confirms the pickup from the center in his app",
+    "received_before_custody": "The reception time is before the current custody started",
+    "final_reading_required": "The car goes back to the company, not to a driver: enter the odometer after the repair with its photo"
   },
   "settings": {
     "branding": "Branding",
@@ -687,7 +693,7 @@
     "start_day": "Start of day",
     "end_day": "End of day",
     "maintenance_in": "Center reception",
-    "maintenance_out": "After repair"
+    "maintenance_out": "Out of the center"
   },
   "odometer_flags": {
     "lower_than_previous": "Lower than the previous reading",
@@ -760,7 +766,7 @@
     "requested": "Waiting for approval",
     "approved": "Approved",
     "rejected": "Rejected",
-    "referred": "Referred",
+    "referred": "Waiting for the car",
     "received": "Received",
     "inspection": "Inspection",
     "quote_pending": "Quote waiting for approval",

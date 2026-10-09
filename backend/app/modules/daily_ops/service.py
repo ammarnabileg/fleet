@@ -102,6 +102,11 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
         raise AppError(422, "invalid_business_date")
     asked = _validate(db, driver, device_id, data)
     started = fleet.driver_days(db, employee_id, day, day).get(day)
+    if started is None and (
+        day in fleet.days_at_center(db, [employee_id], day, day)[employee_id]
+        or (day == today() and _car_at_center(db, employee_id))
+    ):
+        raise AppError(409, "vehicle_in_maintenance")  # his car was at the center: no work day to report
     # The session the driver wrote it for (the app fixes it when he fills the form), so a retry or a report that
     # arrives after his next start stays in its own session; an older app sends none: the sessions known now.
     # Sent again for the same session, it is that session's report (report_exists).
@@ -162,6 +167,11 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
     )
     db.commit()
     return _many(db, [report])[0]
+
+
+def _car_at_center(db: Session, employee_id: int) -> bool:
+    custody = fleet.open_custody_for_driver(db, employee_id)
+    return custody is not None and bool(fleet.in_maintenance(db, [custody.id]))
 
 
 def for_driver(db: Session, employee_id: int, limit: int = 30) -> list[dict]:

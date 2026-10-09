@@ -14,6 +14,7 @@ from app.modules.files import service as files
 from app.modules.fleet import schemas, service
 from app.modules.i18n import service as i18n
 from app.modules.identity.service import DevicePrincipal, Principal, require_device, require_permission
+from app.modules.maintenance import service as maintenance
 from app.modules.people import service as people
 
 router = APIRouter(prefix="/api/v1", tags=["fleet"])
@@ -271,7 +272,10 @@ def reading_photo(
 
 @router.get("/driver/today", response_model=schemas.DriverTodayOut)
 def driver_today(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
-    return service.driver_today(db, device.employee_id)
+    out = service.driver_today(db, device.employee_id)
+    if out["custody"] and out["custody"]["in_maintenance"]:
+        out["custody"]["maintenance_center"] = maintenance.center_holding(db, out["custody"]["id"])
+    return out
 
 
 @router.post("/driver/odometer", response_model=schemas.ReadingOut, status_code=201)

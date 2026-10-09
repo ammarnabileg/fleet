@@ -393,11 +393,14 @@ def complete(
 @router.post("/portal/requests/{public_id}/ready", response_model=schemas.RequestDetailOut)
 def ready(
     public_id: uuid.UUID,
-    body: schemas.NoteIn,
+    body: schemas.ReadyIn,
     principal: Principal = Depends(require_permission("portal.vehicles")),
     db: Session = Depends(get_session),
 ):
-    return service.ready(db, public_id, user_id=principal.user_id, note=body.note)
+    """Ready for pickup, with the center's invoice (portal.invoices) in the same step."""
+    return service.ready(
+        db, public_id, user_id=principal.user_id, data=body.model_dump(), can_invoice=principal.has("portal.invoices")
+    )
 
 
 @router.post("/portal/requests/{public_id}/picked-up", response_model=schemas.RequestDetailOut)

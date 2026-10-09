@@ -1265,13 +1265,13 @@ abstract class AppLocalizations {
   /// No description provided for @mntIntro.
   ///
   /// In ar, this message translates to:
-  /// **'صِف المشكلة وصوّرها من الكاميرا. يصل الطلب للمشرف ليعتمده ويحدد مركز الصيانة.'**
+  /// **'صِف المشكلة وصوّرها من الكاميرا. سيارة في حادث يمر إصلاحها بالمكتب.'**
   String get mntIntro;
 
   /// No description provided for @mntDirectIntro.
   ///
   /// In ar, this message translates to:
-  /// **'صِف المشكلة وصوّرها من الكاميرا، واختر مركز الصيانة الذي ستترك السيارة عنده. يصل الطلب للمركز مباشرة، ويُبلغك عندما تكون السيارة جاهزة.'**
+  /// **'صِف المشكلة وصوّرها من الكاميرا، واختر مركز الصيانة اللي هتودّي العربية عنده. الطلب يوصل للمركز على طول، والعربية تفضل في عهدتك، ونبلّغك لما تكون جاهزة.'**
   String get mntDirectIntro;
 
   /// No description provided for @mntCenter.
@@ -1373,7 +1373,7 @@ abstract class AppLocalizations {
   /// No description provided for @mntSent.
   ///
   /// In ar, this message translates to:
-  /// **'أُرسل طلب الصيانة للمشرف'**
+  /// **'أُرسل طلب الصيانة للمركز'**
   String get mntSent;
 
   /// No description provided for @mntKind_periodic.
@@ -1445,7 +1445,7 @@ abstract class AppLocalizations {
   /// No description provided for @mntStatus_referred.
   ///
   /// In ar, this message translates to:
-  /// **'محال لمركز الصيانة'**
+  /// **'أُرسل للمركز'**
   String get mntStatus_referred;
 
   /// No description provided for @mntStatus_at_center.
@@ -2863,6 +2863,30 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'تسجيل عربية'**
   String get kind_vehicle_claim;
+
+  /// No description provided for @mntNoCenter.
+  ///
+  /// In ar, this message translates to:
+  /// **'مفيش مركز صيانة متاح، كلّم المكتب'**
+  String get mntNoCenter;
+
+  /// No description provided for @mntInMaintenance.
+  ///
+  /// In ar, this message translates to:
+  /// **'عربيتك في الصيانة عند {center}'**
+  String mntInMaintenance(String center);
+
+  /// No description provided for @mntInMaintenanceAny.
+  ///
+  /// In ar, this message translates to:
+  /// **'عربيتك في الصيانة'**
+  String get mntInMaintenanceAny;
+
+  /// No description provided for @mntInMaintenanceHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'العربية لسه في عهدتك، بس مفيش يوم شغل بيها لحد ما تستلمها من المركز وتأكد الاستلام هنا.'**
+  String get mntInMaintenanceHint;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

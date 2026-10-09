@@ -558,6 +558,22 @@ class _DayCard extends StatelessWidget {
       ],
     );
     Widget reading(String kind) => OdometerScreen(state: state, kind: kind);
+    final custody = today.custody;
+    // his car is at a maintenance center: still his, but no work day starts with it until he collects it (a day
+    // already started when it went in may still be ended)
+    if (custody != null && custody.inMaintenance && !(state.dayStarted && !state.dayEnded)) {
+      final center = custody.maintenanceCenter;
+      return DCard(
+        key: const Key('in-maintenance'),
+        child: head(
+          Icons.car_repair,
+          AppColors.warningSoft,
+          AppColors.warning,
+          center == null ? l.mntInMaintenanceAny : l.mntInMaintenance(center),
+          l.mntInMaintenanceHint,
+        ),
+      );
+    }
     if (!state.dayStarted) {
       return DCard(
         child: Column(
