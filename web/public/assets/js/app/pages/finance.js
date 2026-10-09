@@ -50,7 +50,7 @@
   BT.pages['finance'] = function (p, q) {
     A.setTitle('المالية');
     var v = A.view();
-    var tabs = [['expenses', 'المصروفات'], ['entries', 'القيود'], ['balance', 'ميزان المراجعة'], ['chart', 'دليل الحسابات']];
+    var tabs = [['expenses', 'المصروفات'], ['entries', 'القيود'], ['balance', 'ميزان المراجعة'], ['chart', 'دليل الحسابات'], ['periods', 'إقفال الشهور']];
     var tab = tabs.some(function (t) { return t[0] === q.tab; }) ? q.tab : 'expenses';
     BT.render(v, h`${A.head('المالية', 'المصروفات، والقيود التي ينشئها النظام من المستندات على دليل حسابات محاسبكم: تُعتمد ثم لا تتغير، والتصحيح بقيد عكسي',
         api.can('finance.create') ? A.btn('تسجيل مصروف', { icon: 'plus', cls: 'btn-primary', action: 'expense-new' }) : '')}
@@ -64,6 +64,7 @@
       if (t === 'entries') entriesPanel(el);
       if (t === 'balance') config().then(function () { balancePanel(el); }, function () { balancePanel(el); });
       if (t === 'chart') chartPanel(el);
+      if (t === 'periods') periodsPanel(el, q.month);
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/finance?tab=' + e.detail); });
     show(tab);
@@ -88,7 +89,7 @@
         { key: 'type', label: 'النوع', render: function (e) { return h`${api.name(e.type.name)}${e.supplier ? h`<span class="sub">${e.supplier}</span>` : ''}`; } },
         { key: 'company', label: 'الشركة', render: function (e) { return api.company(e.company_id); } },
         { key: 'links', label: 'يخص', render: function (e) { var l = links(e); return l.length ? h`${l.map(function (x, i) { return h`${i ? ' · ' : ''}${x}`; })}` : '—'; } },
-        { key: 'method', label: 'الدفع', render: function (e) { return h`${api.t('expense_payment', e.payment_method)}${e.branch_id ? h`<span class="sub">${api.branch(e.branch_id)}</span>` : ''}`; } },
+        { key: 'method', label: 'الدفع', render: function (e) { return h`${api.t('expense_payment', e.payment_method)}${e.petty_employee ? h`<span class="sub">${api.name(e.petty_employee.name)}</span>` : e.branch_id ? h`<span class="sub">${api.branch(e.branch_id)}</span>` : ''}`; } },
         { key: 'amount', label: 'المبلغ', num: true, render: function (e) { return amt(e.amount); } },
         { key: 'status', label: 'الحالة', render: expenseStatus }
       ],
@@ -109,19 +110,25 @@
   function newExpense(done) {
     var jobs = [api.get('/finance/expense-types'), A.all('/vehicles'), A.allEmployees({}),
       api.can('maintenance.view') ? api.get('/maintenance/centers') : Promise.resolve([]),
-      api.get('/companies/options').then(function (c) { api.companies = c; })]; // a company added since sign-in is listed
+      api.get('/companies/options').then(function (c) { api.companies = c; }), // a company added since sign-in is listed
+      // the petty cash custodies (not a company's): for a user over every company who sees the treasury
+      api.me.all_companies && api.can('treasury.view') ? api.get('/cash/petty') : Promise.resolve([]),
+      api.me.all_companies && api.can('treasury.view') ? api.get('/cash/petty/status') : Promise.resolve({ role_ready: true })];
     Promise.all(jobs).then(function (r) {
       var types = r[0].filter(function (t) { return t.active; }), vehicles = r[1], people = r[2], centers = r[3];
+      var pettyReady = r[6].role_ready, holders = pettyReady ? r[5] : [];
+      var methods = ['treasury', 'bank', 'payable'].concat(holders.length ? ['petty'] : []);
       var companies = api.companyOptions().filter(function (c) { return api.me.all_companies || api.me.company_ids.indexOf(c.v) > -1; });
       A.formModal({
         title: 'تسجيل مصروف', subtitle: 'يُعتمد ثم يدخل القيود تلقائياً', icon: 'receipt', size: 'lg',
-        body: h`<div class="form-grid">
+        body: h`${pettyReady ? '' : h`<div class="banner warn mb-12" data-petty-role>${icon('triangle-alert', 16)}<div>اربط دور العهد النقدية بحساب في دليل الحسابات: الدفع «من عهدة موظف» متوقف حتى ذلك.</div></div>`}<div class="form-grid">
           ${BT.f.select({ name: 'company', label: 'الشركة', required: true, placeholder: false, options: companies })}
           ${BT.f.select({ name: 'type', label: 'النوع', required: true, placeholder: false, options: types.map(function (t) { return { v: t.id, t: api.name(t.name) }; }) })}
           ${BT.f.input({ name: 'date', label: 'التاريخ', type: 'date', required: true, value: BT.config.today })}
           ${BT.f.money({ name: 'amount', label: 'المبلغ', required: true })}
-          ${BT.f.select({ name: 'method', label: 'الدفع', required: true, placeholder: false, options: A.options('expense_payment', ['treasury', 'bank', 'payable']) })}
+          ${BT.f.select({ name: 'method', label: 'الدفع', required: true, placeholder: false, options: A.options('expense_payment', methods) })}
           ${branchField()}
+          ${holders.length ? BT.f.select({ name: 'petty_holder', label: 'صاحب العهدة', placeholder: 'اختر الموظف…', options: holders.map(function (x) { return { v: x.employee.id, t: api.name(x.employee.name) + ' — ' + fmt.money(x.balance) }; }), hint: 'للدفع «من عهدة موظف»: تنقص عهدته عند الاعتماد' }) : ''}
           ${BT.f.input({ name: 'quantity', label: 'الكمية (لتر للوقود)', optional: true, num: true })}
           ${BT.f.input({ name: 'supplier', label: 'المورد', optional: true })}
           ${BT.f.input({ name: 'ref', label: 'رقم الفاتورة أو الإيصال', optional: true })}
@@ -137,11 +144,12 @@
           if (f.employee && !employee) return Promise.reject(new Error('اختر الموظف من القائمة'));
           var missing = needBranch(f.method, f.branch);
           if (missing) return missing;
+          if (f.method === 'petty' && !f.petty_holder) return Promise.reject(new Error('اختر الموظف صاحب العهدة التي دفعت'));
           var chosen = [].slice.call((dlg.form.querySelector('[name=files]') || {}).files || []);
           return Promise.all(chosen.map(function (file) { return api.upload(file).then(function (x) { return x.sha256; }); })).then(function (shas) {
             return api.post('/finance/expenses', {
               company_id: Number(f.company), branch_id: f.branch ? Number(f.branch) : null, type_id: Number(f.type), expense_date: f.date, amount: String(f.amount), payment_method: f.method,
-              quantity: f.quantity ? String(f.quantity) : null, supplier: f.supplier || null, reference_no: f.ref || null,
+              petty_employee_id: f.method === 'petty' ? f.petty_holder : null, quantity: f.quantity ? String(f.quantity) : null, supplier: f.supplier || null, reference_no: f.ref || null,
               vehicle_id: vehicle, employee_id: employee, center_id: f.center || null, notes: f.notes || null, files: shas
             });
           });
@@ -170,7 +178,7 @@
           ['المبلغ', amt(e.amount)],
           e.quantity ? ['الكمية', h`<span class="num">${e.quantity}</span>`] : null,
           e.branch_id ? ['الفرع', api.branch(e.branch_id)] : null,
-          ['الدفع', api.t('expense_payment', e.payment_method) + (e.paid_at ? ' · سُدد ' + api.t('expense_payment', e.paid_from) + ' ' + fmt.dt(e.paid_at) + (e.payment_ref ? ' · ' + e.payment_ref : '') : '')],
+          ['الدفع', api.t('expense_payment', e.payment_method) + (e.petty_employee ? ': ' + api.name(e.petty_employee.name) : '') + (e.paid_at ? ' · سُدد ' + api.t('expense_payment', e.paid_from) + ' ' + fmt.dt(e.paid_at) + (e.payment_ref ? ' · ' + e.payment_ref : '') : '')],
           e.supplier ? ['المورد', e.supplier] : null,
           e.reference_no ? ['رقم الفاتورة', h`<span class="num">${e.reference_no}</span>`] : null,
           e.vehicle ? ['السيارة', BT.plate(e.vehicle.plate_number)] : null,
@@ -188,7 +196,7 @@
     }, api.fail);
   }
   function approveExpense(e, done) {
-    A.confirmRun({ title: 'اعتماد المصروف', message: e.payment_method === 'treasury' && e.branch_id ? 'يُصرف المبلغ من خزينة ' + api.branch(e.branch_id) + ' الآن، ويدخل القيود عند التوليد التالي.' : 'يدخل القيود عند التوليد التالي.', confirmText: 'اعتماد', tone: 'success', run: function () { return api.post('/finance/expenses/' + e.id + '/approve', {}); }, after: function (res) {
+    A.confirmRun({ title: 'اعتماد المصروف', message: e.payment_method === 'treasury' && e.branch_id ? 'يُصرف المبلغ من خزينة ' + api.branch(e.branch_id) + ' الآن، ويدخل القيود عند التوليد التالي.' : e.petty_employee ? 'يُصرف المبلغ من عهدة ' + api.name(e.petty_employee.name) + ' الآن، ويدخل القيود عند التوليد التالي.' : 'يدخل القيود عند التوليد التالي.', confirmText: 'اعتماد', tone: 'success', run: function () { return api.post('/finance/expenses/' + e.id + '/approve', {}); }, after: function (res) {
       BT.toast(res.status === 'pending' ? 'سُجّل اعتمادك' : 'اعتُمد المصروف', res.status === 'pending' ? { sub: 'بانتظار الخطوة التالية من مسار الاعتماد' } : undefined); done(res);
     } });
   }
@@ -196,7 +204,7 @@
     A.confirmRun({ title: 'رفض المصروف', confirmText: 'رفض', tone: 'danger', reason: { label: 'السبب', required: true }, run: function (reason) { return api.post('/finance/expenses/' + e.id + '/reject', { note: reason }); }, done: 'رُفض المصروف', after: done });
   }
   function cancelExpense(e, done) {
-    A.confirmRun({ title: 'إلغاء المصروف', message: e.status === 'approved' ? 'لإدخال خاطئ. إن كان له قيد فسيظهر عند التوليد لعكسه' + (e.payment_method === 'treasury' && e.branch_id ? '، ويرجع مبلغه إلى خزينة الفرع الآن.' : '.') : 'لإدخال خاطئ.', confirmText: 'إلغاء المصروف', tone: 'danger', reason: { label: 'السبب', required: true }, run: function (reason) { return api.post('/finance/expenses/' + e.id + '/cancel', { reason: reason }); }, done: 'أُلغي المصروف', after: done });
+    A.confirmRun({ title: 'إلغاء المصروف', message: e.status === 'approved' ? 'لإدخال خاطئ. إن كان له قيد فسيظهر عند التوليد لعكسه' + (e.payment_method === 'treasury' && e.branch_id ? '، ويرجع مبلغه إلى خزينة الفرع الآن.' : e.petty_employee ? '، ويرجع مبلغه إلى العهدة الآن.' : '.') : 'لإدخال خاطئ.', confirmText: 'إلغاء المصروف', tone: 'danger', reason: { label: 'السبب', required: true }, run: function (reason) { return api.post('/finance/expenses/' + e.id + '/cancel', { reason: reason }); }, done: 'أُلغي المصروف', after: done });
   }
   function payExpense(e, done) {
     A.formModal({ title: 'سداد المصروف', subtitle: '#' + e.number + ' · ' + fmt.money(e.amount), icon: 'banknote', size: 'sm',
@@ -525,6 +533,71 @@
   }
 
   /* ================= دليل الحسابات ================= */
+  /* ================= إقفال الشهور ================= */
+  // where each point of the month's check is settled
+  var PROBLEM_LINKS = {
+    draft_entries: '#/finance?tab=entries', stale_entries: '#/finance?tab=entries', documents_not_entered: '#/finance?tab=entries',
+    pending_expenses: '#/finance?tab=expenses&chip=pending', pending_fuel_claims: '#/cash?tab=fuel', pending_daily_reports: '#/daily',
+    pending_deductions: '#/approvals', draft_payroll_runs: '#/payroll', treasury_days_open: '#/cash?tab=treasury'
+  };
+  function monthOf(d) { return d.slice(0, 7); }
+  function prevMonth() { var d = new Date(BT.config.today.slice(0, 8) + '01T00:00:00Z'); d.setUTCDate(0); return d.toISOString().slice(0, 7); }
+  function periodsPanel(el, month) {
+    if (!api.me.all_companies) { BT.render(el, h`<div class="card">${BT.empty('lock', 'إقفال الشهور لمستخدم على كل الشركات', 'الدفاتر واحدة لكل الشركات')}</div>`); return; }
+    var canClose = api.can('finance.close');
+    BT.render(el, h`<div class="card"><div class="card-h"><div class="card-t">${icon('clipboard-check', 16)} فحص شهر وإقفاله</div>
+        <div class="ms-auto nowrap"><input class="input" type="month" data-pick value="${month || prevMonth()}" aria-label="الشهر"> <button type="button" class="btn btn-sm btn-outline" data-check-pick>${icon('list-checks', 14)} فحص</button></div></div>
+        <div data-check-box></div>
+        <div class="hint mt-8">الشهر المقفول ما يتسجلش فيه قيد ولا حركة كاش بتاريخ فيه. يُقفل الشهر بعد ما يخلص، وبعد الشهور اللي قبله، ولما الفحص يطلع نظيف. آخر شهر مقفول بس هو اللي يتفتح تاني بسبب.</div></div>
+      <div class="card mt-16"><div class="card-h"><div class="card-t">${icon('calendar', 16)} الشهور</div></div><div data-months></div></div>`);
+    var box = el.querySelector('[data-check-box]'), monthsBox = el.querySelector('[data-months]');
+    function problemText(p) {
+      var params = Object.assign({}, p.params);
+      if (params.branch && typeof params.branch === 'object') params.branch = api.name(params.branch);
+      if (params.first) params.first = fmt.date(params.first);
+      if (params.end) params.end = fmt.date(params.end);
+      return api.t('period_problem', p.code, params);
+    }
+    function months() {
+      A.load(monthsBox, api.get('/finance/periods'), function (rows) {
+        return h`<div class="table-wrap"><table class="t compact" data-periods><thead><tr><th>الشهر</th><th>الحالة</th><th>أقفله</th><th>إعادة الفتح</th><th></th></tr></thead><tbody>
+          ${rows.map(function (r) {
+            return h`<tr data-month="${r.month}"><td class="num">${r.month}</td><td>${r.status === 'closed' ? BT.pill('مقفول', 'g', true) : BT.pill('مفتوح', 'n')}</td>
+              <td>${r.closed_by ? h`${r.closed_by}<span class="sub">${fmt.dt(r.closed_at)}</span>` : '—'}</td>
+              <td style="white-space:normal">${r.reopened_at ? h`${r.reopen_reason}<span class="sub">${r.reopened_by} · ${fmt.dt(r.reopened_at)}</span>` : '—'}</td>
+              <td class="num nowrap"><button type="button" class="btn btn-sm btn-ghost" data-check="${r.month}">${icon('list-checks', 13)} فحص</button>${r.reopenable && canClose ? h` <button type="button" class="btn btn-sm btn-ghost" data-reopen-month="${r.month}">${icon('rotate-ccw', 13)} إعادة فتح</button>` : ''}</td></tr>`;
+          })}</tbody></table></div>`;
+      }).catch(function () {});
+    }
+    function check(m) {
+      el.querySelector('[data-pick]').value = m;
+      A.load(box, api.get('/finance/periods/' + m + '/check'), function (c) {
+        var clean = !c.problems.length, open = c.status !== 'closed';
+        return h`<div class="mt-12" data-check-result="${c.month}"><div class="between mb-8"><b>شهر ${c.month}</b>${open ? BT.pill('مفتوح', 'n') : BT.pill('مقفول', 'g', true)}</div>
+          ${clean ? h`<div class="banner success">${icon('circle-check', 16)}<div>${open ? 'الفحص نظيف: الشهر جاهز للإقفال.' : 'الشهر مقفول.'}</div></div>`
+            : h`<ul class="guide-list" data-problems>${c.problems.map(function (p) {
+              var link = p.code === 'earlier_month_open' ? h` <button type="button" class="btn btn-sm btn-ghost" data-check="${p.params.month}">فحص ${p.params.month}</button>` : PROBLEM_LINKS[p.code] ? h` <a class="btn btn-sm btn-ghost" href="${PROBLEM_LINKS[p.code]}">افتح</a>` : '';
+              return h`<li data-problem="${p.code}">${icon('circle-alert', 14, 't-danger')} ${problemText(p)}${link}</li>`;
+            })}</ul>`}
+          ${open && canClose ? h`<div class="mt-12"><button type="button" class="btn btn-primary" data-close-month="${c.month}"${clean ? '' : raw(' disabled')}>${icon('lock', 14)} إقفال الشهر</button></div>` : ''}</div>`;
+      }).catch(function () {});
+    }
+    BT.on(el, 'click', '[data-check-pick]', function () { var m = el.querySelector('[data-pick]').value; if (m) check(m); });
+    BT.on(el, 'click', '[data-check]', function (e, b) { check(b.getAttribute('data-check')); });
+    BT.on(el, 'click', '[data-close-month]', function (e, b) {
+      var m = b.getAttribute('data-close-month');
+      A.confirmRun({ title: 'إقفال شهر ' + m, message: 'بعد الإقفال ما يتسجلش أي قيد ولا حركة كاش بتاريخ في الشهر ده.', confirmText: 'إقفال الشهر', tone: 'warn', icon: 'lock',
+        run: function () { return api.post('/finance/periods/' + m + '/close', {}); }, done: 'تم إقفال الشهر', after: function () { months(); check(m); } });
+    });
+    BT.on(el, 'click', '[data-reopen-month]', function (e, b) {
+      var m = b.getAttribute('data-reopen-month');
+      A.confirmRun({ title: 'إعادة فتح شهر ' + m, message: 'الشهر يرجع مفتوح: تقدر تسجّل فيه، وبعدين افحصه واقفله تاني.', confirmText: 'إعادة فتح', tone: 'danger', icon: 'rotate-ccw', reason: { label: 'السبب', required: true },
+        run: function (reason) { return api.post('/finance/periods/' + m + '/reopen', { reason: reason }); }, done: 'أُعيد فتح الشهر', after: function () { months(); check(m); } });
+    });
+    months();
+    check(month || prevMonth());
+  }
+
   function chartPanel(el) {
     var approve = api.can('finance.approve');
     A.load(el, Promise.all([api.get('/finance/accounts'), api.get('/finance/roles'), api.get('/finance/expense-types')]), function (r) {

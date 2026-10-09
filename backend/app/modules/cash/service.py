@@ -27,7 +27,7 @@ from app.core.errors import AppError
 from app.core.events import emit
 from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
-from app.modules.cash.models import Account, Journal, JournalLine, Receipt
+from app.modules.cash.models import Account, Journal, JournalLine, Receipt, TreasuryClosing
 from app.modules.files import service as files
 from app.modules.i18n import service as i18n
 from app.modules.notifications import service as notifications
@@ -81,9 +81,12 @@ def _journal(
     )
     if closed:
         raise AppError(409, "account_closed")
+    business_date = business_date or today()
+    _check_month(db, business_date)  # the month's lock first, then the treasury's (lock_branches)
+    _check_day(db, [a for a, _ in lines], business_date)
     journal = Journal(
         kind=kind,
-        business_date=business_date or today(),
+        business_date=business_date,
         source_type=source_type,
         source_id=source_id,
         reason=reason,
@@ -107,8 +110,54 @@ def _journal(
     return journal
 
 
+def _check_day(db: Session, account_ids: list[int], day: date) -> None:
+    """A journal on a branch's treasury takes the treasury's lock (a count and close reads its balance under it) and
+    is refused when dated on or before the branch's last closed day (the database refuses it too)."""
+    branches = sorted(
+        set(db.scalars(select(Account.branch_id).where(Account.id.in_(account_ids), Account.kind == "treasury")))
+    )
+    if not branches:
+        return
+    lock_branches(db, treasury=branches)
+    for b in branches:
+        _open_day(db, b, day)
+
+
+def _open_day(db: Session, branch_id: int, day: date) -> None:
+    """Under the treasury's lock: refused when the day is on or before the branch's last closed day."""
+    closed = last_closed_day(db, [branch_id])
+    if closed is not None and day <= closed:
+        raise AppError(409, "treasury_day_closed", day=day.isoformat())
+
+
+def last_closed_day(db: Session, branch_ids: Iterable[int]) -> date | None:
+    """The last day closed by a count (standing, not reopened) among these branches' treasuries."""
+    return db.scalar(
+        select(func.max(TreasuryClosing.day)).where(
+            TreasuryClosing.branch_id.in_(list(branch_ids)), TreasuryClosing.reopened_at.is_(None)
+        )
+    )
+
+
+def _check_month(db: Session, day: date) -> None:
+    """A closed month of the books takes no cash journal dated in it (the database refuses it too). Takes the month's
+    shared lock: callers take it before any treasury, bank or custody lock (the order in lock_branches)."""
+    from app.modules.finance import service as finance
+
+    finance.check_open_month(db, day)
+
+
+def _lock_month(db: Session, day: date) -> bool:
+    """The month's shared lock only, before a treasury's lock; whether the month is closed."""
+    from app.modules.finance import service as finance
+
+    return finance.month_closed(db, day)
+
+
 def _decide(db: Session, journal_id: int, status: str, actor_user_id: int | None) -> bool:
-    """Conditional on pending: deciding twice changes nothing (spec T-LED-03)."""
+    """Conditional on pending: deciding twice changes nothing (spec T-LED-03). Posted only in an open month."""
+    if status == "posted":
+        _check_month(db, db.scalar(select(Journal.business_date).where(Journal.id == journal_id)))
     return (
         db.execute(
             update(Journal)
@@ -119,11 +168,15 @@ def _decide(db: Session, journal_id: int, status: str, actor_user_id: int | None
     )
 
 
-def lock_branches(db: Session, *, treasury: Iterable[int] = (), bank: Iterable[int] = ()) -> None:
-    """Serializes what reads a treasury's or a bank's balance before moving money out of it, until the transaction
-    ends. Always in one order, every treasury (by branch) before every bank, so two never wait on each other."""
-    for kind, branch_ids in (("treasury", treasury), ("bank", bank)):
-        for b in sorted(set(branch_ids)):
+def lock_branches(
+    db: Session, *, treasury: Iterable[int] = (), bank: Iterable[int] = (), petty: Iterable[int] = ()
+) -> None:
+    """Serializes what reads a treasury's, a bank's or a petty cash custody's balance before moving money out of it,
+    until the transaction ends. Always in one order, so two never wait on each other. The global order is: the month
+    of the books first (_check_month / _lock_month, finance.month_closed), then every treasury (by branch), then
+    every bank, then every custody (by its holder). A caller takes the month before calling this."""
+    for kind, ids in (("treasury", treasury), ("bank", bank), ("petty", petty)):
+        for b in sorted(set(ids)):
             db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"), {"k": f"cash.{kind}:{b}"})
 
 
@@ -319,6 +372,7 @@ def record_receipt(db: Session, driver: people.EmployeeRef, *, amount: Decimal, 
     """The driver hands cash to the cashier: a numbered receipt and a posted deposit (spec T-LED-07)."""
     if amount <= 0:
         raise AppError(422, "amount_must_be_positive")
+    _check_month(db, today())  # the month's lock before the receipt number's and the treasury's
     receipt = Receipt(
         branch_id=driver.branch_id,
         receipt_no=_next_receipt_no(db, driver.branch_id),
@@ -470,18 +524,30 @@ def reverse(db: Session, public_id, *, reason: str, actor_user_id: int, all_comp
         raise AppError(409, "journal_not_reversible")
     if original.kind == "disbursement":  # undone with its document (the expense cancelled), never on its own
         raise AppError(409, "disbursement_from_expense")
+    if original.kind == "count_diff":  # undone by reopening the day it closed
+        raise AppError(409, "count_diff_from_closing")
     lines = list(
         db.execute(
-            select(JournalLine.account_id, JournalLine.amount, Account.kind, Account.branch_id)
+            select(
+                JournalLine.account_id,
+                JournalLine.amount,
+                Account.kind,
+                func.coalesce(Account.employee_id, Account.branch_id),
+            )
             .join(Account, Account.id == JournalLine.account_id)
             .where(JournalLine.journal_id == original.id)
         )
     )
-    # a treasury or a bank the reversal takes money out of must hold it (as a deposit or a withdrawal would)
-    out_of = [(a, m, k, b) for a, m, k, b in lines if k in ("treasury", "bank") and m > 0]
+    # every treasury, bank and custody it touches locked first, in the one order; one the reversal takes money out
+    # of must hold it (as a deposit or a withdrawal would)
+    _check_month(db, today())  # the reversal's month, before the treasury and bank locks
     lock_branches(
-        db, treasury=[b for _, _, k, b in out_of if k == "treasury"], bank=[b for *_, k, b in out_of if k == "bank"]
+        db,
+        treasury=[b for *_, k, b in lines if k == "treasury"],
+        bank=[b for *_, k, b in lines if k == "bank"],
+        petty=[e for *_, k, e in lines if k == "petty"],
     )
+    out_of = [(a, m, k, b) for a, m, k, b in lines if k in ("treasury", "bank", "petty") and m > 0]
     for a, m, k, _ in out_of:
         if _posted(db, a) < m:
             raise AppError(422, f"{k}_insufficient")
@@ -526,7 +592,9 @@ def bank_deposit(
     if branch_id not in {b["id"] for b in org.list_branches(db)}:
         raise AppError(422, "branch_not_found")
     treasury = account(db, "treasury", branch_id=branch_id)
+    _check_month(db, today())
     lock_branches(db, treasury=[branch_id], bank=[branch_id])
+    _open_day(db, branch_id, today())
     if _posted(db, treasury) < amount:
         raise AppError(422, "treasury_insufficient")
     bank = account(db, "bank", branch_id=branch_id)
@@ -565,7 +633,9 @@ def bank_withdrawal(
     if branch_id not in {b["id"] for b in org.list_branches(db)}:
         raise AppError(422, "branch_not_found")
     bank = account(db, "bank", branch_id=branch_id)
+    _check_month(db, today())
     lock_branches(db, treasury=[branch_id], bank=[branch_id])
+    _open_day(db, branch_id, today())
     if _posted(db, bank) < amount:
         raise AppError(422, "bank_insufficient")
     treasury = account(db, "treasury", branch_id=branch_id)
@@ -617,7 +687,9 @@ def disburse(
     if branch_id not in {b["id"] for b in org.list_branches(db)}:
         raise AppError(422, "branch_not_found")
     treasury = account(db, "treasury", branch_id=branch_id)
+    _check_month(db, business_date or today())
     lock_branches(db, treasury=[branch_id])
+    _open_day(db, branch_id, business_date or today())
     if _posted(db, treasury) < amount:
         raise AppError(422, "treasury_insufficient")
     _journal(
@@ -1004,8 +1076,15 @@ def treasury(db: Session) -> list[dict]:
     ]
 
 
+def _branch(db: Session, branch_public_id) -> dict:
+    branch = next((b for b in org.list_branches(db) if b["public_id"] == str(branch_public_id)), None)
+    if branch is None:
+        raise AppError(404, "branch_not_found")
+    return branch
+
+
 MOVEMENTS_MAX = 2000
-REVERSIBLE_HERE = ("deposit", "bank_deposit", "bank_withdrawal")
+REVERSIBLE_HERE = ("deposit", "bank_deposit", "bank_withdrawal", "petty_fund", "petty_return")
 
 
 def movements(
@@ -1029,10 +1108,37 @@ def movements(
         raise AppError(403, "company_out_of_scope")
     if date_to < date_from:
         raise AppError(422, "invalid_range")
-    branch = next((b for b in org.list_branches(db) if b["public_id"] == str(branch_public_id)), None)
-    if branch is None:
-        raise AppError(404, "branch_not_found")
+    branch = _branch(db, branch_public_id)
     acc = account(db, kind, branch_id=branch["id"])
+    closed_through = last_closed_day(db, [branch["id"]]) if kind == "treasury" else None
+    out = _movements(
+        db,
+        acc,
+        date_from=date_from,
+        date_to=date_to,
+        limit=limit,
+        can_reverse=can_reverse,
+        all_companies=all_companies,
+        company_ids=company_ids,
+        closed_through=closed_through,
+    )
+    return {"branch": branch, "account": kind, "closed_through": closed_through} | out
+
+
+def _movements(
+    db: Session,
+    acc: int,
+    *,
+    date_from: date,
+    date_to: date,
+    limit: int,
+    can_reverse: bool,
+    all_companies: bool,
+    company_ids,
+    closed_through: date | None = None,
+) -> dict:
+    """One cash account's posted journals of business dates date_from..date_to with the running balance (a branch's
+    treasury or bank, a holder's petty cash custody)."""
     posted = (
         select(Journal, JournalLine.amount)
         .join(JournalLine, JournalLine.journal_id == Journal.id)
@@ -1103,12 +1209,11 @@ def movements(
                 "attachment_type": types.get(j.attachment_sha256),
                 "reversed": j.id in reversed_ids,
                 "reversible": reversible,
+                "closed": closed_through is not None and j.business_date <= closed_through,
             }
         )
     db.commit()  # the account, made on first sight
     return {
-        "branch": branch,
-        "account": kind,
         "date_from": date_from,
         "date_to": date_to,
         "opening": Decimal(opening).quantize(FILS),
@@ -1120,6 +1225,536 @@ def movements(
         ),
         "lines": lines,
     }
+
+
+# ------------------------------------------------------------------ petty cash custody
+
+
+def _petty_account(db: Session, holder: people.EmployeeRef, *, create: bool) -> int | None:
+    """The holder's custody account (on his branch), made on first funding."""
+    acc = db.scalar(select(Account.id).where(Account.kind == "petty", Account.employee_id == holder.id))
+    if acc is None and create:
+        db.execute(
+            insert(Account)
+            .values(kind="petty", employee_id=holder.id, branch_id=holder.branch_id)
+            .on_conflict_do_nothing()
+        )
+        acc = db.scalar(select(Account.id).where(Account.kind == "petty", Account.employee_id == holder.id))
+    return acc
+
+
+def petty_balance(db: Session, employee_id: int) -> Decimal:
+    acc = db.scalar(select(Account.id).where(Account.kind == "petty", Account.employee_id == employee_id))
+    return _posted(db, acc) if acc else ZERO
+
+
+def _petty_move(
+    db: Session,
+    holder: people.EmployeeRef,
+    *,
+    kind: str,
+    branch_id: int,
+    amount: Decimal,
+    note: str | None,
+    actor_user_id: int,
+) -> dict:
+    if amount <= 0:
+        raise AppError(422, "amount_must_be_positive")
+    if branch_id not in {b["id"] for b in org.list_branches(db)}:
+        raise AppError(422, "branch_not_found")
+    if kind == "petty_fund" and holder.is_terminal:
+        raise AppError(422, "petty_holder_inactive")
+    if kind == "petty_fund":  # the books must be able to enter the custody first
+        from app.modules.finance import service as finance
+
+        finance.check_petty_role(db)
+    petty = _petty_account(db, holder, create=kind == "petty_fund")
+    if petty is None:
+        raise AppError(422, "petty_insufficient")
+    treasury = account(db, "treasury", branch_id=branch_id)
+    _check_month(db, today())
+    lock_branches(db, treasury=[branch_id], petty=[holder.id])
+    _open_day(db, branch_id, today())
+    if kind == "petty_fund" and _posted(db, treasury) < amount:
+        raise AppError(422, "treasury_insufficient")
+    if kind == "petty_return" and _posted(db, petty) < amount:
+        raise AppError(422, "petty_insufficient")
+    sign = 1 if kind == "petty_fund" else -1
+    journal = _journal(
+        db,
+        kind,
+        source_type="petty",
+        source_id=holder.id,
+        lines=[(petty, sign * amount), (treasury, -sign * amount)],
+        actor_user_id=actor_user_id,
+        reason=note,
+        post=True,
+    )
+    audit.record(
+        db,
+        action=f"cash.{kind}",
+        entity_type="employee",
+        entity_id=holder.public_id,
+        actor_user_id=actor_user_id,
+        company_id=holder.company_id,
+        after={"branch_id": branch_id, "amount": amount, "note": note},
+    )
+    check_treasury(db, [branch_id])
+    db.commit()
+    return journal_out(db, journal)
+
+
+def petty_fund(
+    db: Session, holder: people.EmployeeRef, *, branch_id: int, amount: Decimal, note: str | None, actor_user_id: int
+) -> dict:
+    """Cash handed from a branch treasury to an employee to hold for small expenses: petty +X, treasury -X (Dr petty
+    cash / Cr treasury), refused when the treasury holds less or its day is closed."""
+    return _petty_move(
+        db, holder, kind="petty_fund", branch_id=branch_id, amount=amount, note=note, actor_user_id=actor_user_id
+    )
+
+
+def petty_return(
+    db: Session, holder: people.EmployeeRef, *, branch_id: int, amount: Decimal, note: str | None, actor_user_id: int
+) -> dict:
+    """What the holder brings back to a branch treasury: treasury +X, petty -X; never more than he holds."""
+    return _petty_move(
+        db, holder, kind="petty_return", branch_id=branch_id, amount=amount, note=note, actor_user_id=actor_user_id
+    )
+
+
+def petty_disburse(
+    db: Session,
+    *,
+    employee_id: int,
+    amount: Decimal,
+    source_type: str,
+    source_id: int,
+    reason: str,
+    actor_user_id: int | None,
+    business_date: date,
+    attachment_sha256: str | None = None,
+) -> None:
+    """In the caller's transaction: an expense paid from a holder's custody, posted at once: petty -X,
+    disbursements +X, refused when he holds less. Undone with its document (undo_disbursement). Like a treasury
+    disbursement it makes no entry: the expense's own entry credits petty cash."""
+    if amount <= 0:
+        raise AppError(422, "amount_must_be_positive")
+    petty = db.scalar(select(Account.id).where(Account.kind == "petty", Account.employee_id == employee_id))
+    _check_month(db, business_date)
+    lock_branches(db, petty=[employee_id])
+    if petty is None or _posted(db, petty) < amount:
+        raise AppError(422, "petty_insufficient")
+    _journal(
+        db,
+        "disbursement",
+        source_type=source_type,
+        source_id=source_id,
+        lines=[(petty, -amount), (account(db, "disbursements"), amount)],
+        actor_user_id=actor_user_id,
+        reason=reason,
+        post=True,
+        business_date=business_date,
+        attachment_sha256=attachment_sha256,
+    )
+
+
+def petty_ready(db: Session) -> dict:
+    """Whether the books can enter a custody (role petty_cash on an open account): until then nothing is funded."""
+    from app.modules.finance import service as finance
+
+    return {"role_ready": finance.petty_role_ready(db)}
+
+
+def is_petty_holder(db: Session, employee_id: int) -> bool:
+    return db.scalar(select(Account.id).where(Account.kind == "petty", Account.employee_id == employee_id)) is not None
+
+
+def petty_holders(db: Session) -> list[dict]:
+    """Every custody with its holder, his branch, the balance, and the day it last moved; the largest first."""
+    rows = db.execute(select(Account.id, Account.employee_id, Account.branch_id).where(Account.kind == "petty")).all()
+    found = balances(db, [a for a, _, _ in rows])
+    last = dict(
+        db.execute(
+            select(JournalLine.account_id, func.max(Journal.business_date))
+            .join(Journal, Journal.id == JournalLine.journal_id)
+            .where(JournalLine.account_id.in_([a for a, _, _ in rows]), Journal.status == "posted")
+            .group_by(JournalLine.account_id)
+        ).all()
+    )
+    named = people.names(db, {e for _, e, _ in rows})
+    out = [
+        {
+            "employee": named[e],
+            "branch_id": b,
+            "balance": found.get(a, Balance(ZERO, ZERO)).posted,
+            "last_movement": last.get(a),
+        }
+        for a, e, b in rows
+        if e in named
+    ]
+    return sorted(out, key=lambda x: x["balance"], reverse=True)
+
+
+def petty_movements(
+    db: Session,
+    holder: people.EmployeeRef,
+    *,
+    date_from: date,
+    date_to: date,
+    limit: int,
+    can_reverse: bool,
+    all_companies: bool,
+    company_ids,
+) -> dict:
+    """A holder's custody as it moved, with its running balance (as a treasury's movements)."""
+    if not all_companies:  # a custody is not a company's
+        raise AppError(403, "company_out_of_scope")
+    if date_to < date_from:
+        raise AppError(422, "invalid_range")
+    acc = _petty_account(db, holder, create=False)
+    named = people.names(db, {holder.id})
+    out = {"employee": named.get(holder.id), "account": "petty"}
+    if acc is None:
+        zero = ZERO.quantize(FILS)
+        return out | {"date_from": date_from, "date_to": date_to, "opening": zero, "closing": zero, "truncated": False,
+                      "lines": []}  # fmt: skip
+    return out | _movements(
+        db,
+        acc,
+        date_from=date_from,
+        date_to=date_to,
+        limit=limit,
+        can_reverse=can_reverse,
+        all_companies=all_companies,
+        company_ids=company_ids,
+    )
+
+
+# ------------------------------------------------------------------ the treasury's daily count and close
+
+# Kuwaiti dinar notes and coins, as the count names them: {"20": how many, ..., "0.005": how many}
+DENOMINATIONS = ("20", "10", "5", "1", "0.5", "0.25", "0.100", "0.050", "0.020", "0.010", "0.005")
+
+
+def _denominations(raw: dict | None) -> tuple[dict | None, Decimal | None]:
+    """The notes and coins counted, under their usual names, and what they add up to (None when not given)."""
+    if raw is None:
+        return None, None
+    names = {Decimal(k): k for k in DENOMINATIONS}
+    out: dict[str, int] = {}
+    for key, count in raw.items():
+        try:
+            name = names.get(Decimal(str(key)))
+        except ArithmeticError:
+            name = None
+        if name is None:
+            raise AppError(422, "denomination_unknown", value=str(key))
+        if count:
+            out[name] = out.get(name, 0) + int(count)
+    total = sum((Decimal(k) * n for k, n in out.items()), ZERO)
+    return {k: out[k] for k in DENOMINATIONS if k in out}, total.quantize(FILS)
+
+
+def _last_closing(db: Session, branch_id: int) -> TreasuryClosing | None:
+    return db.scalar(
+        select(TreasuryClosing)
+        .where(TreasuryClosing.branch_id == branch_id, TreasuryClosing.reopened_at.is_(None))
+        .order_by(TreasuryClosing.day.desc())
+        .limit(1)
+    )
+
+
+def _book(db: Session, account_id: int, day: date) -> Decimal:
+    """A treasury's posted balance at the end of a day: every posted journal dated up to it."""
+    total = db.scalar(
+        select(func.coalesce(func.sum(JournalLine.amount), 0))
+        .join(Journal, Journal.id == JournalLine.journal_id)
+        .where(JournalLine.account_id == account_id, Journal.status == "posted", Journal.business_date <= day)
+    )
+    return Decimal(total).quantize(FILS)
+
+
+def _moved_days(db: Session, account_id: int, after: date | None, until: date) -> list[date]:
+    """The days after `after` up to `until` on which the account moved (posted journals), oldest first."""
+    q = (
+        select(Journal.business_date)
+        .join(JournalLine, JournalLine.journal_id == Journal.id)
+        .where(JournalLine.account_id == account_id, Journal.status == "posted", Journal.business_date <= until)
+        .distinct()
+        .order_by(Journal.business_date)
+    )
+    if after is not None:
+        q = q.where(Journal.business_date > after)
+    return list(db.scalars(q))
+
+
+def _next_to_close(db: Session, account_id: int, last: date | None) -> date | None:
+    """The day to close next: the first day with movements after the last closed one, else today (None when today
+    is closed already). Before the first closing, today: the first count starts the series."""
+    if last is None:
+        return today()
+    moved = _moved_days(db, account_id, last, today())
+    if moved:
+        return moved[0]
+    return today() if last < today() else None
+
+
+def _closing_out(db: Session, c: TreasuryClosing, last_id: int | None) -> dict:
+    from app.modules.identity import service as identity
+
+    users = identity.user_names(db, {u for u in (c.closed_by, c.reopened_by) if u})
+    journal = db.scalar(select(Journal.public_id).where(Journal.id == c.journal_id)) if c.journal_id else None
+    return {
+        "id": str(c.public_id),
+        "branch_id": c.branch_id,
+        "day": c.day,
+        "book_balance": c.book_balance,
+        "counted": c.counted,
+        "denominations": c.denominations,
+        "difference": c.difference,
+        "note": c.note,
+        "journal_id": str(journal) if journal else None,
+        "closed_by": users.get(c.closed_by),
+        "closed_at": c.closed_at,
+        "reopened_by": users.get(c.reopened_by),
+        "reopened_at": c.reopened_at,
+        "reopen_reason": c.reopen_reason,
+        "reopenable": c.reopened_at is None and c.id == last_id,
+    }
+
+
+def closing_day(db: Session, branch_public_id, *, day: date | None) -> dict:
+    """What the count-and-close dialog shows: the day to close (the next one by default), the treasury's balance at
+    its end, the last closed day and the days with movements still open."""
+    branch = _branch(db, branch_public_id)
+    acc = account(db, "treasury", branch_id=branch["id"])
+    last = last_closed_day(db, [branch["id"]])
+    suggested = _next_to_close(db, acc, last)
+    day = day or suggested or today()
+    out = {
+        "branch": branch,
+        "day": day,
+        "book_balance": _book(db, acc, day),
+        "last_closed_day": last,
+        "next_day": suggested,
+        "open_days": _moved_days(db, acc, last, today())[:62] if last is not None else [],
+        "denominations": list(DENOMINATIONS),
+    }
+    db.commit()  # the account, made on first sight
+    return out
+
+
+def close_day(
+    db: Session,
+    branch_public_id,
+    *,
+    day: date,
+    counted: Decimal,
+    denominations: dict | None,
+    note: str | None,
+    actor_user_id: int,
+) -> dict:
+    """The cash counted in a branch's treasury at the end of a day, against its posted balance then (under the
+    treasury's lock, so nothing moves it meanwhile): a difference is posted as a count_diff journal dated that day
+    (treasury +/-, adjustments -/+; in the books on the cash differences account), with its explanation. Days are
+    closed in order: no day while an earlier one with movements after the last closing is still open. A closed day
+    takes no more treasury movements (_check_day)."""
+    branch = _branch(db, branch_public_id)
+    if day > today():
+        raise AppError(422, "treasury_close_future")
+    named, total = _denominations(denominations)
+    if total is not None and total != counted:
+        raise AppError(422, "denominations_mismatch", total=f"{total:.3f}", counted=f"{counted:.3f}")
+    note = (note or "").strip() or None
+    acc = account(db, "treasury", branch_id=branch["id"])
+    _lock_month(db, day)  # the month first: a difference is posted in it (refused there if it is closed)
+    lock_branches(db, treasury=[branch["id"]])
+    last = _last_closing(db, branch["id"])
+    if last is not None:
+        if day <= last.day:
+            raise AppError(409, "treasury_day_closed", day=day.isoformat())
+        earlier = _moved_days(db, acc, last.day, day - timedelta(days=1))
+        if earlier:
+            raise AppError(409, "treasury_close_order", day=earlier[0].isoformat())
+    book = _book(db, acc, day)
+    difference = counted - book
+    if difference and not note:
+        raise AppError(422, "reason_required")
+    closing_id = db.scalar(text("SELECT nextval(pg_get_serial_sequence('cash.treasury_closings', 'id'))"))
+    journal = None
+    if difference:
+        from app.modules.finance import service as finance
+
+        finance.check_books_date(db, day)  # the books enter it on that day
+        journal = _journal(
+            db,
+            "count_diff",
+            source_type="treasury_closing",
+            source_id=closing_id,
+            lines=[(acc, difference), (account(db, "adjustments"), -difference)],
+            actor_user_id=actor_user_id,
+            reason=note,
+            post=True,
+            business_date=day,
+        )
+    closing = TreasuryClosing(
+        id=closing_id,
+        branch_id=branch["id"],
+        day=day,
+        book_balance=book,
+        counted=counted,
+        denominations=named,
+        difference=difference,
+        note=note,
+        journal_id=journal.id if journal else None,
+        closed_by=actor_user_id,
+    )
+    db.add(closing)
+    db.flush()
+    db.refresh(closing)
+    audit.record(
+        db,
+        action="cash.treasury_closed",
+        entity_type="branch",
+        entity_id=branch["public_id"],
+        actor_user_id=actor_user_id,
+        after={"day": day, "book": book, "counted": counted, "difference": difference, "note": note},
+    )
+    check_unclosed(db, [branch["id"]])
+    if difference:
+        check_treasury(db, [branch["id"]])
+    db.commit()
+    return _closing_out(db, closing, closing.id)
+
+
+def reopen_closing(db: Session, public_id, *, reason: str, actor_user_id: int) -> dict:
+    """A branch's last closing reopened (a wrong count): its difference journal reversed on the same day, which is
+    open again; the closing stays in the list as reopened, with the reason."""
+    closing = db.scalar(select(TreasuryClosing).where(TreasuryClosing.public_id == public_id))
+    if closing is None:
+        raise AppError(404, "treasury_closing_not_found")
+    _check_month(db, closing.day)  # a day of a closed month stays closed; the month's lock before the treasury's
+    lock_branches(db, treasury=[closing.branch_id])
+    db.refresh(closing)
+    last = _last_closing(db, closing.branch_id)
+    if closing.reopened_at is not None or last is None or last.id != closing.id:
+        raise AppError(409, "treasury_closing_not_last")
+    closing.reopened_by, closing.reopened_at, closing.reopen_reason = actor_user_id, utcnow(), reason
+    db.flush()
+    if closing.journal_id is not None:
+        original = db.get(Journal, closing.journal_id)
+        lines = list(
+            db.execute(select(JournalLine.account_id, JournalLine.amount).where(JournalLine.journal_id == original.id))
+        )
+        treasury_acc = account(db, "treasury", branch_id=closing.branch_id)
+        out = next((m for a, m in lines if a == treasury_acc and m > 0), None)
+        if out is not None and _posted(db, treasury_acc) < out:  # a surplus taken back must still be there
+            raise AppError(422, "treasury_insufficient")
+        # dated as the difference it undoes: the day is open again, and closed again with its own count
+        _journal(
+            db,
+            "reversal",
+            source_type=original.source_type,
+            source_id=original.source_id,
+            lines=[(a, -m) for a, m in lines],
+            actor_user_id=actor_user_id,
+            reason=reason,
+            reverses_id=original.id,
+            post=True,
+            business_date=closing.day,
+        )
+    branch = next(b for b in org.list_branches(db) if b["id"] == closing.branch_id)
+    audit.record(
+        db,
+        action="cash.treasury_reopened",
+        entity_type="branch",
+        entity_id=branch["public_id"],
+        actor_user_id=actor_user_id,
+        after={"day": closing.day, "reason": reason},
+    )
+    check_unclosed(db, [closing.branch_id])
+    check_treasury(db, [closing.branch_id])
+    db.commit()
+    return _closing_out(db, closing, None)
+
+
+def closings(db: Session, branch_public_id, *, date_from: date, date_to: date) -> dict:
+    """A branch treasury's closings of a period (newest first), the reopened ones too; only the last standing one
+    may be reopened."""
+    if date_to < date_from:
+        raise AppError(422, "invalid_range")
+    branch = _branch(db, branch_public_id)
+    last = _last_closing(db, branch["id"])
+    rows = db.scalars(
+        select(TreasuryClosing)
+        .where(TreasuryClosing.branch_id == branch["id"], TreasuryClosing.day.between(date_from, date_to))
+        .order_by(TreasuryClosing.day.desc(), TreasuryClosing.id.desc())
+    )
+    return {
+        "branch": branch,
+        "last_closed_day": last.day if last else None,
+        "lines": [_closing_out(db, c, last.id if last else None) for c in rows],
+    }
+
+
+def pending_journals(db: Session, first: date, last: date) -> int:
+    """For the month's close: journals of business dates first..last still pending (an adjustment waiting for its
+    workflow); a daily report's pending collection is counted with its report."""
+    return db.scalar(
+        select(func.count())
+        .select_from(Journal)
+        .where(Journal.status == "pending", Journal.kind != "collection", Journal.business_date.between(first, last))
+    )
+
+
+def pending_fuel_claims(db: Session, first: date, last: date) -> int:
+    from app.modules.cash import fuel
+
+    return fuel.pending_between(db, first, last)
+
+
+def unclosed_days(db: Session, first: date, last: date) -> list[dict]:
+    """For the month's close: per branch, the days of first..last with treasury movements not closed by a count."""
+    out = []
+    for b in org.list_branches(db):
+        acc = db.scalar(select(Account.id).where(Account.kind == "treasury", Account.branch_id == b["id"]))
+        if acc is None:
+            continue
+        closed = last_closed_day(db, [b["id"]])
+        days = [d for d in _moved_days(db, acc, first - timedelta(days=1), last) if closed is None or d > closed]
+        if days:
+            out.append({"branch": b, "days": days})
+    return out
+
+
+def check_unclosed(db: Session, branch_ids: Iterable[int] | None = None) -> int:
+    """treasury_not_closed for each branch whose treasury moved yesterday and yesterday is not closed by a count;
+    closed by itself once it is. Returns the alerts standing."""
+    yesterday = today() - timedelta(days=1)
+    raised = 0
+    for b in org.list_branches(db):
+        if branch_ids is not None and b["id"] not in set(branch_ids):
+            continue
+        key = f"treasury_not_closed:{b['id']}"
+        acc = db.scalar(select(Account.id).where(Account.kind == "treasury", Account.branch_id == b["id"]))
+        closed = last_closed_day(db, [b["id"]])
+        moved = acc is not None and yesterday in _moved_days(db, acc, yesterday - timedelta(days=1), yesterday)
+        if moved and (closed is None or closed < yesterday):
+            notifications.raise_alert(
+                db,
+                "treasury_not_closed",
+                company_id=None,
+                entity_type="branch",
+                entity_id=b["public_id"],
+                params={"branch": b["name"], "day": yesterday.isoformat()},
+                dedupe_key=key,
+                refresh=True,
+            )
+            raised += 1
+        else:
+            notifications.resolve(db, key)
+    return raised
 
 
 # ------------------------------------------------------------------ the treasury's deposit rule (settings cash)
@@ -1188,6 +1823,8 @@ def scan_treasury(db: Session, *, moment: str) -> int:
                 )
                 raised += 1
     check_treasury(db)
+    if moment != "night":
+        check_unclosed(db)  # yesterday's treasury, moved and not counted and closed
     db.commit()
     return raised
 
@@ -1196,14 +1833,16 @@ def scan_treasury(db: Session, *, moment: str) -> int:
 
 
 def journal_drivers(db: Session, journal_ids: Iterable[int]) -> dict[int, int]:
-    """The driver each journal moved money for (his account's line), for finance's account statements."""
+    """The driver each journal moved money for (his account's line), or the holder of the petty cash custody it
+    moved, for finance's account statements and the movements."""
     ids = list(set(journal_ids))
     if not ids:
         return {}
+    holder = func.coalesce(Account.driver_id, Account.employee_id)
     rows = db.execute(
-        select(JournalLine.journal_id, Account.driver_id)
+        select(JournalLine.journal_id, holder)
         .join(Account, Account.id == JournalLine.account_id)
-        .where(JournalLine.journal_id.in_(ids), Account.driver_id.is_not(None))
+        .where(JournalLine.journal_id.in_(ids), holder.is_not(None))
     )
     return {j: d for j, d in rows}
 

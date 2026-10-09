@@ -150,6 +150,7 @@ class MovementLine(BaseModel):
     attachment_type: str | None  # its content type: an image opens in the viewer, a PDF in a new tab
     reversed: bool
     reversible: bool  # this user may reverse it from here
+    closed: bool = False  # its day is closed by a count: nothing more moves the treasury on it
 
 
 class MovementsOut(BaseModel):
@@ -157,10 +158,65 @@ class MovementsOut(BaseModel):
     account: str
     date_from: date
     date_to: date
+    closed_through: date | None = None  # the treasury's last day closed by a count
     opening: Decimal
     closing: Decimal
     truncated: bool
     lines: list[MovementLine]
+
+
+# ---- the treasury's daily count and close
+
+Note = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
+
+
+class CloseDayIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    day: date
+    counted: Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=3)]
+    denominations: dict[str, Annotated[int, Field(ge=0, le=1_000_000)]] | None = None  # {"20": 3, "0.250": 4}
+    note: Note | None = None  # required when the count differs from the books
+
+
+class ReopenIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: Reason
+
+
+class ClosingOut(BaseModel):
+    id: str
+    branch_id: int
+    day: date
+    book_balance: Decimal
+    counted: Decimal
+    denominations: dict[str, int] | None
+    difference: Decimal
+    note: str | None
+    journal_id: str | None
+    closed_by: str | None
+    closed_at: datetime
+    reopened_by: str | None
+    reopened_at: datetime | None
+    reopen_reason: str | None
+    reopenable: bool
+
+
+class ClosingsOut(BaseModel):
+    branch: dict
+    last_closed_day: date | None
+    lines: list[ClosingOut]
+
+
+class ClosingDayOut(BaseModel):
+    branch: dict
+    day: date
+    book_balance: Decimal  # the treasury's posted balance at the end of the day
+    last_closed_day: date | None
+    next_day: date | None  # the day to close next
+    open_days: list[date]  # days with movements after the last closing, still open
+    denominations: list[str]
 
 
 class DriverCashOut(BaseModel):
@@ -246,3 +302,36 @@ class FuelRejectIn(BaseModel):
 
 class CountOut(BaseModel):
     count: int
+
+
+# ---- petty cash custody
+
+
+class PettyMoveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    branch_id: int  # the treasury it comes from, or goes back to
+    amount: Amount
+    note: Note | None = None
+
+
+class PettyHolderOut(BaseModel):
+    employee: PersonRef
+    branch_id: int | None
+    balance: Decimal
+    last_movement: date | None
+
+
+class PettyMovementsOut(BaseModel):
+    employee: PersonRef | None
+    account: str
+    date_from: date
+    date_to: date
+    opening: Decimal
+    closing: Decimal
+    truncated: bool
+    lines: list[MovementLine]
+
+
+class PettyStatusOut(BaseModel):
+    role_ready: bool  # the petty_cash role is on an open account: custodies can be funded

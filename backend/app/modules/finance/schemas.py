@@ -60,7 +60,8 @@ class ExpenseIn(_In):
     expense_date: date
     amount: Amount
     quantity: Annotated[Decimal, Field(gt=0, max_digits=10, decimal_places=2)] | None = None
-    payment_method: Literal["treasury", "bank", "payable"]
+    payment_method: Literal["treasury", "bank", "payable", "petty"]
+    petty_employee_id: uuid.UUID | None = None  # whose petty cash custody paid: required when paid from one
     supplier: Short | None = None
     reference_no: Short | None = None
     vehicle_id: uuid.UUID | None = None
@@ -187,6 +188,7 @@ class ExpenseOut(BaseModel):
     reference_no: str | None
     vehicle: VehicleRef | None
     employee: Ref | None
+    petty_employee: Ref | None = None  # whose petty cash custody paid
     center: Ref | None
     notes: str | None
     status: str
@@ -350,3 +352,32 @@ class ImportOut(BaseModel):
     lines: int
     applied: bool
     numbers: list[int]  # the entries made
+
+
+# ---- month close
+
+
+class PeriodOut(BaseModel):
+    month: str  # "2026-09"
+    status: str  # open | closed
+    closed_by: str | None
+    closed_at: datetime | None
+    reopened_by: str | None
+    reopened_at: datetime | None
+    reopen_reason: str | None
+    reopenable: bool  # the latest closed month
+
+
+class Problem(BaseModel):
+    code: str  # period_problem.<code>
+    params: dict
+
+
+class PeriodCheckOut(BaseModel):
+    month: str
+    status: str
+    problems: list[Problem]  # empty: ready to close
+
+
+class PeriodReopenIn(_In):
+    reason: Reason

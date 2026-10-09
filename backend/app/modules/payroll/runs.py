@@ -492,10 +492,18 @@ def _approval(run: Run) -> dict:
     }
 
 
+def _open_month(db: Session, run: Run) -> None:
+    """A run enters the books at its month's end: refused (period_closed) when that month of the books is closed."""
+    from app.modules.finance import service as finance
+
+    finance.check_open_month(db, _month_end(run.month))
+
+
 def approve(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
     run = _run(db, public_id, lock=True, **scope)
     if run.status != "draft":
         raise AppError(409, "run_not_draft")
+    _open_month(db, run)
     earlier = db.scalar(
         select(Run.month).where(Run.company_id == run.company_id, Run.month < run.month, Run.status == "draft")
     )
@@ -572,6 +580,7 @@ def reopen(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
     run = _run(db, public_id, lock=True, **scope)
     if run.status != "approved":
         raise AppError(409, "run_not_approved")
+    _open_month(db, run)  # its entry stands in a closed month
     if db.scalar(select(Run.id).where(Run.company_id == run.company_id, Run.month > run.month, Run.status != "draft")):
         raise AppError(409, "later_run_approved")
     run.status, run.approved_by, run.approved_at = "draft", None, None
@@ -724,7 +733,8 @@ def runs_for_posting(db: Session, first: date, last: date) -> dict[str, list[dic
 def deductions_for_posting(db: Session, first: date, last: date) -> list[dict]:
     """Deductions made on Kuwait days first..last, for what the employee owes: the total while it stands, what was
     taken in approved payroll if it was cancelled since (nothing more will be)."""
-    made_on = func.date(func.timezone("Asia/Kuwait", Deduction.created_at))
+    # the day it was made, or the day it was approved when that day was closed already (books_date)
+    made_on = func.coalesce(Deduction.books_date, func.date(func.timezone("Asia/Kuwait", Deduction.created_at)))
     rows = db.execute(select(Deduction, made_on).where(made_on.between(first, last))).all()
     cancelled = [d.id for d, _ in rows if d.status == "cancelled"]
     taken: dict[int, Decimal] = {}

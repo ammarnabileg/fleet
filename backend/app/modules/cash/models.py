@@ -16,7 +16,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -33,6 +33,7 @@ ACCOUNT_KINDS = (
     "opening",
     "fuel",
     "disbursements",
+    "petty",
 )
 
 
@@ -41,13 +42,20 @@ class Account(Base):
     __table_args__ = (
         CheckConstraint(
             "kind IN ('driver', 'treasury', 'bank', 'cod_clearing', 'adjustments', 'payroll_recovery', 'writeoff', "
-            "'opening', 'fuel', 'disbursements')",
+            "'opening', 'fuel', 'disbursements', 'petty')",
             name="kind",
         ),
         CheckConstraint("(kind = 'driver') = (driver_id IS NOT NULL)", name="driver"),
+        CheckConstraint("(kind = 'petty') = (employee_id IS NOT NULL)", name="petty"),
         UniqueConstraint(
-            "kind", "driver_id", "branch_id", name="accounts_kind_key", postgresql_nulls_not_distinct=True
+            "kind",
+            "driver_id",
+            "branch_id",
+            "employee_id",
+            name="accounts_kind_key",
+            postgresql_nulls_not_distinct=True,
         ),
+        Index("accounts_one_petty", "employee_id", unique=True, postgresql_where=text("kind = 'petty'")),
         SCHEMA,
     )
 
@@ -55,6 +63,7 @@ class Account(Base):
     kind: Mapped[str] = mapped_column(Text)
     driver_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
     branch_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("org.branches.id"))
+    employee_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("people.employees.id"))  # petty's holder
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -65,11 +74,13 @@ class Journal(Base):
     __table_args__ = (
         CheckConstraint(
             "kind IN ('collection', 'adjustment', 'deposit', 'bank_deposit', 'settlement', 'writeoff', 'reversal', "
-            "'opening', 'fuel', 'disbursement', 'bank_withdrawal')",
+            "'opening', 'fuel', 'disbursement', 'bank_withdrawal', 'count_diff', 'petty_fund', 'petty_return')",
             name="kind",
         ),
         CheckConstraint("status IN ('pending', 'posted', 'rejected')", name="status"),
-        CheckConstraint("kind NOT IN ('adjustment', 'reversal', 'writeoff') OR reason IS NOT NULL", name="reason"),
+        CheckConstraint(
+            "kind NOT IN ('adjustment', 'reversal', 'writeoff', 'count_diff') OR reason IS NOT NULL", name="reason"
+        ),
         CheckConstraint("(kind = 'reversal') = (reverses_id IS NOT NULL)", name="reversal"),
         CheckConstraint("created_by IS NOT NULL OR created_by_device IS NOT NULL", name="creator"),
         Index(
@@ -79,7 +90,8 @@ class Journal(Base):
             "kind",
             unique=True,
             postgresql_where=text(
-                "status <> 'rejected' AND kind IN ('collection', 'deposit', 'settlement', 'opening', 'disbursement')"
+                "status <> 'rejected' AND kind IN ('collection', 'deposit', 'settlement', 'opening', 'disbursement', "
+                "'count_diff')"
             ),
         ),
         Index("journals_one_reversal", "reverses_id", unique=True, postgresql_where=text("kind = 'reversal'")),
@@ -177,3 +189,45 @@ class FuelClaim(Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     journal_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("cash.journals.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class TreasuryClosing(Base):
+    """A branch treasury's day counted and closed: the posted balance at the end of the day, the cash counted, and the
+    difference (posted as a count_diff journal). Never changed except to be reopened (the last one only)."""
+
+    __tablename__ = "treasury_closings"
+    __table_args__ = (
+        CheckConstraint("counted >= 0", name="counted"),
+        CheckConstraint("difference = counted - book_balance", name="difference"),
+        CheckConstraint("difference = 0 OR note IS NOT NULL", name="note"),
+        CheckConstraint("(difference = 0) = (journal_id IS NULL)", name="journal"),
+        CheckConstraint(
+            "(reopened_at IS NULL) = (reopened_by IS NULL) AND (reopened_at IS NULL) = (reopen_reason IS NULL)",
+            name="reopened",
+        ),
+        Index(
+            "treasury_closings_active",
+            "branch_id",
+            "day",
+            unique=True,
+            postgresql_where=text("reopened_at IS NULL"),
+        ),
+        Index("treasury_closings_branch_id_idx", "branch_id", "day"),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    branch_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("org.branches.id"))
+    day: Mapped[date] = mapped_column(Date)
+    book_balance: Mapped[Decimal] = mapped_column(Numeric(12, 3))
+    counted: Mapped[Decimal] = mapped_column(Numeric(12, 3))
+    denominations: Mapped[dict | None] = mapped_column(JSONB)
+    difference: Mapped[Decimal] = mapped_column(Numeric(12, 3))
+    note: Mapped[str | None] = mapped_column(Text)
+    journal_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("cash.journals.id"))
+    closed_by: Mapped[int] = mapped_column(BigInteger, ForeignKey("identity.users.id"))
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reopened_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("identity.users.id"))
+    reopened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reopen_reason: Mapped[str | None] = mapped_column(Text)

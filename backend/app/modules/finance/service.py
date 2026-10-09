@@ -17,7 +17,7 @@ from app.core.errors import AppError
 from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
 from app.modules.files import service as files
-from app.modules.finance import posting
+from app.modules.finance import periods, posting
 from app.modules.finance.models import (
     ENTRY_SEQ,
     Account,
@@ -86,6 +86,18 @@ def _check_date(db: Session, day: date) -> None:
 def check_books_date(db: Session, day: date) -> None:
     """For other modules: refused (before_books_start) when a document of that day would never be entered."""
     _check_date(db, day)
+
+
+def month_closed(db: Session, day: date) -> bool:
+    """For other modules: whether the month of `day` is closed, holding the month's shared lock (see
+    check_open_month)."""
+    return periods.is_closed(db, day)
+
+
+def check_open_month(db: Session, day: date) -> None:
+    """For other modules: refused (409 period_closed) when the month of `day` is closed; holds the month's shared
+    lock until the transaction ends, so the month cannot close before what the caller writes is in."""
+    periods.check_open(db, day)
 
 
 def check_books_start_change(db: Session, old: date | None, new: date | None) -> None:
@@ -357,7 +369,7 @@ def _expense_out(db: Session, rows: list[Expense]) -> list[dict]:
 
     types = {t.id: t for t in db.scalars(select(ExpenseType).where(ExpenseType.id.in_({e.type_id for e in rows})))}
     vehicles = fleet.vehicle_cards(db, {e.vehicle_id for e in rows if e.vehicle_id})
-    employees = people.names(db, {e.employee_id for e in rows if e.employee_id})
+    employees = people.names(db, {x for e in rows for x in (e.employee_id, e.petty_employee_id) if x})
     centers = maintenance.centers_brief(db, {e.center_id for e in rows if e.center_id})
     users = identity.user_names(db, {u for e in rows for u in (e.created_by, e.decided_by, e.paid_by) if u})
     attached: dict[int, list[str]] = defaultdict(list)
@@ -387,6 +399,7 @@ def _expense_out(db: Session, rows: list[Expense]) -> list[dict]:
                 "reference_no": e.reference_no,
                 "vehicle": {"id": vehicle["id"], "plate_number": vehicle["plate_number"]} if vehicle else None,
                 "employee": employees.get(e.employee_id),
+                "petty_employee": employees.get(e.petty_employee_id),
                 "center": {"id": center["id"], "name": center["name"]} if center else None,
                 "notes": e.notes,
                 "status": e.status,
@@ -446,7 +459,9 @@ def create_expense(db: Session, data: dict, *, actor_user_id: int, all_companies
     elif data["payment_method"] == "treasury":  # the money comes out of a branch's treasury: which one
         raise AppError(422, "expense_branch_required")
     if data["payment_method"] == "treasury":
-        _treasury_day(db, data["expense_date"])
+        _treasury_day(db, data["expense_date"], branch_id)
+    holder = _petty_holder(db, data, all_companies) if data["payment_method"] == "petty" else None
+    periods.check_open(db, data["expense_date"])  # it enters the books on its date
     expense = Expense(
         company_id=company_id,
         branch_id=branch_id,
@@ -455,6 +470,7 @@ def create_expense(db: Session, data: dict, *, actor_user_id: int, all_companies
         amount=data["amount"],
         quantity=data.get("quantity"),
         payment_method=data["payment_method"],
+        petty_employee_id=holder.id if holder else None,
         supplier=data.get("supplier"),
         reference_no=data.get("reference_no"),
         vehicle_id=vehicle.id if vehicle else None,
@@ -526,12 +542,17 @@ def _check_branch(db: Session, branch_id: int) -> None:
         raise AppError(422, "branch_not_found")
 
 
-def _treasury_day(db: Session, day: date) -> None:
+def _treasury_day(db: Session, day: date, branch_id: int | None = None) -> None:
     """Money out of the treasury is dated as its entry in the books: never before the books start (the books would
-    never count it while the screen does), never in the future."""
+    never count it while the screen does), never in the future, never in a day the branch closed by its count."""
+    from app.modules.cash import service as cash
+
     _check_date(db, day)
     if day > today():
         raise AppError(422, "treasury_date_future")
+    closed = cash.last_closed_day(db, [branch_id]) if branch_id is not None else None
+    if closed is not None and day <= closed:
+        raise AppError(409, "treasury_day_closed", day=day.isoformat())
 
 
 def _disburse(db: Session, expense: Expense, *, day: date, actor_user_id: int) -> None:
@@ -559,6 +580,58 @@ def _disburse(db: Session, expense: Expense, *, day: date, actor_user_id: int) -
     )
 
 
+def petty_role_ready(db: Session) -> bool:
+    """Whether the books can enter a petty cash custody: its role (petty_cash) on an open account."""
+    account = posting.role_accounts(db).get("petty_cash")
+    return account is not None and account.active
+
+
+def check_petty_role(db: Session) -> None:
+    """For other modules: refused (petty_role_missing) while the books cannot enter a custody."""
+    if not petty_role_ready(db):
+        raise AppError(422, "petty_role_missing")
+
+
+def _petty_holder(db: Session, data: dict, all_companies: bool) -> people.EmployeeRef:
+    """Paid from an employee's petty cash custody: his, named, one who holds a custody; the custody is not a
+    company's, so an all-companies user only. Dated as money out of the treasury is (books start, not ahead)."""
+    from app.modules.cash import service as cash
+
+    if not all_companies:
+        raise AppError(403, "company_out_of_scope")
+    if not data.get("petty_employee_id"):
+        raise AppError(422, "expense_petty_holder_required")
+    check_petty_role(db)
+    holder = people.ref_by_public_id(db, data["petty_employee_id"], all_companies=True, company_ids=[])
+    if not cash.is_petty_holder(db, holder.id):
+        raise AppError(422, "petty_holder_unknown")
+    _treasury_day(db, data["expense_date"])
+    return holder
+
+
+def _disburse_petty(db: Session, expense: Expense, *, actor_user_id: int) -> None:
+    """Approved: the money leaves the holder's custody now (refused when he holds less), dated as the books date the
+    expense."""
+    from app.modules.cash import service as cash
+
+    _treasury_day(db, expense.expense_date)
+    t = db.get(ExpenseType, expense.type_id)
+    first_file = db.scalar(
+        select(ExpenseFile.sha256).where(ExpenseFile.expense_id == expense.id).order_by(ExpenseFile.position).limit(1)
+    )
+    cash.petty_disburse(
+        db,
+        employee_id=expense.petty_employee_id,
+        amount=expense.amount,
+        business_date=expense.expense_date,
+        source_type="expense",
+        source_id=expense.id,
+        reason=f"EXP-{expense.number} · {_name(db, t.name)}",
+        attachment_sha256=first_file,
+        actor_user_id=actor_user_id,
+    )
+
+
 def advances_from_treasury(db: Session) -> bool:
     """Whether an advance is paid out of the treasury in the books: its role (deduction_advance) is on the treasury's
     account, as the default chart has it. Then the advance is a disbursement of the employee's branch treasury."""
@@ -577,12 +650,22 @@ def _approval(expense: Expense) -> dict:
     }
 
 
+def _petty_scope(expense: Expense, scope: dict) -> None:
+    """An expense paid from a petty cash custody moves the custody, which is not a company's: an all-companies user
+    decides or cancels it."""
+    if expense.payment_method == "petty" and not scope.get("all_companies"):
+        raise AppError(403, "company_out_of_scope")
+
+
 def decide_expense(db: Session, public_id, *, approve: bool, note: str | None, actor_user_id: int, **scope) -> dict:
     expense = _get(db, public_id, lock=True, **scope)
+    _petty_scope(expense, scope)
     if expense.status != "pending":
         raise AppError(409, "expense_not_pending", status=expense.status)
     if not approve and not note:
         raise AppError(422, "reason_required")
+    if approve:
+        periods.check_open(db, expense.expense_date)  # it enters the books on its date
     if not approvals.gate(
         db, "expense", **_approval(expense), actor_user_id=actor_user_id, approve=approve, reason=note
     ):
@@ -591,6 +674,8 @@ def decide_expense(db: Session, public_id, *, approve: bool, note: str | None, a
     # an expense entered before expenses named their branch (no branch) keeps the old way: the books only
     if approve and expense.payment_method == "treasury" and expense.branch_id is not None:
         _disburse(db, expense, day=expense.expense_date, actor_user_id=actor_user_id)
+    if approve and expense.payment_method == "petty":
+        _disburse_petty(db, expense, actor_user_id=actor_user_id)
     expense.status = "approved" if approve else "rejected"
     expense.decided_by, expense.decided_at, expense.decision_note = actor_user_id, utcnow(), note
     expense.version += 1
@@ -606,6 +691,7 @@ def cancel_expense(db: Session, public_id, *, reason: str, actor_user_id: int, *
     from app.modules.cash import service as cash
 
     expense = _get(db, public_id, lock=True, **scope)
+    _petty_scope(expense, scope)
     if expense.status not in ("pending", "approved") or expense.paid_at is not None:
         raise AppError(409, "expense_not_cancellable", status=expense.status)
     if expense.status == "approved":
@@ -681,6 +767,59 @@ def post(db: Session, first: date, last: date, *, actor_user_id: int, all_compan
         first = start
         if last < first:
             return {"created": 0, "by_kind": {}, "stale": [], "errors": []}
+    missing, stale = compare(db, first, last)
+    roles = posting.role_accounts(db)
+    created: dict[str, int] = defaultdict(int)
+    errors, made = [], []
+    # a closed month takes no entry: a document of it that changed since (a deduction cancelled after payroll took
+    # part of it...) is entered on the first day of the first open month after it, saying which day it is for; what
+    # still cannot be entered is reported, never skipped silently
+    months = {d.day.replace(day=1) for d in missing}
+    closed = {m for m in months if periods.is_closed(db, m)}
+    lang = i18n.default_language(db).code
+    for doc in missing:
+        description = None
+        if doc.day.replace(day=1) in closed:
+            moved = periods.first_open_month(db, doc.day)
+            if moved is None:
+                errors.append({"source_ref": doc.ref, "code": "period_closed", "params": {"month": f"{doc.day:%Y-%m}"}})
+                continue
+            original = doc.day
+            description = _describe(db, doc)
+            doc.day = moved
+            note = i18n.t(db, lang, "finance_source.original_date", date=original.isoformat())
+            description = f"{description} ({note})"
+        try:
+            with db.begin_nested():
+                made.append(
+                    posting.write(
+                        db,
+                        doc,
+                        description=description or _describe(db, doc),
+                        roles=roles,
+                        actor_user_id=actor_user_id,
+                    )
+                )
+            created[doc.kind] += 1
+        except AppError as e:
+            errors.append({"source_ref": doc.ref, "code": e.code, "params": e.params})
+    if created:
+        audit.record(
+            db,
+            action="finance.entries.posted",
+            entity_type="entry",
+            actor_user_id=actor_user_id,
+            after={"from": first, "to": last, "created": dict(created)},
+        )
+    if _auto(db):
+        _approve_by_system(db, made)
+    db.commit()
+    return {"created": sum(created.values()), "by_kind": dict(created), "stale": stale, "errors": errors}
+
+
+def compare(db: Session, first: date, last: date) -> tuple[list[posting.Doc], list[dict]]:
+    """The documents of first..last that make an entry and have none yet, and the live entries whose document changed
+    since (or is gone): what a posting would make, and what it lists to reverse. Writes nothing."""
     docs = posting.documents(db, first, last)
     live = {
         (e.source_kind, e.source_id): e
@@ -705,9 +844,7 @@ def post(db: Session, first: date, last: date, *, actor_user_id: int, all_compan
             .group_by(EntryLine.entry_id)
         ).all()
     )
-    roles = posting.role_accounts(db)
-    created: dict[str, int] = defaultdict(int)
-    stale, errors, seen, made = [], [], set(), []
+    stale, missing, seen = [], [], set()
     for doc in docs:
         key = (doc.kind, doc.id)
         seen.add(key)
@@ -716,31 +853,12 @@ def post(db: Session, first: date, last: date, *, actor_user_id: int, all_compan
             if totals.get(entry.id, ZERO) != doc.total:
                 stale.append(_stale(entry, totals.get(entry.id, ZERO), doc.total))
             continue
-        if doc.total == ZERO:
-            continue
-        try:
-            with db.begin_nested():
-                made.append(
-                    posting.write(db, doc, description=_describe(db, doc), roles=roles, actor_user_id=actor_user_id)
-                )
-            created[doc.kind] += 1
-        except AppError as e:
-            errors.append({"source_ref": doc.ref, "code": e.code, "params": e.params})
+        if doc.total != ZERO:
+            missing.append(doc)
     for key, entry in live.items():
         if key not in seen and first <= entry.entry_date <= last:
             stale.append(_stale(entry, totals.get(entry.id, ZERO), ZERO))
-    if created:
-        audit.record(
-            db,
-            action="finance.entries.posted",
-            entity_type="entry",
-            actor_user_id=actor_user_id,
-            after={"from": first, "to": last, "created": dict(created)},
-        )
-    if _auto(db):
-        _approve_by_system(db, made)
-    db.commit()
-    return {"created": sum(created.values()), "by_kind": dict(created), "stale": stale, "errors": errors}
+    return missing, stale
 
 
 def _by_kind(keys: Iterable[tuple[str, int]]) -> dict[str, list[int]]:
@@ -897,6 +1015,8 @@ def approve_entries(
     """Drafts approved: they never change again (FR-FIN-05)."""
     _need_all_companies(all_companies)
     rows = _picked(db, ids, date_from, date_to)
+    for m in sorted({e.entry_date.replace(day=1) for e in rows}):
+        periods.check_open(db, m)
     now = utcnow()
     for e in rows:
         e.status, e.approved_by, e.approved_at = "approved", actor_user_id, now
@@ -956,6 +1076,7 @@ def reverse_entry(
             raise AppError(422, "reversal_date_future")
         if day < entry.entry_date:
             raise AppError(422, "reversal_before_entry", date=entry.entry_date.isoformat())
+    periods.check_open(db, day)  # an opening's month too: a closed month takes no entry
     reversal = Entry(
         entry_date=day,
         source_kind="reversal",
@@ -1267,6 +1388,7 @@ def create_manual(
     scope = {"all_companies": all_companies, "company_ids": company_ids}
     _check_company(db, data.get("company_id"))
     _check_date(db, data["entry_date"])
+    periods.check_open(db, data["entry_date"])
     lines = _lines(db, data["lines"], scope=scope)
     if not 2 <= len(lines) <= MANUAL_MAX_LINES:
         raise AppError(422, "entry_lines_count", min=2, max=MANUAL_MAX_LINES)
@@ -1326,6 +1448,7 @@ def create_opening(
         raise AppError(422, "books_start_required")
     company_id = data.get("company_id")
     _check_company(db, company_id)
+    periods.check_open(db, start - timedelta(days=1))
     _opening_lock(db)
     if opening_exists(db, company_id):
         raise AppError(409, "opening_exists")
@@ -1450,6 +1573,12 @@ def import_books(
         raise AppError(409, "old_entries_imported", numbers=", ".join(taken))
     for n in taken:
         result.error(oldbooks.ENTRIES, result.entries[n]["row"], "old_entry_imported", number=n)
+    for n in numbers:  # a closed month takes no entry
+        day = result.entries[n]["date"]
+        if periods.is_closed(db, day):
+            result.error(oldbooks.ENTRIES, result.entries[n]["row"], "period_closed", month=f"{day:%Y-%m}")
+    if found.opening and start is not None and periods.is_closed(db, start - timedelta(days=1)):
+        result.error(oldbooks.OPENING, None, "period_closed", month=f"{start - timedelta(days=1):%Y-%m}")
     out = result.summary()
     if not apply or result.errors:
         return out | {"applied": False, "numbers": []}
@@ -1502,3 +1631,27 @@ def _civil_ids(db: Session, found) -> dict[str, int]:
         if ref is not None:
             out[civil_id] = ref.id
     return out
+
+
+# ------------------------------------------------------------------ month close
+
+
+def list_periods(db: Session, first: date, last: date, *, all_companies: bool, **_) -> list[dict]:
+    _need_all_companies(all_companies)
+    return periods.list_periods(db, first.replace(day=1), last.replace(day=1))
+
+
+def check_period(db: Session, month: str, *, all_companies: bool, **_) -> dict:
+    """The month's checklist: what is left to do before it can close (nothing: ready)."""
+    _need_all_companies(all_companies)
+    return periods.check(db, periods.parse_month(month))
+
+
+def close_period(db: Session, month: str, *, actor_user_id: int, all_companies: bool, **_) -> dict:
+    _need_all_companies(all_companies)
+    return periods.close(db, periods.parse_month(month), actor_user_id=actor_user_id)
+
+
+def reopen_period(db: Session, month: str, *, reason: str, actor_user_id: int, all_companies: bool, **_) -> dict:
+    _need_all_companies(all_companies)
+    return periods.reopen(db, periods.parse_month(month), reason=reason, actor_user_id=actor_user_id)

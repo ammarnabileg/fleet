@@ -297,6 +297,14 @@ def list_claims(
     return _office_out(db, list(db.scalars(q)))
 
 
+def pending_between(db: Session, first: date, last: date) -> int:
+    """The claims paid on Kuwait days first..last still waiting for a decision (the month's close)."""
+    paid_on = func.date(func.timezone("Asia/Kuwait", FuelClaim.paid_at))
+    return db.scalar(
+        select(func.count()).select_from(FuelClaim).where(FuelClaim.status == "pending", paid_on.between(first, last))
+    )
+
+
 def pending_count(db: Session, *, all_companies: bool, company_ids: Iterable[int]) -> int:
     q = _scoped(select(func.count()).select_from(FuelClaim), all_companies, company_ids)
     return db.scalar(q.where(FuelClaim.status == "pending"))

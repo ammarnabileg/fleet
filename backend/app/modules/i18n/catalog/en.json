@@ -92,7 +92,8 @@
     "employees.onboarding": "Review and approve drivers' self-registration",
     "payroll.schemes": "Pay schemes and requests to change them",
     "daily_reports.escalations": "Overdue report escalations (manager)",
-    "cash.fuel_review": "Review and approve drivers' fuel claims"
+    "cash.fuel_review": "Review and approve drivers' fuel claims",
+    "finance.close": "Close and reopen months of the books"
   },
   "modules": {
     "accidents": "Accidents",
@@ -490,7 +491,24 @@
     "advance_partly_recovered": "Payroll already took part of this advance ({taken}): it cannot be cancelled. Correct it with a manual entry or an adjustment",
     "portal_account_from_center": "Maintenance-center accounts are created from the center's page (Maintenance → Centers → Portal accounts) so they are linked to their center",
     "not_a_portal_account": "This is an office account, not a center portal account",
-    "center_user_linked": "This account is already linked to a center"
+    "center_user_linked": "This account is already linked to a center",
+    "treasury_day_closed": "Day {day} of this branch treasury is closed by its count. Record the movement with today's date.",
+    "treasury_close_order": "Close {day} first: days are closed in order",
+    "treasury_close_future": "A day that has not come yet cannot be closed",
+    "denominations_mismatch": "The notes and coins add up to {total}, not the {counted} counted",
+    "denomination_unknown": "Unknown note or coin: {value}",
+    "treasury_closing_not_found": "Closing not found",
+    "treasury_closing_not_last": "Only the branch's last closed day can be reopened",
+    "count_diff_from_closing": "A count difference is undone by reopening its day",
+    "period_closed": "{month} is closed in the books: no entry and no cash movement may be dated in it. Use a date in an open month.",
+    "period_not_ready": "{month} has {count} open points to settle before it closes: see «Check»",
+    "period_not_latest": "Only the latest closed month can be reopened",
+    "invalid_month": "Invalid month (e.g. 2026-09)",
+    "petty_insufficient": "The custody holds less than this amount",
+    "petty_holder_inactive": "No custody is funded to an employee whose service ended",
+    "petty_holder_unknown": "The employee holds no petty cash custody: fund one first",
+    "expense_petty_holder_required": "Choose the employee whose custody paid",
+    "petty_role_missing": "Map the petty cash role to an account in the chart of accounts first"
   },
   "settings": {
     "branding": "Branding",
@@ -623,7 +641,8 @@
     "daily_report_missing": "{driver} started the day {date} but sent no report",
     "fuel_claim": "Fuel claim from {name} for {amount} KWD awaits review",
     "treasury_deposit_due": "The {branch} treasury holds {balance} KWD (limit {limit}): deposit it at the bank",
-    "treasury_deposit_day": "Today is the bank deposit day for the {branch} treasury: it holds {balance} KWD"
+    "treasury_deposit_day": "Today is the bank deposit day for the {branch} treasury: it holds {balance} KWD",
+    "treasury_not_closed": "{branch} treasury: {day} had movements and is not counted and closed"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -706,7 +725,10 @@
     "opening": "Opening balance",
     "fuel": "Fuel",
     "disbursement": "Paid from the treasury",
-    "bank_withdrawal": "Bank withdrawal"
+    "bank_withdrawal": "Bank withdrawal",
+    "count_diff": "Treasury count difference",
+    "petty_fund": "Petty cash funded",
+    "petty_return": "Petty cash returned"
   },
   "journal_status": {
     "pending": "Unapproved",
@@ -1097,7 +1119,8 @@
     "expense_type": "Expense type",
     "workflow": "Approval workflow",
     "delegation": "Delegation",
-    "fuel_claim": "Fuel claim"
+    "fuel_claim": "Fuel claim",
+    "period": "Month of the books"
   },
   "audit_actor": {
     "user": "User",
@@ -1130,7 +1153,8 @@
     "fine_payment": "Fine #{number} paid: {violation} {ref}",
     "reversal": "Reverses entry #{number}: {reason}",
     "opening": "Opening balances of the books starting {date}",
-    "imported": "Imported entry #{number}"
+    "imported": "Imported entry #{number}",
+    "original_date": "for {date}"
   },
   "entry_source": {
     "cash_journal": "Cash ledger",
@@ -1172,7 +1196,8 @@
   "expense_payment": {
     "treasury": "Cash from the treasury",
     "bank": "From the bank",
-    "payable": "Later (supplier invoice)"
+    "payable": "Later (supplier invoice)",
+    "petty": "From an employee's custody"
   },
   "account_type": {
     "asset": "Asset",
@@ -1202,7 +1227,8 @@
     "traffic_fines_expense": "Traffic fines expense",
     "cash_writeoff": "Driver cash written off",
     "driver_salaries_expense": "Drivers' salaries expense",
-    "fuel_expense": "Fuel paid from drivers' cash"
+    "fuel_expense": "Fuel paid from drivers' cash",
+    "petty_cash": "Petty cash held by employees"
   },
   "approval_process": {
     "daily_report": "Daily reports",
@@ -1294,7 +1320,8 @@
     "writeoff": "Write-off",
     "opening": "Opening balances",
     "fuel": "Fuel",
-    "disbursements": "Paid out of the treasury"
+    "disbursements": "Paid out of the treasury",
+    "petty": "Petty cash custody"
   },
   "treasury_column": {
     "treasury": "Treasury movements",
@@ -1307,5 +1334,20 @@
     "balance": "Balance",
     "opening": "Opening balance",
     "closing": "Closing balance"
+  },
+  "period_problem": {
+    "documents_not_entered": "{count} documents not entered yet: post the month's entries (fix the role mapping if posting reports errors)",
+    "draft_entries": "{count} draft entries in the month: approve or delete them",
+    "draft_payroll_runs": "{count} payroll runs of the month not approved yet",
+    "earlier_month_open": "The earlier month {month} is still open: close it first",
+    "month_not_over": "The month is not over yet (it ends on {end})",
+    "pending_cash_journals": "{count} cash movements of the month still waiting for approval (an adjustment, say)",
+    "pending_daily_reports": "{count} daily reports of the month still waiting for review or correction",
+    "pending_deductions": "{count} deductions made in the month still waiting for approval",
+    "pending_expenses": "{count} expenses dated in the month still waiting for approval",
+    "pending_fuel_claims": "{count} fuel claims of the month not reviewed yet",
+    "pending_report_changes": "{count} change requests on daily reports of the month not decided yet",
+    "stale_entries": "{count} entries whose document changed: reverse them and post again",
+    "treasury_days_open": "{branch} treasury: {count} days with movements not counted and closed, the first {first}"
   }
 }

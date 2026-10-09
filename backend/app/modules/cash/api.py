@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -271,6 +271,153 @@ def export_movements(
     content = sheets.to_xlsx(text(f"treasury_column.{account}", account), header, body, rtl=lang == "ar")
     name = f"{account}-{out['date_from']}-{out['date_to']}.xlsx"
     return Response(content, media_type=XLSX, headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+def _all_companies(principal: Principal) -> None:
+    if not principal.sees_all_companies:  # a branch's treasury is shared by every company of the branch
+        raise AppError(403, "company_out_of_scope")
+
+
+@router.get("/cash/treasury/{branch_public_id}/closing", response_model=schemas.ClosingDayOut)
+def closing_day(
+    branch_public_id: uuid.UUID,
+    day: date | None = None,
+    principal: Principal = Depends(require_permission("treasury.view")),
+    db: Session = Depends(get_session),
+):
+    """For the count-and-close dialog: the day to close next, and the treasury's balance at the end of a day."""
+    _all_companies(principal)
+    return service.closing_day(db, branch_public_id, day=day)
+
+
+@router.post("/cash/treasury/{branch_public_id}/close", response_model=schemas.ClosingOut, status_code=201)
+def close_day(
+    branch_public_id: uuid.UUID,
+    body: schemas.CloseDayIn,
+    principal: Principal = Depends(require_permission("treasury.manage")),
+    db: Session = Depends(get_session),
+):
+    """The day's cash counted and the day closed: a difference is posted with its explanation."""
+    _all_companies(principal)
+    return service.close_day(
+        db,
+        branch_public_id,
+        day=body.day,
+        counted=body.counted,
+        denominations=body.denominations,
+        note=body.note,
+        actor_user_id=principal.user_id,
+    )
+
+
+@router.get("/cash/treasury/{branch_public_id}/closings", response_model=schemas.ClosingsOut)
+def closings(
+    branch_public_id: uuid.UUID,
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    principal: Principal = Depends(require_permission("treasury.view")),
+    db: Session = Depends(get_session),
+):
+    """A branch treasury's closings, the last 62 days by default."""
+    _all_companies(principal)
+    last = date_to or today()
+    return service.closings(db, branch_public_id, date_from=date_from or last - timedelta(days=61), date_to=last)
+
+
+@router.post("/cash/treasury/closings/{public_id}/reopen", response_model=schemas.ClosingOut)
+def reopen_closing(
+    public_id: uuid.UUID,
+    body: schemas.ReopenIn,
+    principal: Principal = Depends(require_permission("treasury.manage")),
+    db: Session = Depends(get_session),
+):
+    """The branch's last closing reopened, with the reason: its difference is reversed."""
+    _all_companies(principal)
+    return service.reopen_closing(db, public_id, reason=body.reason, actor_user_id=principal.user_id)
+
+
+# ---- petty cash custody (not a company's: an all-companies user)
+
+
+def _holder(db: Session, raw: uuid.UUID) -> people.EmployeeRef:
+    return people.ref_by_public_id(db, raw, all_companies=True, company_ids=[])
+
+
+@router.get("/cash/petty", response_model=list[schemas.PettyHolderOut])
+def petty_holders(
+    principal: Principal = Depends(require_permission("treasury.view")), db: Session = Depends(get_session)
+):
+    """Who holds a petty cash custody, how much, and when it last moved."""
+    _all_companies(principal)
+    return service.petty_holders(db)
+
+
+@router.get("/cash/petty/status", response_model=schemas.PettyStatusOut)
+def petty_status(
+    principal: Principal = Depends(require_permission("treasury.view")), db: Session = Depends(get_session)
+):
+    """Whether a custody can be funded: the books need the petty cash role on an account first."""
+    return service.petty_ready(db)
+
+
+@router.post("/cash/petty/{employee_id}/fund", response_model=schemas.JournalOut, status_code=201)
+def petty_fund(
+    employee_id: uuid.UUID,
+    body: schemas.PettyMoveIn,
+    principal: Principal = Depends(require_permission("treasury.manage")),
+    db: Session = Depends(get_session),
+):
+    """Cash from a branch treasury to an employee's custody."""
+    _all_companies(principal)
+    return service.petty_fund(
+        db,
+        _holder(db, employee_id),
+        branch_id=body.branch_id,
+        amount=body.amount,
+        note=body.note,
+        actor_user_id=principal.user_id,
+    )
+
+
+@router.post("/cash/petty/{employee_id}/return", response_model=schemas.JournalOut, status_code=201)
+def petty_return(
+    employee_id: uuid.UUID,
+    body: schemas.PettyMoveIn,
+    principal: Principal = Depends(require_permission("treasury.manage")),
+    db: Session = Depends(get_session),
+):
+    """What is left of a custody, back to a branch treasury."""
+    _all_companies(principal)
+    return service.petty_return(
+        db,
+        _holder(db, employee_id),
+        branch_id=body.branch_id,
+        amount=body.amount,
+        note=body.note,
+        actor_user_id=principal.user_id,
+    )
+
+
+@router.get("/cash/petty/{employee_id}/movements", response_model=schemas.PettyMovementsOut)
+def petty_movements(
+    employee_id: uuid.UUID,
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    limit: Annotated[int, Query(ge=1, le=service.MOVEMENTS_MAX)] = 500,
+    principal: Principal = Depends(require_permission("treasury.view")),
+    db: Session = Depends(get_session),
+):
+    """A custody as it moved in a period (this month by default), with its running balance."""
+    _all_companies(principal)
+    return service.petty_movements(
+        db,
+        _holder(db, employee_id),
+        date_from=date_from or today().replace(day=1),
+        date_to=date_to or today(),
+        limit=limit,
+        can_reverse=principal.has("cash.reverse"),
+        **principal.scope,
+    )
 
 
 @router.get("/cash/journals/{public_id}/attachment")

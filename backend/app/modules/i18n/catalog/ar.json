@@ -92,7 +92,8 @@
     "employees.onboarding": "مراجعة واعتماد التسجيل الذاتي للسائقين",
     "payroll.schemes": "أنظمة الدفع وطلبات تغييرها",
     "daily_reports.escalations": "تصعيد التقارير المتأخرة (للمدير)",
-    "cash.fuel_review": "مراجعة بنزين السائقين واعتماده"
+    "cash.fuel_review": "مراجعة بنزين السائقين واعتماده",
+    "finance.close": "إقفال الشهور وإعادة فتحها"
   },
   "modules": {
     "accidents": "الحوادث",
@@ -490,7 +491,24 @@
     "advance_partly_recovered": "أخذت الرواتب جزءاً من هذه السلفة ({taken}): لا تُلغى. صحّحها بقيد يدوي أو بتسوية",
     "portal_account_from_center": "حسابات مراكز الصيانة تُنشأ من صفحة المركز (الصيانة ← مراكز الصيانة ← حسابات البوابة) لتُربط بمركزها",
     "not_a_portal_account": "هذا حساب إدارة وليس حساب بوابة مركز",
-    "center_user_linked": "هذا الحساب مربوط بمركز بالفعل"
+    "center_user_linked": "هذا الحساب مربوط بمركز بالفعل",
+    "treasury_day_closed": "يوم {day} في خزينة هذا الفرع مقفول بالجرد. سجّل الحركة بتاريخ اليوم.",
+    "treasury_close_order": "أقفل يوم {day} أولاً: الأيام تُقفل بالترتيب",
+    "treasury_close_future": "لا يُقفل يوم لم يأتِ بعد",
+    "denominations_mismatch": "مجموع الفئات {total} لا يساوي المبلغ المعدود {counted}",
+    "denomination_unknown": "فئة غير معروفة: {value}",
+    "treasury_closing_not_found": "الإقفال غير موجود",
+    "treasury_closing_not_last": "يُعاد فتح آخر يوم مقفول في الفرع فقط",
+    "count_diff_from_closing": "فرق الجرد يُعكس بإعادة فتح اليوم",
+    "period_closed": "شهر {month} مقفول في الدفاتر: لا قيود ولا حركات كاش بتاريخ فيه. استخدم تاريخاً في شهر مفتوح.",
+    "period_not_ready": "شهر {month} عليه {count} ملاحظات لازم تتحل قبل الإقفال: شوف «فحص»",
+    "period_not_latest": "يُعاد فتح آخر شهر مقفول فقط",
+    "invalid_month": "الشهر غير صحيح (مثال: 2026-09)",
+    "petty_insufficient": "العهدة فيها أقل من المبلغ",
+    "petty_holder_inactive": "لا تُصرف عهدة لموظف انتهت خدمته",
+    "petty_holder_unknown": "الموظف ليس معه عهدة نقدية: اصرف له عهدة أولاً",
+    "expense_petty_holder_required": "اختر الموظف صاحب العهدة التي دفعت",
+    "petty_role_missing": "اربط دور العهد النقدية بحساب في دليل الحسابات أولاً"
   },
   "settings": {
     "branding": "الهوية",
@@ -623,7 +641,8 @@
     "daily_report_missing": "{driver} بدأ يومه {date} ولم يرسل تقريره",
     "fuel_claim": "طلب بنزين من {name} بمبلغ {amount} د.ك بانتظار المراجعة",
     "treasury_deposit_due": "خزينة {branch} بلغت {balance} د.ك (الحد {limit}): أودعها في البنك",
-    "treasury_deposit_day": "اليوم يوم إيداع خزينة {branch} في البنك: فيها {balance} د.ك"
+    "treasury_deposit_day": "اليوم يوم إيداع خزينة {branch} في البنك: فيها {balance} د.ك",
+    "treasury_not_closed": "خزينة {branch}: يوم {day} عليه حركات ولم يُجرد ويُقفل"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
@@ -706,7 +725,10 @@
     "opening": "رصيد افتتاحي",
     "fuel": "بنزين",
     "disbursement": "صرف من الخزينة",
-    "bank_withdrawal": "سحب من البنك"
+    "bank_withdrawal": "سحب من البنك",
+    "count_diff": "فرق جرد الخزينة",
+    "petty_fund": "صرف عهدة",
+    "petty_return": "رد عهدة"
   },
   "journal_status": {
     "pending": "غير معتمد",
@@ -1097,7 +1119,8 @@
     "expense_type": "نوع مصروف",
     "workflow": "مسار اعتماد",
     "delegation": "تفويض",
-    "fuel_claim": "طلب بنزين"
+    "fuel_claim": "طلب بنزين",
+    "period": "شهر محاسبي"
   },
   "audit_actor": {
     "user": "مستخدم",
@@ -1130,7 +1153,8 @@
     "fine_payment": "سداد مخالفة #{number}: {violation} {ref}",
     "reversal": "عكس القيد #{number}: {reason}",
     "opening": "أرصدة افتتاحية للدفاتر التي تبدأ {date}",
-    "imported": "قيد مستورد #{number}"
+    "imported": "قيد مستورد #{number}",
+    "original_date": "عن {date}"
   },
   "entry_source": {
     "cash_journal": "دفتر الكاش",
@@ -1172,7 +1196,8 @@
   "expense_payment": {
     "treasury": "نقداً من الخزينة",
     "bank": "من البنك",
-    "payable": "آجل (فاتورة مورد)"
+    "payable": "آجل (فاتورة مورد)",
+    "petty": "من عهدة موظف"
   },
   "account_type": {
     "asset": "أصول",
@@ -1202,7 +1227,8 @@
     "traffic_fines_expense": "مصروف المخالفات",
     "cash_writeoff": "كاش سائقين مشطوب",
     "driver_salaries_expense": "رواتب السائقين",
-    "fuel_expense": "مصروف البنزين المدفوع من كاش السائقين"
+    "fuel_expense": "مصروف البنزين المدفوع من كاش السائقين",
+    "petty_cash": "العهد النقدية لدى الموظفين"
   },
   "approval_process": {
     "daily_report": "التقارير اليومية",
@@ -1294,7 +1320,8 @@
     "writeoff": "الإعدام",
     "opening": "أرصدة افتتاحية",
     "fuel": "البنزين",
-    "disbursements": "المصروف من الخزينة"
+    "disbursements": "المصروف من الخزينة",
+    "petty": "العهدة النقدية"
   },
   "treasury_column": {
     "treasury": "حركات الخزينة",
@@ -1307,5 +1334,20 @@
     "balance": "الرصيد",
     "opening": "رصيد أول المدة",
     "closing": "رصيد آخر المدة"
+  },
+  "period_problem": {
+    "documents_not_entered": "{count} مستند ما اتقيّدش: «توليد القيود» للشهر (ولو فيه خطأ في ربط الأدوار صلّحه)",
+    "draft_entries": "{count} قيد مسودة في الشهر: اعتمدها أو احذفها",
+    "draft_payroll_runs": "{count} كشف رواتب للشهر لسه ما اتعتمدش",
+    "earlier_month_open": "شهر {month} قبله لسه مفتوح: اقفله الأول",
+    "month_not_over": "الشهر لسه ما خلصش (آخره {end})",
+    "pending_cash_journals": "{count} حركة كاش في الشهر لسه بانتظار الاعتماد (تسوية مثلاً)",
+    "pending_daily_reports": "{count} تقرير يومي في الشهر لسه بانتظار المراجعة أو التصحيح",
+    "pending_deductions": "{count} خصم اتعمل في الشهر لسه بانتظار الاعتماد",
+    "pending_expenses": "{count} مصروف بتاريخ في الشهر لسه بانتظار الاعتماد",
+    "pending_fuel_claims": "{count} طلب بنزين في الشهر لسه ما اتراجعش",
+    "pending_report_changes": "{count} طلب تعديل على تقارير يومية في الشهر لسه ما اتقررش",
+    "stale_entries": "{count} قيد مستنده اتغيّر: اعكسه وولّد من جديد",
+    "treasury_days_open": "خزينة {branch}: {count} يوم عليه حركات وما اتجردش، أولهم {first}"
   }
 }
