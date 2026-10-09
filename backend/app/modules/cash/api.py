@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -271,6 +271,69 @@ def export_movements(
     content = sheets.to_xlsx(text(f"treasury_column.{account}", account), header, body, rtl=lang == "ar")
     name = f"{account}-{out['date_from']}-{out['date_to']}.xlsx"
     return Response(content, media_type=XLSX, headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+def _all_companies(principal: Principal) -> None:
+    if not principal.sees_all_companies:  # a branch's treasury is shared by every company of the branch
+        raise AppError(403, "company_out_of_scope")
+
+
+@router.get("/cash/treasury/{branch_public_id}/closing", response_model=schemas.ClosingDayOut)
+def closing_day(
+    branch_public_id: uuid.UUID,
+    day: date | None = None,
+    principal: Principal = Depends(require_permission("treasury.view")),
+    db: Session = Depends(get_session),
+):
+    """For the count-and-close dialog: the day to close next, and the treasury's balance at the end of a day."""
+    _all_companies(principal)
+    return service.closing_day(db, branch_public_id, day=day)
+
+
+@router.post("/cash/treasury/{branch_public_id}/close", response_model=schemas.ClosingOut, status_code=201)
+def close_day(
+    branch_public_id: uuid.UUID,
+    body: schemas.CloseDayIn,
+    principal: Principal = Depends(require_permission("treasury.manage")),
+    db: Session = Depends(get_session),
+):
+    """The day's cash counted and the day closed: a difference is posted with its explanation."""
+    _all_companies(principal)
+    return service.close_day(
+        db,
+        branch_public_id,
+        day=body.day,
+        counted=body.counted,
+        denominations=body.denominations,
+        note=body.note,
+        actor_user_id=principal.user_id,
+    )
+
+
+@router.get("/cash/treasury/{branch_public_id}/closings", response_model=schemas.ClosingsOut)
+def closings(
+    branch_public_id: uuid.UUID,
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    principal: Principal = Depends(require_permission("treasury.view")),
+    db: Session = Depends(get_session),
+):
+    """A branch treasury's closings, the last 62 days by default."""
+    _all_companies(principal)
+    last = date_to or today()
+    return service.closings(db, branch_public_id, date_from=date_from or last - timedelta(days=61), date_to=last)
+
+
+@router.post("/cash/treasury/closings/{public_id}/reopen", response_model=schemas.ClosingOut)
+def reopen_closing(
+    public_id: uuid.UUID,
+    body: schemas.ReopenIn,
+    principal: Principal = Depends(require_permission("treasury.manage")),
+    db: Session = Depends(get_session),
+):
+    """The branch's last closing reopened, with the reason: its difference is reversed."""
+    _all_companies(principal)
+    return service.reopen_closing(db, public_id, reason=body.reason, actor_user_id=principal.user_id)
 
 
 @router.get("/cash/journals/{public_id}/attachment")

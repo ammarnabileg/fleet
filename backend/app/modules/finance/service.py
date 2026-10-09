@@ -446,7 +446,7 @@ def create_expense(db: Session, data: dict, *, actor_user_id: int, all_companies
     elif data["payment_method"] == "treasury":  # the money comes out of a branch's treasury: which one
         raise AppError(422, "expense_branch_required")
     if data["payment_method"] == "treasury":
-        _treasury_day(db, data["expense_date"])
+        _treasury_day(db, data["expense_date"], branch_id)
     expense = Expense(
         company_id=company_id,
         branch_id=branch_id,
@@ -526,12 +526,17 @@ def _check_branch(db: Session, branch_id: int) -> None:
         raise AppError(422, "branch_not_found")
 
 
-def _treasury_day(db: Session, day: date) -> None:
+def _treasury_day(db: Session, day: date, branch_id: int | None = None) -> None:
     """Money out of the treasury is dated as its entry in the books: never before the books start (the books would
-    never count it while the screen does), never in the future."""
+    never count it while the screen does), never in the future, never in a day the branch closed by its count."""
+    from app.modules.cash import service as cash
+
     _check_date(db, day)
     if day > today():
         raise AppError(422, "treasury_date_future")
+    closed = cash.last_closed_day(db, [branch_id]) if branch_id is not None else None
+    if closed is not None and day <= closed:
+        raise AppError(409, "treasury_day_closed", day=day.isoformat())
 
 
 def _disburse(db: Session, expense: Expense, *, day: date, actor_user_id: int) -> None:

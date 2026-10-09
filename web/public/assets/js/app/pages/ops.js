@@ -401,13 +401,22 @@
           ${rows.map(function (r) {
             var cells = h`<td>${api.name(r.branch.name)}</td><td class="num">${fmt.money(r.treasury)}</td><td class="num">${fmt.money(r.bank)}</td><td class="num">${fmt.money(r.cod_clearing)}</td>`;
             // the movements are the branch's, shared by all its companies: for a user over every company
-            return api.me.all_companies ? h`<tr class="clickable" data-branch="${r.branch.public_id}" title="اضغط لحركات الخزينة والبنك">${cells}<td class="num"><button type="button" class="btn btn-sm btn-ghost" data-moves="${r.branch.public_id}">${icon('list', 13)} حركات</button></td></tr>` : h`<tr>${cells}<td></td></tr>`;
+            return api.me.all_companies ? h`<tr class="clickable" data-branch="${r.branch.public_id}" title="اضغط لحركات الخزينة والبنك">${cells}<td class="num nowrap">${manage ? h`<button type="button" class="btn btn-sm btn-outline" data-close-day="${r.branch.public_id}">${icon('calculator', 13)} جرد وإقفال اليوم</button> ` : ''}<button type="button" class="btn btn-sm btn-ghost" data-moves="${r.branch.public_id}">${icon('list', 13)} حركات</button></td></tr>` : h`<tr>${cells}<td></td></tr>`;
           })}
         </tbody></table></div>
         <div class="hint mt-8">الخزينة تنقص أيضاً بالمصروف المدفوع منها وبالسلف عند اعتمادها، وترجع عند إلغاء المصروف.</div>
-        ${api.can('treasury.manage') && !api.me.all_companies ? h`<div class="hint mt-8">الإيداع والسحب البنكي يحتاجان صلاحية على كل الشركات لأن الخزينة مشتركة بين شركات الفرع.</div>` : ''}</div>`;
+        ${api.can('treasury.manage') && !api.me.all_companies ? h`<div class="hint mt-8">الإيداع والسحب البنكي وجرد الخزينة تحتاج صلاحية على كل الشركات لأن الخزينة مشتركة بين شركات الفرع.</div>` : ''}</div>
+        ${api.me.all_companies ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('calculator', 16)} جرد وإقفال الأيام</div></div><div data-closings></div>
+          <div class="hint mt-8">في آخر كل يوم: عُدّ الكاش في الدرج وسجّله، واكتب سبب أي فرق. اليوم المقفول لا تُسجَّل عليه حركات خزينة بعد ذلك؛ آخر يوم مقفول فقط يُعاد فتحه.</div></div>` : ''}`;
     }).then(function (rows) {
       var again = function () { treasuryPanel(el); };
+      var box = el.querySelector('[data-closings]');
+      if (box) closingsList(box, rows, again);
+      A.delegate(el, 'click', '[data-close-day]', function (e, b) {
+        e.stopPropagation();
+        var row = rows.find(function (r) { return r.branch.public_id === b.getAttribute('data-close-day'); });
+        if (row) closeDay(row.branch, again);
+      });
       var branchSelect = function (key) { return BT.f.select({ name: 'branch_id', label: 'الفرع', required: true, options: rows.map(function (r) { return { v: r.branch.id, t: api.name(r.branch.name) + ' — ' + fmt.money(r[key]) }; }), placeholder: false }); };
       var b = el.querySelector('[data-dep]');
       if (b) b.onclick = function () {
@@ -433,10 +442,88 @@
         });
       };
       A.delegate(el, 'click', '[data-branch]', function (e, tr) {
+        if (e.target.closest('[data-close-day]')) return;
         var row = rows.find(function (r) { return r.branch.public_id === tr.getAttribute('data-branch'); });
         if (row) movements(row.branch, again);
       });
     }).catch(function () {});
+  }
+
+  /* آخر إقفالات الخزائن (كل الفروع): الرصيد في الدفاتر، المعدود، والفرق؛ «إعادة فتح» على آخر يوم مقفول في كل فرع */
+  function closingsList(box, rows, changed) {
+    var manage = api.can('treasury.manage');
+    A.load(box, Promise.all(rows.map(function (r) { return api.get('/cash/treasury/' + r.branch.public_id + '/closings'); })), function (all) {
+      var list = [];
+      all.forEach(function (x) { x.lines.forEach(function (c) { list.push(Object.assign({ branch: x.branch }, c)); }); });
+      list.sort(function (a, b) { return a.day < b.day ? 1 : a.day > b.day ? -1 : 0; });
+      if (!list.length) return BT.empty('calculator', 'لا أيام مقفولة بعد', 'ابدأ بزر «جرد وإقفال اليوم» على الفرع');
+      return h`<div class="table-wrap"><table class="t compact" data-closings-table><thead><tr><th>الفرع</th><th>اليوم</th><th class="num">في الدفاتر</th><th class="num">المعدود</th><th class="num">الفرق</th><th>السبب</th><th>أقفله</th><th></th></tr></thead><tbody>
+        ${list.slice(0, 60).map(function (c) {
+          var d = Number(c.difference);
+          return h`<tr data-closing="${c.id}"${c.reopened_at ? raw(' class="muted"') : ''}><td>${api.name(c.branch.name)}</td><td class="num">${fmt.date(c.day)}</td><td class="num">${fmt.money(c.book_balance)}</td><td class="num">${fmt.money(c.counted)}</td>
+            <td class="num"><span class="${d < 0 ? 't-danger' : d > 0 ? 't-success' : 'muted'}">${d ? fmt.signed(d) : '0.000'}</span></td><td style="white-space:normal">${c.note || ''}${c.reopened_at ? h`<div class="sub">${BT.pill('أُعيد فتحه', 'n')} ${c.reopen_reason}</div>` : ''}</td>
+            <td><span class="sub">${c.closed_by || ''}</span><span class="sub">${fmt.time(c.closed_at)}</span></td>
+            <td class="num">${c.reopenable && manage ? h`<button type="button" class="btn btn-sm btn-ghost" data-reopen="${c.id}">${icon('rotate-ccw', 13)} إعادة فتح</button>` : ''}</td></tr>`;
+        })}</tbody></table></div>`;
+    }).catch(function () {});
+    BT.on(box, 'click', '[data-reopen]', function (e, b) {
+      A.confirmRun({ title: 'إعادة فتح اليوم', message: 'يُعكس فرق الجرد (إن وُجد) بنفس تاريخ اليوم، ويُفتح اليوم لتسجيل حركاته ثم جرده من جديد.', confirmText: 'إعادة فتح', tone: 'danger', icon: 'rotate-ccw', reason: { label: 'السبب', required: true },
+        run: function (reason) { return api.post('/cash/treasury/closings/' + b.getAttribute('data-reopen') + '/reopen', { reason: reason }); }, done: 'أُعيد فتح اليوم', after: changed });
+    });
+  }
+
+  /* جرد وإقفال يوم في خزينة فرع: المعدود (مبلغاً أو بالفئات) مقابل رصيد الدفاتر في نهاية اليوم، والفرق بسببه */
+  var DENOM_LABELS = { '20': '20 د.ك', '10': '10 د.ك', '5': '5 د.ك', '1': '1 د.ك', '0.5': 'نصف دينار', '0.25': 'ربع دينار', '0.100': '100 فلس', '0.050': '50 فلس', '0.020': '20 فلس', '0.010': '10 فلوس', '0.005': '5 فلوس' };
+  function closeDay(branch, changed) {
+    var url = '/cash/treasury/' + branch.public_id + '/closing';
+    api.get(url).then(function (st) {
+      var book = Number(st.book_balance);
+      var grid = h`<div class="denoms" data-denoms style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px">${st.denominations.map(function (k) {
+        return h`<label class="field" style="margin:0"><span class="fs-sm muted">${DENOM_LABELS[k] || k}</span><input class="input num-in" type="number" min="0" step="1" inputmode="numeric" data-den="${k}" placeholder="0"></label>`;
+      })}</div>`;
+      var dlg = A.formModal({
+        title: 'جرد وإقفال اليوم', subtitle: api.name(branch.name), icon: 'calculator', size: 'md', submitText: 'إقفال اليوم', done: 'تم إقفال اليوم',
+        body: h`<div class="form">${BT.f.date({ name: 'day', label: 'اليوم', required: true, value: st.day, max: BT.config.today, hint: st.last_closed_day ? 'آخر يوم مقفول: ' + fmt.date(st.last_closed_day) + (st.open_days.length ? ' · أيام عليها حركات ولم تُقفل: ' + st.open_days.map(fmt.date).join('، ') : '') : 'أول جرد: يبدأ منه تسلسل الأيام' })}
+          <div class="field full"><div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))">${BT.kpi({ label: 'رصيد الخزينة في الدفاتر نهاية اليوم', value: h`<span data-book>${fmt.money(book)}</span>`, dot: 'b' })}${BT.kpi({ label: 'الفرق', value: h`<span data-diff>—</span>`, dot: 'n' })}</div></div>
+          ${BT.f.money({ name: 'counted', label: 'المعدود في الدرج', required: true, min: 0, hint: 'أو عُدّ بالفئات تحت: يُجمع المبلغ وحده' })}
+          <div class="field full"><details data-denoms-box><summary>العدّ بالفئات (أوراق وعملات)</summary><div class="mt-8">${grid}</div></details></div>
+          ${BT.f.textarea({ name: 'note', label: 'سبب الفرق', optional: true, full: true, rows: 2, hint: 'مطلوب إذا اختلف المعدود عن الدفاتر' })}</div>`,
+        onOpen: function (d) {
+          var form = d.form;
+          var counted = form.querySelector('[name=counted]'), dayIn = form.querySelector('[name=day]');
+          var denoms = function () {
+            var used = false, total = 0;
+            form.querySelectorAll('[data-den]').forEach(function (i) { var n = parseInt(i.value, 10); if (n > 0) { used = true; total += n * Math.round(Number(i.getAttribute('data-den')) * 1000); } });
+            return used ? total / 1000 : null;
+          };
+          var redraw = function () {
+            var sum = denoms();
+            if (sum != null) { counted.value = sum.toFixed(3); counted.readOnly = true; } else counted.readOnly = false;
+            var diffEl = form.querySelector('[data-diff]');
+            if (counted.value === '') { diffEl.className = ''; diffEl.textContent = '—'; return; }
+            var diff = Math.round((Number(counted.value) - book) * 1000) / 1000;
+            diffEl.className = diff < 0 ? 't-danger' : 't-success';
+            diffEl.textContent = diff ? fmt.signed(diff) + (diff < 0 ? ' عجز' : ' زيادة') : 'مطابق';
+          };
+          form.addEventListener('input', function (e) { if (e.target.matches('[data-den],[name=counted]')) redraw(); });
+          dayIn.addEventListener('change', function () {
+            if (!dayIn.value) return;
+            api.get(url, { day: dayIn.value }).then(function (x) { book = Number(x.book_balance); form.querySelector('[data-book]').textContent = fmt.money(book); redraw(); }, api.fail).catch(function () {});
+          });
+        },
+        submit: function (v, d) {
+          var form = d.form, den = null;
+          form.querySelectorAll('[data-den]').forEach(function (i) { var n = parseInt(i.value, 10); if (n > 0) { den = den || {}; den[i.getAttribute('data-den')] = n; } });
+          var diff = Math.round((Number(v.counted) - book) * 1000);
+          if (diff && !(v.note || '').trim()) return Promise.reject(new Error('اكتب سبب الفرق بين المعدود والدفاتر'));
+          var body = { day: v.day, counted: String(v.counted), note: (v.note || '').trim() || null };
+          if (den) body.denominations = den;
+          return api.post('/cash/treasury/' + branch.public_id + '/close', body);
+        },
+        after: changed
+      });
+      return dlg;
+    }, api.fail).catch(function () {});
   }
 
   /* حركات خزينة الفرع أو بنكه: رصيد أول المدة، كل حركة ورصيدها بعدها، ورصيد آخر المدة */
@@ -465,10 +552,11 @@
     function load() {
       A.load(box, api.get(url, query()), function (m) {
         return h`<div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))">${BT.kpi({ label: 'رصيد أول المدة', value: fmt.money(m.opening), dot: 'b' })}${BT.kpi({ label: 'رصيد آخر المدة', value: fmt.money(m.closing), dot: 'g' })}</div>
+          ${m.closed_through ? h`<div class="hint mb-8" data-closed-through>${icon('lock', 12)} الخزينة مقفولة بالجرد حتى ${fmt.date(m.closed_through)}: لا حركات عليها بتاريخ قبل ذلك.</div>` : ''}
           ${m.lines.length ? h`<div class="table-wrap"><table class="t compact" data-mv-lines><thead><tr><th>التاريخ</th><th>الحركة</th><th>البيان</th><th class="num">المبلغ</th><th class="num">الرصيد</th><th></th></tr></thead><tbody>
             <tr class="muted"><td colspan="4">رصيد أول المدة</td><td class="num">${fmt.money(m.opening)}</td><td></td></tr>
             ${m.lines.map(function (l) {
-              return h`<tr data-line="${l.journal_id}"><td class="num">${fmt.date(l.business_date)}<span class="sub">${fmt.time(l.created_at)}</span></td><td>${kind(l)}${l.reversed ? h` ${BT.pill('معكوسة', 'n')}` : ''}</td><td>${describe(l)}</td><td class="num"><span class="${Number(l.amount) < 0 ? 't-danger' : 't-success'}">${fmt.signed(Number(l.amount))}</span></td><td class="num"><b>${fmt.money(l.balance)}</b></td>
+              return h`<tr data-line="${l.journal_id}"><td class="num">${fmt.date(l.business_date)}<span class="sub">${fmt.time(l.created_at)}</span></td><td>${kind(l)}${l.reversed ? h` ${BT.pill('معكوسة', 'n')}` : ''}${l.closed ? h` <span title="يوم مقفول بالجرد">${icon('lock', 11)}</span>` : ''}</td><td>${describe(l)}</td><td class="num"><span class="${Number(l.amount) < 0 ? 't-danger' : 't-success'}">${fmt.signed(Number(l.amount))}</span></td><td class="num"><b>${fmt.money(l.balance)}</b></td>
                 <td class="num nowrap">${l.has_attachment ? attachment(l) : ''}${l.reversible && api.can('cash.reverse') ? h`<button type="button" class="btn btn-sm btn-ghost" data-rev="${l.journal_id}">${icon('rotate-ccw', 13)} عكس</button>` : ''}</td></tr>`;
             })}</tbody></table></div>${m.truncated ? h`<div class="hint mt-8">عُرضت أول ${fmt.int(m.lines.length)} حركة: ضيّق الفترة لرؤية الباقي.</div>` : ''}` : BT.empty('list', 'لا حركات في هذه الفترة', '')}`;
       }).catch(function () {});

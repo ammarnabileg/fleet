@@ -51,6 +51,7 @@ KINDS: dict[str, Kind] = {
     "ledger_invariant": Kind("critical", "cash.view", ("problem",)),
     "treasury_deposit_due": Kind("warning", "treasury.view", ("branch", "balance", "limit")),
     "treasury_deposit_day": Kind("info", "treasury.view", ("branch", "balance")),
+    "treasury_not_closed": Kind("warning", "treasury.view", ("branch", "day")),
     "driver_left_with_cash": Kind("critical", "cash.view", ("driver", "balance")),
     "fuel_claim": Kind("info", "cash.fuel_review", ("name", "amount")),
     "maintenance_requested": Kind("info", "maintenance.approve", ("plate", "number")),

@@ -487,7 +487,15 @@
     "reversal_date_future": "A reversal cannot be dated in the future",
     "reversal_before_entry": "A reversal cannot be dated before the original entry ({date})",
     "treasury_date_future": "An expense paid from the treasury cannot be dated in the future: enter it on the day it is paid",
-    "advance_partly_recovered": "Payroll already took part of this advance ({taken}): it cannot be cancelled. Correct it with a manual entry or an adjustment"
+    "advance_partly_recovered": "Payroll already took part of this advance ({taken}): it cannot be cancelled. Correct it with a manual entry or an adjustment",
+    "treasury_day_closed": "Day {day} of this branch treasury is closed by its count. Record the movement with today's date.",
+    "treasury_close_order": "Close {day} first: days are closed in order",
+    "treasury_close_future": "A day that has not come yet cannot be closed",
+    "denominations_mismatch": "The notes and coins add up to {total}, not the {counted} counted",
+    "denomination_unknown": "Unknown note or coin: {value}",
+    "treasury_closing_not_found": "Closing not found",
+    "treasury_closing_not_last": "Only the branch's last closed day can be reopened",
+    "count_diff_from_closing": "A count difference is undone by reopening its day"
   },
   "settings": {
     "branding": "Branding",
@@ -620,7 +628,8 @@
     "daily_report_missing": "{driver} started the day {date} but sent no report",
     "fuel_claim": "Fuel claim from {name} for {amount} KWD awaits review",
     "treasury_deposit_due": "The {branch} treasury holds {balance} KWD (limit {limit}): deposit it at the bank",
-    "treasury_deposit_day": "Today is the bank deposit day for the {branch} treasury: it holds {balance} KWD"
+    "treasury_deposit_day": "Today is the bank deposit day for the {branch} treasury: it holds {balance} KWD",
+    "treasury_not_closed": "{branch} treasury: {day} had movements and is not counted and closed"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -703,7 +712,8 @@
     "opening": "Opening balance",
     "fuel": "Fuel",
     "disbursement": "Paid from the treasury",
-    "bank_withdrawal": "Bank withdrawal"
+    "bank_withdrawal": "Bank withdrawal",
+    "count_diff": "Treasury count difference"
   },
   "journal_status": {
     "pending": "Unapproved",
