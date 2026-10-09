@@ -26,7 +26,7 @@
     { sec: 'السيارات والتشغيل', id: 'fleet', icon: 'car', items: [
       { key: 'tracking', icon: 'map', label: 'التتبع الحي', any: ['tracking.live'], count: 'signal_lost', hot: true },
       { key: 'vehicles', icon: 'car', label: 'السيارات', any: ['vehicles.view'] },
-      { key: 'custody', icon: 'key-round', label: 'تسليم واستلام السيارات', any: ['custody.view'] },
+      { key: 'custody', icon: 'key-round', label: 'تسليم واستلام السيارات', any: ['custody.view'], count: 'custody' },
       { key: 'odometer', icon: 'gauge', label: 'العداد', any: ['odometer.view'], count: 'odometer' },
       { key: 'daily', icon: 'clipboard-list', label: 'التقارير اليومية', any: ['daily_reports.view'], count: 'daily' },
       { key: 'maintenance', icon: 'wrench', label: 'الصيانة', any: ['maintenance.view', 'invoices.view'], count: 'maintenance' },
@@ -193,10 +193,11 @@
       onOpen: o.onOpen,
       onSubmit: function (vals, dlg) {
         return Promise.resolve(o.submit(vals, dlg)).then(function (res) {
+          if (res === false) return false; // nothing done (a confirmation declined): the form stays open
           // done may depend on the answer: a document that waits for its approval workflow says so (FR-WFL-02)
           if (o.done !== false) BT.toast((typeof o.done === 'function' ? o.done(res) : o.done) || 'تم الحفظ');
           if (o.after) o.after(res);
-          return res === false ? false : true;
+          return true;
         }).catch(api.fail);
       }
     });
@@ -255,6 +256,8 @@
     if (api.can('employees.onboarding')) jobs.push(api.get('/onboarding', { status: 'submitted', limit: 200 }).then(function (r) { A.counts.onboarding = r.length; }, function () {}));
     if (api.can('payroll.prepare')) jobs.push(api.get('/payroll/statements/counts').then(function (r) { A.counts.statements = r.submitted; }, function () {}));
     if (api.can('cash.fuel_review')) jobs.push(api.get('/cash/fuel-claims/pending-count').then(function (r) { A.counts.fuel = r.count; }, function () {}));
+    // what the drivers ask about cars and wait for: a car registered from the app, a change of car
+    if (api.can('custody.assign')) jobs.push(Promise.all([api.get('/vehicle-claims'), api.get('/vehicle-change-requests')]).then(function (r) { A.counts.custody = r[0].length + r[1].length; }, function () {}));
     if (api.can('payroll.view')) jobs.push(api.get('/payroll/scheme-requests/counts').then(function (r) { A.counts.scheme_requests = r.pending; }, function () {}));
     return Promise.all(jobs).then(function () {
       A.counts.payroll = (A.counts.statements || 0) + (A.counts.scheme_requests || 0);

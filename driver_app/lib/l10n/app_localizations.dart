@@ -2803,6 +2803,66 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'طلبك لتغيير العربية لـ {plate} قيد المراجعة'**
   String vehicleChangePendingFor(String plate);
+
+  /// No description provided for @claimVehicle.
+  ///
+  /// In ar, this message translates to:
+  /// **'تسجيل عربية جديدة'**
+  String get claimVehicle;
+
+  /// No description provided for @claimVehicleHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'استلمت عربية؟ سجّلها هنا بقراءة عدادها، وتبدأ عهدتك لما المكتب يوافق.'**
+  String get claimVehicleHint;
+
+  /// No description provided for @claimTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'تسجيل عربية جديدة'**
+  String get claimTitle;
+
+  /// No description provided for @claimPlate.
+  ///
+  /// In ar, this message translates to:
+  /// **'رقم لوحة العربية'**
+  String get claimPlate;
+
+  /// No description provided for @claimIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'صوّر عداد العربية من الكاميرا واكتب القراءة. الطلب يروح للمكتب، والعربية تبقى في عهدتك من وقت الصورة لما يوافق.'**
+  String get claimIntro;
+
+  /// No description provided for @claimConditionPhotos.
+  ///
+  /// In ar, this message translates to:
+  /// **'صور حالة العربية (اختياري)'**
+  String get claimConditionPhotos;
+
+  /// No description provided for @claimSend.
+  ///
+  /// In ar, this message translates to:
+  /// **'إرسال للمكتب'**
+  String get claimSend;
+
+  /// No description provided for @claimPending.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلبك لاستلام العربية {plate} مستني موافقة المكتب'**
+  String claimPending(String plate);
+
+  /// No description provided for @claimRejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'المكتب رفض طلبك لاستلام العربية {plate}: {reason}'**
+  String claimRejected(String plate, String reason);
+
+  /// No description provided for @kind_vehicle_claim.
+  ///
+  /// In ar, this message translates to:
+  /// **'تسجيل عربية'**
+  String get kind_vehicle_claim;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

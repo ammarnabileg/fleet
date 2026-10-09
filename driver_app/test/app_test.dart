@@ -1057,6 +1057,309 @@ void main() {
     await shot(tester, '35-my-car');
   });
 
+  testWidgets('no car: he registers the one he takes, it waits for the office, refused then approved', (tester) async {
+    final w = (await tester.runAsync(
+      () => world(today: {'custody': null, 'start_day_done': false, 'end_day_done': false}),
+    ))!;
+    final img = await tester.runAsync(testImage);
+    final taken = DateTime.utc(2026, 10, 4, 6, 10);
+    Photos.camera = (_) async => TakenPhoto(img!, taken);
+    Map<String, dynamic>? claim = {
+      'id': 'k0',
+      'status': 'rejected',
+      'plate': '18-111',
+      'odometer_km': 900,
+      'claimed_at': '2026-10-03T06:00:00Z',
+      'created_at': '2026-10-03T06:01:00Z',
+      'note': 'العربية في الصيانة',
+      'decided_at': '2026-10-03T07:00:00Z',
+    };
+    w.server.on(
+      'GET',
+      '/api/v1/driver/vehicle',
+      (r) => (200, {'vehicle': null, 'change_request': null, 'claim': claim}),
+    );
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'c' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('POST', '/api/v1/driver/vehicle-claims', (r) {
+      final body = jsonDecode(r.body) as Map;
+      if (body['plate'] != '12-34567') return (422, {'code': 'vehicle_plate_not_found'});
+      claim = {...claim!, 'id': 'k1', 'status': 'pending', 'plate': '12-34567', 'note': null, 'decided_at': null};
+      return (201, {'vehicle': null, 'change_request': null, 'claim': claim});
+    });
+    Future<void> send() async {
+      await tester.tap(find.byKey(const Key('send-claim')));
+      await idle(tester);
+    }
+
+    await pumpApp(tester, w);
+    tester.view.physicalSize = const Size(1080, 4400); // the whole form on screen
+    await settle(tester);
+    // refused before: the reason, and the button again
+    expect(find.byKey(const Key('claim-rejected')), findsOneWidget);
+    expect(find.textContaining('العربية في الصيانة'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('claim-vehicle')));
+    await settle(tester);
+
+    await send();
+    expect(w.server.calls('/api/v1/driver/vehicle-claims'), isEmpty, reason: 'the plate and the reading are required');
+    final plateField = tester.widget<TextField>(
+      find.descendant(of: find.byKey(const Key('claim-plate')), matching: find.byType(TextField)),
+    );
+    expect(plateField.textDirection, TextDirection.ltr);
+    await tester.enterText(find.byKey(const Key('claim-plate')), '99-1');
+    await tester.enterText(find.byKey(const Key('claim-km')), '45300');
+    await send();
+    expect(w.server.calls('/api/v1/driver/vehicle-claims'), isEmpty, reason: 'the odometer photo is required');
+    expect(find.text('الصورة مطلوبة'), findsOneWidget);
+    tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger)).removeCurrentSnackBar();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('claim-odo-photo')));
+    await idle(tester);
+    await tester.tap(find.byKey(const Key('claim-photo')));
+    await idle(tester);
+
+    // a plate the office does not have: the message under the field, the screen stays to correct it
+    await send();
+    expect(w.server.calls('/api/v1/driver/vehicle-claims'), hasLength(1));
+    expect(find.text('رقم اللوحة ده مش متسجل عندنا. راجع الرقم ودخّله صح.'), findsOneWidget);
+    expect(find.byKey(const Key('send-claim')), findsOneWidget);
+    expect(await tester.runAsync(() => w.state.outbox.items()), isEmpty, reason: 'refused: nothing left to send');
+
+    await tester.enterText(find.byKey(const Key('claim-plate')), ' 12-34567 ');
+    await send();
+    final calls = w.server.calls('/api/v1/driver/vehicle-claims');
+    expect(calls, hasLength(2));
+    final body = jsonDecode(calls.last.body) as Map;
+    expect(
+      (body['plate'], body['odometer_km'], body['photo_sha256'], '${body['photos']}', body['recorded_at']),
+      ('12-34567', 45300, 'c' * 64, '[${'c' * 64}]', '2026-10-04T06:10:00.000Z'),
+    );
+    expect(body['client_ref'], isNot((jsonDecode(calls.first.body) as Map)['client_ref']));
+    expect(w.server.calls('/api/v1/driver/files').every((r) => r.url.queryParameters['source'] == 'camera'), isTrue);
+
+    // back home: waiting for the office, no button
+    expect(find.byKey(const Key('send-claim')), findsNothing);
+    expect(find.byKey(const Key('claim-pending')), findsOneWidget);
+    expect(find.textContaining('12-34567'), findsOneWidget);
+    expect(find.byKey(const Key('claim-vehicle')), findsNothing);
+    await shot(tester, '36-claim-pending');
+
+    // approved: the car is his, as any handover
+    w.server.on(
+      'GET',
+      '/api/v1/driver/today',
+      (r) => (
+        200,
+        {
+          'custody': {
+            'id': 'c9',
+            'plate_number': '12-34567',
+            'started_at': '2026-10-04T06:10:00Z',
+            'last_odometer_km': 45300,
+          },
+          'start_day_done': false,
+          'end_day_done': false,
+        },
+      ),
+    );
+    await tester.runAsync(w.state.refresh);
+    await settle(tester);
+    expect(find.byKey(const Key('claim-pending')), findsNothing);
+    expect(find.byKey(const Key('start-day')), findsOneWidget);
+  });
+
+  testWidgets('no car: the register button only once the server said so; a refusal told reloads it', (tester) async {
+    final w = (await tester.runAsync(
+      () => world(today: {'custody': null, 'start_day_done': false, 'end_day_done': false}),
+    ))!;
+    final img = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.utc(2026, 10, 4, 6, 10));
+    final items = <Map<String, dynamic>>[];
+    w.server.on('GET', '/api/v1/driver/notifications', (r) => (200, {'unread': items.length, 'items': items}));
+    // "my car" cannot be read: nothing offered, on home or on the screen
+    w.server.on('GET', '/api/v1/driver/vehicle', (r) => (503, {'code': 'unavailable'}));
+    await pumpApp(tester, w);
+    expect(find.byKey(const Key('claim-vehicle')), findsNothing);
+    expect(find.byKey(const Key('claim-pending')), findsNothing);
+
+    Map<String, dynamic>? claim = {
+      'id': 'k1',
+      'status': 'pending',
+      'plate': '12-34567',
+      'odometer_km': 900,
+      'claimed_at': '2026-10-04T06:00:00Z',
+      'created_at': '2026-10-04T06:01:00Z',
+      'note': null,
+      'decided_at': null,
+    };
+    w.server.on(
+      'GET',
+      '/api/v1/driver/vehicle',
+      (r) => (200, {'vehicle': null, 'change_request': null, 'claim': claim}),
+    );
+    await tester.runAsync(w.state.resumed);
+    await settle(tester);
+    expect(find.byKey(const Key('claim-pending')), findsOneWidget);
+
+    // the office refused it: the notice reloads "my car", the reason shows and the button is back
+    claim = {...claim, 'status': 'rejected', 'note': 'العربية مع حد تاني', 'decided_at': '2026-10-04T07:00:00Z'};
+    items.insert(0, {
+      'id': 'n1',
+      'kind': 'vehicle_claim_rejected',
+      'message': 'المكتب رفض طلبك',
+      'entity_type': null,
+      'entity_id': null,
+      'created_at': '2026-10-04T07:00:00Z',
+      'read': false,
+    });
+    await tester.runAsync(w.state.loadNotices);
+    await idle(tester);
+    expect(find.byKey(const Key('claim-rejected')), findsOneWidget);
+    expect(find.textContaining('العربية مع حد تاني'), findsOneWidget);
+
+    // sent while another one waits (from another phone, say): told, not taken as sent
+    w.server.on('POST', '/api/v1/driver/files', (r) => (201, {'sha256': 'c' * 64}));
+    w.server.on('POST', '/api/v1/driver/vehicle-claims', (r) => (409, {'code': 'vehicle_claim_pending'}));
+    tester.view.physicalSize = const Size(1080, 4400);
+    await tester.tap(find.byKey(const Key('claim-vehicle')));
+    await settle(tester);
+    await tester.enterText(find.byKey(const Key('claim-plate')), '12-34567');
+    await tester.enterText(find.byKey(const Key('claim-km')), '45300');
+    await tester.tap(find.byKey(const Key('claim-odo-photo')));
+    await idle(tester);
+    await tester.tap(find.byKey(const Key('send-claim')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/vehicle-claims'), hasLength(1));
+    expect(find.byKey(const Key('send-claim')), findsOneWidget, reason: 'still on the form');
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(await tester.runAsync(() => w.state.outbox.items()), isEmpty);
+  });
+
+  testWidgets('my car not readable: the error and a retry, never a car shown from before', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    var up = false;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/vehicle',
+      (r) => up
+          ? (
+              200,
+              {
+                'vehicle': {
+                  'plate_number': '18/23456',
+                  'make': 'Kia',
+                  'model': null,
+                  'year': null,
+                  'color': null,
+                  'since': '2026-10-02T05:00:00Z',
+                  'last_odometer_km': 45100,
+                  'last_reading_at': null,
+                  'registration_expiry': null,
+                },
+                'change_request': null,
+                'claim': null,
+              },
+            )
+          : (503, {'code': 'unavailable'}),
+    );
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('my-car')));
+    await idle(tester);
+    expect(find.byKey(const Key('car-retry')), findsOneWidget);
+    expect(find.byKey(const Key('claim-vehicle')), findsNothing);
+    up = true;
+    await tester.tap(find.byKey(const Key('car-retry')));
+    await idle(tester);
+    expect(find.byKey(const Key('car-last-km')), findsOneWidget);
+  });
+
+  testWidgets('his car swapped by the office: told, the app shows the new car and nothing of the old one', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final items = <Map<String, dynamic>>[];
+    w.server.on('GET', '/api/v1/driver/notifications', (r) => (200, {'unread': items.length, 'items': items}));
+    Map<String, dynamic> car(String plate, String make, int km, String expiry) => {
+      'vehicle': {
+        'plate_number': plate,
+        'make': make,
+        'model': null,
+        'year': null,
+        'color': null,
+        'since': '2026-10-02T05:00:00Z',
+        'last_odometer_km': km,
+        'last_reading_at': '2026-10-04T05:55:00Z',
+        'registration_expiry': expiry,
+      },
+      'change_request': null,
+      'claim': null,
+    };
+    var mine = car('18/23456', 'Kia', 45100, '2027-03-01');
+    w.server.on('GET', '/api/v1/driver/vehicle', (r) => (200, mine));
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('my-car')));
+    await settle(tester);
+    expect(find.textContaining('18/23456'), findsOneWidget);
+    expect(find.textContaining('Kia'), findsOneWidget);
+
+    // the office swapped his car: the server has the new one, and a notice tells the phone (push, or the next look)
+    mine = car('30/777', 'Toyota', 61200, '2028-01-15');
+    w.server.on(
+      'GET',
+      '/api/v1/driver/today',
+      (r) => (
+        200,
+        {
+          'custody': {
+            'id': 'c2',
+            'plate_number': '30/777',
+            'make': 'Toyota',
+            'started_at': '2026-10-04T08:00:00Z',
+            'last_odometer_km': 61200,
+          },
+          'start_day_done': false,
+          'end_day_done': false,
+        },
+      ),
+    );
+    items.insert(0, {
+      'id': 'n9',
+      'kind': 'vehicle_swapped',
+      'message': 'اتبدّلت عربيتك: سلّمت 18/23456 واستلمت 30/777',
+      'entity_type': null,
+      'entity_id': null,
+      'created_at': '2026-10-04T08:00:00Z',
+      'read': false,
+    });
+    final before = w.server.calls('/api/v1/driver/vehicle').length;
+    await tester.runAsync(w.state.loadNotices);
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/vehicle').length, greaterThan(before), reason: 'my car read again');
+    // the open "my car" screen: the new car, its reading and registration; nothing of the old one
+    expect(find.textContaining('30/777'), findsOneWidget);
+    expect(find.textContaining('Toyota'), findsOneWidget);
+    expect(find.textContaining('61,200'), findsOneWidget);
+    expect(find.textContaining('2028-01-15'), findsOneWidget);
+    expect(find.textContaining('18/23456'), findsNothing);
+    expect(find.textContaining('Kia'), findsNothing);
+    expect(find.textContaining('45,100'), findsNothing);
+    expect(w.state.today!.custody!.plate, '30/777');
+    // and home: the new car on its card
+    Navigator.of(tester.element(find.byKey(const Key('car-last-km')))).pop();
+    await settle(tester);
+    expect(find.textContaining('30/777'), findsWidgets);
+    expect(find.textContaining('18/23456'), findsNothing);
+    // the same notice seen again changes nothing more
+    final after = w.server.calls('/api/v1/driver/vehicle').length;
+    await tester.runAsync(w.state.loadNotices);
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/vehicle').length, after);
+  });
+
   testWidgets('documents: their expiry, and a renewal from the phone checked by the office', (tester) async {
     final w = (await tester.runAsync(() => world()))!;
     final img = await tester.runAsync(testImage);

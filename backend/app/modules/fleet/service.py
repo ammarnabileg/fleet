@@ -22,7 +22,14 @@ from app.core.events import emit
 from app.modules.audit import service as audit
 from app.modules.documents import service as documents
 from app.modules.files import service as files
-from app.modules.fleet.models import Custody, CustodyPhoto, OdometerReading, Vehicle, VehicleChangeRequest
+from app.modules.fleet.models import (
+    Custody,
+    CustodyPhoto,
+    OdometerReading,
+    Vehicle,
+    VehicleChangeRequest,
+    VehicleClaim,
+)
 from app.modules.identity import service as identity
 from app.modules.notifications import service as notifications
 from app.modules.org import service as org
@@ -324,7 +331,10 @@ def _add_reading(
     lng: float | None = None,
     by_user: int | None = None,
     by_device: int | None = None,
+    pair: OdometerReading | None = None,
 ) -> OdometerReading:
+    """pair: the reading taken with the same photo at the same moment (a car taken from one driver and handed to
+    another at once: one reading serves the return and the handover), so the photo is not counted as reused."""
     settings = org.get_section(db, "odometer")
     previous = _previous_reading(db, vehicle.id, recorded_at)
     previous_km = previous.effective_km if previous else vehicle.last_odometer_km
@@ -346,7 +356,10 @@ def _add_reading(
     following = _next_reading(db, vehicle.id, recorded_at)
     if following is not None and value_km > following.effective_km:
         flags.append("higher_than_next")
-    if db.scalar(select(func.count()).select_from(OdometerReading).where(OdometerReading.photo_sha256 == photo_sha256)):
+    same_photo = select(func.count()).select_from(OdometerReading).where(OdometerReading.photo_sha256 == photo_sha256)
+    if pair is not None:
+        same_photo = same_photo.where(OdometerReading.id != pair.id)
+    if db.scalar(same_photo):
         flags.append("photo_reused")
     reading = OdometerReading(
         vehicle_id=vehicle.id,
@@ -701,6 +714,8 @@ def handover(
         company_id=vehicle.company_id,
         after=out | {"odometer_km": odometer_km},
     )
+    # the app reads "my car" again when told
+    notifications.notify_driver(db, driver.id, "vehicle_handed_over", params={"plate": vehicle.plate_number})
     if commit:
         db.commit()
     return out
@@ -739,8 +754,10 @@ def _start_custody(
     by_user: int | None = None,
     by_device: int | None = None,
     photos: list[dict] | None = None,
+    pair: OdometerReading | None = None,
 ) -> Custody:
-    """The custody, its handover reading and photos, the vehicle assigned (vehicle locked, checks done)."""
+    """The custody, its handover reading and photos, the vehicle assigned (vehicle locked, checks done). pair: the
+    return reading taken at the same moment with the same photo, when the car passes from one driver to another."""
     custody = Custody(
         vehicle_id=vehicle.id,
         driver_id=driver.id,
@@ -771,8 +788,10 @@ def _start_custody(
         recorded_at=started_at,
         by_user=by_user,
         by_device=by_device,
+        pair=pair,
     )
     _add_photos(db, custody, "handover", photos)
+    _close_pending_claim(db, driver.id, vehicle, custody, decided_by=by_user)
     vehicle.status = "assigned"
     vehicle.version += 1
     emit(
@@ -788,6 +807,33 @@ def _start_custody(
         },
     )
     return custody
+
+
+def _close_pending_claim(
+    db: Session, driver_id: int, vehicle: Vehicle, custody: Custody, *, decided_by: int | None
+) -> None:
+    """A custody started for the driver, however (the office, a transfer, his claim approved, a car collected from a
+    center): the car he registered and is still waiting for is settled with it. The same car: approved, linked to the
+    custody. Another car: superseded, and he is told; the office's alert closes either way."""
+    claim = db.scalar(
+        select(VehicleClaim)
+        .where(VehicleClaim.employee_id == driver_id, VehicleClaim.status == "pending")
+        .with_for_update()
+    )
+    if claim is None:
+        return
+    claim.decided_by, claim.decided_at = decided_by, utcnow()
+    notifications.resolve(db, f"vehicle_claim:{claim.id}")
+    if claim.vehicle_id == vehicle.id:
+        claim.status, claim.custody_id = "approved", custody.id
+        notifications.notify_driver(db, driver_id, "vehicle_claim_approved", params={"plate": vehicle.plate_number})
+        return
+    claim.status, claim.note = "superseded", CLAIM_SUPERSEDED_NOTE
+    plate = db.scalar(select(Vehicle.plate_number).where(Vehicle.id == claim.vehicle_id))
+    notifications.notify_driver(db, driver_id, "vehicle_claim_superseded", params={"plate": plate})
+
+
+CLAIM_SUPERSEDED_NOTE = "اتسلمت عربية تانية"
 
 
 def hand_back_after_maintenance(
@@ -860,7 +906,9 @@ def return_vehicle(
     for photo in photos or ():
         _check_photo(db, photo["sha256"])
     vehicle = db.scalar(select(Vehicle).where(Vehicle.id == custody.vehicle_id).with_for_update())
-    out = _end_custody(db, custody, vehicle, ended_at, odometer_km, photo_sha256, actor_user_id, photos)
+    # the app reads "my car" again when told (told first: what the return closes is the newer notice)
+    notifications.notify_driver(db, custody.driver_id, "vehicle_returned", params={"plate": vehicle.plate_number})
+    out, _ = _end_custody(db, custody, vehicle, ended_at, odometer_km, photo_sha256, actor_user_id, photos)
     db.commit()
     return out
 
@@ -874,10 +922,11 @@ def _end_custody(
     photo_sha256: str,
     actor_user_id: int,
     photos: list[dict] | None = None,
-) -> dict:
+) -> tuple[dict, OdometerReading]:
+    """The custody ended with its return reading and photos, the vehicle free: its output and the return reading."""
     custody.ended_at, custody.returned_by = ended_at, actor_user_id
     db.flush()
-    _add_reading(
+    reading = _add_reading(
         db,
         vehicle,
         custody,
@@ -913,7 +962,174 @@ def _end_custody(
             "ended_at": ended_at.isoformat(),
         },
     )
-    return out
+    return out, reading
+
+
+# ------------------------------------------------------------------ a car taken from one driver for another
+
+
+def _in_scope(company_id: int, all_companies: bool, company_ids: Iterable[int]) -> bool:
+    return all_companies or company_id in set(company_ids)
+
+
+def transfer_check(db: Session, *, vehicle_public_id, driver_public_id, **scope) -> dict:
+    """Before handing the car X to the driver A: who holds X now, the car A holds now, and how it can be done."""
+    vehicle = _get_vehicle(db, vehicle_public_id, **scope)
+    driver = people.ref_by_public_id(db, driver_public_id, **scope)
+    held = db.scalar(select(Custody).where(Custody.vehicle_id == vehicle.id, Custody.ended_at.is_(None)))
+    his = db.scalar(
+        select(Custody).where(
+            Custody.driver_id == driver.id, Custody.ended_at.is_(None), Custody.vehicle_id != vehicle.id
+        )
+    )
+    if his is not None and not _in_scope(his.company_id, **scope):
+        raise AppError(403, "company_out_of_scope")  # as transfer() refuses it
+    names = people.names(db, [held.driver_id] if held else [])
+    other = db.get(Vehicle, his.vehicle_id) if his else None
+    if held is not None and held.driver_id == driver.id:
+        modes = []  # he holds it already
+    elif held is not None and his is not None:
+        modes = ["swap", "release"]
+    elif held is not None or his is not None:
+        modes = ["release"]
+    else:
+        modes = ["handover"]
+    return {
+        "holder": None
+        if held is None
+        else {"driver": names.get(held.driver_id), "custody_id": str(held.public_id), "since": held.started_at},
+        "driver_vehicle": None
+        if his is None
+        else {
+            "id": str(other.public_id),
+            "plate_number": other.plate_number,
+            "custody_id": str(his.public_id),
+            "since": his.started_at,
+            "last_odometer_km": other.last_odometer_km,
+        },
+        "modes_allowed": modes,
+    }
+
+
+def transfer(
+    db: Session,
+    *,
+    vehicle_public_id,
+    driver_public_id,
+    mode: str,
+    odometer_km: int,
+    photo_sha256: str,
+    photos: list[dict] | None,
+    started_at: datetime | None,
+    other_odometer_km: int | None,
+    other_photo_sha256: str | None,
+    other_photos: list[dict] | None,
+    note: str | None,
+    actor_user_id: int,
+    **scope,
+) -> dict:
+    """The car X handed to the driver A in one step, at one moment, when X is held by B or A holds Y.
+    release: B (if any) leaves X, A gives Y back (if he holds one; Y becomes available), A takes X.
+    swap: B and A exchange: B takes Y, A takes X.
+    One reading per car serves its return and its handover. Everything is locked first: the open custodies (the
+    order return_vehicle locks in: the custody, then the vehicle), then both vehicles in id order."""
+    at = started_at or utcnow()
+    _check_moment(at)
+    target = _get_vehicle(db, vehicle_public_id, **scope)
+    driver = people.ref_by_public_id(db, driver_public_id, **scope)
+    held = list(
+        db.scalars(
+            select(Custody)
+            .where(or_(Custody.vehicle_id == target.id, Custody.driver_id == driver.id), Custody.ended_at.is_(None))
+            .order_by(Custody.id)
+            .with_for_update()
+        )
+    )
+    on_x = next((c for c in held if c.vehicle_id == target.id), None)  # B's custody of X
+    on_y = next((c for c in held if c.driver_id == driver.id and c.vehicle_id != target.id), None)  # A's of Y
+    if on_x is not None and on_x.driver_id == driver.id:
+        raise AppError(409, "transfer_same_driver")
+    if mode == "swap" and (on_x is None or on_y is None):
+        raise AppError(422, "swap_needs_two_cars")
+    if on_y is not None:
+        if not _in_scope(on_y.company_id, **scope):
+            raise AppError(403, "company_out_of_scope")
+        if other_odometer_km is None or other_photo_sha256 is None:
+            raise AppError(422, "other_reading_required")
+    for c in (on_x, on_y):
+        if c is not None and at <= c.started_at:
+            raise AppError(422, "ended_before_start")
+    ending = [c.id for c in (on_x, on_y) if c is not None]
+    if ending and db.scalar(
+        select(OdometerReading.id).where(OdometerReading.custody_id.in_(ending), OdometerReading.recorded_at > at)
+    ):
+        raise AppError(422, "transfer_before_last_reading")  # a custody cannot end before what was recorded in it
+    ids = sorted({target.id} | ({on_y.vehicle_id} if on_y else set()))
+    locked = {
+        v.id: v for v in db.scalars(select(Vehicle).where(Vehicle.id.in_(ids)).order_by(Vehicle.id).with_for_update())
+    }
+    x, y = locked[target.id], locked[on_y.vehicle_id] if on_y else None
+    other = people.ref(db, on_x.driver_id) if on_x else None  # B
+    # the drivers who take a car: the normal checks (X and Y are freed in this same transaction)
+    _check_can_take(db, x, driver, at)
+    if mode == "swap":
+        _check_can_take(db, y, other, at)
+    for sha in [photo_sha256, *(p["sha256"] for p in photos or ())]:
+        _check_photo(db, sha)
+    if on_y is not None:
+        for sha in [other_photo_sha256, *(p["sha256"] for p in other_photos or ())]:
+            _check_photo(db, sha)
+
+    ended, started = [], []
+    x_return = y_return = None
+    if on_x is not None:
+        out, x_return = _end_custody(db, on_x, x, at, odometer_km, photo_sha256, actor_user_id, photos)
+        ended.append(out)
+    if on_y is not None:
+        out, y_return = _end_custody(
+            db, on_y, y, at, other_odometer_km, other_photo_sha256, actor_user_id, other_photos
+        )
+        ended.append(out)
+    moves = [(x, driver, odometer_km, photo_sha256, photos, x_return)]
+    if mode == "swap":
+        moves.append((y, other, other_odometer_km, other_photo_sha256, other_photos, y_return))
+    for vehicle, taker, km, sha, pics, pair in moves:
+        custody = _start_custody(
+            db,
+            vehicle,
+            taker,
+            started_at=at,
+            kind="normal",
+            reason=None,
+            odometer_km=km,
+            photo_sha256=sha,
+            handed_over_by=actor_user_id,
+            by_user=actor_user_id,
+            photos=pics,
+            pair=pair,
+        )
+        out = _custodies_out(db, [custody])[0]
+        audit.record(
+            db,
+            action="custody.started",
+            entity_type="custody",
+            entity_id=custody.public_id,
+            actor_user_id=actor_user_id,
+            company_id=vehicle.company_id,
+            after=out | {"odometer_km": km, "transfer": mode, "note": note},
+        )
+        started.append(out)
+        if taker.id == driver.id:
+            notifications.notify_driver(db, driver.id, "vehicle_handed_over", params={"plate": x.plate_number})
+    if other is not None:
+        if mode == "swap":
+            notifications.notify_driver(
+                db, other.id, "vehicle_swapped", params={"from": x.plate_number, "to": y.plate_number}
+            )
+        else:
+            notifications.notify_driver(db, other.id, "vehicle_taken", params={"plate": x.plate_number})
+    db.commit()
+    return {"mode": mode, "started": started, "ended": ended}
 
 
 # ------------------------------------------------------------------ maintenance centers (in the caller's transaction)
@@ -1486,10 +1702,10 @@ def _requested_vehicles(db: Session, rows: list[VehicleChangeRequest]) -> dict[i
 
 def driver_vehicle(db: Session, employee_id: int) -> dict:
     """ "My car" in the app: the vehicle held, its last odometer reading, its registration's expiry, and the change
-    he asked for, if any."""
+    he asked for, if any; without a car, the one he registered (waiting for the office, or refused)."""
     custody = db.scalar(select(Custody).where(Custody.driver_id == employee_id, Custody.ended_at.is_(None)))
     if custody is None:
-        return {"vehicle": None, "change_request": None}
+        return {"vehicle": None, "change_request": None, "claim": _my_claim(db, employee_id)}
     vehicle = db.get(Vehicle, custody.vehicle_id)
     last = db.scalar(
         select(OdometerReading)
@@ -1517,6 +1733,7 @@ def driver_vehicle(db: Session, employee_id: int) -> dict:
             "registration_expiry": registration,
         },
         "change_request": _change_out(request),
+        "claim": _my_claim(db, employee_id),
     }
 
 
@@ -1682,3 +1899,300 @@ def close_vehicle_change(
     db.commit()
     plates = plate_numbers(db, {r.vehicle_id})
     return _change_out(r, plates, people.names(db, {r.employee_id}))
+
+
+# ------------------------------------------------------------------ a car the driver registers from the app
+
+
+def _claim_photos(photos: Iterable) -> list[dict]:
+    """Condition photos as the app sends them (a sha256 each) or with their position: [{position, sha256}]."""
+    out = {}
+    for p in photos or ():
+        item = (
+            {"position": "other", "sha256": p}
+            if isinstance(p, str)
+            else {"position": p["position"], "sha256": p["sha256"]}
+        )
+        out.setdefault(item["sha256"], item)
+    return list(out.values())
+
+
+def _claim_out(c: VehicleClaim, plates: dict[int, str]) -> dict:
+    return {
+        "id": str(c.public_id),
+        "status": c.status,
+        "plate": plates.get(c.vehicle_id, ""),
+        "odometer_km": c.odometer_km,
+        "claimed_at": c.claimed_at,
+        "created_at": c.created_at,
+        "note": c.note,
+        "decided_at": c.decided_at,
+        "photos": list(c.photos or []),
+        # waiting longer than a custody may start back: it can only be refused
+        "expired": c.status == "pending" and c.claimed_at < utcnow() - BACKDATE_LIMIT,
+    }
+
+
+def _my_claim(db: Session, employee_id: int) -> dict | None:
+    """The car he registered, for the app: waiting, or decided since his last custody ended (a refusal of long ago,
+    before the cars he has had since, is not shown again)."""
+    claim = db.scalar(
+        select(VehicleClaim).where(VehicleClaim.employee_id == employee_id).order_by(VehicleClaim.id.desc()).limit(1)
+    )
+    if claim is None:
+        return None
+    if claim.status != "pending":
+        last_end = db.scalar(
+            select(func.max(Custody.ended_at)).where(Custody.driver_id == employee_id, Custody.ended_at.is_not(None))
+        )
+        if last_end is not None and claim.decided_at is not None and last_end > claim.decided_at:
+            return None
+    return _claim_out(claim, plate_numbers(db, {claim.vehicle_id}))
+
+
+def request_vehicle_claim(
+    db: Session,
+    *,
+    employee_id: int,
+    device_id: int,
+    plate: str,
+    odometer_km: int,
+    photo_sha256: str,
+    recorded_at: datetime,
+    photos: list,
+    client_ref,
+) -> dict:
+    """The driver, holding no car, registers the one he takes: its plate (one of his company's vehicles, free and
+    available), the odometer reading and its photo from the app's camera on this phone, condition photos. It waits for
+    the office; the custody starts only when approved, at the photo's time."""
+    if db.scalar(select(VehicleClaim.id).where(VehicleClaim.client_ref == client_ref)):
+        raise AppError(409, "vehicle_claim_exists")  # a resend: already recorded
+    now = utcnow()
+    if not (now - DRIVER_READING_DELAY <= recorded_at <= now + CLOCK_SKEW):
+        raise AppError(422, "invalid_recorded_at")
+    driver = people.ref(db, employee_id)
+    if db.scalar(select(Custody.id).where(Custody.driver_id == employee_id, Custody.ended_at.is_(None))):
+        raise AppError(409, "driver_has_custody")
+    if db.scalar(
+        select(VehicleClaim.id).where(VehicleClaim.employee_id == employee_id, VehicleClaim.status == "pending")
+    ):
+        raise AppError(409, "vehicle_claim_pending")
+    vehicle = _vehicle_for_change(db, plate, driver.company_id)
+    if vehicle is None:
+        raise AppError(422, "vehicle_plate_not_found")
+    if holder(db, vehicle.id) is not None:
+        raise AppError(409, "vehicle_held_by_other")
+    if vehicle.status != "available":
+        raise AppError(409, "vehicle_not_available", status=vehicle.status)
+    _check_can_take(db, vehicle, driver, recorded_at)
+    condition = _claim_photos(photos)
+    for sha in [photo_sha256, *(p["sha256"] for p in condition)]:
+        photo = _check_photo(db, sha)
+        if photo.source != "camera" or photo.uploaded_by_device != device_id:
+            raise AppError(422, "photo_not_from_camera")
+    claim = VehicleClaim(
+        employee_id=employee_id,
+        company_id=vehicle.company_id,
+        vehicle_id=vehicle.id,
+        odometer_km=odometer_km,
+        photo_sha256=photo_sha256,
+        photos=condition,
+        claimed_at=recorded_at,
+        client_ref=client_ref,
+        created_by_device=device_id,
+    )
+    try:
+        with db.begin_nested():
+            db.add(claim)
+            db.flush()
+    except IntegrityError as exc:
+        constraint = violated_constraint(exc)
+        if constraint == "vehicle_claims_client_ref_key":
+            raise AppError(409, "vehicle_claim_exists") from None  # a resend: already recorded
+        if constraint == "vehicle_claims_one_pending_idx":
+            raise AppError(409, "vehicle_claim_pending") from None  # another one waits: not this one
+        raise
+    notifications.raise_alert(
+        db,
+        "vehicle_claim_requested",
+        company_id=vehicle.company_id,
+        entity_type="vehicle",
+        entity_id=vehicle.public_id,
+        params={"driver": driver.name, "plate": vehicle.plate_number, "km": odometer_km},
+        dedupe_key=f"vehicle_claim:{claim.id}",
+    )
+    audit.record(
+        db,
+        action="vehicle_claim.requested",
+        entity_type="vehicle",
+        entity_id=vehicle.public_id,
+        actor_type="device",
+        company_id=vehicle.company_id,
+        after={"driver": str(driver.public_id), "odometer_km": odometer_km, "claimed_at": recorded_at.isoformat()},
+    )
+    db.commit()
+    return driver_vehicle(db, employee_id)
+
+
+def vehicle_claims(
+    db: Session, *, status: str | None = "pending", limit: int = 200, offset: int = 0, all_companies: bool, company_ids
+) -> list[dict]:
+    """The office's list: the waiting ones oldest first (the queue), or every claim ("all") newest first, with the car
+    as it is now (its last reading, its status, who holds it)."""
+    if status == "all":
+        status = None
+    q = select(VehicleClaim).order_by(
+        VehicleClaim.created_at if status == "pending" else VehicleClaim.created_at.desc(),
+        VehicleClaim.id if status == "pending" else VehicleClaim.id.desc(),
+    )
+    if status:
+        q = q.where(VehicleClaim.status == status)
+    if not all_companies:
+        q = q.where(VehicleClaim.company_id.in_(list(company_ids)))
+    return _claims_out(db, list(db.scalars(q.limit(min(limit, 500)).offset(offset))))
+
+
+def _claims_out(db: Session, rows: list[VehicleClaim]) -> list[dict]:
+    cars = {v.id: v for v in db.scalars(select(Vehicle).where(Vehicle.id.in_({r.vehicle_id for r in rows})))}
+    open_ = _open_custodies_by_vehicle(db, list(cars))
+    names = people.names(db, {r.employee_id for r in rows} | {c.driver_id for c in open_.values()})
+    users = identity.user_names(db, {r.decided_by for r in rows} - {None})
+    custodies = dict(
+        db.execute(
+            select(Custody.id, Custody.public_id).where(Custody.id.in_({r.custody_id for r in rows} - {None}))
+        ).all()
+    )
+    plates = {i: v.plate_number for i, v in cars.items()}
+    out = []
+    for r in rows:
+        car = cars[r.vehicle_id]
+        held = open_.get(car.id)
+        out.append(
+            _claim_out(r, plates)
+            | {
+                "vehicle_id": str(car.public_id),
+                "driver": names.get(r.employee_id),
+                "vehicle_last_km": car.last_odometer_km,
+                "vehicle_status": car.status,
+                "holder": names.get(held.driver_id) if held else None,
+                "decided_by": users.get(r.decided_by),
+                "custody_id": str(custodies[r.custody_id]) if r.custody_id else None,
+            }
+        )
+    return out
+
+
+def _claim_for_update(db: Session, public_id, all_companies: bool, company_ids) -> VehicleClaim:
+    claim = db.scalar(select(VehicleClaim).where(VehicleClaim.public_id == public_id).with_for_update())
+    if claim is None or not _in_scope(claim.company_id, all_companies, company_ids):
+        raise AppError(404, "vehicle_claim_not_found")
+    if claim.status != "pending":
+        raise AppError(409, "vehicle_claim_decided")
+    return claim
+
+
+def claim_photo(db: Session, public_id, sha256: str | None, *, all_companies: bool, company_ids) -> files.FileInfo:
+    """The claim's odometer photo (sha256 None), or one of its condition photos."""
+    claim = db.scalar(select(VehicleClaim).where(VehicleClaim.public_id == public_id))
+    if claim is None or not _in_scope(claim.company_id, all_companies, company_ids):
+        raise AppError(404, "vehicle_claim_not_found")
+    if sha256 is None:
+        return files.get(db, claim.photo_sha256)
+    if sha256 not in {p["sha256"] for p in claim.photos or ()}:
+        raise AppError(404, "file_not_found")
+    return files.get(db, sha256)
+
+
+def approve_vehicle_claim(db: Session, public_id, *, actor_user_id: int, all_companies: bool, company_ids) -> dict:
+    """A normal handover from the claim: its reading, photos and time, with the checks of that moment. A car taken
+    meanwhile (or a driver who got one) is refused and the claim stays waiting, for the office to refuse it."""
+    claim = _claim_for_update(db, public_id, all_companies, company_ids)
+    if claim.claimed_at < utcnow() - BACKDATE_LIMIT:
+        raise AppError(409, "vehicle_claim_expired")  # a custody is not started that far back
+    vehicle = _vehicle_for_update(db, claim.vehicle_id)
+    driver = people.ref(db, claim.employee_id)
+    if holder(db, vehicle.id) is not None:
+        raise AppError(409, "vehicle_has_custody")
+    # the custody would start back at the claim's time: nothing may have happened to the car, nor to the driver's
+    # custodies, since then (a reading, a custody begun or ended)
+    after = claim.claimed_at
+    if db.scalar(
+        select(OdometerReading.id).where(OdometerReading.vehicle_id == vehicle.id, OdometerReading.recorded_at > after)
+    ) or db.scalar(
+        select(Custody.id).where(
+            Custody.vehicle_id == vehicle.id, or_(Custody.started_at > after, Custody.ended_at > after)
+        )
+    ):
+        raise AppError(409, "vehicle_changed_since_claim")
+    if db.scalar(
+        select(Custody.id).where(
+            Custody.driver_id == driver.id, or_(Custody.started_at > after, Custody.ended_at > after)
+        )
+    ):
+        raise AppError(409, "vehicle_claim_stale")
+    _check_can_take(db, vehicle, driver, claim.claimed_at)
+    custody = _start_custody(
+        db,
+        vehicle,
+        driver,
+        started_at=claim.claimed_at,
+        kind="normal",
+        reason=None,
+        odometer_km=claim.odometer_km,
+        photo_sha256=claim.photo_sha256,
+        handed_over_by=actor_user_id,
+        by_device=claim.created_by_device,
+        photos=list(claim.photos or []),
+    )
+    claim.decided_by = actor_user_id  # approved, linked and told as the custody started
+    out = _custodies_out(db, [custody])[0]
+    audit.record(
+        db,
+        action="custody.started",
+        entity_type="custody",
+        entity_id=custody.public_id,
+        actor_user_id=actor_user_id,
+        company_id=vehicle.company_id,
+        after=out | {"odometer_km": claim.odometer_km, "claim": str(claim.public_id)},
+    )
+    audit.record(
+        db,
+        action="vehicle_claim.approved",
+        entity_type="vehicle",
+        entity_id=vehicle.public_id,
+        actor_user_id=actor_user_id,
+        company_id=vehicle.company_id,
+        after={"claim": str(claim.public_id), "custody": str(custody.public_id)},
+    )
+    db.commit()
+    return _claim_by_id(db, claim.id)
+
+
+def reject_vehicle_claim(
+    db: Session, public_id, *, note: str | None, actor_user_id: int, all_companies: bool, company_ids
+) -> dict:
+    """Refused with the reason the driver reads; he may register a car again."""
+    claim = _claim_for_update(db, public_id, all_companies, company_ids)
+    if not note:
+        raise AppError(422, "reason_required")
+    claim.status, claim.note, claim.decided_by, claim.decided_at = "rejected", note, actor_user_id, utcnow()
+    vehicle = db.get(Vehicle, claim.vehicle_id)
+    notifications.resolve(db, f"vehicle_claim:{claim.id}")
+    notifications.notify_driver(
+        db, claim.employee_id, "vehicle_claim_rejected", params={"plate": vehicle.plate_number, "reason": note}
+    )
+    audit.record(
+        db,
+        action="vehicle_claim.rejected",
+        entity_type="vehicle",
+        entity_id=vehicle.public_id,
+        actor_user_id=actor_user_id,
+        company_id=claim.company_id,
+        after={"claim": str(claim.public_id), "note": note},
+    )
+    db.commit()
+    return _claim_by_id(db, claim.id)
+
+
+def _claim_by_id(db: Session, claim_id: int) -> dict:
+    return _claims_out(db, [db.get(VehicleClaim, claim_id)])[0]

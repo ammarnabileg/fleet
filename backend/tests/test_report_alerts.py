@@ -80,8 +80,10 @@ def test_started_the_day_and_sent_no_report(admin_client, client, new_client, co
     (alert,) = open_alerts(admin_client, "daily_report_missing")
     assert d["name"]["ar"] in alert["message"] and str(today()) in alert["message"]
     told = client.get("/api/v1/driver/notifications", headers=h).json()["items"]
-    assert [n["kind"] for n in told] == ["report_missing"]
-    assert other.get("/api/v1/driver/notifications", headers=h2).json()["items"] == []
+    assert [n["kind"] for n in told] == ["report_missing", "vehicle_handed_over"]  # and the car handed to him
+    assert [n["kind"] for n in other.get("/api/v1/driver/notifications", headers=h2).json()["items"]] == [
+        "vehicle_handed_over"
+    ]
     # sent after all, the same evening: the alert closes
     ended(client, h, 40_100)
     send_report(client, h, today())

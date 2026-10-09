@@ -63,6 +63,8 @@ class Outbox {
     'statement': ('/driver/statements', 'upload', {'statement_exists'}, 'POST'),
     // fuel he paid from his cash, with the receipt's camera photo (a resend is recognised by its client_ref)
     'fuel': ('/driver/fuel', 'camera', {'fuel_exists'}, 'POST'),
+    // no car: the one he takes, registered for the office to approve (a resend is recognised by its client_ref)
+    'vehicle_claim': ('/driver/vehicle-claims', 'camera', {'vehicle_claim_exists'}, 'POST'),
   };
   static const _claimTimeout = Duration(minutes: 2);
 

@@ -10,6 +10,7 @@ import '../../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'accident.dart';
+import 'claim.dart';
 import 'fines.dart';
 import 'fuel.dart';
 import 'maintenance.dart';
@@ -395,27 +396,40 @@ class _VehicleCard extends StatelessWidget {
     final l = context.l;
     final custody = state.today?.custody;
     if (custody == null) {
+      // no car: the one he took is registered from here, and waits for the office
       return DCard(
         key: const Key('my-car'),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const IconTile(
-              Icons.directions_car_outlined,
-              bg: AppColors.surface3,
-              fg: AppColors.text3,
-              size: 44,
-              iconSize: 22,
+            Row(
+              children: [
+                const IconTile(
+                  Icons.directions_car_outlined,
+                  bg: AppColors.surface3,
+                  fg: AppColors.text3,
+                  size: 44,
+                  iconSize: 22,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(l.noCustody, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+                      Text(
+                        state.myVehicle?.claimPending == true ? l.noCustodyHint : l.claimVehicleHint,
+                        style: const TextStyle(fontSize: 12.5, color: AppColors.muted, height: 1.6),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l.noCustody, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
-                  Text(l.noCustodyHint, style: const TextStyle(fontSize: 12.5, color: AppColors.muted, height: 1.6)),
-                ],
-              ),
-            ),
+            if (state.myVehicle != null && state.myVehicle!.vehicle == null) ...[
+              const SizedBox(height: 12),
+              ClaimBox(state: state),
+            ],
           ],
         ),
       );
@@ -640,6 +654,7 @@ class _QueuedTile extends StatelessWidget {
       'accident' => l.kind_accident,
       'police_report' => l.kind_police_report,
       'fuel' => l.kind_fuel,
+      'vehicle_claim' => l.kind_vehicle_claim,
       _ => l.kind_report,
     };
     final reason = failed

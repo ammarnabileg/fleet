@@ -1537,4 +1537,40 @@ class AppLocalizationsEn extends AppLocalizations {
   String vehicleChangePendingFor(String plate) {
     return 'Your request to change to $plate is under review';
   }
+
+  @override
+  String get claimVehicle => 'Register a new car';
+
+  @override
+  String get claimVehicleHint =>
+      'Took a car? Register it here with its odometer reading; your custody starts when the office approves.';
+
+  @override
+  String get claimTitle => 'Register a new car';
+
+  @override
+  String get claimPlate => 'The car\'s plate number';
+
+  @override
+  String get claimIntro =>
+      'Take the odometer photo with the camera and enter the reading. The request goes to the office; once approved, the car is yours from the photo\'s time.';
+
+  @override
+  String get claimConditionPhotos => 'Photos of the car\'s condition (optional)';
+
+  @override
+  String get claimSend => 'Send to the office';
+
+  @override
+  String claimPending(String plate) {
+    return 'Your request to take the car $plate is waiting for the office\'s approval';
+  }
+
+  @override
+  String claimRejected(String plate, String reason) {
+    return 'The office refused your request to take the car $plate: $reason';
+  }
+
+  @override
+  String get kind_vehicle_claim => 'Car registration';
 }

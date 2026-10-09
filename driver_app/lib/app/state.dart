@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
@@ -392,6 +393,7 @@ class AppState extends ChangeNotifier {
     cash = null;
     profile = null;
     myVehicle = null;
+    _carNoticesSeen = null;
     documents = [];
     onboarding = null;
     reports = [];
@@ -445,7 +447,67 @@ class AppState extends ChangeNotifier {
 
   Future<void> permissionsGranted() => refresh();
 
-  Future<void> loadToday() async => today = Today.fromJson(await api.get('/driver/today') as Map<String, dynamic>);
+  Future<void> loadToday() async {
+    final before = today?.custody?.id;
+    today = Today.fromJson(await api.get('/driver/today') as Map<String, dynamic>);
+    final changed = today!.custody?.id != before;
+    // another car, or none: "my car" is read again whole and replaces what was shown; no car: the one he registered
+    // (waiting for the office, or refused) shows on the home card
+    if (changed || today!.custody == null) await _reloadVehicle(stale: changed);
+  }
+
+  int _vehicleReads = 0;
+
+  /// Reads "my car": what was shown stays until the answer replaces it. A read that fails once his car changed leaves
+  /// it unknown (null): the screens then show the error, never the car before nor the button to register one.
+  Future<void> _reloadVehicle({required bool stale}) async {
+    _vehicleReads++;
+    try {
+      await loadVehicle();
+    } on ApiError {
+      if (stale) myVehicle = null;
+    }
+  }
+
+  /// The notices that say his custody changed: handed a car, taken out of one, swapped, his registered car
+  /// approved, his car returned to the office.
+  static const carNotices = {
+    'vehicle_handed_over',
+    'vehicle_returned',
+    'vehicle_taken',
+    'vehicle_swapped',
+    'vehicle_claim_approved',
+    'vehicle_claim_rejected',
+    'vehicle_claim_superseded',
+  };
+  Set<String>? _carNoticesSeen;
+
+  /// His custody changed: everything shown about "my car" (the car, its readings, today's day, the screens that
+  /// use the current car) is read again and replaces what was there; tracking reports at once.
+  Future<void> carChanged() async {
+    final reads = _vehicleReads;
+    try {
+      await loadToday();
+    } on ApiError {
+      // the day as it was; "my car" below says whether the network is there
+    }
+    if (_vehicleReads == reads) await _reloadVehicle(stale: true);
+    await Future.wait([
+      if (shows('maintenance')) _quietly(loadMaintenance),
+      if (shows('fines')) _quietly(loadFines),
+      if (shows('fuel')) _quietly(loadFuel),
+    ]);
+    unawaited(platform.startTracking().catchError((Object _) {}));
+    notifyListeners();
+  }
+
+  /// Back to the app: his car and day as they are now, and what he was told meanwhile.
+  Future<void> resumed() async {
+    if (phase != Phase.ready) return;
+    await _quietly(loadToday);
+    await _quietly(loadNotices);
+    notifyListeners();
+  }
 
   Future<void> loadProfile() async => profile = Profile(await api.get('/driver/profile') as Map<String, dynamic>);
 
@@ -464,6 +526,41 @@ class AppState extends ChangeNotifier {
           as Map<String, dynamic>,
     );
     notifyListeners();
+  }
+
+  /// No car: he registers the one he takes, by its plate, with the odometer from the app's camera at the photo's
+  /// time and condition photos. It waits for the office's approval. Through the outbox (a resend is recognised by its
+  /// client_ref); a plate the server refuses comes back at once so he types it again.
+  Future<SendResult> sendClaim({
+    required String plate,
+    required int km,
+    required String photoPath,
+    required DateTime takenAt,
+    List<String> photoPaths = const [],
+  }) async {
+    // the outbox removes its files when the server refuses: it sends copies, so after a plate refused he corrects the
+    // plate and sends again with the same photos
+    final originals = [photoPath, ...photoPaths];
+    final copies = [for (final f in originals) (await File(f).copy('$f.${const Uuid().v4()}.jpg')).path];
+    final id = await outbox.add(
+      'vehicle_claim',
+      {
+        'client_ref': const Uuid().v4(),
+        'plate': plate,
+        'odometer_km': km,
+        'recorded_at': takenAt.toUtc().toIso8601String(),
+      },
+      {'photo_sha256': copies.first, for (var i = 1; i < copies.length; i++) 'photos.${i - 1}': copies[i]},
+    );
+    final r = await _sendNow(id, after: loadVehicle);
+    for (final f in originals) {
+      try {
+        await File(f).delete();
+      } on FileSystemException {
+        // already gone
+      }
+    }
+    return r;
   }
 
   /// A renewed document, from the phone's files, with its new expiry; the office checks it before it counts.
@@ -579,7 +676,15 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadNotices() async {
     notices = Notices.fromJson(await api.get('/driver/notifications') as Map<String, dynamic>);
+    final car = {
+      for (final n in notices!.items)
+        if (carNotices.contains(n.kind)) n.id,
+    };
+    final seen = _carNoticesSeen;
+    _carNoticesSeen = {...?seen, ...car};
     notifyListeners();
+    // a custody change told since the last look (the first look is the app's start, which reads everything)
+    if (seen != null && car.difference(seen).isNotEmpty) await carChanged();
   }
 
   /// Everything shown is now read: the badge goes, the list keeps them.

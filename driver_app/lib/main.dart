@@ -55,7 +55,7 @@ class DriverApp extends StatefulWidget {
   State<DriverApp> createState() => _DriverAppState();
 }
 
-class _DriverAppState extends State<DriverApp> {
+class _DriverAppState extends State<DriverApp> with WidgetsBindingObserver {
   StreamSubscription<Uri>? _links;
   String? _activating;
   String? _activationError;
@@ -64,6 +64,7 @@ class _DriverAppState extends State<DriverApp> {
   void initState() {
     super.initState();
     widget.state.addListener(_changed);
+    WidgetsBinding.instance.addObserver(this);
     // the activation link opens the app: an Android App Link (https://<server>/activate#t=...) or btfleet://
     // from the fallback page. The link that launched the app comes through initialLink.
     _links = widget.links?.listen(_onLink);
@@ -73,6 +74,12 @@ class _DriverAppState extends State<DriverApp> {
   }
 
   void _changed() => setState(() {});
+
+  // back to the app: his car may have changed meanwhile (handed over, swapped, taken back)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState s) {
+    if (s == AppLifecycleState.resumed) unawaited(widget.state.resumed());
+  }
 
   Future<void> _onLink(Uri uri) async {
     final token = AppState.activationToken(uri);
@@ -93,6 +100,7 @@ class _DriverAppState extends State<DriverApp> {
   @override
   void dispose() {
     widget.state.removeListener(_changed);
+    WidgetsBinding.instance.removeObserver(this);
     _links?.cancel();
     super.dispose();
   }
