@@ -487,7 +487,10 @@
     "reversal_date_future": "A reversal cannot be dated in the future",
     "reversal_before_entry": "A reversal cannot be dated before the original entry ({date})",
     "treasury_date_future": "An expense paid from the treasury cannot be dated in the future: enter it on the day it is paid",
-    "advance_partly_recovered": "Payroll already took part of this advance ({taken}): it cannot be cancelled. Correct it with a manual entry or an adjustment"
+    "advance_partly_recovered": "Payroll already took part of this advance ({taken}): it cannot be cancelled. Correct it with a manual entry or an adjustment",
+    "portal_account_from_center": "Maintenance-center accounts are created from the center's page (Maintenance → Centers → Portal accounts) so they are linked to their center",
+    "not_a_portal_account": "This is an office account, not a center portal account",
+    "center_user_linked": "This account is already linked to a center"
   },
   "settings": {
     "branding": "Branding",

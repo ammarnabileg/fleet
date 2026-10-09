@@ -566,3 +566,38 @@ def test_an_inactive_center_gets_no_referrals_and_its_portal_closes(admin_client
     admin_client.post(f"{M}/requests/{rid}/approve", json={})
     r = admin_client.post(f"{M}/requests/{rid}/refer", json={"center_id": c["id"]})
     assert r.status_code == 409 and r.json()["code"] == "center_inactive"
+
+
+def test_a_center_account_is_made_from_its_center_and_an_unlinked_one_can_be_linked(admin_client, new_client, owner_db):
+    """A portal-only account made from the users page belongs to no center, so the portal refuses it: the users
+    page refuses to make one, and the center's page takes over one made before that."""
+    c = center(admin_client)
+    body = {"full_name": "Garage Desk", "password": PASSWORD, "all_companies": False, "company_ids": []}
+    r = admin_client.post("/api/v1/users", json=body | {"username": "desk1", "role_codes": ["maintenance_center"]})
+    assert r.status_code == 422 and r.json()["code"] == "portal_account_from_center"
+    # an office account can't become one by editing either
+    r = admin_client.post("/api/v1/users", json=body | {"username": "desk2", "role_codes": ["maintenance_manager"]})
+    assert r.status_code == 201, r.text
+    u = r.json()
+    r = admin_client.patch(
+        f"/api/v1/users/{u['public_id']}", json={"version": u["version"], "role_codes": ["maintenance_center"]}
+    )
+    assert r.status_code == 422 and r.json()["code"] == "portal_account_from_center"
+    # one made before the rule: portal role only, linked nowhere
+    owner_db.execute(
+        text(
+            "UPDATE identity.user_roles SET role_id = (SELECT id FROM identity.roles WHERE code = 'maintenance_center')"
+            " WHERE user_id = (SELECT id FROM identity.users WHERE username = 'desk2')"
+        )
+    )
+    owner_db.commit()
+    orphan = new_client()
+    login(orphan, "desk2")
+    assert orphan.get(f"{P}/me").json()["code"] == "not_a_center_account"
+    link = f"{M}/centers/{c['id']}/users/link"
+    assert admin_client.post(link, json={"username": "nobody"}).json()["code"] == "user_not_found"
+    assert admin_client.post(link, json={"username": "admin"}).json()["code"] == "not_a_portal_account"
+    r = admin_client.post(link, json={"username": "DESK2"})
+    assert r.status_code == 200 and [x["username"] for x in r.json()] == ["desk2"]
+    assert orphan.get(f"{P}/me").json()["name"] == c["name"]
+    assert admin_client.post(link, json={"username": "desk2"}).json()["code"] == "center_user_linked"

@@ -46,7 +46,8 @@ test('fines: the driver at the ticket time, charged, paid, nobody driving, cance
     if (file) await m.locator('[name=file]').setInputFiles(file);
     await clearToasts(admin); // the previous fine's toast says the same
     await m.locator('button[type=submit]').click();
-    await expect(admin.locator('.toast').last()).toContainText('سُجّلت المخالفة');
+    // a live alert can toast right after the save message: look for the message itself, not the last toast
+    await expect(admin.locator('.toast', { hasText: 'سُجّلت المخالفة' }).last()).toBeVisible();
     const f = (await fines()).find((x) => x.reference_no === ref);
     await expect(top()).toContainText('#' + f.number); // its drawer
     return f;
@@ -59,7 +60,7 @@ test('fines: the driver at the ticket time, charged, paid, nobody driving, cance
   let f1 = await register('13:00', '15', 'تجاوز السرعة 120 في 80', 'TKT-' + n, { name: 'ticket.pdf', mimeType: 'application/pdf', buffer: pdf() });
   same(f1.occurred_at, at('13:00'));
   expect([f1.driver && f1.driver.id, f1.has_file, f1.status]).toEqual([ali.id, true, 'open']);
-  await expect(admin.locator('.toast').last()).toContainText(ali.name.ar);
+  await expect(admin.locator('.toast', { hasText: ali.name.ar }).last()).toBeVisible();
   await expect(top()).toContainText(day.split('-').reverse().join('-') + ' 13:00'); // shown in Kuwait time too
   await button('خصم من السائق').click();
   const ch = top();
@@ -86,7 +87,7 @@ test('fines: the driver at the ticket time, charged, paid, nobody driving, cance
   const f2 = await register('14:30', '10', 'وقوف في مكان ممنوع', 'TKT2-' + n);
   same(f2.occurred_at, at('14:30'));
   expect(f2.driver).toBeNull();
-  await expect(admin.locator('.toast').last()).toContainText('لم تكن السيارة مسلّمة لأحد');
+  await expect(admin.locator('.toast', { hasText: 'لم تكن السيارة مسلّمة لأحد' }).last()).toBeVisible();
   // the alert it raised comes in with the next look at the alerts: the bell counts it, but the officer who just
   // saw this in the save message is not told it again as "new"
   const toasts = await admin.locator('.toast').count();

@@ -293,7 +293,7 @@
       title: c.name, subtitle: c.specialty || '', icon: 'store', size: 'lg',
       body: h`${BT.kv([['جهة الاتصال', c.contact_name || '—'], ['الهاتف', c.phone ? h`<span class="ltr">${c.phone}</span>` : '—'], ['البريد', c.email || '—'], ['العنوان', c.address || '—'], ['سيارات لديه الآن', String(c.at_center)], ['الحالة', c.is_active ? 'نشط' : 'موقوف']])}
         ${c.notes ? h`<div class="fs-sm mt-12" style="white-space:pre-wrap">${c.notes}</div>` : ''}
-        <div class="between mt-16 mb-8"><div class="section-t" style="margin:0">حسابات البوابة</div>${manage ? h`<button type="button" class="btn btn-sm btn-soft" data-user-add>${icon('user-plus', 14)} إضافة حساب</button>` : ''}</div>
+        <div class="between mt-16 mb-8"><div class="section-t" style="margin:0">حسابات البوابة</div>${manage ? h`<div class="flex gap-8"><button type="button" class="btn btn-sm btn-ghost" data-user-link>${icon('link', 14)} ربط حساب موجود</button><button type="button" class="btn btn-sm btn-soft" data-user-add>${icon('user-plus', 14)} إضافة حساب</button></div>` : ''}</div>
         <div data-users>${A.spinner()}</div>
         <div class="hint mt-8">حساب المركز يرى فقط السيارات المحالة لمركزه، ويدخل من صفحة الدخول نفسها.</div>`,
       buttons: [{ label: 'إغلاق', cls: 'btn-ghost' }].concat(manage ? [{ label: 'تعديل', cls: 'btn-outline', icon: 'pencil', close: false, onClick: function () { centerForm(c); } }] : [])
@@ -313,6 +313,15 @@
     BT.on(d.el, 'click', '[data-user-toggle]', function (e, b) {
       b.disabled = true;
       api.put('/maintenance/centers/' + c.id + '/users/' + b.getAttribute('data-user-toggle'), { is_active: b.getAttribute('data-on') === '1' }).then(drawUsers, function (err) { b.disabled = false; BT.toast(api.message(err), { type: 'error' }); });
+    });
+    BT.on(d.el, 'click', '[data-user-link]', function () {
+      A.formModal({
+        title: 'ربط حساب موجود بـ ' + c.name, icon: 'link', size: 'sm',
+        body: h`<div class="form">${BT.f.input({ name: 'username', label: 'اسم المستخدم', required: true })}<div class="hint">لحساب بوابة اتعمل من صفحة المستخدمين ومش مربوط بمركز. حسابات الإدارة ما تتربطش.</div></div>`,
+        submitText: 'ربط الحساب', done: 'اتربط الحساب بالمركز',
+        submit: function (f) { return api.post('/maintenance/centers/' + c.id + '/users/link', { username: f.username }); },
+        after: drawUsers
+      });
     });
     BT.on(d.el, 'click', '[data-user-add]', function () {
       A.formModal({

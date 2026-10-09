@@ -68,6 +68,16 @@ def add_center_user(
     return service.add_center_user(db, public_id, body.model_dump(), actor_user_id=principal.user_id)
 
 
+@router.post("/maintenance/centers/{public_id}/users/link", response_model=list[schemas.PortalUserOut])
+def link_center_user(
+    public_id: uuid.UUID,
+    body: schemas.PortalUserLinkIn,
+    principal: Principal = Depends(require_permission("maintenance_centers.manage")),
+    db: Session = Depends(get_session),
+):
+    return service.link_center_user(db, public_id, body.username, actor_user_id=principal.user_id)
+
+
 @router.put("/maintenance/centers/{public_id}/users/{user_id}", response_model=list[schemas.PortalUserOut])
 def set_center_user_active(
     public_id: uuid.UUID,

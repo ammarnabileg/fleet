@@ -443,6 +443,11 @@
       if (api.me.must_change_password) changePassword(true).then(start); else start();
     }, function (err) {
       if (err instanceof api.ApiError && err.status === 401) return;
+      if (err instanceof api.ApiError && err.code === 'not_a_center_account') {
+        BT.render(view(), h`<div class="card"><div class="card-b">${BT.empty('link', 'الحساب ده مش مربوط بمركز صيانة', 'حساب المركز لازم يتعمل أو يتربط من لوحة الإدارة: الصيانة ← مراكز الصيانة ← افتح المركز ← حسابات البوابة («إضافة حساب» أو «ربط حساب موجود»).', raw('<button type="button" class="btn btn-sm btn-secondary mt-8" data-logout>تسجيل الخروج</button>'))}</div></div>`);
+        view().querySelector('[data-logout]').addEventListener('click', logout);
+        return;
+      }
       BT.render(view(), errorBox(err));
     });
   }

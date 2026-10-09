@@ -59,6 +59,10 @@ class PortalUserIn(_In):
     password: Annotated[str, StringConstraints(min_length=1, max_length=200)]
 
 
+class PortalUserLinkIn(_In):
+    username: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=60)]
+
+
 class PortalUserActiveIn(_In):
     is_active: bool
 

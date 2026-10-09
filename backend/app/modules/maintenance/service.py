@@ -542,6 +542,26 @@ def add_center_user(db: Session, public_id, data: dict, *, actor_user_id: int) -
     return _portal_users_out(db, c.id)
 
 
+def link_center_user(db: Session, public_id, username: str, *, actor_user_id: int) -> list[dict]:
+    """Links an existing portal-only account to this center (an account made from the users page links nowhere)."""
+    c = _center(db, public_id, lock=True)
+    user_id = identity.portal_user_id(db, username)
+    linked = db.scalar(select(CenterUser).where(CenterUser.user_id == user_id))
+    if linked is not None:
+        raise AppError(409, "center_user_linked")
+    db.add(CenterUser(user_id=user_id, center_id=c.id))
+    audit.record(
+        db,
+        action="center.user_linked",
+        entity_type="center",
+        entity_id=c.public_id,
+        actor_user_id=actor_user_id,
+        after={"username": username},
+    )
+    db.commit()
+    return _portal_users_out(db, c.id)
+
+
 def set_center_user_active(db: Session, public_id, user_public_id, *, active: bool, actor_user_id: int) -> list[dict]:
     c = _center(db, public_id)
     members = {u["public_id"]: u["user_id"] for u in identity.users_brief(db, _member_ids(db, c.id))}

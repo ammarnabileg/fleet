@@ -218,7 +218,7 @@
   function userForm(u, roles, after) {
     var editing = !!u;
     u = u || { roles: [], company_ids: [], all_companies: true, is_active: true };
-    var custom = roles.filter(function (r) { return !r.all_permissions || api.me.is_superuser; });
+    var custom = roles.filter(function (r) { return (!r.all_permissions || api.me.is_superuser) && (r.code !== 'maintenance_center' || u.roles.indexOf(r.code) > -1); }); // حساب المركز يُنشأ من صفحة المركز ليُربط به
     var d = A.formModal({
       title: editing ? 'تعديل مستخدم' : 'إضافة مستخدم', subtitle: editing ? u.username : null, icon: editing ? 'pencil' : 'user-plus', size: 'lg', done: editing ? 'تم الحفظ' : 'تمت إضافة المستخدم',
       body: h`<div class="form-grid">

@@ -392,6 +392,12 @@ def _roles_by_code(db: Session, codes: Iterable[str]) -> list[Role]:
     return roles
 
 
+def _portal_only(db: Session, roles: list[Role]) -> bool:
+    """Roles that grant only the centers' portal: such an account works only once linked to a center."""
+    perms = _roles_permissions(db, [r.id for r in roles])
+    return bool(perms) and all(p.startswith("portal.") for p in perms)
+
+
 def _guard_grants(db: Session, principal: Principal, roles: list[Role], all_companies: bool, company_ids: set[int]):
     """Nobody can hand out more than they hold: permissions, all-company access or companies outside their scope."""
     if not principal.is_superuser:
@@ -446,6 +452,10 @@ def create_user(
     if locale is not None:
         i18n.get_language(db, locale)
     roles = _roles_by_code(db, role_codes)
+    if _portal_only(db, roles):
+        # made here it would be linked to no center and the portal would refuse it: centers' accounts are made
+        # from the center's page, which links them
+        raise AppError(422, "portal_account_from_center")
     company_ids = set() if all_companies else set(company_ids)
     _guard_grants(db, principal, roles, all_companies, company_ids)
     user = User(
@@ -521,6 +531,20 @@ def create_portal_user(
     return user.id
 
 
+def portal_user_id(db: Session, username: str) -> int:
+    """An existing account that holds only portal permissions (made before accounts were linked from the center's
+    page), so a center can take it over. 404 if there is none, 409 if it is an office account."""
+    user = db.scalar(select(User).where(func.lower(User.username) == username.strip().lower()))
+    if user is None:
+        raise AppError(404, "user_not_found")
+    roles = list(
+        db.scalars(select(Role).join(UserRole, UserRole.role_id == Role.id).where(UserRole.user_id == user.id))
+    )
+    if user.is_superuser or not _portal_only(db, roles):
+        raise AppError(409, "not_a_portal_account")
+    return user.id
+
+
 def set_portal_user_active(db: Session, user_id: int, *, active: bool, actor_user_id: int) -> None:
     """Disables or enables a maintenance-center account (its sessions end at once). In the caller's transaction."""
     user = db.get(User, user_id, with_for_update=True)
@@ -579,6 +603,8 @@ def update_user(db: Session, principal: Principal, public_id, *, version: int, c
             setattr(user, field, changes[field])
     if {"role_codes", "company_ids", "all_companies"} & changes.keys():
         roles = _roles_by_code(db, changes.get("role_codes", before["roles"]))
+        if _portal_only(db, roles) and not _portal_only(db, _roles_by_code(db, before["roles"])):
+            raise AppError(422, "portal_account_from_center")
         company_ids = set() if user.all_companies else set(changes.get("company_ids", before["company_ids"]))
         _guard_grants(db, principal, roles, user.all_companies, company_ids)
         _set_links(db, user.id, roles, company_ids)
