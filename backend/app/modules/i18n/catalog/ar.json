@@ -508,7 +508,9 @@
     "petty_holder_inactive": "لا تُصرف عهدة لموظف انتهت خدمته",
     "petty_holder_unknown": "الموظف ليس معه عهدة نقدية: اصرف له عهدة أولاً",
     "expense_petty_holder_required": "اختر الموظف صاحب العهدة التي دفعت",
-    "petty_role_missing": "اربط دور العهد النقدية بحساب في دليل الحسابات أولاً"
+    "petty_role_missing": "اربط دور العهد النقدية بحساب في دليل الحسابات أولاً",
+    "vehicle_plate_not_found": "رقم اللوحة ده مش متسجل عندنا. راجع الرقم ودخّله صح.",
+    "vehicle_change_same_vehicle": "هذه هي السيارة التي معك الآن. اكتب رقم لوحة السيارة الأخرى."
   },
   "settings": {
     "branding": "الهوية",
@@ -636,7 +638,7 @@
     "approval_escalated": "اعتماد {ref} انتظر أكثر من {hours} ساعة: صار متاحًا لدور التصعيد",
     "daily_report_escalated": "تقرير {driver} ليوم {date} لم يُراجع خلال {hours} ساعة: مُصعّد للإدارة",
     "daily_report_change_requested": "{driver} يطلب تعديل تقرير {date}",
-    "vehicle_change_requested": "{driver} يطلب تغيير السيارة {plate}: {reason}",
+    "vehicle_change_requested": "{driver} يطلب تغيير السيارة {plate} إلى {requested}: {reason}",
     "document_renewal_submitted": "{driver} أرسل {document} مجدداً حتى {date}: راجعه واعتمده",
     "daily_report_missing": "{driver} بدأ يومه {date} ولم يرسل تقريره",
     "fuel_claim": "طلب بنزين من {name} بمبلغ {amount} د.ك بانتظار المراجعة",
@@ -1349,5 +1351,24 @@
     "pending_report_changes": "{count} طلب تعديل على تقارير يومية في الشهر لسه ما اتقررش",
     "stale_entries": "{count} قيد مستنده اتغيّر: اعكسه وولّد من جديد",
     "treasury_days_open": "خزينة {branch}: {count} يوم عليه حركات وما اتجردش، أولهم {first}"
+  },
+  "change_column": {
+    "title": "طلبات تغيير السيارة",
+    "created_at": "التاريخ",
+    "driver": "السائق",
+    "vehicle": "السيارة التي معه",
+    "requested": "السيارة المطلوبة",
+    "requested_now": "المطلوبة الآن",
+    "reason": "السبب",
+    "status": "الحالة",
+    "decided_by": "أغلقه",
+    "decided_at": "وقت الإغلاق",
+    "note": "الملاحظة",
+    "with": "مع {name}"
+  },
+  "change_status": {
+    "pending": "قيد المراجعة",
+    "done": "تم التغيير",
+    "rejected": "مرفوض"
   }
 }

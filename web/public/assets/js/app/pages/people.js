@@ -198,7 +198,7 @@
           ].filter(Boolean))}${e.is_driver && api.can('payroll.view') ? h`<div data-scheme-box></div>` : ''}</div>
           ${docs ? h`<div data-panel="docs" data-group="empd" class="${active === 'docs' ? 'active' : ''}">${docsList(docs, 'employee', e.id)}</div>` : ''}
           ${e.is_driver ? h`<div data-panel="device" data-group="empd" class="${active === 'device' ? 'active' : ''}">${devicePanel(e, devices)}</div>` : ''}
-          ${custodies && e.is_driver ? h`<div data-panel="custody" data-group="empd" class="${active === 'custody' ? 'active' : ''}">${custodies.length ? h`<div class="list">${custodies.map(function (c) { return h`<button type="button" class="li" data-custody="${c.id}" style="width:100%;text-align:start"><span class="li-ic">${icon('key-round', 16)}</span><div class="li-main"><div class="li-t"><span class="plate">${c.vehicle.plate_number}</span> ${c.kind === 'emergency' ? A.pill('custody_kind', 'emergency') : ''}</div><div class="li-d">${fmt.dt(c.started_at)} ← ${c.ended_at ? fmt.dt(c.ended_at) : 'مستمرة'}</div></div>${c.needs_review ? BT.pill('تحتاج مراجعة', 'o') : ''}</button>`; })}</div>` : BT.empty('key-round', 'لا توجد عُهد', '')}</div>` : ''}
+          ${custodies && e.is_driver ? h`<div data-panel="custody" data-group="empd" class="${active === 'custody' ? 'active' : ''}">${custodies.length ? h`<div class="list">${custodies.map(function (c) { return h`<button type="button" class="li" data-custody="${c.id}" style="width:100%;text-align:start"><span class="li-ic">${icon('key-round', 16)}</span><div class="li-main"><div class="li-t"><span class="plate">${c.vehicle.plate_number}</span> ${c.kind === 'emergency' ? A.pill('custody_kind', 'emergency') : ''}</div><div class="li-d">${fmt.dt(c.started_at)} ← ${c.ended_at ? fmt.dt(c.ended_at) : 'مستمرة'}</div></div>${c.needs_review ? BT.pill('تحتاج مراجعة', 'o') : ''}</button>`; })}</div>` : BT.empty('key-round', 'لا توجد عُهد', '')}<div data-emp-changes></div></div>` : ''}
           <div data-panel="log" data-group="empd" class="${active === 'log' ? 'active' : ''}">${history.length ? h`<div class="timeline">${history.map(function (x, i) { var s = (statuses || []).find(function (y) { return y.code === x.status_code; }); return h`<div class="tl-item"><span class="tl-ic ${i ? '' : 'g'}">${icon(i ? 'history' : 'check', 13)}</span><div><div class="tl-t">${s ? api.name(s.name) : x.status_code}</div><div class="tl-d">${fmt.dt(x.changed_at)}${x.note ? ' · ' + x.note : ''}</div></div></div>`; })}</div>` : BT.empty('history', 'لا يوجد سجل', '')}</div>
         </div>`);
       var foot = dlg.panel.querySelector('.modal-f');
@@ -213,6 +213,7 @@
         if (x === 'edit') A.employeeForm(e, function () { reopen('info'); });
         if (x === 'status') A.changeStatus(e, st, function () { reopen('log'); });
       });
+      if (A.changeRequestsTable) A.changeRequestsTable(dlg.body.querySelector('[data-emp-changes]'), { driver_id: e.id });
       BT.on(dlg.body, 'click', '[data-custody]', function (ev, b) { A.custody(b.getAttribute('data-custody')); });
       BT.on(dlg.body, 'click', '[data-doc-add]', function () { A.addDocument('employee', e.id, function () { reopen('docs'); }); });
       BT.on(dlg.body, 'click', '[data-dev]', function (ev, b) {

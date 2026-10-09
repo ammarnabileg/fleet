@@ -5,6 +5,7 @@ Custody periods never overlap per vehicle or per driver; the database enforces i
 the previous one of the same vehicle; a suspicious reading is stored, flagged, raises an alert and waits for review.
 """
 
+import re
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -22,6 +23,7 @@ from app.modules.audit import service as audit
 from app.modules.documents import service as documents
 from app.modules.files import service as files
 from app.modules.fleet.models import Custody, CustodyPhoto, OdometerReading, Vehicle, VehicleChangeRequest
+from app.modules.identity import service as identity
 from app.modules.notifications import service as notifications
 from app.modules.org import service as org
 from app.modules.people import service as people
@@ -70,8 +72,16 @@ def _cref(c: Custody) -> CustodyRef:
     return CustodyRef(c.id, c.public_id, c.vehicle_id, c.driver_id, c.company_id, c.started_at, c.ended_at, c.kind)
 
 
+_PLATE_DIGITS = "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹"  # Arabic-Indic, and the Persian ones some keyboards type
+_PLATE_DASHES = "\u2010\u2011\u2012\u2013\u2014\u2015\u2212\ufe58\ufe63\uff0d"
+_PLATE_FROM = _PLATE_DIGITS + _PLATE_DASHES
+_PLATE_TO = "0123456789" * 2 + "-" * len(_PLATE_DASHES)
+_PLATE_TABLE = str.maketrans(_PLATE_FROM, _PLATE_TO)
+
+
 def normalize_plate(plate: str) -> str:
-    return " ".join(plate.upper().split())
+    """Latin digits, a plain dash for any dash a phone types, upper case, single spaces."""
+    return " ".join(plate.translate(_PLATE_TABLE).upper().split())
 
 
 def _scoped(q, model, all_companies: bool, company_ids: Iterable[int]):
@@ -1430,8 +1440,47 @@ def _change_out(r: VehicleChangeRequest | None, plates: dict | None = None, name
         "note": r.note,
         "created_at": r.created_at,
         "decided_at": r.decided_at,
+        "requested_plate": r.requested_plate,
         "vehicle_plate": (plates or {}).get(r.vehicle_id),
         "driver": (names or {}).get(r.employee_id),
+    }
+
+
+def _plate_key(plate: str) -> str:
+    """A plate as the driver may type it, compared: separators (spaces, dashes, slashes) ignored."""
+    return re.sub(r"[\s/-]", "", normalize_plate(plate))
+
+
+def _vehicle_for_change(db: Session, plate: str, company_id: int) -> Vehicle | None:
+    """His company's vehicle with that plate: the same plate first; else the only one equal ignoring separators
+    ("12-34567" for "12 34567" or "1234567"). Another company's vehicle is not found."""
+    exact = vehicle_by_plate(db, plate)
+    if exact is not None:
+        return db.get(Vehicle, exact.id) if exact.company_id == company_id else None
+    key = func.upper(
+        func.regexp_replace(func.translate(Vehicle.plate_number, _PLATE_FROM, _PLATE_TO), r"[\s/-]", "", "g")
+    )
+    found = list(db.scalars(select(Vehicle).where(key == _plate_key(plate), Vehicle.company_id == company_id).limit(2)))
+    return found[0] if len(found) == 1 else None
+
+
+def _requested_vehicles(db: Session, rows: list[VehicleChangeRequest]) -> dict[int, dict]:
+    """The cars asked for, as they are now: their status and who holds them."""
+    vehicles = {
+        v.id: v
+        for v in db.scalars(select(Vehicle).where(Vehicle.id.in_({r.requested_vehicle_id for r in rows} - {None})))
+    }
+    open_ = _open_custodies_by_vehicle(db, list(vehicles))
+    holders = people.names(db, [c.driver_id for c in open_.values()])
+    return {
+        v.id: {
+            "found": True,
+            "id": str(v.public_id),
+            "plate": v.plate_number,
+            "status": v.status,
+            "holder": holders.get(open_[v.id].driver_id) if v.id in open_ else None,
+        }
+        for v in vehicles.values()
     }
 
 
@@ -1471,18 +1520,26 @@ def driver_vehicle(db: Session, employee_id: int) -> dict:
     }
 
 
-def request_vehicle_change(db: Session, *, employee_id: int, device_id: int, reason: str) -> dict:
-    """The driver asks for another vehicle, with his reason; the supervisors see it (FR-ASG-04)."""
+def request_vehicle_change(db: Session, *, employee_id: int, device_id: int, requested_plate: str, reason: str) -> dict:
+    """The driver asks for another vehicle, naming it by its plate, with his reason; the supervisors see it
+    (FR-ASG-04). The plate must be one of his company's vehicles: a plate not found is refused so he types it again."""
     custody = db.scalar(
         select(Custody).where(Custody.driver_id == employee_id, Custody.ended_at.is_(None)).with_for_update()
     )
     if custody is None:
         raise AppError(409, "no_open_custody")
+    requested = _vehicle_for_change(db, requested_plate, custody.company_id)
+    if requested is None:
+        raise AppError(422, "vehicle_plate_not_found")
+    if requested.id == custody.vehicle_id:
+        raise AppError(422, "vehicle_change_same_vehicle")
     request = VehicleChangeRequest(
         employee_id=employee_id,
         company_id=custody.company_id,
         custody_id=custody.id,
         vehicle_id=custody.vehicle_id,
+        requested_plate=requested.plate_number,
+        requested_vehicle_id=requested.id,
         reason=reason,
         created_by_device=device_id,
     )
@@ -1502,7 +1559,12 @@ def request_vehicle_change(db: Session, *, employee_id: int, device_id: int, rea
         company_id=custody.company_id,
         entity_type="vehicle",
         entity_id=vehicle.public_id,
-        params={"driver": driver.name, "plate": vehicle.plate_number, "reason": reason},
+        params={
+            "driver": driver.name,
+            "plate": vehicle.plate_number,
+            "requested": requested.plate_number,
+            "reason": reason,
+        },
         dedupe_key=f"vehicle_change:{request.id}",
     )
     audit.record(
@@ -1512,25 +1574,63 @@ def request_vehicle_change(db: Session, *, employee_id: int, device_id: int, rea
         entity_id=vehicle.public_id,
         actor_type="device",
         company_id=custody.company_id,
-        after={"driver": str(driver.public_id), "reason": reason},
+        after={
+            "driver": str(driver.public_id),
+            "requested_plate": requested.plate_number,
+            "requested_vehicle": str(requested.public_id),
+            "reason": reason,
+        },
     )
     db.commit()
     return driver_vehicle(db, employee_id)
 
 
-def vehicle_change_requests(db: Session, *, status: str | None = "pending", all_companies: bool, company_ids) -> list:
-    q = select(VehicleChangeRequest).order_by(VehicleChangeRequest.created_at)
+def vehicle_change_requests(
+    db: Session,
+    *,
+    status: str | None = "pending",
+    driver_id: int | None = None,
+    vehicle_id: int | None = None,
+    limit: int = 500,
+    offset: int = 0,
+    all_companies: bool,
+    company_ids,
+) -> list:
+    """The office's list: the pending ones oldest first (the queue), or every request (status "all" or empty) newest
+    first, with the car asked for as it is now and who closed it. vehicle_id matches the car held or the one asked
+    for."""
+    if status == "all":
+        status = None
+    q = select(VehicleChangeRequest).order_by(
+        VehicleChangeRequest.created_at if status == "pending" else VehicleChangeRequest.created_at.desc(),
+        VehicleChangeRequest.id if status == "pending" else VehicleChangeRequest.id.desc(),
+    )
     if status:
         q = q.where(VehicleChangeRequest.status == status)
+    if driver_id is not None:
+        q = q.where(VehicleChangeRequest.employee_id == driver_id)
+    if vehicle_id is not None:
+        q = q.where(
+            or_(VehicleChangeRequest.vehicle_id == vehicle_id, VehicleChangeRequest.requested_vehicle_id == vehicle_id)
+        )
     if not all_companies:
         q = q.where(VehicleChangeRequest.company_id.in_(list(company_ids)))
-    rows = list(db.scalars(q.limit(500)))
+    rows = list(db.scalars(q.limit(limit).offset(offset)))
     plates = plate_numbers(db, {r.vehicle_id for r in rows})
+    public = dict(
+        db.execute(select(Vehicle.id, Vehicle.public_id).where(Vehicle.id.in_({r.vehicle_id for r in rows}))).all()
+    )
     names = people.names(db, {r.employee_id for r in rows})
+    requested = _requested_vehicles(db, rows)
+    users = identity.user_names(db, {r.decided_by for r in rows} - {None})
     out = []
     for r in rows:
         item = _change_out(r, plates, names)
-        item["vehicle_id"] = str(db.get(Vehicle, r.vehicle_id).public_id)
+        item["vehicle_id"] = str(public[r.vehicle_id])
+        item["requested_vehicle"] = requested.get(r.requested_vehicle_id) or (
+            {"found": False, "plate": r.requested_plate} if r.requested_plate else None
+        )
+        item["decided_by"] = users.get(r.decided_by)
         out.append(item)
     return out
 

@@ -1,18 +1,23 @@
 import uuid
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Header, Path, Query
+from fastapi.responses import Response
 from pydantic import AwareDatetime
 from sqlalchemy.orm import Session
 
+from app.core import sheets
+from app.core.clock import KUWAIT
 from app.core.db import get_session
 from app.core.errors import AppError
 from app.modules.files import service as files
 from app.modules.fleet import schemas, service
+from app.modules.i18n import service as i18n
 from app.modules.identity.service import DevicePrincipal, Principal, require_device, require_permission
 from app.modules.people import service as people
 
 router = APIRouter(prefix="/api/v1", tags=["fleet"])
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def _uuid(value: str, error: str) -> uuid.UUID:
@@ -265,17 +270,111 @@ def ask_vehicle_change(
     body: schemas.VehicleChangeIn, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
 ):
     return service.request_vehicle_change(
-        db, employee_id=device.employee_id, device_id=device.device_id, reason=body.reason
+        db,
+        employee_id=device.employee_id,
+        device_id=device.device_id,
+        requested_plate=body.requested_plate,
+        reason=body.reason,
     )
+
+
+def _change_requests(db: Session, principal: Principal, status, driver_id, vehicle_id, limit=500, offset=0) -> list:
+    return service.vehicle_change_requests(
+        db,
+        status=status or None,
+        limit=limit,
+        offset=offset,
+        driver_id=people.ref_by_public_id(db, driver_id, **principal.scope).id if driver_id else None,
+        vehicle_id=service.vehicle_ref_by_public_id(db, vehicle_id, **principal.scope).id if vehicle_id else None,
+        **principal.scope,
+    )
+
+
+ChangeStatus = Literal["pending", "done", "rejected", "all", ""]
 
 
 @router.get("/vehicle-change-requests", response_model=list[schemas.VehicleChangeOut])
 def vehicle_change_requests(
-    status: str | None = "pending",
+    status: ChangeStatus = "pending",
+    driver_id: uuid.UUID | None = None,
+    vehicle_id: uuid.UUID | None = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 500,
+    offset: Annotated[int, Query(ge=0)] = 0,
     principal: Principal = Depends(require_permission("custody.view")),
     db: Session = Depends(get_session),
 ):
-    return service.vehicle_change_requests(db, status=status or None, **principal.scope)
+    """Pending (the default, oldest first), one status, or "all" (or empty) newest first; for a driver or a vehicle
+    (the one he held or the one he asked for)."""
+    return _change_requests(db, principal, status, driver_id, vehicle_id, limit, offset)
+
+
+CHANGE_COLUMNS = (
+    "created_at",
+    "driver",
+    "vehicle",
+    "requested",
+    "requested_now",
+    "reason",
+    "status",
+    "decided_by",
+    "decided_at",
+    "note",
+)
+
+
+@router.get("/vehicle-change-requests/export")
+def export_vehicle_change_requests(
+    status: ChangeStatus = "all",
+    driver_id: uuid.UUID | None = None,
+    vehicle_id: uuid.UUID | None = None,
+    accept_language: str | None = Header(None),
+    principal: Principal = Depends(require_permission("custody.view")),
+    db: Session = Depends(get_session),
+):
+    """The same list in Excel, for the office's records."""
+    rows = _change_requests(db, principal, status, driver_id, vehicle_id)
+    lang = i18n.negotiate(db, principal.locale, accept_language)
+    default = i18n.default_language(db).code
+
+    def text(key: str, fallback: str) -> str:
+        value = i18n.t(db, lang, key)
+        return fallback if value == key else value
+
+    def when(t) -> str:
+        return t.astimezone(KUWAIT).strftime("%Y-%m-%d %H:%M") if t else ""
+
+    def name(person) -> str:
+        return i18n.pick(person["name"], lang, default) if person else ""
+
+    def now(car) -> str:
+        if not car or not car["found"]:
+            return ""
+        if car["holder"]:
+            return i18n.t(db, lang, "change_column.with", name=name(car["holder"]))
+        return text(f"vehicle_status.{car['status']}", car["status"])
+
+    body = [
+        [
+            when(r["created_at"]),
+            name(r["driver"]),
+            r["vehicle_plate"] or "",
+            r["requested_plate"],
+            now(r["requested_vehicle"]),
+            r["reason"],
+            text(f"change_status.{r['status']}", r["status"]),
+            r["decided_by"] or "",
+            when(r["decided_at"]),
+            r["note"] or "",
+        ]
+        for r in rows
+    ]
+    header = [text(f"change_column.{c}", c) for c in CHANGE_COLUMNS]
+    content = sheets.to_xlsx(
+        text("change_column.title", "requests"), header, body, rtl=lang == "ar", text_columns=(2, 3)
+    )
+    return Response(
+        content, media_type=XLSX, headers={"Content-Disposition": 'attachment; filename="vehicle-change-requests.xlsx"'}
+    )
 
 
 @router.post("/vehicle-change-requests/{public_id}/{decision}", response_model=schemas.VehicleChangeOut)

@@ -196,7 +196,19 @@ class DriverTodayOut(BaseModel):
 class VehicleChangeIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    requested_plate: Plate  # the other car, as he reads it on its plate; it must be one of his company's vehicles
     reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
+
+
+class RequestedVehicle(BaseModel):
+    """The car he asked for, as it is now: free, or in someone's custody. found is false only for a request made
+    before the plate was asked (or a vehicle since removed)."""
+
+    found: bool
+    plate: str
+    id: str | None = None
+    status: str | None = None
+    holder: dict | None = None  # {id, name}: the driver holding it now, if anyone
 
 
 class VehicleChangeOut(BaseModel):
@@ -206,9 +218,12 @@ class VehicleChangeOut(BaseModel):
     note: str | None
     created_at: datetime
     decided_at: datetime | None
+    requested_plate: str = ""  # '' for a request made before the plate was asked
     vehicle_plate: str | None = None
     vehicle_id: str | None = None
     driver: dict | None = None
+    requested_vehicle: RequestedVehicle | None = None  # the office's list only
+    decided_by: str | None = None  # the office's list only: the user who closed it (or who took the car back)
 
 
 class MyVehicle(BaseModel):

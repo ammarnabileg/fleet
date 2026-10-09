@@ -456,10 +456,12 @@ class AppState extends ChangeNotifier {
     for (final d in await api.get('/driver/documents') as List) DriverDocument(d as Map<String, dynamic>),
   ];
 
-  /// Another vehicle, with his reason; the supervisor decides (FR-ASG-04). Needs the network.
-  Future<void> requestVehicleChange(String reason) async {
+  /// Another vehicle, named by its plate, with his reason; the supervisor decides (FR-ASG-04). Needs the network.
+  /// A plate the server does not know is refused (`vehicle_plate_not_found`) so he types it again.
+  Future<void> requestVehicleChange(String plate, String reason) async {
     myVehicle = MyVehicle.fromJson(
-      await api.post('/driver/vehicle-change-requests', body: {'reason': reason}) as Map<String, dynamic>,
+      await api.post('/driver/vehicle-change-requests', body: {'requested_plate': plate, 'reason': reason})
+          as Map<String, dynamic>,
     );
     notifyListeners();
   }

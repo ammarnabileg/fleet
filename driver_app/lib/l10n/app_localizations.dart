@@ -2785,6 +2785,24 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'بنزين'**
   String get moveFuel;
+
+  /// No description provided for @vehicleChangePlate.
+  ///
+  /// In ar, this message translates to:
+  /// **'رقم لوحة العربية التانية'**
+  String get vehicleChangePlate;
+
+  /// No description provided for @vehicleChangePlateHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'12-34567'**
+  String get vehicleChangePlateHint;
+
+  /// No description provided for @vehicleChangePendingFor.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلبك لتغيير العربية لـ {plate} قيد المراجعة'**
+  String vehicleChangePendingFor(String plate);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
