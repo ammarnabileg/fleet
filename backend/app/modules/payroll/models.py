@@ -62,6 +62,8 @@ class Deduction(Base):
     status: Mapped[str] = mapped_column(Text, server_default=text("'approved'"))
     created_by: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # the day it enters the books when not the day it was made (approved after that day was closed)
+    books_date: Mapped[date | None] = mapped_column(Date)
     cancelled_by: Mapped[int | None] = mapped_column(BigInteger)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancel_reason: Mapped[str | None] = mapped_column(Text)

@@ -82,8 +82,8 @@ def _journal(
     if closed:
         raise AppError(409, "account_closed")
     business_date = business_date or today()
+    _check_month(db, business_date)  # the month's lock first, then the treasury's (lock_branches)
     _check_day(db, [a for a, _ in lines], business_date)
-    _check_month(db, business_date)
     journal = Journal(
         kind=kind,
         business_date=business_date,
@@ -140,10 +140,18 @@ def last_closed_day(db: Session, branch_ids: Iterable[int]) -> date | None:
 
 
 def _check_month(db: Session, day: date) -> None:
-    """A closed month of the books takes no cash journal dated in it (the database refuses it too)."""
+    """A closed month of the books takes no cash journal dated in it (the database refuses it too). Takes the month's
+    shared lock: callers take it before any treasury, bank or custody lock (the order in lock_branches)."""
     from app.modules.finance import service as finance
 
     finance.check_open_month(db, day)
+
+
+def _lock_month(db: Session, day: date) -> bool:
+    """The month's shared lock only, before a treasury's lock; whether the month is closed."""
+    from app.modules.finance import service as finance
+
+    return finance.month_closed(db, day)
 
 
 def _decide(db: Session, journal_id: int, status: str, actor_user_id: int | None) -> bool:
@@ -164,8 +172,9 @@ def lock_branches(
     db: Session, *, treasury: Iterable[int] = (), bank: Iterable[int] = (), petty: Iterable[int] = ()
 ) -> None:
     """Serializes what reads a treasury's, a bank's or a petty cash custody's balance before moving money out of it,
-    until the transaction ends. Always in one order, every treasury (by branch) before every bank, then every custody
-    (by its holder), so two never wait on each other."""
+    until the transaction ends. Always in one order, so two never wait on each other. The global order is: the month
+    of the books first (_check_month / _lock_month, finance.month_closed), then every treasury (by branch), then
+    every bank, then every custody (by its holder). A caller takes the month before calling this."""
     for kind, ids in (("treasury", treasury), ("bank", bank), ("petty", petty)):
         for b in sorted(set(ids)):
             db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"), {"k": f"cash.{kind}:{b}"})
@@ -363,6 +372,7 @@ def record_receipt(db: Session, driver: people.EmployeeRef, *, amount: Decimal, 
     """The driver hands cash to the cashier: a numbered receipt and a posted deposit (spec T-LED-07)."""
     if amount <= 0:
         raise AppError(422, "amount_must_be_positive")
+    _check_month(db, today())  # the month's lock before the receipt number's and the treasury's
     receipt = Receipt(
         branch_id=driver.branch_id,
         receipt_no=_next_receipt_no(db, driver.branch_id),
@@ -530,6 +540,7 @@ def reverse(db: Session, public_id, *, reason: str, actor_user_id: int, all_comp
     )
     # every treasury, bank and custody it touches locked first, in the one order; one the reversal takes money out
     # of must hold it (as a deposit or a withdrawal would)
+    _check_month(db, today())  # the reversal's month, before the treasury and bank locks
     lock_branches(
         db,
         treasury=[b for *_, k, b in lines if k == "treasury"],
@@ -581,6 +592,7 @@ def bank_deposit(
     if branch_id not in {b["id"] for b in org.list_branches(db)}:
         raise AppError(422, "branch_not_found")
     treasury = account(db, "treasury", branch_id=branch_id)
+    _check_month(db, today())
     lock_branches(db, treasury=[branch_id], bank=[branch_id])
     _open_day(db, branch_id, today())
     if _posted(db, treasury) < amount:
@@ -621,6 +633,7 @@ def bank_withdrawal(
     if branch_id not in {b["id"] for b in org.list_branches(db)}:
         raise AppError(422, "branch_not_found")
     bank = account(db, "bank", branch_id=branch_id)
+    _check_month(db, today())
     lock_branches(db, treasury=[branch_id], bank=[branch_id])
     _open_day(db, branch_id, today())
     if _posted(db, bank) < amount:
@@ -674,6 +687,7 @@ def disburse(
     if branch_id not in {b["id"] for b in org.list_branches(db)}:
         raise AppError(422, "branch_not_found")
     treasury = account(db, "treasury", branch_id=branch_id)
+    _check_month(db, business_date or today())
     lock_branches(db, treasury=[branch_id])
     _open_day(db, branch_id, business_date or today())
     if _posted(db, treasury) < amount:
@@ -1250,10 +1264,15 @@ def _petty_move(
         raise AppError(422, "branch_not_found")
     if kind == "petty_fund" and holder.is_terminal:
         raise AppError(422, "petty_holder_inactive")
+    if kind == "petty_fund":  # the books must be able to enter the custody first
+        from app.modules.finance import service as finance
+
+        finance.check_petty_role(db)
     petty = _petty_account(db, holder, create=kind == "petty_fund")
     if petty is None:
         raise AppError(422, "petty_insufficient")
     treasury = account(db, "treasury", branch_id=branch_id)
+    _check_month(db, today())
     lock_branches(db, treasury=[branch_id], petty=[holder.id])
     _open_day(db, branch_id, today())
     if kind == "petty_fund" and _posted(db, treasury) < amount:
@@ -1322,6 +1341,7 @@ def petty_disburse(
     if amount <= 0:
         raise AppError(422, "amount_must_be_positive")
     petty = db.scalar(select(Account.id).where(Account.kind == "petty", Account.employee_id == employee_id))
+    _check_month(db, business_date)
     lock_branches(db, petty=[employee_id])
     if petty is None or _posted(db, petty) < amount:
         raise AppError(422, "petty_insufficient")
@@ -1337,6 +1357,13 @@ def petty_disburse(
         business_date=business_date,
         attachment_sha256=attachment_sha256,
     )
+
+
+def petty_ready(db: Session) -> dict:
+    """Whether the books can enter a custody (role petty_cash on an open account): until then nothing is funded."""
+    from app.modules.finance import service as finance
+
+    return {"role_ready": finance.petty_role_ready(db)}
 
 
 def is_petty_holder(db: Session, employee_id: int) -> bool:
@@ -1541,6 +1568,7 @@ def close_day(
         raise AppError(422, "denominations_mismatch", total=f"{total:.3f}", counted=f"{counted:.3f}")
     note = (note or "").strip() or None
     acc = account(db, "treasury", branch_id=branch["id"])
+    _lock_month(db, day)  # the month first: a difference is posted in it (refused there if it is closed)
     lock_branches(db, treasury=[branch["id"]])
     last = _last_closing(db, branch["id"])
     if last is not None:
@@ -1606,9 +1634,9 @@ def reopen_closing(db: Session, public_id, *, reason: str, actor_user_id: int) -
     closing = db.scalar(select(TreasuryClosing).where(TreasuryClosing.public_id == public_id))
     if closing is None:
         raise AppError(404, "treasury_closing_not_found")
+    _check_month(db, closing.day)  # a day of a closed month stays closed; the month's lock before the treasury's
     lock_branches(db, treasury=[closing.branch_id])
     db.refresh(closing)
-    _check_month(db, closing.day)  # a day of a closed month stays closed
     last = _last_closing(db, closing.branch_id)
     if closing.reopened_at is not None or last is None or last.id != closing.id:
         raise AppError(409, "treasury_closing_not_last")
@@ -1668,6 +1696,16 @@ def closings(db: Session, branch_public_id, *, date_from: date, date_to: date) -
         "last_closed_day": last.day if last else None,
         "lines": [_closing_out(db, c, last.id if last else None) for c in rows],
     }
+
+
+def pending_journals(db: Session, first: date, last: date) -> int:
+    """For the month's close: journals of business dates first..last still pending (an adjustment waiting for its
+    workflow); a daily report's pending collection is counted with its report."""
+    return db.scalar(
+        select(func.count())
+        .select_from(Journal)
+        .where(Journal.status == "pending", Journal.kind != "collection", Journal.business_date.between(first, last))
+    )
 
 
 def pending_fuel_claims(db: Session, first: date, last: date) -> int:

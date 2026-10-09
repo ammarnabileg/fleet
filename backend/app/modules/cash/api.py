@@ -352,6 +352,14 @@ def petty_holders(
     return service.petty_holders(db)
 
 
+@router.get("/cash/petty/status", response_model=schemas.PettyStatusOut)
+def petty_status(
+    principal: Principal = Depends(require_permission("treasury.view")), db: Session = Depends(get_session)
+):
+    """Whether a custody can be funded: the books need the petty cash role on an account first."""
+    return service.petty_ready(db)
+
+
 @router.post("/cash/petty/{employee_id}/fund", response_model=schemas.JournalOut, status_code=201)
 def petty_fund(
     employee_id: uuid.UUID,

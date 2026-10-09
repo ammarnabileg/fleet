@@ -88,6 +88,12 @@ def check_books_date(db: Session, day: date) -> None:
     _check_date(db, day)
 
 
+def month_closed(db: Session, day: date) -> bool:
+    """For other modules: whether the month of `day` is closed, holding the month's shared lock (see
+    check_open_month)."""
+    return periods.is_closed(db, day)
+
+
 def check_open_month(db: Session, day: date) -> None:
     """For other modules: refused (409 period_closed) when the month of `day` is closed; holds the month's shared
     lock until the transaction ends, so the month cannot close before what the caller writes is in."""
@@ -574,6 +580,18 @@ def _disburse(db: Session, expense: Expense, *, day: date, actor_user_id: int) -
     )
 
 
+def petty_role_ready(db: Session) -> bool:
+    """Whether the books can enter a petty cash custody: its role (petty_cash) on an open account."""
+    account = posting.role_accounts(db).get("petty_cash")
+    return account is not None and account.active
+
+
+def check_petty_role(db: Session) -> None:
+    """For other modules: refused (petty_role_missing) while the books cannot enter a custody."""
+    if not petty_role_ready(db):
+        raise AppError(422, "petty_role_missing")
+
+
 def _petty_holder(db: Session, data: dict, all_companies: bool) -> people.EmployeeRef:
     """Paid from an employee's petty cash custody: his, named, one who holds a custody; the custody is not a
     company's, so an all-companies user only. Dated as money out of the treasury is (books start, not ahead)."""
@@ -583,6 +601,7 @@ def _petty_holder(db: Session, data: dict, all_companies: bool) -> people.Employ
         raise AppError(403, "company_out_of_scope")
     if not data.get("petty_employee_id"):
         raise AppError(422, "expense_petty_holder_required")
+    check_petty_role(db)
     holder = people.ref_by_public_id(db, data["petty_employee_id"], all_companies=True, company_ids=[])
     if not cash.is_petty_holder(db, holder.id):
         raise AppError(422, "petty_holder_unknown")
@@ -631,8 +650,16 @@ def _approval(expense: Expense) -> dict:
     }
 
 
+def _petty_scope(expense: Expense, scope: dict) -> None:
+    """An expense paid from a petty cash custody moves the custody, which is not a company's: an all-companies user
+    decides or cancels it."""
+    if expense.payment_method == "petty" and not scope.get("all_companies"):
+        raise AppError(403, "company_out_of_scope")
+
+
 def decide_expense(db: Session, public_id, *, approve: bool, note: str | None, actor_user_id: int, **scope) -> dict:
     expense = _get(db, public_id, lock=True, **scope)
+    _petty_scope(expense, scope)
     if expense.status != "pending":
         raise AppError(409, "expense_not_pending", status=expense.status)
     if not approve and not note:
@@ -664,6 +691,7 @@ def cancel_expense(db: Session, public_id, *, reason: str, actor_user_id: int, *
     from app.modules.cash import service as cash
 
     expense = _get(db, public_id, lock=True, **scope)
+    _petty_scope(expense, scope)
     if expense.status not in ("pending", "approved") or expense.paid_at is not None:
         raise AppError(409, "expense_not_cancellable", status=expense.status)
     if expense.status == "approved":
@@ -743,16 +771,34 @@ def post(db: Session, first: date, last: date, *, actor_user_id: int, all_compan
     roles = posting.role_accounts(db)
     created: dict[str, int] = defaultdict(int)
     errors, made = [], []
-    # a closed month takes no entry: its documents wait (they cannot be there: its check found none)
+    # a closed month takes no entry: a document of it that changed since (a deduction cancelled after payroll took
+    # part of it...) is entered on the first day of the first open month after it, saying which day it is for; what
+    # still cannot be entered is reported, never skipped silently
     months = {d.day.replace(day=1) for d in missing}
     closed = {m for m in months if periods.is_closed(db, m)}
+    lang = i18n.default_language(db).code
     for doc in missing:
+        description = None
         if doc.day.replace(day=1) in closed:
-            continue
+            moved = periods.first_open_month(db, doc.day)
+            if moved is None:
+                errors.append({"source_ref": doc.ref, "code": "period_closed", "params": {"month": f"{doc.day:%Y-%m}"}})
+                continue
+            original = doc.day
+            description = _describe(db, doc)
+            doc.day = moved
+            note = i18n.t(db, lang, "finance_source.original_date", date=original.isoformat())
+            description = f"{description} ({note})"
         try:
             with db.begin_nested():
                 made.append(
-                    posting.write(db, doc, description=_describe(db, doc), roles=roles, actor_user_id=actor_user_id)
+                    posting.write(
+                        db,
+                        doc,
+                        description=description or _describe(db, doc),
+                        roles=roles,
+                        actor_user_id=actor_user_id,
+                    )
                 )
             created[doc.kind] += 1
         except AppError as e:

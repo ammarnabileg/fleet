@@ -843,3 +843,14 @@ def pending_between(db: Session, first, last) -> int:
         .select_from(Report)
         .where(Report.business_date.between(first, last), Report.status.in_(("submitted", "returned")))
     )
+
+
+def pending_changes_between(db: Session, first, last) -> int:
+    """For the month's close: the change requests still waiting on reports of business dates first..last (an
+    approved one posts its cash difference on the report's date)."""
+    return db.scalar(
+        select(func.count())
+        .select_from(ReportChange)
+        .join(Report, Report.id == ReportChange.report_id)
+        .where(ReportChange.status == "pending", Report.business_date.between(first, last))
+    )

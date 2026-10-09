@@ -331,3 +331,7 @@ class PettyMovementsOut(BaseModel):
     closing: Decimal
     truncated: bool
     lines: list[MovementLine]
+
+
+class PettyStatusOut(BaseModel):
+    role_ready: bool  # the petty_cash role is on an open account: custodies can be funded

@@ -112,14 +112,16 @@
       api.can('maintenance.view') ? api.get('/maintenance/centers') : Promise.resolve([]),
       api.get('/companies/options').then(function (c) { api.companies = c; }), // a company added since sign-in is listed
       // the petty cash custodies (not a company's): for a user over every company who sees the treasury
-      api.me.all_companies && api.can('treasury.view') ? api.get('/cash/petty') : Promise.resolve([])];
+      api.me.all_companies && api.can('treasury.view') ? api.get('/cash/petty') : Promise.resolve([]),
+      api.me.all_companies && api.can('treasury.view') ? api.get('/cash/petty/status') : Promise.resolve({ role_ready: true })];
     Promise.all(jobs).then(function (r) {
-      var types = r[0].filter(function (t) { return t.active; }), vehicles = r[1], people = r[2], centers = r[3], holders = r[5];
+      var types = r[0].filter(function (t) { return t.active; }), vehicles = r[1], people = r[2], centers = r[3];
+      var pettyReady = r[6].role_ready, holders = pettyReady ? r[5] : [];
       var methods = ['treasury', 'bank', 'payable'].concat(holders.length ? ['petty'] : []);
       var companies = api.companyOptions().filter(function (c) { return api.me.all_companies || api.me.company_ids.indexOf(c.v) > -1; });
       A.formModal({
         title: 'تسجيل مصروف', subtitle: 'يُعتمد ثم يدخل القيود تلقائياً', icon: 'receipt', size: 'lg',
-        body: h`<div class="form-grid">
+        body: h`${pettyReady ? '' : h`<div class="banner warn mb-12" data-petty-role>${icon('triangle-alert', 16)}<div>اربط دور العهد النقدية بحساب في دليل الحسابات: الدفع «من عهدة موظف» متوقف حتى ذلك.</div></div>`}<div class="form-grid">
           ${BT.f.select({ name: 'company', label: 'الشركة', required: true, placeholder: false, options: companies })}
           ${BT.f.select({ name: 'type', label: 'النوع', required: true, placeholder: false, options: types.map(function (t) { return { v: t.id, t: api.name(t.name) }; }) })}
           ${BT.f.input({ name: 'date', label: 'التاريخ', type: 'date', required: true, value: BT.config.today })}

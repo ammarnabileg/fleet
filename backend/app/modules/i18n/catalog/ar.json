@@ -504,7 +504,8 @@
     "petty_insufficient": "العهدة فيها أقل من المبلغ",
     "petty_holder_inactive": "لا تُصرف عهدة لموظف انتهت خدمته",
     "petty_holder_unknown": "الموظف ليس معه عهدة نقدية: اصرف له عهدة أولاً",
-    "expense_petty_holder_required": "اختر الموظف صاحب العهدة التي دفعت"
+    "expense_petty_holder_required": "اختر الموظف صاحب العهدة التي دفعت",
+    "petty_role_missing": "اربط دور العهد النقدية بحساب في دليل الحسابات أولاً"
   },
   "settings": {
     "branding": "الهوية",
@@ -1149,7 +1150,8 @@
     "fine_payment": "سداد مخالفة #{number}: {violation} {ref}",
     "reversal": "عكس القيد #{number}: {reason}",
     "opening": "أرصدة افتتاحية للدفاتر التي تبدأ {date}",
-    "imported": "قيد مستورد #{number}"
+    "imported": "قيد مستورد #{number}",
+    "original_date": "عن {date}"
   },
   "entry_source": {
     "cash_journal": "دفتر الكاش",
@@ -1336,10 +1338,12 @@
     "draft_payroll_runs": "{count} كشف رواتب للشهر لسه ما اتعتمدش",
     "earlier_month_open": "شهر {month} قبله لسه مفتوح: اقفله الأول",
     "month_not_over": "الشهر لسه ما خلصش (آخره {end})",
+    "pending_cash_journals": "{count} حركة كاش في الشهر لسه بانتظار الاعتماد (تسوية مثلاً)",
     "pending_daily_reports": "{count} تقرير يومي في الشهر لسه بانتظار المراجعة أو التصحيح",
     "pending_deductions": "{count} خصم اتعمل في الشهر لسه بانتظار الاعتماد",
     "pending_expenses": "{count} مصروف بتاريخ في الشهر لسه بانتظار الاعتماد",
     "pending_fuel_claims": "{count} طلب بنزين في الشهر لسه ما اتراجعش",
+    "pending_report_changes": "{count} طلب تعديل على تقارير يومية في الشهر لسه ما اتقررش",
     "stale_entries": "{count} قيد مستنده اتغيّر: اعكسه وولّد من جديد",
     "treasury_days_open": "خزينة {branch}: {count} يوم عليه حركات وما اتجردش، أولهم {first}"
   }

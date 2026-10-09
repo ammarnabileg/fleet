@@ -733,7 +733,8 @@ def runs_for_posting(db: Session, first: date, last: date) -> dict[str, list[dic
 def deductions_for_posting(db: Session, first: date, last: date) -> list[dict]:
     """Deductions made on Kuwait days first..last, for what the employee owes: the total while it stands, what was
     taken in approved payroll if it was cancelled since (nothing more will be)."""
-    made_on = func.date(func.timezone("Asia/Kuwait", Deduction.created_at))
+    # the day it was made, or the day it was approved when that day was closed already (books_date)
+    made_on = func.coalesce(Deduction.books_date, func.date(func.timezone("Asia/Kuwait", Deduction.created_at)))
     rows = db.execute(select(Deduction, made_on).where(made_on.between(first, last))).all()
     cancelled = [d.id for d, _ in rows if d.status == "cancelled"]
     taken: dict[int, Decimal] = {}

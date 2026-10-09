@@ -22,6 +22,8 @@ PROBLEMS = (
     "pending_expenses",
     "pending_fuel_claims",
     "pending_daily_reports",
+    "pending_report_changes",
+    "pending_cash_journals",
     "pending_deductions",
     "draft_payroll_runs",
     "treasury_days_open",
@@ -53,12 +55,26 @@ def is_closed(db: Session, day: date) -> bool:
     return bool(db.scalar(text("SELECT finance.month_closed(:d)"), {"d": day}))
 
 
+def first_open_month(db: Session, day: date) -> date | None:
+    """The first day of the first open month after the month of `day`, not later than the current month (None
+    when there is none: everything up to now is closed)."""
+    m = (day.replace(day=1) + timedelta(days=32)).replace(day=1)
+    while m <= today().replace(day=1):
+        if not is_closed(db, m):
+            return m
+        m = (m + timedelta(days=32)).replace(day=1)
+    return None
+
+
 def check_open(db: Session, day: date) -> None:
     """409 period_closed when the month of `day` is closed (see is_closed)."""
     if is_closed(db, day):
         raise AppError(409, "period_closed", month=_label(day.replace(day=1)))
 
 
+# The global lock order, for every transaction that takes more than one: the month of the books (shared by
+# writers in finance.month_closed, exclusive for its close or reopen), then the branch treasuries, then the banks,
+# then the petty cash custodies (app.modules.cash.service.lock_branches). Nothing takes a month after a treasury.
 def _lock(db: Session, month: date) -> None:
     db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"), {"k": f"finance.period:{_label(month)}"})
 
@@ -149,6 +165,12 @@ def problems(db: Session, month: date) -> list[dict]:
     reports = daily_ops.pending_between(db, first, last)
     if reports:
         add("pending_daily_reports", count=reports)
+    changes = daily_ops.pending_changes_between(db, first, last)
+    if changes:
+        add("pending_report_changes", count=changes)
+    journals = cash.pending_journals(db, first, last)
+    if journals:
+        add("pending_cash_journals", count=journals)
     waiting = payroll.pending_for_close(db, first, last)
     if waiting["deductions"]:
         add("pending_deductions", count=waiting["deductions"])
@@ -175,7 +197,16 @@ def check(db: Session, month: date) -> dict:
 
 def close(db: Session, month: date, *, actor_user_id: int) -> dict:
     """Closed only with a clean check (422 period_not_ready with the problems otherwise), under the month's exclusive
-    lock: no document of the month is being written while it checks."""
+    lock: no document of the month is being written while it checks. A month not over yet is refused before the
+    lock is taken (nobody waits for nothing)."""
+    if month_end(month) >= today():
+        raise AppError(
+            422, "period_not_ready", month=_label(month), count=1,
+            problems=[{"code": "month_not_over", "params": {"end": month_end(month).isoformat()}}],
+        )  # fmt: skip
+    current = db.get(Period, month)
+    if current is not None and current.status == "closed":
+        raise AppError(409, "period_closed", month=_label(month))
     _lock(db, month)
     p = db.get(Period, month, with_for_update=True)
     if p is not None and p.status == "closed":

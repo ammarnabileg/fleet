@@ -504,7 +504,8 @@
     "petty_insufficient": "The custody holds less than this amount",
     "petty_holder_inactive": "No custody is funded to an employee whose service ended",
     "petty_holder_unknown": "The employee holds no petty cash custody: fund one first",
-    "expense_petty_holder_required": "Choose the employee whose custody paid"
+    "expense_petty_holder_required": "Choose the employee whose custody paid",
+    "petty_role_missing": "Map the petty cash role to an account in the chart of accounts first"
   },
   "settings": {
     "branding": "Branding",
@@ -1149,7 +1150,8 @@
     "fine_payment": "Fine #{number} paid: {violation} {ref}",
     "reversal": "Reverses entry #{number}: {reason}",
     "opening": "Opening balances of the books starting {date}",
-    "imported": "Imported entry #{number}"
+    "imported": "Imported entry #{number}",
+    "original_date": "for {date}"
   },
   "entry_source": {
     "cash_journal": "Cash ledger",
@@ -1336,10 +1338,12 @@
     "draft_payroll_runs": "{count} payroll runs of the month not approved yet",
     "earlier_month_open": "The earlier month {month} is still open: close it first",
     "month_not_over": "The month is not over yet (it ends on {end})",
+    "pending_cash_journals": "{count} cash movements of the month still waiting for approval (an adjustment, say)",
     "pending_daily_reports": "{count} daily reports of the month still waiting for review or correction",
     "pending_deductions": "{count} deductions made in the month still waiting for approval",
     "pending_expenses": "{count} expenses dated in the month still waiting for approval",
     "pending_fuel_claims": "{count} fuel claims of the month not reviewed yet",
+    "pending_report_changes": "{count} change requests on daily reports of the month not decided yet",
     "stale_entries": "{count} entries whose document changed: reverse them and post again",
     "treasury_days_open": "{branch} treasury: {count} days with movements not counted and closed, the first {first}"
   }

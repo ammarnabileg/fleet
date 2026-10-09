@@ -455,9 +455,10 @@
   /* العهد النقدية: موظف يمسك كاش للمصروفات الصغيرة، يُصرف له من خزينة فرع ويرد الباقي إليها */
   function pettyPanel(el) {
     var manage = api.can('treasury.manage');
-    A.load(el, Promise.all([api.get('/cash/petty'), api.get('/cash/treasury')]), function (r) {
-      var rows = r[0];
-      return h`<div class="card"><div class="card-h"><div class="card-t">${icon('wallet', 16)} العهد النقدية</div>${manage ? h`<div class="ms-auto nowrap"><button type="button" class="btn btn-sm btn-outline" data-petty-return>${icon('rotate-ccw', 14)} رد عهدة</button> <button type="button" class="btn btn-sm btn-primary" data-petty-fund>${icon('hand-coins', 14)} صرف عهدة</button></div>` : ''}</div>
+    A.load(el, Promise.all([api.get('/cash/petty'), api.get('/cash/treasury'), api.get('/cash/petty/status')]), function (r) {
+      var rows = r[0], ready = r[2].role_ready;
+      return h`<div class="card"><div class="card-h"><div class="card-t">${icon('wallet', 16)} العهد النقدية</div>${manage ? h`<div class="ms-auto nowrap"><button type="button" class="btn btn-sm btn-outline" data-petty-return>${icon('rotate-ccw', 14)} رد عهدة</button> <button type="button" class="btn btn-sm btn-primary" data-petty-fund${ready ? '' : raw(' disabled')}>${icon('hand-coins', 14)} صرف عهدة</button></div>` : ''}</div>
+        ${ready ? '' : h`<div class="banner warn mb-12" data-petty-role>${icon('triangle-alert', 16)}<div>اربط دور العهد النقدية بحساب في دليل الحسابات («المالية» ← «دليل الحسابات» ← «ربط الأدوار»): لا تُصرف عهدة قبل ذلك حتى تدخل الدفاتر.</div></div>`}
         ${rows.length ? h`<div class="table-wrap"><table class="t compact" data-petty><thead><tr><th>الموظف</th><th>الفرع</th><th class="num">الرصيد</th><th>آخر حركة</th><th></th></tr></thead><tbody>
           ${rows.map(function (x) {
             return h`<tr data-holder="${x.employee.id}"><td>${api.name(x.employee.name)}</td><td>${x.branch_id ? api.branch(x.branch_id) : '—'}</td><td class="num"><b>${fmt.money(x.balance)}</b></td><td class="num">${x.last_movement ? fmt.date(x.last_movement) : '—'}</td>

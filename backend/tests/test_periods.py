@@ -185,9 +185,11 @@ def test_a_closed_month_takes_no_entry_from_any_path(admin_client, company, db, 
             "payment_method": "bank"}  # fmt: skip
     refused(admin_client.post(f"{F}/expenses", json=body))
     refused(admin_client.post(f"/api/v1/payroll/runs/{run['id']}/approve"))
-    # the posting skips the closed month: the late expense waits
+    # the posting enters nothing in the closed month: the late expense goes to the first open month, this one
     r = admin_client.post(f"{F}/entries/post", json={"date_from": str(PREV), "date_to": str(end(PREV))})
-    assert r.status_code == 200 and r.json()["created"] == 0
+    assert r.status_code == 200 and (r.json()["created"], r.json()["errors"]) == (1, [])
+    moved = admin_client.get(f"{F}/entries", params={"q": f"EXP-{late['number']}"}).json()
+    assert [e["entry_date"] for e in moved] == [str(THIS)]
     # a reversal dated today (the default) is fine: today's month is open
     r = admin_client.post(f"{F}/entries/{standing['id']}/reverse", json={"reason": "wrong"})
     assert r.status_code == 200 and r.json()["entry_date"] == str(today())

@@ -304,6 +304,12 @@ def list_deductions(
     return _out(rows[offset : offset + min(limit, 500)], db)
 
 
+def books_day(d: Deduction) -> date:
+    """The day a deduction enters the books (and an advance leaves the treasury): the day it was made, unless it
+    was approved after that day was closed (books_date)."""
+    return d.books_date or business_date(d.created_at)
+
+
 def _pay_advance(db: Session, d: Deduction, employee: people.EmployeeRef, actor_user_id: int) -> None:
     """An advance approved is cash out of the employee's branch treasury, when the books pay advances from the
     treasury (role deduction_advance on the treasury's account, the default): the treasury on screen goes down with
@@ -313,7 +319,7 @@ def _pay_advance(db: Session, d: Deduction, employee: people.EmployeeRef, actor_
 
     if d.source_type != "advance" or not finance.advances_from_treasury(db):
         return
-    day = business_date(d.created_at)  # the day its entry in the books takes (deductions_for_posting)
+    day = books_day(d)  # the day its entry in the books takes (deductions_for_posting)
     finance.check_books_date(db, day)
     lang = i18n.default_language(db).code
     cash.disburse(
@@ -421,6 +427,24 @@ def _tell_driver(db: Session, d: Deduction) -> None:
     )
 
 
+def _books_day_on_approval(db: Session, d: Deduction, employee: people.EmployeeRef) -> None:
+    """It enters the books on the day it was made; when that day's month is closed (or, for an advance paid from the
+    treasury, the treasury's day is closed by its count) it enters them, and leaves the treasury, on the day it is
+    approved: kept as its books date, so the entry and the treasury movement carry the same date."""
+    from app.modules.cash import service as cash
+    from app.modules.finance import service as finance
+
+    made = business_date(d.created_at)
+    if made == today():
+        return
+    closed = finance.month_closed(db, made)
+    if not closed and d.source_type == "advance" and finance.advances_from_treasury(db):
+        last = cash.last_closed_day(db, [employee.branch_id])
+        closed = last is not None and made <= last
+    if closed:
+        d.books_date = today()
+
+
 def decide_manual(db: Session, public_id, *, approve: bool, reason: str | None, actor_user_id: int, **scope) -> dict:
     """A step of a pending manual deduction's workflow, from the approvals inbox. Approved after its first month has
     passed, it starts with the current month; refused, it keeps the reason and is never deducted."""
@@ -429,11 +453,9 @@ def decide_manual(db: Session, public_id, *, approve: bool, reason: str | None, 
         raise AppError(404, "deduction_not_found")
     if d.status != "pending":
         raise AppError(409, "deduction_decided", status=d.status)
-    if approve:  # it enters the books on the day it was made
-        from app.modules.finance import service as finance
-
-        finance.check_open_month(db, business_date(d.created_at))
     employee = people.ref(db, d.employee_id)
+    if approve:
+        _books_day_on_approval(db, d, employee)
     if approvals.gate(
         db,
         "manual_deduction",
