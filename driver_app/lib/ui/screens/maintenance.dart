@@ -37,8 +37,8 @@ String maintenanceKind(AppLocalizations l, String kind) => switch (kind) {
   _ => (l.mntStatus_at_center, BannerTone.info),
 };
 
-/// A maintenance request for the vehicle the driver holds (type, description, camera photos), and the driver's
-/// requests with their status: the center's address appears once the vehicle is referred, "ready" when it is.
+/// A maintenance request for the vehicle the driver holds (the center he takes it to, type, description, camera
+/// photos), and the driver's requests with their status: the center and its address, "ready" when it is.
 class MaintenanceScreen extends StatefulWidget {
   const MaintenanceScreen({super.key, required this.state});
 
@@ -85,7 +85,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
         description: _description.text.trim(),
         km: int.tryParse(_km.text),
         photoPaths: [for (final p in photos) p.path],
-        centerId: widget.state.maintenanceForm.direct ? centerId : null, // none to pick: through the office
+        centerId: centerId,
       );
       if (mounted) Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ResultScreen(result: r)));
     } catch (e) {
@@ -99,8 +99,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
     final custody = widget.state.today?.custody;
     final requests = widget.state.maintenance;
     final form = widget.state.maintenanceForm;
-    // straight to a center he picks; with none open to pick, through the office as before
-    final direct = form.direct && form.centers.isNotEmpty;
+    final noCenter = form.centers.isEmpty; // none open to pick: he calls the office
     final picked = [
       for (final c in form.centers)
         if (c.id == centerId) c,
@@ -120,46 +119,46 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
               ],
               if (custody == null)
                 Banner2(text: l.mntNoVehicle, tone: BannerTone.info)
+              else if (noCenter)
+                Banner2(key: const Key('mnt-no-center'), text: l.mntNoCenter, tone: BannerTone.warn)
               else ...[
-                Banner2(text: direct ? l.mntDirectIntro : l.mntIntro, icon: Icons.info_outline),
+                Banner2(text: l.mntDirectIntro, icon: Icons.info_outline),
                 const SizedBox(height: 12),
                 DCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (direct) ...[
-                        FieldLabel(l.mntCenter, required: true),
-                        DropdownButtonFormField<String>(
-                          key: const Key('mnt-center'),
-                          initialValue: centerId,
-                          isExpanded: true,
-                          hint: Text(l.mntCenter),
-                          items: [
-                            for (final c in form.centers)
-                              DropdownMenuItem(
-                                value: c.id,
-                                child: Text(
-                                  [c.name, if (c.specialty != null) c.specialty!].join(' · '),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                      FieldLabel(l.mntCenter, required: true),
+                      DropdownButtonFormField<String>(
+                        key: const Key('mnt-center'),
+                        initialValue: centerId,
+                        isExpanded: true,
+                        hint: Text(l.mntCenter),
+                        items: [
+                          for (final c in form.centers)
+                            DropdownMenuItem(
+                              value: c.id,
+                              child: Text(
+                                [c.name, if (c.specialty != null) c.specialty!].join(' · '),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                          ],
-                          onChanged: (v) => setState(() => centerId = v),
-                          validator: (v) => v == null ? l.required : null,
-                        ),
-                        if (picked != null && (picked.address != null || picked.phone != null)) ...[
-                          const SizedBox(height: 6),
-                          Text(
-                            [
-                              picked.address,
-                              if (picked.phone != null) '\u2066${picked.phone}\u2069',
-                            ].whereType<String>().join(' · '),
-                            key: const Key('mnt-center-where'),
-                            style: const TextStyle(color: AppColors.muted, height: 1.5),
-                          ),
+                            ),
                         ],
-                        const SizedBox(height: 12),
+                        onChanged: (v) => setState(() => centerId = v),
+                        validator: (v) => v == null ? l.required : null,
+                      ),
+                      if (picked != null && (picked.address != null || picked.phone != null)) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          [
+                            picked.address,
+                            if (picked.phone != null) '\u2066${picked.phone}\u2069',
+                          ].whereType<String>().join(' · '),
+                          key: const Key('mnt-center-where'),
+                          style: const TextStyle(color: AppColors.muted, height: 1.5),
+                        ),
                       ],
+                      const SizedBox(height: 12),
                       FieldLabel(l.mntKind, required: true),
                       DropdownButtonFormField<String>(
                         key: const Key('mnt-kind'),
@@ -268,8 +267,8 @@ class RequestRow extends StatelessWidget {
   }
 }
 
-/// "Your vehicle is ready at the center": where to collect it (home screen and the maintenance screen). Straight
-/// to the center, he confirms the pickup himself and the car is his again.
+/// "Your vehicle is ready at the center": where to collect it (home screen and the maintenance screen). He confirms
+/// the pickup himself, with the odometer, and works with the car again.
 class ReadyBanner extends StatelessWidget {
   const ReadyBanner({super.key, required this.request, required this.state});
 
@@ -290,7 +289,7 @@ class ReadyBanner extends StatelessWidget {
       tone: BannerTone.success,
       icon: Icons.car_repair,
     );
-    if (!request.direct) return banner; // through the office: the office records the pickup and hands over
+    if (!request.pickupInApp) return banner; // the car is no longer his: the office records the pickup
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

@@ -365,6 +365,7 @@
   // أيام الأسبوع الكويتي: 0 السبت … 6 الجمعة (cash.treasury_deposit_weekdays)
   var WEEKDAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
   var DATES = { 'finance.books_start_date': true };
+  var HIDDEN = { 'maintenance.direct_to_center': true }; // لم يعد يُقرأ: كل طلب يذهب مباشرة للمركز المختار
   var HINTS = {
     'finance.entry_approval': 'التحويل إلى «تلقائي» لا يعتمد المسودات الموجودة: اعتمدها من «القيود» ← «اعتماد المسودات». القيد اليدوي يتبع نفس الإعداد، والقيد العكسي يُعتمد فوراً دائماً.',
     'finance.fiscal_year_start_month': 'ميزان المراجعة وكشف الحساب يبدآن افتراضياً من أول السنة المالية حتى اليوم.',
@@ -383,7 +384,8 @@
             var name = form.getAttribute('data-sec'), cur = sections[name], vals = BT.form.values(form), value = {};
             Object.keys(cur.value).forEach(function (k) {
               var old = cur.value[k];
-              if (name + '.' + k === 'cash.treasury_deposit_weekdays') value[k] = [].concat(vals[k] || []).map(Number);
+              if (HIDDEN[name + '.' + k]) value[k] = old;
+              else if (name + '.' + k === 'cash.treasury_deposit_weekdays') value[k] = [].concat(vals[k] || []).map(Number);
               else if (ENUMS[name + '.' + k] && typeof old === 'number') value[k] = Number(vals[k]);
               else if (Array.isArray(old)) value[k] = String(vals[k] || '').split(/[,،]/).map(function (x) { return x.trim(); }).filter(Boolean);
               else if (typeof old === 'boolean') value[k] = !!vals[k];
@@ -398,7 +400,7 @@
       });
       return h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr))">${Object.keys(sections).filter(function (name) { return name !== 'driver_app'; }).map(function (name) {
         var s = sections[name];
-        return h`<form class="card" data-sec="${name}" novalidate><div class="card-h"><div class="card-t">${api.t('settings', name)}</div><span class="muted fs-sm">نسخة ${s.version}</span></div><div class="form">${Object.keys(s.value).map(function (k) {
+        return h`<form class="card" data-sec="${name}" novalidate><div class="card-h"><div class="card-t">${api.t('settings', name)}</div><span class="muted fs-sm">نسخة ${s.version}</span></div><div class="form">${Object.keys(s.value).filter(function (k) { return !HIDDEN[name + '.' + k]; }).map(function (k) {
           var val = s.value[k], label = api.t('settings', name + '.' + k), key = name + '.' + k, hint = HINTS[key];
           if (key === 'cash.treasury_deposit_weekdays') return h`<div class="field" data-weekdays><label>${label}</label><div class="flex gap-8" style="flex-wrap:wrap">${WEEKDAYS.map(function (d, i) { return h`<label class="check"><input type="checkbox" name="${k}" value="${i}"${val.indexOf(i) > -1 ? raw(' checked') : ''}${canEdit ? '' : raw(' disabled')}><span>${d}</span></label>`; })}</div><div class="hint">${hint}</div></div>`;
           if (ENUMS[key]) return BT.f.select({ name: k, label: label, value: val, placeholder: false, options: ENUMS[key], disabled: !canEdit, hint: hint });

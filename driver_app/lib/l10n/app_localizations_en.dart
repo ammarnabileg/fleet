@@ -643,12 +643,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mntNew => 'New maintenance request';
 
   @override
-  String get mntIntro =>
-      'Describe the problem and take photos. Your supervisor approves the request and chooses the maintenance center.';
+  String get mntIntro => 'Describe the problem and take photos. A car in an accident is repaired through the office.';
 
   @override
   String get mntDirectIntro =>
-      'Describe the problem, take photos, and choose the maintenance center where you will leave the car. The request goes straight to the center, which tells you when the car is ready.';
+      'Describe the problem, take photos, and choose the maintenance center you will take the car to. The request goes straight to the center, the car stays in your custody, and you are told when it is ready.';
 
   @override
   String get mntCenter => 'Maintenance center';
@@ -708,7 +707,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get mntSent => 'Your maintenance request was sent to your supervisor';
+  String get mntSent => 'Your maintenance request was sent to the center';
 
   @override
   String get mntKind_periodic => 'Periodic service';
@@ -1573,4 +1572,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get kind_vehicle_claim => 'Car registration';
+
+  @override
+  String get mntNoCenter => 'No maintenance center is available: call the office';
+
+  @override
+  String mntInMaintenance(String center) {
+    return 'Your car is at the maintenance center: $center';
+  }
+
+  @override
+  String get mntInMaintenanceAny => 'Your car is at the maintenance center';
+
+  @override
+  String get mntInMaintenanceHint =>
+      'The car is still in your custody, but no work day starts with it until you collect it from the center and confirm it here.';
 }

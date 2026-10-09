@@ -209,8 +209,8 @@
   "maintenanceTitle": "Maintenance requests",
   "kind_maintenance": "Maintenance request",
   "mntNew": "New maintenance request",
-  "mntIntro": "Describe the problem and take photos. Your supervisor approves the request and chooses the maintenance center.",
-  "mntDirectIntro": "Describe the problem, take photos, and choose the maintenance center where you will leave the car. The request goes straight to the center, which tells you when the car is ready.",
+  "mntIntro": "Describe the problem and take photos. A car in an accident is repaired through the office.",
+  "mntDirectIntro": "Describe the problem, take photos, and choose the maintenance center you will take the car to. The request goes straight to the center, the car stays in your custody, and you are told when it is ready.",
   "mntCenter": "Maintenance center",
   "mntPickedUp": "I collected the car",
   "pickupTitle": "Collecting the car from the center",
@@ -227,7 +227,7 @@
   "mntAtCenter": "Center: {center}",
   "mntReadyBanner": "Your vehicle {plate} is ready for pickup at {center}",
   "mntRejected": "Rejected: {reason}",
-  "mntSent": "Your maintenance request was sent to your supervisor",
+  "mntSent": "Your maintenance request was sent to the center",
   "mntKind_periodic": "Periodic service",
   "mntKind_mechanical": "Mechanical",
   "mntKind_electrical": "Electrical",
@@ -503,5 +503,9 @@
   "claimSend": "Send to the office",
   "claimPending": "Your request to take the car {plate} is waiting for the office's approval",
   "claimRejected": "The office refused your request to take the car {plate}: {reason}",
-  "kind_vehicle_claim": "Car registration"
+  "kind_vehicle_claim": "Car registration",
+  "mntNoCenter": "No maintenance center is available: call the office",
+  "mntInMaintenance": "Your car is at the maintenance center: {center}",
+  "mntInMaintenanceAny": "Your car is at the maintenance center",
+  "mntInMaintenanceHint": "The car is still in your custody, but no work day starts with it until you collect it from the center and confirm it here."
 }

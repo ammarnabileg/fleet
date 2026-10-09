@@ -111,11 +111,18 @@ def ingest(db: Session, device: identity.DevicePrincipal, *, sent_at: datetime, 
         if candidates
         else []
     )
+    # while his car is at a maintenance center his phone's points are not the car's (he keeps it, without driving it)
+    first_t = min((t for _, t, _ in candidates), default=now)
+    last_t = max((t for _, t, _ in candidates), default=now) + timedelta(seconds=1)
+    at_center = fleet.maintenance_spans(db, device.employee_id, first_t, last_t) if custodies else []
     rows, stored = [], []
     for seq, t, p in candidates:
         custody = next((c for c in custodies if c.started_at <= t and (c.ended_at is None or t < c.ended_at)), None)
         if custody is None:
             rejected[seq] = "no_custody"
+            continue
+        if any(a <= t < b for a, b in at_center):
+            rejected[seq] = "in_maintenance"
             continue
         rows.append(
             {
@@ -252,6 +259,7 @@ def live_snapshot(
     }
     lost_after = timedelta(minutes=org.get_section(db, "tracking").signal_loss_minutes)
     working = fleet.on_duty_now(db, [c.id for c in custodies])
+    at_center = fleet.in_maintenance(db, [c.id for c in custodies])
     now, out = utcnow(), []
     for c in custodies:
         v, p = vehicles[c.vehicle_id], positions.get(c.vehicle_id)
@@ -275,7 +283,8 @@ def live_snapshot(
                     "heading": p.heading,
                     "recorded_at": p.recorded_at,
                 },
-                "signal_lost": now - reference > lost_after,
+                "signal_lost": now - reference > lost_after and c.id not in at_center,
+                "in_maintenance": c.id in at_center,
             }
         )
     return out
@@ -399,6 +408,8 @@ def heartbeat(db: Session, device: identity.DevicePrincipal, status: dict) -> di
     GPS off or the tracking service stopped raise an alert, which closes itself when the report is healthy again."""
     identity.record_device_status(db, device.device_id, status)
     custody = fleet.open_custody_for_driver(db, device.employee_id)
+    if custody is not None and fleet.in_maintenance(db, [custody.id]):
+        custody = None  # his car is at a center: nothing to track meanwhile, no alert about his phone
     plate = fleet.plate_numbers(db, [custody.vehicle_id])[custody.vehicle_id] if custody else None
     for kind, failing in HEALTH_CHECKS.items():
         key = f"{kind}:{device.device_id}"
@@ -437,6 +448,8 @@ def scan_signal_loss(db: Session) -> int:
     lost_after = timedelta(minutes=org.get_section(db, "tracking").signal_loss_minutes)
     now, raised = utcnow(), 0
     custodies = fleet.open_custodies(db)
+    at_center = fleet.in_maintenance(db, [c.id for c in custodies])
+    custodies = [c for c in custodies if c.id not in at_center]  # a car at a center sends nothing, rightly
     if not custodies:
         return 0
     positions = {

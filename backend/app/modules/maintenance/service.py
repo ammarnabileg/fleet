@@ -1,28 +1,28 @@
-"""Maintenance requests, maintenance centers and their portal, repair quotes and invoices (BRD 5.9, 5.10).
+"""Maintenance requests, maintenance centers and their portal, and the centers' invoices (BRD 5.9, 5.10).
 
-Who does what: a driver (from the app) or the office asks; a supervisor or the maintenance manager approves (an
-emergency is approved at once and reviewed afterwards) and refers the vehicle to a center; the center works in its
-portal: reception (the custody ends there, with the center's odometer reading and photo, so tracking stops and the
-vehicle is "in maintenance"), inspection, a quote (approved automatically up to the approval limit in the settings,
-otherwise by the manager before the repair starts), repair, completion (final odometer with its photo), ready for
-pickup. Picked up, the vehicle is available again; the request closes once its invoice is approved (configurable).
+The flow: the driver (from the app) or the office picks the center, and the request reaches it at once: no approval,
+no referral. The center receives the car with its odometer reading and photo; the car stays in its driver's custody,
+"in maintenance": he does not work with it meanwhile (no start of day, no tracking alerts). When the repair is done
+the center marks it ready for pickup in one step, with its invoice (file, number, total), which waits for the
+management's approval (that decides the payment, not the pickup); the driver is told, collects the car and confirms
+it in the app with his odometer reading and photo: it is his to work with again. The request closes once picked up
+and, if the settings say so, once its invoice is approved. When nobody holds the car (the office took it back while
+it was at the center, or none held it), the office or the center records the pickup and the car is available.
 
-Straight to the center (settings, maintenance.direct_to_center): the driver picks the center in the app and the
-request reaches it at once, already referred, with no office approval; the center may repair without a quote (a quote
-it sends still follows the limit), uploads its invoice before calling the driver, and the driver confirms the pickup
-in the app with the odometer, which gives him the vehicle back. The office follows, may change the center or cancel
-before the reception, and finance approves and pays the center's invoices as before.
+Requests from before this flow keep their history and can still finish: approval and referral of a request waiting
+for them, the center's inspection, quote and repair steps; from any of those the center may mark the car ready with
+its invoice. A vehicle in an accident keeps the accident's way (estimate, approval, the office's center).
 
-Center accounts see only what was referred to their center: every portal function takes the user and resolves the
+Center accounts see only what was sent to their center: every portal function takes the user and resolves the
 center itself. Every status change is a row in request_events: the timeline, who decided, and the time spent at the
 center and in each status.
 """
 
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -54,7 +54,8 @@ CENTER_ERRORS = {"centers_name_idx": "center_name_taken"}
 REQUEST_ERRORS = {"requests_one_at_center_idx": "vehicle_at_center", "requests_client_ref_key": "request_exists"}
 CANCELLABLE = ("requested", "approved", "referred")
 QUOTE_FROM = ("received", "inspection", "in_repair", "waiting_parts")
-INVOICE_FROM = ("completed", "ready", "picked_up")
+INVOICE_FROM = ("completed", "ready", "picked_up", "closed")
+READY_FROM = ("received", "inspection", "in_repair", "waiting_parts", "completed")  # quote_pending: decided first
 PORTAL_MOVES = {"inspection": ("received",), "in_repair": ("waiting_parts",), "waiting_parts": ("in_repair",)}
 HISTORY = ("picked_up", "closed", "cancelled")
 UNDER_REPAIR = ("received", "inspection", "in_repair", "waiting_parts", "completed")
@@ -84,11 +85,6 @@ def _flush(db: Session, errors: dict) -> None:
         if code is None:
             raise
         raise AppError(409, code) from None
-
-
-def _direct(db: Session) -> bool:
-    """Requests go from the driver straight to the center he picks (the settings)."""
-    return org.get_section(db, "maintenance").direct_to_center
 
 
 def _shortcut(db: Session, r: Request) -> bool:
@@ -222,6 +218,7 @@ def _stay(r: Request, now: datetime) -> int | None:
 def _requests_out(db: Session, rows: list[Request], *, for_center: bool = False) -> list[dict]:
     cards = fleet.vehicle_cards(db, {r.vehicle_id for r in rows})
     names = {} if for_center else people.names(db, {r.driver_id for r in rows if r.driver_id})
+    holders = {r.vehicle_id: fleet.holder(db, r.vehicle_id) for r in rows if r.status in AT_CENTER}
     center_ids = {r.center_id for r in rows if r.center_id}
     centers = {c.id: c for c in db.scalars(select(Center).where(Center.id.in_(center_ids)))} if center_ids else {}
     now = utcnow()
@@ -252,6 +249,8 @@ def _requests_out(db: Session, rows: list[Request], *, for_center: bool = False)
             "decision_note": r.decision_note,
             "cancel_reason": r.cancel_reason,
             "is_new": for_center and r.status == "referred" and r.seen_at is None,
+            # at the center, a driver holds the car: he collects it and confirms it in the app
+            "driver_collects": holders.get(r.vehicle_id) is not None,
             "version": r.version,
         }
         for r in rows
@@ -591,8 +590,25 @@ def center_of(db: Session, user_id: int) -> Center:
 # ------------------------------------------------------------------ requests (office and driver)
 
 
+def _send_to(db: Session, r: Request, center: Center, *, by_user=None, by_device=None) -> None:
+    """The request reaches the center at once (one line on the timeline: who asked, and for which center)."""
+    now = utcnow()
+    r.status, r.center_id, r.decided_at, r.referred_at, r.direct = "referred", center.id, now, now, True
+    if by_user is not None:
+        r.decided_by, r.referred_by = by_user, by_user
+    _flush(db, REQUEST_ERRORS)  # the database's rules for a request at a center: one per vehicle, a center set
+    db.refresh(r)
+    db.add(RequestEvent(request_id=r.id, status="requested", by_user=by_user, by_device=by_device, note=center.name))
+
+
 def create_request(db: Session, data: dict, *, actor_user_id: int, **scope) -> dict:
+    """From the office: the vehicle and the center it goes to; the request reaches the center at once."""
     vehicle = fleet.vehicle_ref_by_public_id(db, data["vehicle_id"], **scope)
+    if not data.get("center_id"):
+        raise AppError(422, "center_required")
+    center = _center(db, data["center_id"])
+    if not center.is_active:
+        raise AppError(409, "center_inactive")
     _check_images(db, data.get("photos") or [])
     r = Request(
         vehicle_id=vehicle.id,
@@ -605,57 +621,32 @@ def create_request(db: Session, data: dict, *, actor_user_id: int, **scope) -> d
         created_by_user=actor_user_id,
     )
     db.add(r)
-    db.flush()
-    db.refresh(r)
-    db.add(RequestEvent(request_id=r.id, status="requested", by_user=actor_user_id))
+    _send_to(db, r, center, by_user=actor_user_id)
     _add_photos(db, r, "request", data.get("photos") or [])
-    params = _alert_params(db, r)
-    if r.emergency:  # repaired first, approved afterwards (BRD FR-MNT-02)
-        r.decided_at = utcnow()
-        _event(db, r, "approved", by_user=actor_user_id, note=":emergency")
-        notifications.raise_alert(
-            db,
-            "maintenance_emergency",
-            company_id=r.company_id,
-            entity_type="maintenance_request",
-            entity_id=r.public_id,
-            params=params,
-            dedupe_key=f"mnt_emergency:{r.id}",
-        )
-    else:
-        notifications.raise_alert(
-            db,
-            "maintenance_requested",
-            company_id=r.company_id,
-            entity_type="maintenance_request",
-            entity_id=r.public_id,
-            params=params,
-            dedupe_key=f"mnt_request:{r.id}",
-        )
-        approvals.submitted(db, "maintenance_request", **_approval(db, r), actor_user_id=actor_user_id)
-    _audit(db, "maintenance.requested", r, actor_user_id=actor_user_id, after={"emergency": r.emergency})
-    _emit(db, "maintenance.request.created", r, vehicle_id=str(vehicle.public_id), emergency=r.emergency)
+    _audit(db, "maintenance.requested", r, actor_user_id=actor_user_id, after={"center": center.name})
+    _emit(db, "maintenance.request.referred", r, vehicle_id=str(vehicle.public_id), center_id=str(center.public_id))
     db.commit()
     return _detail(db, r)
 
 
 def driver_request(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict:
-    """From the app, for the vehicle the driver holds now; photos from this phone's camera only."""
+    """From the app, for the vehicle the driver holds, to the center he picked; photos from this phone's camera
+    only. A vehicle in an accident goes through the office instead (its repair follows the accident: estimate,
+    approval, the office's center), whatever center he picked."""
     if db.scalar(select(Request.id).where(Request.client_ref == data["client_ref"])):
         raise AppError(409, "request_exists")  # a retry: already recorded
     custody = fleet.open_custody_for_driver(db, employee_id)
     if custody is None:
         raise AppError(409, "no_vehicle_in_custody")
     _check_images(db, data.get("photos") or [], device_id=device_id)
-    # straight to the center he picked; an app that sends no center (an older one) goes through the office, and so
-    # does a vehicle in an accident (its repair follows the accident: estimate, approval, the office's center)
+    accident = fleet.vehicle_cards(db, [custody.vehicle_id])[custody.vehicle_id]["status"] == "accident"
     center = None
-    if data.get("center_id") and _direct(db):
-        if fleet.vehicle_cards(db, [custody.vehicle_id])[custody.vehicle_id]["status"] != "accident":
-            center = _center(db, data["center_id"])
-            if center.id not in {c.id for c in _bookable(db)}:
-                raise AppError(409, "center_inactive")
-    now = utcnow()
+    if not accident:
+        if not data.get("center_id"):
+            raise AppError(422, "center_required")
+        center = _center(db, data["center_id"])
+        if center.id not in {c.id for c in _bookable(db)}:
+            raise AppError(409, "center_inactive")
     r = Request(
         vehicle_id=custody.vehicle_id,
         company_id=custody.company_id,
@@ -666,19 +657,18 @@ def driver_request(db: Session, *, employee_id: int, device_id: int, data: dict)
         client_ref=data["client_ref"],
         created_by_device=device_id,
     )
-    if center is not None:  # the database's rules for a request at a center: one per vehicle, a center set
-        r.status, r.center_id, r.decided_at, r.referred_at, r.direct = "referred", center.id, now, now, True
     db.add(r)
-    _flush(db, REQUEST_ERRORS)
-    db.refresh(r)
-    db.add(RequestEvent(request_id=r.id, status="requested", by_device=device_id))
-    _add_photos(db, r, "request", data.get("photos") or [])
     if center is not None:
-        db.add(RequestEvent(request_id=r.id, status="referred", by_device=device_id, note=center.name))
+        _send_to(db, r, center, by_device=device_id)
+        _add_photos(db, r, "request", data.get("photos") or [])
         _audit(db, "maintenance.requested", r, actor_type="device", after={"center": center.name})
         _emit(db, "maintenance.request.referred", r, center_id=str(center.public_id))
         db.commit()
         return for_driver(db, employee_id, only=r.id)[0]
+    _flush(db, REQUEST_ERRORS)
+    db.refresh(r)
+    db.add(RequestEvent(request_id=r.id, status="requested", by_device=device_id, note=":accident_vehicle"))
+    _add_photos(db, r, "request", data.get("photos") or [])
     notifications.raise_alert(
         db,
         "maintenance_requested",
@@ -689,18 +679,24 @@ def driver_request(db: Session, *, employee_id: int, device_id: int, data: dict)
         dedupe_key=f"mnt_request:{r.id}",
     )
     approvals.submitted(db, "maintenance_request", **_approval(db, r))
-    _audit(db, "maintenance.requested", r, actor_type="device")
+    _audit(db, "maintenance.requested", r, actor_type="device", after={"accident": True})
     _emit(db, "maintenance.request.created", r, emergency=False)
     db.commit()
     return for_driver(db, employee_id, only=r.id)[0]
 
 
 def for_driver(db: Session, employee_id: int, *, limit: int = 20, only: int | None = None) -> list[dict]:
-    q = select(Request).where(Request.driver_id == employee_id)
+    """His requests, and the open ones of the car he holds now (asked for while another driver held it)."""
+    custody = fleet.open_custody_for_driver(db, employee_id)
+    mine = Request.driver_id == employee_id
+    if custody is not None:
+        mine = or_(mine, and_(Request.vehicle_id == custody.vehicle_id, Request.status.in_(AT_CENTER)))
+    q = select(Request).where(mine)
     if only is not None:
         q = q.where(Request.id == only)
     rows = list(db.scalars(q.order_by(Request.created_at.desc(), Request.id.desc()).limit(limit)))
     plates = fleet.plate_numbers(db, {r.vehicle_id for r in rows})
+    holders = {r.vehicle_id: fleet.holder(db, r.vehicle_id) for r in rows if r.status == "ready"}
     center_ids = {r.center_id for r in rows if r.center_id}
     centers = {c.id: c for c in db.scalars(select(Center).where(Center.id.in_(center_ids)))} if center_ids else {}
     return [
@@ -716,29 +712,55 @@ def for_driver(db: Session, employee_id: int, *, limit: int = 20, only: int | No
             "ready_at": r.ready_at,
             "picked_up_at": r.picked_up_at,
             "decision_note": r.decision_note if r.status == "rejected" else None,
-            "direct": r.direct,  # he collects it himself in the app
+            "direct": r.direct,
+            # ready, and his to collect: he confirms the pickup in the app (otherwise the office records it)
+            "pickup_in_app": r.status == "ready"
+            and (
+                holders.get(r.vehicle_id) == employee_id
+                or (r.direct and holders.get(r.vehicle_id) is None and _left_at_reception(db, r, employee_id))
+            ),
         }
         for r in rows
     ]
 
 
 def driver_form(db: Session) -> dict:
-    """What the app's request form offers: in the direct mode, the active centers he may take the car to."""
-    direct = _direct(db)
-    centers = _bookable(db) if direct else []
+    """What the app's request form offers: the centers he may take the car to (active, with a portal account)."""
     return {
-        "direct_to_center": direct,
-        "centers": [_center_ref(c) | {"specialty": c.specialty} for c in centers],
+        "direct_to_center": True,  # always, now: an older app reads it to show the centers
+        "centers": [_center_ref(c) | {"specialty": c.specialty} for c in _bookable(db)],
     }
 
 
-def driver_picked_up(db: Session, public_id, *, employee_id: int, device_id: int, data: dict) -> dict:
-    """Straight to the center: the driver collected his car, with his odometer reading and camera photo, and it is
-    his again at once (no office handover). Otherwise the office or the center records the pickup."""
-    r = db.scalar(
-        select(Request).where(Request.public_id == public_id, Request.driver_id == employee_id).with_for_update()
+def _left_at_reception(db: Session, r: Request, employee_id: int) -> bool:
+    """A request from before the simple flow: the reception ended his custody (at that very moment)."""
+    if r.received_at is None:
+        return False
+    return any(
+        c.vehicle_id == r.vehicle_id and c.ended_at == r.received_at
+        for c in fleet.custodies_for_driver(db, employee_id, r.received_at - timedelta(seconds=1), r.received_at)
     )
-    if r is None:
+
+
+def center_holding(db: Session, custody_public_id) -> str | None:
+    """The center the custody's car is at now (the app's "your car is at the center")."""
+    custody = fleet.custody_ref_by_public_id(db, custody_public_id, all_companies=True, company_ids=())
+    return db.scalar(
+        select(Center.name)
+        .join(Request, Request.center_id == Center.id)
+        .where(Request.vehicle_id == custody.vehicle_id, Request.status.in_(READY_FROM + ("quote_pending", "ready")))
+        .limit(1)
+    )
+
+
+def driver_picked_up(db: Session, public_id, *, employee_id: int, device_id: int, data: dict) -> dict:
+    """The driver collected his car from the center, with his odometer reading and camera photo. It never left his
+    custody: the reading closes the stay and he works with it again. A request from before the simple flow, whose
+    reception ended his custody, gives it back to him (a new custody). When the office took it back from him while
+    it was at the center, the office records the pickup."""
+    r = db.scalar(select(Request).where(Request.public_id == public_id).with_for_update())
+    holder = fleet.holder(db, r.vehicle_id) if r is not None else None
+    if r is None or (r.driver_id != employee_id and holder != employee_id):
         raise AppError(404, "maintenance_request_not_found")
     if r.status in ("picked_up", "closed"):
         mine = db.scalar(
@@ -750,31 +772,44 @@ def driver_picked_up(db: Session, public_id, *, employee_id: int, device_id: int
         raise AppError(409, "already_picked_up" if mine else "pickup_by_office")
     if r.status != "ready":
         raise AppError(409, "invalid_maintenance_status", status=r.status)
-    if not r.direct:
-        raise AppError(409, "pickup_by_office")  # the office or the center records it and the office hands over
+    handing_back = holder is None and r.direct and _left_at_reception(db, r, employee_id)
+    if holder != employee_id and not handing_back:
+        raise AppError(409, "pickup_by_office")  # the car is no longer his: the office records it and hands over
     _check_images(db, [data["odometer_photo"]], device_id=device_id)
     now = utcnow()
     at = data.get("picked_up_at") or now
     # when the photo was taken: after the car was ready, not in the future, and late by two days at most
     if at > now + fleet.CLOCK_SKEW or at < now - fleet.DRIVER_READING_DELAY or (r.ready_at and at < r.ready_at):
         raise AppError(422, "invalid_recorded_at")
-    released_by = db.scalar(  # the center account that called him: it gives the vehicle back
-        select(RequestEvent.by_user)
-        .where(RequestEvent.request_id == r.id, RequestEvent.status == "ready")
-        .order_by(RequestEvent.id.desc())
-        .limit(1)
-    )
-    _picked_up(db, r, by_device=device_id, at=at)
-    fleet.hand_back_after_maintenance(
-        db,
-        r.vehicle_id,
-        employee_id,
-        odometer_km=data["odometer_km"],
-        photo_sha256=data["odometer_photo"],
-        at=at,
-        handed_over_by=released_by or r.received_by,
-        device_id=device_id,
-    )
+    if handing_back:
+        released_by = db.scalar(  # the center account that called him: it gives the vehicle back
+            select(RequestEvent.by_user)
+            .where(RequestEvent.request_id == r.id, RequestEvent.status == "ready")
+            .order_by(RequestEvent.id.desc())
+            .limit(1)
+        )
+        _picked_up(db, r, by_device=device_id, at=at)
+        fleet.hand_back_after_maintenance(
+            db,
+            r.vehicle_id,
+            employee_id,
+            odometer_km=data["odometer_km"],
+            photo_sha256=data["odometer_photo"],
+            at=at,
+            handed_over_by=released_by or r.received_by,
+            device_id=device_id,
+        )
+    else:
+        fleet.collected_from_maintenance(
+            db,
+            r.vehicle_id,
+            employee_id,
+            odometer_km=data["odometer_km"],
+            photo_sha256=data["odometer_photo"],
+            at=at,
+            device_id=device_id,
+        )
+        _picked_up(db, r, by_device=device_id, at=at)
     db.commit()
     return for_driver(db, employee_id, only=r.id)[0]
 
@@ -886,11 +921,30 @@ def cancel(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
 
 
 def picked_up(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
-    """The company collected the vehicle (recorded in the office)."""
+    """The company collected the vehicle (recorded in the office): only when no driver holds it."""
     r = _get(db, public_id, lock=True, **scope)
+    _check_office_pickup(db, r)
     _picked_up(db, r, actor_user_id)
     db.commit()
     return _detail(db, r)
+
+
+def _follow_holder(db: Session, r: Request, actor_user_id: int) -> None:
+    """The car changed hands since it was asked for: the request follows the driver who holds it now (he is told
+    it is ready, sees it, and collects it)."""
+    holder = fleet.holder(db, r.vehicle_id)
+    if holder is None or holder == r.driver_id:
+        return
+    before, r.driver_id = r.driver_id, holder
+    db.add(RequestEvent(request_id=r.id, status=r.status, by_user=actor_user_id, note=":driver_changed"))
+    _audit(db, "maintenance.driver_changed", r, actor_user_id=actor_user_id, after={"from": before, "to": holder})
+
+
+def _check_office_pickup(db: Session, r: Request) -> None:
+    """The driver who holds the car collects it and confirms it in the app; the office or the center records the
+    pickup only of a car nobody holds."""
+    if r.status == "ready" and fleet.holder(db, r.vehicle_id) is not None:
+        raise AppError(409, "pickup_by_driver")
 
 
 def _picked_up(
@@ -998,7 +1052,7 @@ def portal_center(db: Session, *, user_id: int) -> dict:
         "name": c.name,
         "phone": c.phone,
         "address": c.address,
-        "direct_to_center": _direct(db),  # the portal says how new requests arrive
+        "direct_to_center": True,  # requests come straight from the driver or the office
     }
 
 
@@ -1009,7 +1063,7 @@ def receive(db: Session, public_id, *, user_id: int, data: dict) -> dict:
         raise AppError(409, "invalid_maintenance_status", status=r.status)
     at = data.get("received_at") or utcnow()
     _check_images(db, [data["odometer_photo"], *(data.get("photos") or [])], user_id=user_id)
-    ended = fleet.received_for_maintenance(
+    held = fleet.received_for_maintenance(
         db,
         r.vehicle_id,
         odometer_km=data["odometer_km"],
@@ -1018,6 +1072,7 @@ def receive(db: Session, public_id, *, user_id: int, data: dict) -> dict:
         actor_user_id=user_id,
     )
     r.received_at, r.received_by, r.received_km = at, user_id, data["odometer_km"]
+    _follow_holder(db, r, user_id)
     r.condition_note = data.get("condition_note")
     r.seen_at = r.seen_at or utcnow()
     _event(db, r, "received", by_user=user_id, at=at, note=data.get("condition_note"))
@@ -1029,7 +1084,7 @@ def receive(db: Session, public_id, *, user_id: int, data: dict) -> dict:
         "maintenance.received",
         r,
         actor_user_id=user_id,
-        after={"odometer_km": data["odometer_km"], "custody_ended": bool(ended)},
+        after={"odometer_km": data["odometer_km"], "in_custody": bool(held)},
     )
     _emit(db, "maintenance.vehicle.received", r, center_id=str(center.public_id))
     db.commit()
@@ -1039,6 +1094,8 @@ def receive(db: Session, public_id, *, user_id: int, data: dict) -> dict:
 def set_status(db: Session, public_id, *, user_id: int, status: str, note: str | None) -> dict:
     center = center_of(db, user_id)
     r = _for_center(db, public_id, center, lock=True)
+    if r.direct:  # the simple flow: reception, then ready with the invoice; no step in between
+        raise AppError(409, "step_not_in_this_flow")
     # the repair itself starts only through an approved quote (submit_quote, decide_quote): "in_repair" here is
     # only the way back from waiting for parts. Straight to the center, the center starts it without one.
     allowed = PORTAL_MOVES[status] + (("received", "inspection") if status == "in_repair" and _shortcut(db, r) else ())
@@ -1055,6 +1112,8 @@ def submit_quote(db: Session, public_id, *, user_id: int, data: dict) -> dict:
     waits for the maintenance manager (BRD FR-MNT-07)."""
     center = center_of(db, user_id)
     r = _for_center(db, public_id, center, lock=True)
+    if r.direct:  # the simple flow: reception, then ready with the invoice; no step in between
+        raise AppError(409, "step_not_in_this_flow")
     if r.status not in QUOTE_FROM:
         raise AppError(409, "invalid_maintenance_status", status=r.status)
     items = [dict(i) for i in data.get("items") or []]
@@ -1102,6 +1161,8 @@ def submit_quote(db: Session, public_id, *, user_id: int, data: dict) -> dict:
 def complete(db: Session, public_id, *, user_id: int, data: dict) -> dict:
     center = center_of(db, user_id)
     r = _for_center(db, public_id, center, lock=True)
+    if r.direct:  # the simple flow: reception, then ready with the invoice; no step in between
+        raise AppError(409, "step_not_in_this_flow")
     # straight to the center, a short job goes from the reception to done (no quote, no separate start)
     done_from = ("in_repair", "waiting_parts") + (("received", "inspection") if _shortcut(db, r) else ())
     if r.status not in done_from:
@@ -1124,27 +1185,53 @@ def complete(db: Session, public_id, *, user_id: int, data: dict) -> dict:
     return _detail(db, r, for_center=True)
 
 
-def ready(db: Session, public_id, *, user_id: int, note: str | None) -> dict:
-    """Ready for pickup: the office is alerted and the driver sees it in the app (BRD FR-MNT-10)."""
+def ready(db: Session, public_id, *, user_id: int, data: dict, can_invoice: bool = True) -> dict:
+    """Ready for pickup, in one step with the center's invoice (file, number, total; its items and notes if it
+    gives them), which waits for the management's approval. The driver is told in the app (BRD FR-MNT-10). When
+    nobody holds the car the office is alerted to collect it, and the center gives its odometer reading at the end of
+    the repair (the next handover is compared with it: a test drive is not distance off duty). A request that already
+    has its invoice (from before the simple flow) is marked ready without another."""
     center = center_of(db, user_id)
     r = _for_center(db, public_id, center, lock=True)
-    if r.status != "completed":
+    if r.status not in READY_FROM:
         raise AppError(409, "invalid_maintenance_status", status=r.status)
-    if r.direct and not db.scalar(
-        select(Invoice.id).where(Invoice.request_id == r.id, Invoice.status != "rejected").limit(1)
-    ):
-        raise AppError(409, "invoice_required")  # the invoice first, then the driver is called
+    has_invoice = db.scalar(select(Invoice.id).where(Invoice.request_id == r.id, Invoice.status != "rejected").limit(1))
+    reading = {k: data.pop(k, None) for k in ("final_odometer_km", "final_odometer_photo")}
+    if not has_invoice or any(data.get(k) for k in ("file_sha256", "number", "total")):
+        if not can_invoice:
+            raise AppError(403, "permission_denied", permission="portal.invoices")
+        data = {"invoice_date": today()} | {k: v for k, v in data.items() if v is not None}
+        if not data.get("items") and data.get("total") is not None:
+            data["items"] = [{"kind": "other", "description": r.description[:300], "unit_price": data["total"]}]
+        for item in data.get("items") or []:
+            item.setdefault("quantity", Decimal(1))
+        _new_invoice(db, center=center, r=r, company_id=r.company_id, data=data, actor=user_id, own_file=True)
+    _follow_holder(db, r, user_id)
+    held = fleet.holder(db, r.vehicle_id) is not None
+    # the company collects it: the next handover compares with the center's last reading (unless it gave one when
+    # the repair was completed, before the simple flow)
+    if not held and r.final_km is None:
+        km, photo = reading["final_odometer_km"], reading["final_odometer_photo"]
+        if km is None or not photo:
+            raise AppError(422, "final_reading_required")
+        _check_images(db, [photo], user_id=user_id)
+        fleet.maintenance_reading(
+            db, r.vehicle_id, odometer_km=km, photo_sha256=photo, at=utcnow(), actor_user_id=user_id
+        )
+        r.final_km = km
+        _add_photos(db, r, "repair", [photo])
     r.ready_at = utcnow()
-    _event(db, r, "ready", by_user=user_id, note=note)
-    notifications.raise_alert(
-        db,
-        "maintenance_ready",
-        company_id=r.company_id,
-        entity_type="maintenance_request",
-        entity_id=r.public_id,
-        params=_alert_params(db, r) | {"center": center.name},
-        dedupe_key=f"mnt_ready:{r.id}",
-    )
+    _event(db, r, "ready", by_user=user_id)
+    if not held:  # nobody to collect it from the app: the office does
+        notifications.raise_alert(
+            db,
+            "maintenance_ready",
+            company_id=r.company_id,
+            entity_type="maintenance_request",
+            entity_id=r.public_id,
+            params=_alert_params(db, r) | {"center": center.name},
+            dedupe_key=f"mnt_ready:{r.id}",
+        )
     _tell_driver(db, r, "maintenance_ready", center=center.name)
     _audit(db, "maintenance.ready", r, actor_user_id=user_id)
     _emit(db, "maintenance.vehicle.ready", r, center_id=str(center.public_id))
@@ -1155,6 +1242,7 @@ def ready(db: Session, public_id, *, user_id: int, note: str | None) -> dict:
 def portal_picked_up(db: Session, public_id, *, user_id: int) -> dict:
     center = center_of(db, user_id)
     r = _for_center(db, public_id, center, lock=True)
+    _check_office_pickup(db, r)
     _picked_up(db, r, user_id)
     db.commit()
     return _detail(db, r, for_center=True)

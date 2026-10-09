@@ -191,7 +191,19 @@ Future<World> world({
     ),
   );
   server.on('GET', '/api/v1/driver/maintenance', (r) => (200, maintenance ?? []));
-  server.on('GET', '/api/v1/driver/maintenance/form', (r) => (200, {'direct_to_center': false, 'centers': []}));
+  server.on(
+    'GET',
+    '/api/v1/driver/maintenance/form',
+    (r) => (
+      200,
+      {
+        'direct_to_center': true,
+        'centers': [
+          {'id': 'k1', 'name': 'مركز النور', 'specialty': 'ميكانيكا', 'phone': '+965 2222 1100', 'address': 'الشويخ'},
+        ],
+      },
+    ),
+  );
   server.on('GET', '/api/v1/driver/accidents', (r) => (200, accidents ?? []));
   server.on('GET', '/api/v1/driver/fines', (r) => (200, fines ?? []));
   // no fuel route by default: an older server, the app offers no fuel
@@ -1762,6 +1774,10 @@ void main() {
     await pumpApp(tester, w);
     await tester.tap(find.byKey(const Key('maintenance')));
     await idle(tester);
+    await tester.tap(find.byKey(const Key('mnt-center')));
+    await settle(tester);
+    await tester.tap(find.text('مركز النور · ميكانيكا').last);
+    await settle(tester);
     await tester.tap(find.byKey(const Key('mnt-kind')));
     await settle(tester);
     await tester.tap(find.text('إطارات').last);
@@ -1778,7 +1794,10 @@ void main() {
     await idle(tester);
     expect(w.server.calls('/api/v1/driver/files').every((r) => r.url.queryParameters['source'] == 'camera'), isTrue);
     final body = jsonDecode(w.server.calls('/api/v1/driver/maintenance', method: 'POST').single.body) as Map;
-    expect((body['kind'], body['description'], body['odometer_km']), ('tyres', 'الإطار الخلفي الأيسر مثقوب', 45230));
+    expect(
+      (body['kind'], body['description'], body['odometer_km'], body['center_id']),
+      ('tyres', 'الإطار الخلفي الأيسر مثقوب', 45230, 'k1'),
+    );
     expect(body['photos'], ['1' * 64, '2' * 64]);
     expect(body['client_ref'], isA<String>());
     expect(find.text('تم الإرسال'), findsOneWidget);
@@ -1818,6 +1837,17 @@ void main() {
     ],
   };
 
+  testWidgets('no center open to pick: he is told to call the office, and nothing is sent', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on('GET', '/api/v1/driver/maintenance/form', (r) => (200, {'direct_to_center': true, 'centers': []}));
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('maintenance')));
+    await idle(tester);
+    expect(find.text('مفيش مركز صيانة متاح، كلّم المكتب'), findsOneWidget);
+    expect(find.byKey(const Key('mnt-send')), findsNothing);
+    expect(find.byKey(const Key('mnt-center')), findsNothing);
+  });
+
   testWidgets('straight to the center: he picks where he leaves the car and the request goes to it', (tester) async {
     final w = (await tester.runAsync(() => world()))!;
     w.server.on('GET', '/api/v1/driver/maintenance/form', (r) => (200, directForm()));
@@ -1851,7 +1881,7 @@ void main() {
     await pumpApp(tester, w);
     await tester.tap(find.byKey(const Key('maintenance')));
     await idle(tester);
-    expect(find.textContaining('يصل الطلب للمركز مباشرة'), findsOneWidget);
+    expect(find.textContaining('الطلب يوصل للمركز على طول'), findsOneWidget);
     await tester.enterText(find.byKey(const Key('mnt-description')), 'البطارية لا تشحن');
     await reveal(tester, find.byKey(const Key('mnt-send')));
     await tester.tap(find.byKey(const Key('mnt-send')));
@@ -1871,44 +1901,42 @@ void main() {
     expect((body['center_id'], body['description']), ('k2', 'البطارية لا تشحن'));
   });
 
-  testWidgets('the car ready at the center: he collects it himself and it is his again', (tester) async {
+  testWidgets('his car at the center: still his, no day starts; he collects it and works with it again', (
+    tester,
+  ) async {
     var collected = false;
-    final w = (await tester.runAsync(
-      () => world(
-        today: {'custody': null, 'start_day_done': false, 'end_day_done': false},
-        maintenance: [
-          {
-            'id': 'm1',
-            'number': 41,
-            'vehicle_plate': '18/23456',
-            'kind': 'mechanical',
-            'description': 'Noise',
-            'status': 'ready',
-            'center': {'id': 'k1', 'name': 'مركز النور', 'phone': '+965 2222 1100', 'address': 'الشويخ'},
-            'created_at': '2026-10-03T07:00:00Z',
-            'ready_at': '2026-10-04T09:00:00Z',
-            'picked_up_at': null,
-            'decision_note': null,
-            'direct': true,
-          },
-        ],
-      ),
-    ))!;
-    w.server.on('GET', '/api/v1/driver/maintenance/form', (r) => (200, directForm()));
+    var ready = false;
+    Map<String, dynamic> request() => {
+      'id': 'm1',
+      'number': 41,
+      'vehicle_plate': '18/23456',
+      'kind': 'mechanical',
+      'description': 'Noise',
+      'status': collected ? 'picked_up' : (ready ? 'ready' : 'received'),
+      'center': {'id': 'k1', 'name': 'مركز النور', 'phone': '+965 2222 1100', 'address': 'الشويخ'},
+      'created_at': '2026-10-03T07:00:00Z',
+      'ready_at': ready ? '2026-10-04T09:00:00Z' : null,
+      'picked_up_at': null,
+      'decision_note': null,
+      'direct': true,
+      'pickup_in_app': ready && !collected,
+    };
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on('GET', '/api/v1/driver/maintenance', (r) => (200, [request()]));
     w.server.on(
       'GET',
       '/api/v1/driver/today',
       (r) => (
         200,
         {
-          'custody': collected
-              ? {
-                  'id': 'c2',
-                  'plate_number': '18/23456',
-                  'started_at': '2026-10-04T10:00:00Z',
-                  'last_odometer_km': 45300,
-                }
-              : null,
+          'custody': {
+            'id': 'c1',
+            'plate_number': '18/23456',
+            'started_at': '2026-10-01T10:00:00Z',
+            'last_odometer_km': collected ? 45300 : 45200,
+            'in_maintenance': !collected,
+            'maintenance_center': collected ? null : 'مركز النور',
+          },
           'start_day_done': false,
           'end_day_done': false,
         },
@@ -1924,10 +1952,18 @@ void main() {
     );
     w.server.on('POST', '/api/v1/driver/maintenance/m1/picked-up', (r) {
       collected = true;
-      return (200, {'id': 'm1'});
+      return (200, request());
     });
     await pumpApp(tester, w);
-    expect(find.byKey(const Key('start-day')), findsNothing, reason: 'no car yet');
+    // at the center: the car is his, but no work day starts with it
+    expect(find.text('عربيتك في الصيانة عند مركز النور'), findsOneWidget);
+    expect(find.byKey(const Key('start-day')), findsNothing, reason: 'no work with a car at the center');
+    expect(find.byKey(const Key('mnt-picked-up-41')), findsNothing, reason: 'not ready yet');
+    await shot(tester, '16-maintenance-at-center');
+    // ready: he collects it with the odometer from the camera
+    ready = true;
+    await tester.drag(find.byKey(const Key('in-maintenance')), const Offset(0, 400)); // pulled to refresh
+    await idle(tester);
     await tester.tap(find.byKey(const Key('mnt-picked-up-41')));
     await settle(tester);
     expect(find.text('استلام السيارة من المركز'), findsOneWidget);
@@ -1943,7 +1979,8 @@ void main() {
     );
     await tester.tap(find.text('تم'));
     await settle(tester);
-    expect(find.byKey(const Key('start-day')), findsOneWidget, reason: 'the car is his again: his day can start');
+    expect(find.byKey(const Key('in-maintenance')), findsNothing);
+    expect(find.byKey(const Key('start-day')), findsOneWidget, reason: 'he works with it again: his day can start');
   });
 
   Map<String, dynamic> accident({
@@ -2849,7 +2886,7 @@ void main() {
     await tester.tap(find.text('الصيانة').last);
     await settle(tester);
     expect(find.text('إطارات'), findsOneWidget);
-    expect(find.text('محال لمركز الصيانة'), findsOneWidget);
+    expect(find.text('أُرسل للمركز'), findsOneWidget);
     expect(find.textContaining('مركز الملا'), findsOneWidget);
     await tester.tap(find.byKey(const Key('mnt-new')));
     await settle(tester);

@@ -9,8 +9,13 @@
   var BT = window.BT, h = BT.h, raw = BT.raw, icon = BT.icon, fmt = BT.fmt, api = BT.api;
   var M = BT.mnt = {};
 
-  M.FLOW = ['referred', 'received', 'inspection', 'quote_pending', 'in_repair', 'waiting_parts', 'completed', 'ready', 'picked_up'];
-  M.AT_CENTER = ['referred', 'received', 'inspection', 'quote_pending', 'in_repair', 'waiting_parts', 'completed', 'ready'];
+  // المسار: من السائق أو المكتب للمركز مباشرة ← مستلمة ← جاهزة للاستلام (بالفاتورة) ← تم الاستلام (من السائق).
+  // الطلبات القديمة (قبل هذا المسار) تعرض مسارها الكامل وتاريخها الفعلي.
+  M.FLOW = ['referred', 'received', 'ready', 'picked_up'];
+  M.OLD_FLOW = ['referred', 'received', 'inspection', 'quote_pending', 'in_repair', 'waiting_parts', 'completed', 'ready', 'picked_up'];
+  M.AT_CENTER = ['referred', 'received', 'ready'];
+  M.OLD_AT_CENTER = ['inspection', 'quote_pending', 'in_repair', 'waiting_parts', 'completed']; // طلبات قديمة لم تنته
+  M.READY_FROM = ['received', 'inspection', 'in_repair', 'waiting_parts', 'completed']; // «جاهزة للاستلام» بالفاتورة
   M.TONE = {
     requested: 'o', approved: 'b', rejected: 'r', referred: 'b', received: 'p', inspection: 'p', quote_pending: 'o',
     in_repair: 'p', waiting_parts: 'o', completed: 'g', ready: 'g', picked_up: 'n', closed: 'n', cancelled: 'n'
@@ -21,7 +26,7 @@
   M.INV_STATUS = { pending: 'بانتظار الاعتماد', approved: 'معتمدة', rejected: 'مرفوضة' };
   M.FLAG = { duplicate_number: 'رقم مكرر لنفس المركز', differs_from_quote: 'تختلف عن العرض المعتمد' };
 
-  M.NOTES = { ':emergency': 'صيانة طارئة: معتمدة فوراً وتُراجع لاحقاً', ':emergency_reviewed': 'روجعت الصيانة الطارئة', ':quote_approved': 'اعتُمد عرض السعر', ':quote_within_limit': 'عرض السعر ضمن حد الاعتماد: معتمد تلقائياً', ':accident': 'إصلاح حادث: معتمد ومحال للمركز الذي قدّر الأضرار', ':accident_estimate': 'تقدير أضرار الحادث معتمد: يبدأ الإصلاح دون عرض سعر جديد' };
+  M.NOTES = { ':emergency': 'صيانة طارئة: معتمدة فوراً وتُراجع لاحقاً', ':emergency_reviewed': 'روجعت الصيانة الطارئة', ':quote_approved': 'اعتُمد عرض السعر', ':quote_within_limit': 'عرض السعر ضمن حد الاعتماد: معتمد تلقائياً', ':accident': 'إصلاح حادث: معتمد ومحال للمركز الذي قدّر الأضرار', ':accident_estimate': 'تقدير أضرار الحادث معتمد: يبدأ الإصلاح دون عرض سعر جديد', ':accident_vehicle': 'السيارة في حادث: يمر إصلاحها بالمكتب (التقدير والاعتماد)', ':driver_changed': 'تغيّر السائق: الطلب الآن مع السائق الذي في عهدته السيارة' };
   M.note = function (n) { return n && n.charAt(0) === ':' ? (M.NOTES[n] || n.slice(1)) : n; };
   M.status = function (s) { return BT.pill(api.t('maintenance_status', s), M.TONE[s] || 'n'); };
   M.kind = function (k) { return api.t('maintenance_kind', k); };
@@ -107,11 +112,18 @@
   };
 
   /* ---------- الجدول الزمني والمدد ---------- */
-  M.timeline = function (events) {
+  // r: الطلب نفسه. في المسار المباشر سطر الإنشاء «طلب من السائق/المكتب إلى المركز»، وسطر «جاهزة للاستلام»
+  // يحمل فاتورة المركز (رقمها ومبلغها وحالة اعتمادها)
+  M.timeline = function (events, r) {
+    r = r || {};
+    var inv = (r.invoices || []).filter(function (i) { return i.status !== 'rejected'; })[0] || (r.invoices || [])[0];
     return h`<div class="timeline">${events.map(function (e) {
       var tone = M.TONE[e.status] === 'r' ? 'r' : ['ready', 'completed', 'closed', 'approved'].indexOf(e.status) > -1 ? 'g' : 'b';
       var by = e.by === 'driver' ? 'السائق (من التطبيق)' : e.by;
-      return h`<div class="tl-item"><span class="tl-ic ${tone}">${icon('circle-dot', 13)}</span><div><div class="tl-t">${api.t('maintenance_status', e.status)}</div><div class="tl-d">${fmt.dt(e.at)}${by ? ' · ' + by : ''}</div>${e.note ? h`<div class="tl-d" style="white-space:normal">${M.note(e.note)}</div>` : ''}</div></div>`;
+      var title = api.t('maintenance_status', e.status), note = e.note ? M.note(e.note) : '';
+      if (r.direct && e.status === 'requested') { title = 'طلب من ' + (e.by === 'driver' ? 'السائق' : 'المكتب') + (e.note ? ' إلى ' + e.note : ''); note = ''; by = e.by === 'driver' ? '' : by; }
+      var extra = r.direct && e.status === 'ready' && inv ? h`<div class="tl-d" data-tl-invoice>فاتورة <span class="num">${inv.number}</span> · ${BT.amt(inv.total)} · ${M.invStatus(inv)}</div>` : '';
+      return h`<div class="tl-item"><span class="tl-ic ${tone}">${icon('circle-dot', 13)}</span><div><div class="tl-t">${title}</div><div class="tl-d">${fmt.dt(e.at)}${by ? ' · ' + by : ''}</div>${note ? h`<div class="tl-d" style="white-space:normal">${note}</div>` : ''}${extra}</div></div>`;
     })}</div>`;
   };
   M.durations = function (list) {
@@ -120,9 +132,9 @@
   };
 
   /* ---------- مسار الحالات أعلى صفحة الطلب ---------- */
-  M.flow = function (status) {
-    var at = M.FLOW.indexOf(status);
-    return h`<div class="flow">${M.FLOW.map(function (s, i) {
+  M.flow = function (status, direct) {
+    var flow = direct ? M.FLOW : M.OLD_FLOW, at = flow.indexOf(status);
+    return h`<div class="flow">${flow.map(function (s, i) {
       var done = at > -1 && i < at;
       return h`${i ? raw('<span class="arr">←</span>') : ''}<span class="st${i === at ? ' active' : ''}"${done ? raw(' style="background:var(--success-soft);color:var(--success-text)"') : ''}>${done ? icon('check', 12) : ''}${api.t('maintenance_status', s)}</span>`;
     })}</div>`;
@@ -144,20 +156,22 @@
     ].filter(Boolean);
     var center = [
       r.center ? ['المركز', r.center.name] : null,
-      r.referred_at ? ['الإحالة', fmt.dt(r.referred_at)] : null,
+      r.referred_at && !r.direct ? ['الإحالة', fmt.dt(r.referred_at)] : null,
       r.received_at ? ['الوصول', fmt.dt(r.received_at)] : null,
       r.received_km != null ? ['العداد عند الوصول', h`<span class="num">${fmt.km(r.received_km)}</span>`] : null,
       r.final_km != null ? ['العداد بعد الإصلاح', h`<span class="num">${fmt.km(r.final_km)}</span>`] : null,
+      r.center && ['received', 'ready', 'picked_up', 'closed'].indexOf(r.status) > -1 ? ['الاستلام من المركز', r.picked_up_at ? fmt.dt(r.picked_up_at) : r.driver_collects ? 'يؤكده السائق من تطبيقه' : 'تسجّله الشركة'] : null,
       r.stay_seconds != null ? ['مدة البقاء في المركز', h`<b class="num">${M.dur(r.stay_seconds)}</b>`] : null
     ].filter(Boolean);
-    return h`<div class="card mb-16" style="padding:10px 12px">${M.flow(r.status)}</div>
+    return h`<div class="card mb-16" style="padding:10px 12px">${M.flow(r.status, r.direct)}</div>
       ${r.status === 'quote_pending' ? h`<div class="banner warn mb-16">${icon('clock', 16)}<div>عرض السعر أعلى من حد الاعتماد: <b>لا يبدأ الإصلاح</b> قبل اعتماد مدير الصيانة.</div></div>` : ''}
-      ${r.status === 'ready' ? h`<div class="banner success mb-16">${icon('bell-ring', 16)}<div>السيارة جاهزة للاستلام؛ أُبلغت الإدارة ويرى السائق ذلك في التطبيق.</div></div>` : ''}
+      ${r.status === 'ready' ? h`<div class="banner success mb-16">${icon('bell-ring', 16)}<div>${r.driver_collects ? 'السيارة جاهزة للاستلام: أُبلغ السائق، ويؤكد الاستلام من تطبيقه فيعود للعمل بها.' : 'السيارة جاهزة للاستلام: لا يحملها سائق الآن، فتستلمها الشركة وتسجّل الاستلام.'}</div></div>` : ''}
+      ${['received', 'inspection', 'in_repair', 'waiting_parts', 'completed'].indexOf(r.status) > -1 && r.driver_collects ? h`<div class="banner info mb-16" data-in-custody>${icon('info', 16)}<div>السيارة في عهدة السائق أثناء الصيانة، ولا يعمل بها حتى يستلمها.</div></div>` : ''}
       ${r.status === 'rejected' && r.decision_note ? h`<div class="banner danger mb-16">${icon('circle-x', 16)}<div>سبب الرفض: ${r.decision_note}</div></div>` : ''}
       ${r.status === 'cancelled' && r.cancel_reason ? h`<div class="banner mb-16">${icon('ban', 16)}<div>سبب الإلغاء: ${r.cancel_reason}</div></div>` : ''}
       <div class="grid-2 mb-16">
         <div class="card"><div class="card-h"><div class="card-t">الطلب</div></div>${BT.kv(info)}</div>
-        <div class="card"><div class="card-h"><div class="card-t">في المركز</div></div>${center.length ? BT.kv(center) : raw('<div class="muted fs-sm">لم يُحل لمركز بعد</div>')}
+        <div class="card"><div class="card-h"><div class="card-t">في المركز</div></div>${center.length ? BT.kv(center) : raw('<div class="muted fs-sm">لم يُرسل لمركز بعد</div>')}
           ${r.condition_note ? h`<div class="section-t mt-12">حالة السيارة عند الاستلام</div><div class="fs-sm" style="white-space:pre-wrap">${r.condition_note}</div>` : ''}
           ${r.repair_details ? h`<div class="section-t mt-12">ما تم إصلاحه</div><div class="fs-sm" style="white-space:pre-wrap">${r.repair_details}</div>` : ''}</div>
       </div>
@@ -173,7 +187,7 @@
           ${M.flags(i.flags)}${M.itemsTable(i.items)}<div class="muted fs-sm mt-8">${fmt.date(i.invoice_date)} · <a href="${fileUrl(i.file_sha256)}" target="_blank" rel="noopener">ملف الفاتورة</a>${i.reason ? ' · سبب الرفض: ' + i.reason : ''}</div></div>`;
       })}</div>` : ''}
       <div class="grid-2">
-        <div class="card"><div class="card-h"><div class="card-t">الجدول الزمني</div></div>${M.timeline(r.events)}</div>
+        <div class="card"><div class="card-h"><div class="card-t">الجدول الزمني</div></div>${M.timeline(r.events, r)}</div>
         <div class="card"><div class="card-h"><div class="card-t">المدة في كل حالة</div></div>${M.durations(r.durations)}</div>
       </div>`;
   };

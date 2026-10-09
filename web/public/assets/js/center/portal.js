@@ -1,8 +1,9 @@
 /* =====================================================================
    BrilliantTech — center/portal.js  (بوابة مراكز الصيانة، مربوطة بالخادم)
-   حساب المركز يرى فقط ما أُحيل لمركزه (الخادم يفرض ذلك في كل طلب):
-   الاستلام بوقت الوصول والعداد وصوره، الفحص، عرض السعر، الإصلاح، الاكتمال
-   بقراءة العداد النهائية، جاهزة للاستلام، والفواتير بملفها وبنودها.
+   حساب المركز يرى فقط ما أُرسل لمركزه (الخادم يفرض ذلك في كل طلب). المسار:
+   الاستلام بوقت الوصول والعداد وصوره، ثم «جاهزة للاستلام» بفاتورة المركز
+   (الملف والرقم والمبلغ) فيُبلَّغ السائق ويؤكد الاستلام من تطبيقه.
+   الطلبات القديمة (فحص، عرض سعر، إصلاح) تكمل خطواتها حتى «جاهزة للاستلام».
    ===================================================================== */
 (function () {
   'use strict';
@@ -40,7 +41,7 @@
 
   /* ---------- القائمة ---------- */
   var NAV = [
-    { key: 'requests', icon: 'car', label: 'السيارات المحالة', count: 'active' },
+    { key: 'requests', icon: 'car', label: 'السيارات لدى المركز', count: 'active' },
     { key: 'accidents', icon: 'shield-alert', label: 'أضرار الحوادث', count: 'acc', perm: 'portal.damage' },
     { key: 'history', icon: 'history', label: 'السجل' },
     { key: 'invoices', icon: 'receipt-text', label: 'الفواتير', perm: 'portal.invoices' }
@@ -67,9 +68,9 @@
 
   /* ---------- السيارات المحالة ---------- */
   BT.pages['requests'] = function (p, q) {
-    setTitle('السيارات المحالة');
+    setTitle('السيارات لدى المركز');
     var v = view(), stage = q.status || '';
-    BT.render(v, h`${head('السيارات المحالة إلى مركزكم', 'حدّثوا الحالة أولاً بأول: الإدارة ترى كل تحديث فوراً، والمدة تُحسب تلقائياً من وقت الوصول')}<div data-body>${spinner()}</div>`);
+    BT.render(v, h`${head('السيارات المرسلة إلى مركزكم', 'سجّلوا استلام السيارة عند وصولها، ثم «جاهزة للاستلام» مع الفاتورة عند انتهاء الإصلاح؛ المدة تُحسب تلقائياً من وقت الوصول')}<div data-body>${spinner()}</div>`);
     var body = v.querySelector('[data-body]');
     api.get('/portal/requests').then(function (rows) {
       if (!document.contains(body)) return;
@@ -77,13 +78,11 @@
       var avg = stays.length ? BT.sum(stays, function (r) { return r.stay_seconds; }) / stays.length : null;
       BT.render(body, h`<div class="kpis">
           ${BT.kpi({ label: 'لدى المركز', value: String(rows.length), sub: rows.filter(function (r) { return r.is_new; }).length + ' جديدة لم تُفتح', dot: 'b' })}
-          ${P.center && P.center.direct_to_center
-            ? BT.kpi({ label: 'قيد الإصلاح', value: String(rows.filter(function (r) { return ['received', 'inspection', 'in_repair', 'waiting_parts', 'quote_pending'].indexOf(r.status) > -1; }).length), sub: 'من الاستلام حتى اكتمال الإصلاح', dot: 'o' })
-            : BT.kpi({ label: 'بانتظار اعتماد العرض', value: String(rows.filter(function (r) { return r.status === 'quote_pending'; }).length), sub: 'لا يبدأ الإصلاح قبل الاعتماد', dot: 'o' })}
-          ${BT.kpi({ label: 'جاهزة للاستلام', value: String(rows.filter(function (r) { return r.status === 'ready'; }).length), sub: P.center && P.center.direct_to_center ? 'أُبلغ السائق' : 'أُبلغت الإدارة', dot: 'g' })}
+          ${BT.kpi({ label: 'مستلمة', value: String(rows.filter(function (r) { return r.status === 'received' || M.OLD_AT_CENTER.indexOf(r.status) > -1; }).length), sub: 'من الاستلام حتى تجهيزها', dot: 'o' })}
+          ${BT.kpi({ label: 'جاهزة للاستلام', value: String(rows.filter(function (r) { return r.status === 'ready'; }).length), sub: 'أُبلغ السائق', dot: 'g' })}
           ${BT.kpi({ label: 'متوسط مدة البقاء', value: M.dur(avg), sub: 'للسيارات المستلمة', dot: 'p' })}
         </div>
-        <div class="card" style="padding:10px 12px"><div class="flow">${M.AT_CENTER.map(function (s, i) {
+        <div class="card" style="padding:10px 12px"><div class="flow">${M.AT_CENTER.concat(M.OLD_AT_CENTER.filter(function (s) { return rows.some(function (r) { return r.status === s; }); })).map(function (s, i) {
           var n = rows.filter(function (r) { return r.status === s; }).length;
           return h`${i ? raw('<span class="arr">←</span>') : ''}<button type="button" class="st${stage === s ? ' active' : ''}" data-st="${s}">${api.t('maintenance_status', s)} <span class="n">${n}</span></button>`;
         })}</div></div>
@@ -95,10 +94,10 @@
           { key: 'vehicle', label: 'السيارة', render: function (r) { return h`${M.vehicle(r.vehicle)}${r.is_new ? h` ${BT.pill('جديدة', 'b')}` : ''}`; } },
           { key: 'number', label: 'الطلب', render: function (r) { return h`<span class="num">#${r.number}</span><span class="sub">${M.kind(r.kind)}${r.emergency ? ' · طارئة' : ''}</span>`; } },
           { key: 'status', label: 'الحالة', render: function (r) { return M.status(r.status); } },
-          { key: 'stay_seconds', label: 'المدة', num: true, render: function (r) { return r.stay_seconds != null ? M.dur(r.stay_seconds) : h`<span class="muted">محالة ${fmt.since(r.referred_at)}</span>`; } }
+          { key: 'stay_seconds', label: 'المدة', num: true, render: function (r) { return r.stay_seconds != null ? M.dur(r.stay_seconds) : h`<span class="muted">أُرسلت ${fmt.since(r.referred_at)}</span>`; } }
         ],
         rowClick: function (r) { P.router.go('r/' + r.id); },
-        empty: { icon: 'car', title: stage ? 'لا توجد سيارات بهذه الحالة' : 'لا توجد سيارات محالة لمركزكم الآن' }
+        empty: { icon: 'car', title: stage ? 'لا توجد سيارات بهذه الحالة' : 'لا توجد سيارات مرسلة لمركزكم الآن' }
       });
       BT.on(body, 'click', '[data-st]', function (e, b) { var s = b.getAttribute('data-st'); P.router.go('requests' + (stage === s ? '' : '?status=' + s)); });
     }, function (err) { if (document.contains(body)) BT.render(body, errorBox(err)); });
@@ -187,7 +186,7 @@
   BT.pages['history'] = function () {
     setTitle('السجل');
     var v = view();
-    BT.render(v, h`${head('السيارات التي غادرت المركز', 'المستلمة والمغلقة والملغاة بعد الإحالة')}<div class="card"><div data-table>${spinner()}</div></div>`);
+    BT.render(v, h`${head('السيارات التي غادرت المركز', 'المستلمة والمغلقة والملغاة')}<div class="card"><div data-table>${spinner()}</div></div>`);
     api.get('/portal/requests', { active: false }).then(function (rows) {
       var el = v.querySelector('[data-table]');
       if (!el) return;
@@ -209,29 +208,27 @@
 
   /* ---------- طلب واحد ---------- */
   BT.pages['r/:id'] = function (p) {
-    setTitle('طلب صيانة', [['السيارات المحالة', 'requests'], ['الطلب']]);
+    setTitle('طلب صيانة', [['السيارات لدى المركز', 'requests'], ['الطلب']]);
     var v = view();
     BT.render(v, spinner());
     api.get('/portal/requests/' + p.id).then(function (r) {
       if (!document.contains(v)) return;
-      setTitle('طلب #' + r.number + ' · ' + r.vehicle.plate_number, [['السيارات المحالة', 'requests'], ['#' + r.number]]);
-      // الطلب من السائق مباشرة (r.direct): الإصلاح لا ينتظر عرض سعر ما لم ترفض الإدارة عرضاً له (r.shortcut)،
-      // والفاتورة قبل إبلاغ السائق، والسائق يؤكد الاستلام من تطبيقه
-      var acts = [], s = r.status, direct = !!r.direct, shortcut = !!r.shortcut;
+      setTitle('طلب #' + r.number + ' · ' + r.vehicle.plate_number, [['السيارات لدى المركز', 'requests'], ['#' + r.number]]);
+      // المسار: استلام ← جاهزة للاستلام بالفاتورة. خطوات الطلبات القديمة (فحص، عرض سعر، إصلاح، اكتمال) لها وحدها
+      var acts = [], s = r.status, old = !r.direct;
       var hasInvoice = r.invoices.some(function (i) { return i.status !== 'rejected'; });
       var early = ['received', 'inspection'].indexOf(s) > -1;
       if (s === 'referred') acts.push(['تسجيل الاستلام', 'log-in', 'btn-primary', 'receive']);
-      if (s === 'received') acts.push(['بدء الفحص', 'search', 'btn-secondary', 'inspection']);
-      if (shortcut && early) acts.push(['بدء الإصلاح', 'wrench', 'btn-secondary', 'start_repair']);
-      if (early && api.can('portal.quotes')) acts.push([shortcut ? 'عرض سعر (اختياري)' : 'إرسال عرض السعر', 'file-plus', shortcut ? 'btn-ghost' : 'btn-primary', 'quote']);
-      if (['in_repair', 'waiting_parts'].indexOf(s) > -1 && api.can('portal.quotes')) acts.push(['عرض سعر معدّل', 'file-plus', 'btn-ghost', 'quote']);
-      if (s === 'in_repair') acts.push(['بانتظار قطع', 'package', 'btn-secondary', 'waiting_parts']);
-      if (s === 'waiting_parts') acts.push(['استئناف الإصلاح', 'wrench', 'btn-secondary', 'in_repair']);
-      if (['in_repair', 'waiting_parts'].indexOf(s) > -1 || (shortcut && early)) acts.push(['اكتمل الإصلاح', 'circle-check', 'btn-primary', 'complete']);
-      if (['completed', 'ready', 'picked_up'].indexOf(s) > -1 && !hasInvoice && api.can('portal.invoices')) acts.push(['إدخال الفاتورة', 'receipt-text', s === 'picked_up' || (direct && s === 'completed') ? 'btn-primary' : 'btn-outline', 'invoice']);
-      if (s === 'completed' && (!direct || hasInvoice)) acts.push(['جاهزة للاستلام', 'bell-ring', 'btn-primary', 'ready']);
-      if (s === 'ready' && !direct) acts.push(['تم الاستلام', 'log-out', 'btn-secondary', 'picked']);
-      var hint = !direct ? '' : s === 'completed' && !hasInvoice ? (api.can('portal.invoices') ? 'أدخل فاتورة الصيانة، ثم «جاهزة للاستلام» ليُبلَّغ السائق.' : 'تُدخل الفاتورة أولاً (حساب الفواتير في المركز أو الإدارة)، ثم تُبلغ السائق أن السيارة جاهزة.') : s === 'ready' ? 'أُبلغ السائق. يؤكد الاستلام من تطبيقه عند خروج السيارة، فتعود في عهدته.' : early && direct && !shortcut ? 'رفضت الإدارة عرض السعر: لا يبدأ الإصلاح إلا بعرض تعتمده.' : '';
+      if (old && s === 'received') acts.push(['بدء الفحص', 'search', 'btn-secondary', 'inspection']);
+      if (old && early && api.can('portal.quotes')) acts.push(['إرسال عرض السعر', 'file-plus', 'btn-outline', 'quote']);
+      if (old && s === 'in_repair') acts.push(['بانتظار قطع', 'package', 'btn-secondary', 'waiting_parts']);
+      if (old && s === 'waiting_parts') acts.push(['استئناف الإصلاح', 'wrench', 'btn-secondary', 'in_repair']);
+      if (M.READY_FROM.indexOf(s) > -1 && (hasInvoice || api.can('portal.invoices'))) acts.push(['جاهزة للاستلام', 'bell-ring', 'btn-primary', 'ready']);
+      if (['completed', 'ready', 'picked_up', 'closed'].indexOf(s) > -1 && !hasInvoice && api.can('portal.invoices')) acts.push(['إدخال الفاتورة', 'receipt-text', 'btn-outline', 'invoice']);
+      if (s === 'ready' && !r.driver_collects) acts.push(['تم الاستلام', 'log-out', 'btn-secondary', 'picked']);
+      var hint = s === 'referred' ? 'سجّلوا الاستلام عند وصول السيارة: تبقى في عهدة السائق ولا يعمل بها حتى يستلمها.'
+        : M.READY_FROM.indexOf(s) > -1 ? (api.can('portal.invoices') || hasInvoice ? 'عند انتهاء الإصلاح: «جاهزة للاستلام» مع الفاتورة (الملف والرقم والمبلغ)، فيُبلَّغ السائق.' : 'تُدخل الفاتورة مع «جاهزة للاستلام» بحساب الفواتير في المركز.')
+          : s === 'ready' ? (r.driver_collects ? 'أُبلغ السائق. يؤكد الاستلام من تطبيقه عند خروج السيارة.' : 'لا يحمل السيارة سائق الآن: سجّلوا «تم الاستلام» عند خروجها مع مندوب الشركة.') : '';
       BT.render(v, h`${head(h`${M.vehicleLine(r.vehicle)} · طلب <span class="num">#${r.number}</span>`, h`${M.status(r.status)} · ${M.kind(r.kind)}${r.emergency ? ' · طارئة' : ''}`, h`${acts.map(function (a) { return h`<button type="button" class="btn ${a[2]}" data-act="${a[3]}">${icon(a[1], 15)}${a[0]}</button>`; })}`)}
         ${hint ? h`<div class="banner info mb-16" data-direct-hint>${icon('info', 16)}<div>${hint}</div></div>` : ''}
         ${M.detail(r, fileUrl(r.id))}`);
@@ -249,7 +246,7 @@
           <div class="full">${BT.f.camera({ name: 'odo', label: 'صورة العداد', required: true, cta: 'صورة العداد', sub: 'إلزامية' })}</div>
           ${BT.f.upload({ name: 'ph', label: 'صور حالة السيارة', optional: true, multiple: true, full: true, accept: 'image/*', accept_label: 'صور فقط · حتى 12 صورة' })}
           ${BT.f.textarea({ name: 'cond', label: 'ملاحظات على حالة السيارة', optional: true, full: true, rows: 2 })}</div>
-          <div class="banner info mt-12">${icon('info', 16)}<div>بالاستلام تنتهي عهدة السائق عند هذه القراءة ويتوقف تتبع موقعه، وتصبح السيارة «في الصيانة».</div></div>`,
+          <div class="banner info mt-12">${icon('info', 16)}<div>تصبح السيارة «في الصيانة»: تبقى في عهدة السائق ولا يعمل بها حتى يستلمها منكم.</div></div>`,
         submitText: 'تسجيل الاستلام', submitIcon: 'check', done: 'تم تسجيل الاستلام', doneSub: function () { return 'بدأ احتساب مدة البقاء'; },
         submit: function (f, dlg) {
           var at = dlg.form.querySelector('[name=at]').value;
@@ -263,7 +260,6 @@
     },
     inspection: function (r) { status(r, 'inspection', 'بدء الفحص'); },
     in_repair: function (r) { status(r, 'in_repair', 'استئناف الإصلاح'); },
-    start_repair: function (r) { status(r, 'in_repair', 'بدء الإصلاح'); },
     waiting_parts: function (r) { status(r, 'waiting_parts', 'بانتظار قطع'); },
     quote: function (r) {
       var ed;
@@ -283,27 +279,30 @@
         }
       });
     },
-    complete: function (r) {
+    ready: function (r) {
+      // بالفاتورة في نفس الخطوة (إلا طلباً قديماً أُدخلت فاتورته)، وقراءة العداد بعد الإصلاح إن كانت الشركة ستستلمها
+      var hasInvoice = r.invoices.some(function (i) { return i.status !== 'rejected'; });
+      var reading = !r.driver_collects && r.final_km == null;
       form({
-        title: 'اكتمل الإصلاح', subtitle: r.vehicle.plate_number + ' · طلب #' + r.number, icon: 'circle-check', size: 'lg',
-        body: h`<div class="form-grid">${BT.f.textarea({ name: 'details', label: 'ما تم إصلاحه والقطع المستبدلة', required: true, full: true, rows: 3 })}
-          ${BT.f.input({ name: 'km', label: 'قراءة العداد النهائية', required: true, num: true, hint: r.received_km != null ? 'عند الوصول: ' + fmt.km(r.received_km) : '' })}
-          <div>${BT.f.camera({ name: 'odo', label: 'صورة العداد', required: true, cta: 'صورة العداد', sub: 'إلزامية' })}</div>
-          ${BT.f.upload({ name: 'ph', label: 'صور بعد الإصلاح', optional: true, multiple: true, full: true, accept: 'image/*', accept_label: 'صور فقط' })}</div>`,
-        submitText: 'حفظ', done: 'سُجّل اكتمال الإصلاح',
+        title: 'جاهزة للاستلام', subtitle: r.vehicle.plate_number + ' · طلب #' + r.number, icon: 'bell-ring', size: 'lg',
+        body: h`${hasInvoice ? h`<p>الفاتورة مُدخلة من قبل. يُبلَّغ السائق أن سيارته جاهزة.</p>` : h`<div class="form-grid">
+          ${BT.f.input({ name: 'number', label: 'رقم الفاتورة', required: true })}
+          ${BT.f.input({ name: 'total', label: 'المبلغ الإجمالي (د.ك)', required: true, num: true })}
+          ${BT.f.date({ name: 'date', label: 'تاريخ الفاتورة', required: true, value: BT.config.today, max: BT.config.today })}
+          ${BT.f.upload({ name: 'file', label: 'ملف الفاتورة (صورة أو PDF)', required: true, full: true, accept: 'image/*,application/pdf' })}
+          ${BT.f.textarea({ name: 'notes', label: 'ما تم إصلاحه / ملاحظات', optional: true, full: true, rows: 2 })}</div>
+          <div class="muted fs-sm mt-8">تذهب الفاتورة للإدارة لاعتمادها؛ الاعتماد يخص الدفع ولا يؤخر استلام السيارة.</div>`}
+          ${reading ? h`<div class="form-grid mt-12">${BT.f.input({ name: 'km', label: 'قراءة العداد بعد الإصلاح', required: true, num: true, hint: r.received_km != null ? 'عند الوصول: ' + fmt.km(r.received_km) : '' })}
+            <div>${BT.f.camera({ name: 'odo', label: 'صورة العداد', required: true, cta: 'صورة العداد', sub: 'إلزامية' })}</div></div>
+            <div class="banner info mt-8 fs-sm">${icon('info', 15)}<div>لا يحمل السيارة سائق الآن: تستلمها الشركة، والتسليم التالي يُقارن بهذه القراءة.</div></div>` : ''}`,
+        submitText: 'جاهزة', submitIcon: 'send', done: r.driver_collects ? 'أُبلغ السائق' : 'أُبلغت الإدارة',
         submit: function (f) {
-          return Promise.all([upload(f.odo[0]), uploadAll(f.ph)]).then(function (up) {
-            return api.post('/portal/requests/' + r.id + '/complete', { repair_details: f.details, final_odometer_km: Math.round(f.km), final_odometer_photo: up[0], photos: up[1] });
+          return Promise.all([hasInvoice ? null : upload(f.file[0]), reading ? upload(f.odo[0]) : null]).then(function (up) {
+            var body = hasInvoice ? {} : { number: f.number, total: Number(f.total).toFixed(3), invoice_date: f.date, file_sha256: up[0], notes: f.notes || null };
+            if (reading) { body.final_odometer_km = Math.round(f.km); body.final_odometer_photo = up[1]; }
+            return api.post('/portal/requests/' + r.id + '/ready', body);
           });
         }
-      });
-    },
-    ready: function (r) {
-      form({
-        title: 'السيارة جاهزة للاستلام', subtitle: r.vehicle.plate_number, icon: 'bell-ring', size: 'sm',
-        body: h`<p>${r.direct ? 'يُبلَّغ السائق ليأتي ويستلمها، ويؤكد الاستلام من التطبيق. وتراها الإدارة.' : 'تُبلَّغ الإدارة فوراً، ويرى السائق أن سيارته جاهزة في التطبيق.'}</p><div class="form mt-12">${BT.f.textarea({ name: 'note', label: 'ملاحظة (موعد الاستلام مثلاً)', optional: true, rows: 2 })}</div>`,
-        submitText: 'جاهزة', done: 'أُبلغت الإدارة والسائق',
-        submit: function (f) { return api.post('/portal/requests/' + r.id + '/ready', { note: f.note || null }); }
       });
     },
     picked: function (r) {
@@ -375,7 +374,7 @@
       Promise.all([api.get('/portal/requests'), api.get('/portal/requests', { active: false }), api.get('/portal/invoices')]).then(function (res) {
         var invoiced = {};
         res[2].forEach(function (i) { if (i.request && i.status !== 'rejected') invoiced[i.request.id] = true; });
-        var choices = res[0].concat(res[1]).filter(function (r) { return ['completed', 'ready', 'picked_up'].indexOf(r.status) > -1 && !invoiced[r.id]; });
+        var choices = res[0].concat(res[1]).filter(function (r) { return ['completed', 'ready', 'picked_up', 'closed'].indexOf(r.status) > -1 && !invoiced[r.id]; });
         if (!choices.length) { BT.toast('لا توجد طلبات مكتملة بلا فاتورة', { type: 'info' }); return; }
         invoiceForm(null, choices);
       }, api.fail);

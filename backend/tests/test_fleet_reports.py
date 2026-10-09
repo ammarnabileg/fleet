@@ -19,14 +19,10 @@ def period(days=29):
 
 
 def at_center(admin_client, vehicle, c) -> str:
-    r = admin_client.post(
-        f"{M}/requests", json={"vehicle_id": vehicle["id"], "kind": "mechanical", "description": "Noise"}
-    )
+    body = {"vehicle_id": vehicle["id"], "kind": "mechanical", "description": "Noise", "center_id": c["id"]}
+    r = admin_client.post(f"{M}/requests", json=body)
     assert r.status_code == 201, r.text
-    rid = r.json()["id"]
-    admin_client.post(f"{M}/requests/{rid}/approve", json={})
-    assert admin_client.post(f"{M}/requests/{rid}/refer", json={"center_id": c["id"]}).status_code == 200
-    return rid
+    return r.json()["id"]
 
 
 def received(portal, rid, km, *, days_ago=0):
@@ -37,13 +33,22 @@ def received(portal, rid, km, *, days_ago=0):
     assert r.status_code == 200, r.text
 
 
-def repaired_and_collected(portal, rid, amount, km):
-    items = [{"kind": "part", "description": "Part", "unit_price": amount}]
-    assert portal.post(f"{P}/requests/{rid}/quote", json={"amount": amount, "items": items}).status_code == 200
-    body = {"repair_details": "Done", "final_odometer_km": km, "final_odometer_photo": upload(portal)}
-    assert portal.post(f"{P}/requests/{rid}/complete", json=body).status_code == 200
-    assert portal.post(f"{P}/requests/{rid}/ready", json={}).status_code == 200
+def repaired_and_collected(portal, rid, km, number, items) -> str:
+    """Ready with its invoice and the last reading (nobody holds these cars), then collected: the invoice's id."""
+    total = sum(float(i.get("quantity", 1)) * float(i["unit_price"]) for i in items)
+    body = {
+        "number": number,
+        "invoice_date": str(today()),
+        "total": f"{total:.3f}",
+        "file_sha256": upload(portal, b"%PDF-1.4 " + uuid.uuid4().bytes, name="inv.pdf"),
+        "items": items,
+        "final_odometer_km": km,
+        "final_odometer_photo": upload(portal),
+    }
+    r = portal.post(f"{P}/requests/{rid}/ready", json=body)
+    assert r.status_code == 200, r.text
     assert portal.post(f"{P}/requests/{rid}/picked-up").status_code == 200
+    return r.json()["invoices"][-1]["id"]
 
 
 def invoice(portal, rid, number, items):
@@ -78,10 +83,10 @@ def test_maintenance_time_at_the_centers_cost_by_center_and_vehicle_and_the_part
     # v1 at garage A: a day there, collected, invoice 45 (a part and labour), approved
     r1 = at_center(admin_client, v1, g["a"])
     received(g["pa"], r1, 10_010, days_ago=1)
-    repaired_and_collected(g["pa"], r1, "45.000", 10_020)
-    i1 = invoice(
+    i1 = repaired_and_collected(
         g["pa"],
         r1,
+        10_020,
         "A-1",
         [
             {"kind": "part", "description": "Wheel bearing", "unit_price": "30.000"},
@@ -95,16 +100,16 @@ def test_maintenance_time_at_the_centers_cost_by_center_and_vehicle_and_the_part
     # v3 at garage B: collected; one invoice approved, one rejected, one waiting
     r3 = at_center(admin_client, v3, g["b"])
     received(g["pb"], r3, 10_010, days_ago=3)
-    repaired_and_collected(g["pb"], r3, "100.000", 10_030)
-    # (the rejected one first, and one still waiting: the request stays open, so all three can be entered)
-    bad = invoice(g["pb"], r3, "B-2", [{"kind": "part", "description": "Turbo", "unit_price": "900.000"}])
-    admin_client.post(f"{M}/invoices/{bad}/reject", json={"reason": "Not on this car"})
-    invoice(g["pb"], r3, "B-3", [{"kind": "part", "description": "Turbo", "unit_price": "800.000"}])
     b1 = [
         {"kind": "part", "description": "wheel bearing ", "quantity": "2", "unit_price": "40.000"},
         {"kind": "labour", "description": "Labour", "unit_price": "20.000"},
     ]
-    admin_client.post(f"{M}/invoices/{invoice(g['pb'], r3, 'B-1', b1)}/approve")
+    i3 = repaired_and_collected(g["pb"], r3, 10_030, "B-1", b1)
+    # one rejected, one still waiting: the request stays open, so all three can be entered
+    bad = invoice(g["pb"], r3, "B-2", [{"kind": "part", "description": "Turbo", "unit_price": "900.000"}])
+    admin_client.post(f"{M}/invoices/{bad}/reject", json={"reason": "Not on this car"})
+    invoice(g["pb"], r3, "B-3", [{"kind": "part", "description": "Turbo", "unit_price": "800.000"}])
+    admin_client.post(f"{M}/invoices/{i3}/approve")
 
     rep = admin_client.get(f"{R}/maintenance", params=period()).json()
     by = {x["center"]["name"]: x for x in rep["by_center"]}

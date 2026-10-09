@@ -304,7 +304,7 @@ def test_workflow_rules(admin_client, new_client, people):
     assert events and events[0]["action"] == "approvals.workflow_updated"
 
 
-def test_every_process_goes_through_its_workflow(admin_client, client, new_client, company, people):
+def test_every_process_goes_through_its_workflow(admin_client, client, new_client, company, people, owner_db):
     """A single checker's step on each of the seven processes: the superuser's own approval is refused, the checker's
     from the inbox applies the module's decision."""
     for process in ("daily_report", "maintenance_request", "maintenance_quote", "maintenance_invoice",
@@ -340,15 +340,21 @@ def test_every_process_goes_through_its_workflow(admin_client, client, new_clien
     approved = admin_client.get("/api/v1/daily-reports", params={"status": "approved"}).json()
     assert [x["id"] for x in approved] == [report["id"]]
 
-    # a maintenance request from the office, then its quote above the limit from the center
+    # a maintenance request through the office (the driver's car is in an accident), then its quote above the limit
     m = "/api/v1/maintenance"
-    req = admin_client.post(f"{m}/requests", json={"vehicle_id": vehicle["id"], "kind": "mechanical",
-                                                    "description": "Brakes"}).json()  # fmt: skip
+    c = center(admin_client)
+    s = {"portal": portal_client(admin_client, new_client, c, "noor9")}
+    owner_db.execute(text("UPDATE fleet.vehicles SET status = 'accident' WHERE public_id = :v"), {"v": vehicle["id"]})
+    owner_db.commit()
+    req = client.post(
+        "/api/v1/driver/maintenance",
+        headers=h,
+        json={"client_ref": str(uuid.uuid4()), "kind": "mechanical", "description": "Brakes"},
+    ).json()
+    assert req["status"] == "requested"
     r = admin_client.post(f"{m}/requests/{req['id']}/approve", json={})
     assert r.status_code == 403
     through("maintenance_request", f"MNT-{req['number']}")
-    c = center(admin_client)
-    s = {"portal": portal_client(admin_client, new_client, c, "noor9")}
     assert admin_client.post(f"{m}/requests/{req['id']}/refer", json={"center_id": c["id"]}).status_code == 200
     assert receive(s, req["id"]).status_code == 200
     assert quote(s, req["id"], "250.000").json()["status"] == "quote_pending"
