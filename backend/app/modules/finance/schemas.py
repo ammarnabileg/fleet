@@ -350,3 +350,32 @@ class ImportOut(BaseModel):
     lines: int
     applied: bool
     numbers: list[int]  # the entries made
+
+
+# ---- month close
+
+
+class PeriodOut(BaseModel):
+    month: str  # "2026-09"
+    status: str  # open | closed
+    closed_by: str | None
+    closed_at: datetime | None
+    reopened_by: str | None
+    reopened_at: datetime | None
+    reopen_reason: str | None
+    reopenable: bool  # the latest closed month
+
+
+class Problem(BaseModel):
+    code: str  # period_problem.<code>
+    params: dict
+
+
+class PeriodCheckOut(BaseModel):
+    month: str
+    status: str
+    problems: list[Problem]  # empty: ready to close
+
+
+class PeriodReopenIn(_In):
+    reason: Reason

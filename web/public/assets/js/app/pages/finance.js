@@ -50,7 +50,7 @@
   BT.pages['finance'] = function (p, q) {
     A.setTitle('المالية');
     var v = A.view();
-    var tabs = [['expenses', 'المصروفات'], ['entries', 'القيود'], ['balance', 'ميزان المراجعة'], ['chart', 'دليل الحسابات']];
+    var tabs = [['expenses', 'المصروفات'], ['entries', 'القيود'], ['balance', 'ميزان المراجعة'], ['chart', 'دليل الحسابات'], ['periods', 'إقفال الشهور']];
     var tab = tabs.some(function (t) { return t[0] === q.tab; }) ? q.tab : 'expenses';
     BT.render(v, h`${A.head('المالية', 'المصروفات، والقيود التي ينشئها النظام من المستندات على دليل حسابات محاسبكم: تُعتمد ثم لا تتغير، والتصحيح بقيد عكسي',
         api.can('finance.create') ? A.btn('تسجيل مصروف', { icon: 'plus', cls: 'btn-primary', action: 'expense-new' }) : '')}
@@ -64,6 +64,7 @@
       if (t === 'entries') entriesPanel(el);
       if (t === 'balance') config().then(function () { balancePanel(el); }, function () { balancePanel(el); });
       if (t === 'chart') chartPanel(el);
+      if (t === 'periods') periodsPanel(el, q.month);
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/finance?tab=' + e.detail); });
     show(tab);
@@ -525,6 +526,71 @@
   }
 
   /* ================= دليل الحسابات ================= */
+  /* ================= إقفال الشهور ================= */
+  // where each point of the month's check is settled
+  var PROBLEM_LINKS = {
+    draft_entries: '#/finance?tab=entries', stale_entries: '#/finance?tab=entries', documents_not_entered: '#/finance?tab=entries',
+    pending_expenses: '#/finance?tab=expenses&chip=pending', pending_fuel_claims: '#/cash?tab=fuel', pending_daily_reports: '#/daily',
+    pending_deductions: '#/approvals', draft_payroll_runs: '#/payroll', treasury_days_open: '#/cash?tab=treasury'
+  };
+  function monthOf(d) { return d.slice(0, 7); }
+  function prevMonth() { var d = new Date(BT.config.today.slice(0, 8) + '01T00:00:00Z'); d.setUTCDate(0); return d.toISOString().slice(0, 7); }
+  function periodsPanel(el, month) {
+    if (!api.me.all_companies) { BT.render(el, h`<div class="card">${BT.empty('lock', 'إقفال الشهور لمستخدم على كل الشركات', 'الدفاتر واحدة لكل الشركات')}</div>`); return; }
+    var canClose = api.can('finance.close');
+    BT.render(el, h`<div class="card"><div class="card-h"><div class="card-t">${icon('clipboard-check', 16)} فحص شهر وإقفاله</div>
+        <div class="ms-auto nowrap"><input class="input" type="month" data-pick value="${month || prevMonth()}" aria-label="الشهر"> <button type="button" class="btn btn-sm btn-outline" data-check-pick>${icon('list-checks', 14)} فحص</button></div></div>
+        <div data-check-box></div>
+        <div class="hint mt-8">الشهر المقفول ما يتسجلش فيه قيد ولا حركة كاش بتاريخ فيه. يُقفل الشهر بعد ما يخلص، وبعد الشهور اللي قبله، ولما الفحص يطلع نظيف. آخر شهر مقفول بس هو اللي يتفتح تاني بسبب.</div></div>
+      <div class="card mt-16"><div class="card-h"><div class="card-t">${icon('calendar', 16)} الشهور</div></div><div data-months></div></div>`);
+    var box = el.querySelector('[data-check-box]'), monthsBox = el.querySelector('[data-months]');
+    function problemText(p) {
+      var params = Object.assign({}, p.params);
+      if (params.branch && typeof params.branch === 'object') params.branch = api.name(params.branch);
+      if (params.first) params.first = fmt.date(params.first);
+      if (params.end) params.end = fmt.date(params.end);
+      return api.t('period_problem', p.code, params);
+    }
+    function months() {
+      A.load(monthsBox, api.get('/finance/periods'), function (rows) {
+        return h`<div class="table-wrap"><table class="t compact" data-periods><thead><tr><th>الشهر</th><th>الحالة</th><th>أقفله</th><th>إعادة الفتح</th><th></th></tr></thead><tbody>
+          ${rows.map(function (r) {
+            return h`<tr data-month="${r.month}"><td class="num">${r.month}</td><td>${r.status === 'closed' ? BT.pill('مقفول', 'g', true) : BT.pill('مفتوح', 'n')}</td>
+              <td>${r.closed_by ? h`${r.closed_by}<span class="sub">${fmt.dt(r.closed_at)}</span>` : '—'}</td>
+              <td style="white-space:normal">${r.reopened_at ? h`${r.reopen_reason}<span class="sub">${r.reopened_by} · ${fmt.dt(r.reopened_at)}</span>` : '—'}</td>
+              <td class="num nowrap"><button type="button" class="btn btn-sm btn-ghost" data-check="${r.month}">${icon('list-checks', 13)} فحص</button>${r.reopenable && canClose ? h` <button type="button" class="btn btn-sm btn-ghost" data-reopen-month="${r.month}">${icon('rotate-ccw', 13)} إعادة فتح</button>` : ''}</td></tr>`;
+          })}</tbody></table></div>`;
+      }).catch(function () {});
+    }
+    function check(m) {
+      el.querySelector('[data-pick]').value = m;
+      A.load(box, api.get('/finance/periods/' + m + '/check'), function (c) {
+        var clean = !c.problems.length, open = c.status !== 'closed';
+        return h`<div class="mt-12" data-check-result="${c.month}"><div class="between mb-8"><b>شهر ${c.month}</b>${open ? BT.pill('مفتوح', 'n') : BT.pill('مقفول', 'g', true)}</div>
+          ${clean ? h`<div class="banner success">${icon('circle-check', 16)}<div>${open ? 'الفحص نظيف: الشهر جاهز للإقفال.' : 'الشهر مقفول.'}</div></div>`
+            : h`<ul class="guide-list" data-problems>${c.problems.map(function (p) {
+              var link = p.code === 'earlier_month_open' ? h` <button type="button" class="btn btn-sm btn-ghost" data-check="${p.params.month}">فحص ${p.params.month}</button>` : PROBLEM_LINKS[p.code] ? h` <a class="btn btn-sm btn-ghost" href="${PROBLEM_LINKS[p.code]}">افتح</a>` : '';
+              return h`<li data-problem="${p.code}">${icon('circle-alert', 14, 't-danger')} ${problemText(p)}${link}</li>`;
+            })}</ul>`}
+          ${open && canClose ? h`<div class="mt-12"><button type="button" class="btn btn-primary" data-close-month="${c.month}"${clean ? '' : raw(' disabled')}>${icon('lock', 14)} إقفال الشهر</button></div>` : ''}</div>`;
+      }).catch(function () {});
+    }
+    BT.on(el, 'click', '[data-check-pick]', function () { var m = el.querySelector('[data-pick]').value; if (m) check(m); });
+    BT.on(el, 'click', '[data-check]', function (e, b) { check(b.getAttribute('data-check')); });
+    BT.on(el, 'click', '[data-close-month]', function (e, b) {
+      var m = b.getAttribute('data-close-month');
+      A.confirmRun({ title: 'إقفال شهر ' + m, message: 'بعد الإقفال ما يتسجلش أي قيد ولا حركة كاش بتاريخ في الشهر ده.', confirmText: 'إقفال الشهر', tone: 'warn', icon: 'lock',
+        run: function () { return api.post('/finance/periods/' + m + '/close', {}); }, done: 'تم إقفال الشهر', after: function () { months(); check(m); } });
+    });
+    BT.on(el, 'click', '[data-reopen-month]', function (e, b) {
+      var m = b.getAttribute('data-reopen-month');
+      A.confirmRun({ title: 'إعادة فتح شهر ' + m, message: 'الشهر يرجع مفتوح: تقدر تسجّل فيه، وبعدين افحصه واقفله تاني.', confirmText: 'إعادة فتح', tone: 'danger', icon: 'rotate-ccw', reason: { label: 'السبب', required: true },
+        run: function (reason) { return api.post('/finance/periods/' + m + '/reopen', { reason: reason }); }, done: 'أُعيد فتح الشهر', after: function () { months(); check(m); } });
+    });
+    months();
+    check(month || prevMonth());
+  }
+
   function chartPanel(el) {
     var approve = api.can('finance.approve');
     A.load(el, Promise.all([api.get('/finance/accounts'), api.get('/finance/roles'), api.get('/finance/expense-types')]), function (r) {

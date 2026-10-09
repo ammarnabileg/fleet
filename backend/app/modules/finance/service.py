@@ -17,7 +17,7 @@ from app.core.errors import AppError
 from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
 from app.modules.files import service as files
-from app.modules.finance import posting
+from app.modules.finance import periods, posting
 from app.modules.finance.models import (
     ENTRY_SEQ,
     Account,
@@ -86,6 +86,12 @@ def _check_date(db: Session, day: date) -> None:
 def check_books_date(db: Session, day: date) -> None:
     """For other modules: refused (before_books_start) when a document of that day would never be entered."""
     _check_date(db, day)
+
+
+def check_open_month(db: Session, day: date) -> None:
+    """For other modules: refused (409 period_closed) when the month of `day` is closed; holds the month's shared
+    lock until the transaction ends, so the month cannot close before what the caller writes is in."""
+    periods.check_open(db, day)
 
 
 def check_books_start_change(db: Session, old: date | None, new: date | None) -> None:
@@ -447,6 +453,7 @@ def create_expense(db: Session, data: dict, *, actor_user_id: int, all_companies
         raise AppError(422, "expense_branch_required")
     if data["payment_method"] == "treasury":
         _treasury_day(db, data["expense_date"], branch_id)
+    periods.check_open(db, data["expense_date"])  # it enters the books on its date
     expense = Expense(
         company_id=company_id,
         branch_id=branch_id,
@@ -588,6 +595,8 @@ def decide_expense(db: Session, public_id, *, approve: bool, note: str | None, a
         raise AppError(409, "expense_not_pending", status=expense.status)
     if not approve and not note:
         raise AppError(422, "reason_required")
+    if approve:
+        periods.check_open(db, expense.expense_date)  # it enters the books on its date
     if not approvals.gate(
         db, "expense", **_approval(expense), actor_user_id=actor_user_id, approve=approve, reason=note
     ):
@@ -686,6 +695,41 @@ def post(db: Session, first: date, last: date, *, actor_user_id: int, all_compan
         first = start
         if last < first:
             return {"created": 0, "by_kind": {}, "stale": [], "errors": []}
+    missing, stale = compare(db, first, last)
+    roles = posting.role_accounts(db)
+    created: dict[str, int] = defaultdict(int)
+    errors, made = [], []
+    # a closed month takes no entry: its documents wait (they cannot be there: its check found none)
+    months = {d.day.replace(day=1) for d in missing}
+    closed = {m for m in months if periods.is_closed(db, m)}
+    for doc in missing:
+        if doc.day.replace(day=1) in closed:
+            continue
+        try:
+            with db.begin_nested():
+                made.append(
+                    posting.write(db, doc, description=_describe(db, doc), roles=roles, actor_user_id=actor_user_id)
+                )
+            created[doc.kind] += 1
+        except AppError as e:
+            errors.append({"source_ref": doc.ref, "code": e.code, "params": e.params})
+    if created:
+        audit.record(
+            db,
+            action="finance.entries.posted",
+            entity_type="entry",
+            actor_user_id=actor_user_id,
+            after={"from": first, "to": last, "created": dict(created)},
+        )
+    if _auto(db):
+        _approve_by_system(db, made)
+    db.commit()
+    return {"created": sum(created.values()), "by_kind": dict(created), "stale": stale, "errors": errors}
+
+
+def compare(db: Session, first: date, last: date) -> tuple[list[posting.Doc], list[dict]]:
+    """The documents of first..last that make an entry and have none yet, and the live entries whose document changed
+    since (or is gone): what a posting would make, and what it lists to reverse. Writes nothing."""
     docs = posting.documents(db, first, last)
     live = {
         (e.source_kind, e.source_id): e
@@ -710,9 +754,7 @@ def post(db: Session, first: date, last: date, *, actor_user_id: int, all_compan
             .group_by(EntryLine.entry_id)
         ).all()
     )
-    roles = posting.role_accounts(db)
-    created: dict[str, int] = defaultdict(int)
-    stale, errors, seen, made = [], [], set(), []
+    stale, missing, seen = [], [], set()
     for doc in docs:
         key = (doc.kind, doc.id)
         seen.add(key)
@@ -721,31 +763,12 @@ def post(db: Session, first: date, last: date, *, actor_user_id: int, all_compan
             if totals.get(entry.id, ZERO) != doc.total:
                 stale.append(_stale(entry, totals.get(entry.id, ZERO), doc.total))
             continue
-        if doc.total == ZERO:
-            continue
-        try:
-            with db.begin_nested():
-                made.append(
-                    posting.write(db, doc, description=_describe(db, doc), roles=roles, actor_user_id=actor_user_id)
-                )
-            created[doc.kind] += 1
-        except AppError as e:
-            errors.append({"source_ref": doc.ref, "code": e.code, "params": e.params})
+        if doc.total != ZERO:
+            missing.append(doc)
     for key, entry in live.items():
         if key not in seen and first <= entry.entry_date <= last:
             stale.append(_stale(entry, totals.get(entry.id, ZERO), ZERO))
-    if created:
-        audit.record(
-            db,
-            action="finance.entries.posted",
-            entity_type="entry",
-            actor_user_id=actor_user_id,
-            after={"from": first, "to": last, "created": dict(created)},
-        )
-    if _auto(db):
-        _approve_by_system(db, made)
-    db.commit()
-    return {"created": sum(created.values()), "by_kind": dict(created), "stale": stale, "errors": errors}
+    return missing, stale
 
 
 def _by_kind(keys: Iterable[tuple[str, int]]) -> dict[str, list[int]]:
@@ -902,6 +925,8 @@ def approve_entries(
     """Drafts approved: they never change again (FR-FIN-05)."""
     _need_all_companies(all_companies)
     rows = _picked(db, ids, date_from, date_to)
+    for m in sorted({e.entry_date.replace(day=1) for e in rows}):
+        periods.check_open(db, m)
     now = utcnow()
     for e in rows:
         e.status, e.approved_by, e.approved_at = "approved", actor_user_id, now
@@ -961,6 +986,7 @@ def reverse_entry(
             raise AppError(422, "reversal_date_future")
         if day < entry.entry_date:
             raise AppError(422, "reversal_before_entry", date=entry.entry_date.isoformat())
+    periods.check_open(db, day)  # an opening's month too: a closed month takes no entry
     reversal = Entry(
         entry_date=day,
         source_kind="reversal",
@@ -1272,6 +1298,7 @@ def create_manual(
     scope = {"all_companies": all_companies, "company_ids": company_ids}
     _check_company(db, data.get("company_id"))
     _check_date(db, data["entry_date"])
+    periods.check_open(db, data["entry_date"])
     lines = _lines(db, data["lines"], scope=scope)
     if not 2 <= len(lines) <= MANUAL_MAX_LINES:
         raise AppError(422, "entry_lines_count", min=2, max=MANUAL_MAX_LINES)
@@ -1331,6 +1358,7 @@ def create_opening(
         raise AppError(422, "books_start_required")
     company_id = data.get("company_id")
     _check_company(db, company_id)
+    periods.check_open(db, start - timedelta(days=1))
     _opening_lock(db)
     if opening_exists(db, company_id):
         raise AppError(409, "opening_exists")
@@ -1455,6 +1483,12 @@ def import_books(
         raise AppError(409, "old_entries_imported", numbers=", ".join(taken))
     for n in taken:
         result.error(oldbooks.ENTRIES, result.entries[n]["row"], "old_entry_imported", number=n)
+    for n in numbers:  # a closed month takes no entry
+        day = result.entries[n]["date"]
+        if periods.is_closed(db, day):
+            result.error(oldbooks.ENTRIES, result.entries[n]["row"], "period_closed", month=f"{day:%Y-%m}")
+    if found.opening and start is not None and periods.is_closed(db, start - timedelta(days=1)):
+        result.error(oldbooks.OPENING, None, "period_closed", month=f"{start - timedelta(days=1):%Y-%m}")
     out = result.summary()
     if not apply or result.errors:
         return out | {"applied": False, "numbers": []}
@@ -1507,3 +1541,27 @@ def _civil_ids(db: Session, found) -> dict[str, int]:
         if ref is not None:
             out[civil_id] = ref.id
     return out
+
+
+# ------------------------------------------------------------------ month close
+
+
+def list_periods(db: Session, first: date, last: date, *, all_companies: bool, **_) -> list[dict]:
+    _need_all_companies(all_companies)
+    return periods.list_periods(db, first.replace(day=1), last.replace(day=1))
+
+
+def check_period(db: Session, month: str, *, all_companies: bool, **_) -> dict:
+    """The month's checklist: what is left to do before it can close (nothing: ready)."""
+    _need_all_companies(all_companies)
+    return periods.check(db, periods.parse_month(month))
+
+
+def close_period(db: Session, month: str, *, actor_user_id: int, all_companies: bool, **_) -> dict:
+    _need_all_companies(all_companies)
+    return periods.close(db, periods.parse_month(month), actor_user_id=actor_user_id)
+
+
+def reopen_period(db: Session, month: str, *, reason: str, actor_user_id: int, all_companies: bool, **_) -> dict:
+    _need_all_companies(all_companies)
+    return periods.reopen(db, periods.parse_month(month), reason=reason, actor_user_id=actor_user_id)

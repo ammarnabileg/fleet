@@ -92,7 +92,8 @@
     "employees.onboarding": "Review and approve drivers' self-registration",
     "payroll.schemes": "Pay schemes and requests to change them",
     "daily_reports.escalations": "Overdue report escalations (manager)",
-    "cash.fuel_review": "Review and approve drivers' fuel claims"
+    "cash.fuel_review": "Review and approve drivers' fuel claims",
+    "finance.close": "Close and reopen months of the books"
   },
   "modules": {
     "accidents": "Accidents",
@@ -495,7 +496,11 @@
     "denomination_unknown": "Unknown note or coin: {value}",
     "treasury_closing_not_found": "Closing not found",
     "treasury_closing_not_last": "Only the branch's last closed day can be reopened",
-    "count_diff_from_closing": "A count difference is undone by reopening its day"
+    "count_diff_from_closing": "A count difference is undone by reopening its day",
+    "period_closed": "{month} is closed in the books: no entry and no cash movement may be dated in it. Use a date in an open month.",
+    "period_not_ready": "{month} has {count} open points to settle before it closes: see «Check»",
+    "period_not_latest": "Only the latest closed month can be reopened",
+    "invalid_month": "Invalid month (e.g. 2026-09)"
   },
   "settings": {
     "branding": "Branding",
@@ -1104,7 +1109,8 @@
     "expense_type": "Expense type",
     "workflow": "Approval workflow",
     "delegation": "Delegation",
-    "fuel_claim": "Fuel claim"
+    "fuel_claim": "Fuel claim",
+    "period": "Month of the books"
   },
   "audit_actor": {
     "user": "User",
@@ -1314,5 +1320,18 @@
     "balance": "Balance",
     "opening": "Opening balance",
     "closing": "Closing balance"
+  },
+  "period_problem": {
+    "documents_not_entered": "{count} documents not entered yet: post the month's entries (fix the role mapping if posting reports errors)",
+    "draft_entries": "{count} draft entries in the month: approve or delete them",
+    "draft_payroll_runs": "{count} payroll runs of the month not approved yet",
+    "earlier_month_open": "The earlier month {month} is still open: close it first",
+    "month_not_over": "The month is not over yet (it ends on {end})",
+    "pending_daily_reports": "{count} daily reports of the month still waiting for review or correction",
+    "pending_deductions": "{count} deductions made in the month still waiting for approval",
+    "pending_expenses": "{count} expenses dated in the month still waiting for approval",
+    "pending_fuel_claims": "{count} fuel claims of the month not reviewed yet",
+    "stale_entries": "{count} entries whose document changed: reverse them and post again",
+    "treasury_days_open": "{branch} treasury: {count} days with movements not counted and closed, the first {first}"
   }
 }

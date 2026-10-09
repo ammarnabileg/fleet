@@ -83,6 +83,7 @@ def _journal(
         raise AppError(409, "account_closed")
     business_date = business_date or today()
     _check_day(db, [a for a, _ in lines], business_date)
+    _check_month(db, business_date)
     journal = Journal(
         kind=kind,
         business_date=business_date,
@@ -138,8 +139,17 @@ def last_closed_day(db: Session, branch_ids: Iterable[int]) -> date | None:
     )
 
 
+def _check_month(db: Session, day: date) -> None:
+    """A closed month of the books takes no cash journal dated in it (the database refuses it too)."""
+    from app.modules.finance import service as finance
+
+    finance.check_open_month(db, day)
+
+
 def _decide(db: Session, journal_id: int, status: str, actor_user_id: int | None) -> bool:
-    """Conditional on pending: deciding twice changes nothing (spec T-LED-03)."""
+    """Conditional on pending: deciding twice changes nothing (spec T-LED-03). Posted only in an open month."""
+    if status == "posted":
+        _check_month(db, db.scalar(select(Journal.business_date).where(Journal.id == journal_id)))
     return (
         db.execute(
             update(Journal)
@@ -1371,6 +1381,7 @@ def reopen_closing(db: Session, public_id, *, reason: str, actor_user_id: int) -
         raise AppError(404, "treasury_closing_not_found")
     lock_branches(db, treasury=[closing.branch_id])
     db.refresh(closing)
+    _check_month(db, closing.day)  # a day of a closed month stays closed
     last = _last_closing(db, closing.branch_id)
     if closing.reopened_at is not None or last is None or last.id != closing.id:
         raise AppError(409, "treasury_closing_not_last")
@@ -1430,6 +1441,12 @@ def closings(db: Session, branch_public_id, *, date_from: date, date_to: date) -
         "last_closed_day": last.day if last else None,
         "lines": [_closing_out(db, c, last.id if last else None) for c in rows],
     }
+
+
+def pending_fuel_claims(db: Session, first: date, last: date) -> int:
+    from app.modules.cash import fuel
+
+    return fuel.pending_between(db, first, last)
 
 
 def unclosed_days(db: Session, first: date, last: date) -> list[dict]:

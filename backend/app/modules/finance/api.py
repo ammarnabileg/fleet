@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, Query, UploadFile
@@ -7,6 +7,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core import sheets
+from app.core.clock import today
 from app.core.db import get_session
 from app.modules.files import service as files
 from app.modules.finance import schemas, service
@@ -442,3 +443,45 @@ def trial_balance(
     date_from: date, date_to: date, principal: Principal = Depends(view), db: Session = Depends(get_session)
 ):
     return service.trial_balance(db, date_from, date_to, **principal.scope)
+
+
+# ---- month close
+
+
+@router.get("/periods", response_model=list[schemas.PeriodOut])
+def periods(
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    principal: Principal = Depends(view),
+    db: Session = Depends(get_session),
+):
+    """The months of the books with their status, newest first: the last twelve by default."""
+    last = date_to or today()
+    first = date_from or (last.replace(day=1) - timedelta(days=330)).replace(day=1)
+    return service.list_periods(db, first, last, **principal.scope)
+
+
+@router.get("/periods/{month}/check", response_model=schemas.PeriodCheckOut)
+def check_period(month: str, principal: Principal = Depends(view), db: Session = Depends(get_session)):
+    """What is left to do before the month can close; nothing: it is ready."""
+    return service.check_period(db, month, **principal.scope)
+
+
+@router.post("/periods/{month}/close", response_model=schemas.PeriodOut)
+def close_period(
+    month: str,
+    principal: Principal = Depends(require_permission("finance.close")),
+    db: Session = Depends(get_session),
+):
+    return service.close_period(db, month, actor_user_id=principal.user_id, **principal.scope)
+
+
+@router.post("/periods/{month}/reopen", response_model=schemas.PeriodOut)
+def reopen_period(
+    month: str,
+    body: schemas.PeriodReopenIn,
+    principal: Principal = Depends(require_permission("finance.close")),
+    db: Session = Depends(get_session),
+):
+    """The latest closed month reopened, with the reason."""
+    return service.reopen_period(db, month, reason=body.reason, actor_user_id=principal.user_id, **principal.scope)

@@ -210,3 +210,28 @@ class EntryLine(Base):
     credit: Mapped[Decimal] = mapped_column(Numeric(12, 3), server_default=text("0"))
     memo: Mapped[str | None] = mapped_column(Text)
     employee_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("people.employees.id"))  # the party
+
+
+class Period(Base):
+    """A month of the books (its first day): closed, it takes no entry and no cash journal dated in it. A month
+    without a row is open."""
+
+    __tablename__ = "periods"
+    __table_args__ = (
+        CheckConstraint("extract(day FROM month) = 1", name="month"),
+        CheckConstraint("status IN ('open', 'closed')", name="status"),
+        CheckConstraint("status <> 'closed' OR (closed_by IS NOT NULL AND closed_at IS NOT NULL)", name="closed"),
+        CheckConstraint(
+            "(reopened_at IS NULL) = (reopened_by IS NULL) AND (reopened_at IS NULL) = (reopen_reason IS NULL)",
+            name="reopened",
+        ),
+        SCHEMA,
+    )
+
+    month: Mapped[date] = mapped_column(Date, primary_key=True)
+    status: Mapped[str] = mapped_column(Text)
+    closed_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("identity.users.id"))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reopened_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("identity.users.id"))
+    reopened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reopen_reason: Mapped[str | None] = mapped_column(Text)

@@ -833,3 +833,13 @@ def pending_changes(db: Session, *, all_companies: bool, company_ids, limit: int
     rows = list(db.execute(q if all_companies else q.where(Report.company_id.in_(list(company_ids)))))
     names = people.names(db, {r.employee_id for _, r in rows})
     return [_change_out(db, c, r, names) for c, r in rows]
+
+
+def pending_between(db: Session, first, last) -> int:
+    """For the month's close: the reports of business dates first..last not decided yet (waiting for review, or
+    sent back to the driver)."""
+    return db.scalar(
+        select(func.count())
+        .select_from(Report)
+        .where(Report.business_date.between(first, last), Report.status.in_(("submitted", "returned")))
+    )

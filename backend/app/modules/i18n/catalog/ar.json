@@ -92,7 +92,8 @@
     "employees.onboarding": "مراجعة واعتماد التسجيل الذاتي للسائقين",
     "payroll.schemes": "أنظمة الدفع وطلبات تغييرها",
     "daily_reports.escalations": "تصعيد التقارير المتأخرة (للمدير)",
-    "cash.fuel_review": "مراجعة بنزين السائقين واعتماده"
+    "cash.fuel_review": "مراجعة بنزين السائقين واعتماده",
+    "finance.close": "إقفال الشهور وإعادة فتحها"
   },
   "modules": {
     "accidents": "الحوادث",
@@ -495,7 +496,11 @@
     "denomination_unknown": "فئة غير معروفة: {value}",
     "treasury_closing_not_found": "الإقفال غير موجود",
     "treasury_closing_not_last": "يُعاد فتح آخر يوم مقفول في الفرع فقط",
-    "count_diff_from_closing": "فرق الجرد يُعكس بإعادة فتح اليوم"
+    "count_diff_from_closing": "فرق الجرد يُعكس بإعادة فتح اليوم",
+    "period_closed": "شهر {month} مقفول في الدفاتر: لا قيود ولا حركات كاش بتاريخ فيه. استخدم تاريخاً في شهر مفتوح.",
+    "period_not_ready": "شهر {month} عليه {count} ملاحظات لازم تتحل قبل الإقفال: شوف «فحص»",
+    "period_not_latest": "يُعاد فتح آخر شهر مقفول فقط",
+    "invalid_month": "الشهر غير صحيح (مثال: 2026-09)"
   },
   "settings": {
     "branding": "الهوية",
@@ -1104,7 +1109,8 @@
     "expense_type": "نوع مصروف",
     "workflow": "مسار اعتماد",
     "delegation": "تفويض",
-    "fuel_claim": "طلب بنزين"
+    "fuel_claim": "طلب بنزين",
+    "period": "شهر محاسبي"
   },
   "audit_actor": {
     "user": "مستخدم",
@@ -1314,5 +1320,18 @@
     "balance": "الرصيد",
     "opening": "رصيد أول المدة",
     "closing": "رصيد آخر المدة"
+  },
+  "period_problem": {
+    "documents_not_entered": "{count} مستند ما اتقيّدش: «توليد القيود» للشهر (ولو فيه خطأ في ربط الأدوار صلّحه)",
+    "draft_entries": "{count} قيد مسودة في الشهر: اعتمدها أو احذفها",
+    "draft_payroll_runs": "{count} كشف رواتب للشهر لسه ما اتعتمدش",
+    "earlier_month_open": "شهر {month} قبله لسه مفتوح: اقفله الأول",
+    "month_not_over": "الشهر لسه ما خلصش (آخره {end})",
+    "pending_daily_reports": "{count} تقرير يومي في الشهر لسه بانتظار المراجعة أو التصحيح",
+    "pending_deductions": "{count} خصم اتعمل في الشهر لسه بانتظار الاعتماد",
+    "pending_expenses": "{count} مصروف بتاريخ في الشهر لسه بانتظار الاعتماد",
+    "pending_fuel_claims": "{count} طلب بنزين في الشهر لسه ما اتراجعش",
+    "stale_entries": "{count} قيد مستنده اتغيّر: اعكسه وولّد من جديد",
+    "treasury_days_open": "خزينة {branch}: {count} يوم عليه حركات وما اتجردش، أولهم {first}"
   }
 }

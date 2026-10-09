@@ -429,6 +429,10 @@ def decide_manual(db: Session, public_id, *, approve: bool, reason: str | None, 
         raise AppError(404, "deduction_not_found")
     if d.status != "pending":
         raise AppError(409, "deduction_decided", status=d.status)
+    if approve:  # it enters the books on the day it was made
+        from app.modules.finance import service as finance
+
+        finance.check_open_month(db, business_date(d.created_at))
     employee = people.ref(db, d.employee_id)
     if approvals.gate(
         db,
@@ -496,3 +500,19 @@ def deductions_for_posting(db: Session, first: date, last: date) -> list[dict]:
 def platform_name(db: Session, platform_id: int | None) -> dict | None:
     p = db.get(Platform, platform_id) if platform_id else None
     return p.name if p else None
+
+
+def pending_for_close(db: Session, first: date, last: date) -> dict[str, int]:
+    """For the books' month close: the deductions made first..last still waiting for their workflow, and the runs of
+    that month still drafts (each enters the books in that month once decided)."""
+    made_on = func.date(func.timezone("Asia/Kuwait", Deduction.created_at))
+    return {
+        "deductions": db.scalar(
+            select(func.count())
+            .select_from(Deduction)
+            .where(made_on.between(first, last), Deduction.status == "pending")
+        ),
+        "runs": db.scalar(
+            select(func.count()).select_from(Run).where(Run.month.between(first, last), Run.status == "draft")
+        ),
+    }
