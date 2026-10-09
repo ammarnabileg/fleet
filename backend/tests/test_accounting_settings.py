@@ -9,7 +9,8 @@ import openpyxl
 import pytest
 
 from app.core.clock import today
-from tests.conftest import login, make_driver, make_employee, make_user, upload
+from tests.conftest import fund_treasury, login, make_driver, make_employee, make_user, upload
+from tests.test_finance import main_branch
 
 F = "/api/v1/finance"
 
@@ -44,6 +45,12 @@ def manual(client, lines, **kw) -> dict:
     return client.post(f"{F}/entries/manual", json=body)
 
 
+@pytest.fixture
+def float_(db):
+    """Cash in the main treasury from long ago, for the expenses paid from it."""
+    fund_treasury(db)
+
+
 def expense(client, company_id, amount="10"):
     types = {t["code"]: t["id"] for t in client.get(f"{F}/expense-types").json()}
     r = client.post(
@@ -54,6 +61,7 @@ def expense(client, company_id, amount="10"):
             "expense_date": str(today()),
             "amount": amount,
             "payment_method": "treasury",
+            "branch_id": main_branch(client),
         },
     )
     assert r.status_code == 201, r.text
@@ -70,7 +78,7 @@ def balances(client, **params) -> dict[str, str]:
 # ------------------------------------------------------------------ approval: manual or automatic
 
 
-def test_generated_and_manual_entries_follow_the_approval_setting(admin_client, company):
+def test_generated_and_manual_entries_follow_the_approval_setting(admin_client, company, float_):
     expense(admin_client, company["id"], "10")
     r = admin_client.post(f"{F}/entries/post", json=period())
     assert r.json()["created"] == 1
@@ -156,7 +164,7 @@ def test_a_manual_entry_is_balanced_one_sided_on_open_accounts(admin_client, com
     assert [ln["party"]["name"]["en"] for ln in book["lines"]] == ["Salem", "Salem"] and book["parties"] == []
 
 
-def test_a_manual_draft_is_deleted_alone_and_kept_by_the_periods_discard(admin_client, company):
+def test_a_manual_draft_is_deleted_alone_and_kept_by_the_periods_discard(admin_client, company, float_):
     expense(admin_client, company["id"])
     admin_client.post(f"{F}/entries/post", json=period())
     mine = manual(admin_client, [("6130", "5", "0"), ("2110", "0", "5")]).json()
@@ -198,7 +206,7 @@ def test_permissions_of_manual_and_opening_entries(admin_client, new_client, com
 # ------------------------------------------------------------------ the books' start and opening balances
 
 
-def test_nothing_before_the_books_start(admin_client, company):
+def test_nothing_before_the_books_start(admin_client, company, float_):
     start = today() - timedelta(days=3)
     old = expense(admin_client, company["id"], "4")
     settings(admin_client, "finance", books_start_date=str(start))
@@ -211,7 +219,7 @@ def test_nothing_before_the_books_start(admin_client, company):
     early = admin_client.post(
         f"{F}/expenses",
         json={"company_id": company["id"], "type_id": types["fuel"], "expense_date": str(start - timedelta(days=2)),
-              "amount": "9", "payment_method": "treasury"},
+              "amount": "9", "payment_method": "treasury", "branch_id": main_branch(admin_client)},
     ).json()  # fmt: skip
     admin_client.post(f"{F}/expenses/{early['id']}/approve", json={})
     r = admin_client.post(

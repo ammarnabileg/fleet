@@ -55,6 +55,7 @@ class ExpenseTypeUpdate(_In):
 
 class ExpenseIn(_In):
     company_id: int
+    branch_id: int | None = None  # whose treasury paid: required when paid from the treasury
     type_id: int
     expense_date: date
     amount: Amount
@@ -84,6 +85,7 @@ class CancelIn(_In):
 class PayIn(_In):
     paid_from: Literal["treasury", "bank"]
     payment_ref: Short | None = None
+    branch_id: int | None = None  # whose treasury paid: required from the treasury (unless the expense names it)
 
 
 class PeriodIn(_In):
@@ -175,6 +177,7 @@ class ExpenseOut(BaseModel):
     id: str
     number: int
     company_id: int
+    branch_id: int | None
     type: Named
     expense_date: date
     amount: Decimal

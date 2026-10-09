@@ -54,6 +54,15 @@ class BankDepositIn(BaseModel):
     receipt_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]  # the bank receipt's photo
 
 
+class BankWithdrawalIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    branch_id: int
+    amount: Amount
+    reference: Reason  # the bank's withdrawal reference
+    attachment_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]  # the withdrawal slip's photo
+
+
 class SettlementIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -124,6 +133,33 @@ class TreasuryOut(BaseModel):
     treasury: Decimal
     bank: Decimal
     cod_clearing: Decimal
+
+
+class MovementLine(BaseModel):
+    journal_id: str
+    kind: str
+    reverses_kind: str | None  # a reversal: the kind of the journal it undoes
+    business_date: date
+    created_at: datetime
+    driver: PersonRef | None  # whose cash it was (a receipt, a settlement)
+    receipt_no: int | None
+    description: str | None  # a disbursement's document, a bank deposit's or withdrawal's reference, a reason
+    amount: Decimal  # + into this account, - out of it
+    balance: Decimal  # after this line
+    has_attachment: bool
+    reversed: bool
+    reversible: bool  # this user may reverse it from here
+
+
+class MovementsOut(BaseModel):
+    branch: dict
+    account: str
+    date_from: date
+    date_to: date
+    opening: Decimal
+    closing: Decimal
+    truncated: bool
+    lines: list[MovementLine]
 
 
 class DriverCashOut(BaseModel):

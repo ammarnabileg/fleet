@@ -9,7 +9,7 @@ from sqlalchemy import text
 
 from app.core.clock import today
 from tests import test_approvals
-from tests.conftest import bearer, bind_device, make_driver
+from tests.conftest import bearer, bind_device, fund_treasury, make_driver
 from tests.test_approvals import configure, decide, inbox, step
 
 C = "/api/v1/cash"
@@ -66,6 +66,7 @@ def test_a_cash_adjustment_waits_for_its_workflow_above_the_amount(admin_client,
 def test_a_manual_deduction_waits_then_is_approved_refused_or_withdrawn(admin_client, client, company, approvers, db):
     d = make_driver(admin_client, company["id"])
     h = bearer(bind_device(client, d["phone"]))
+    fund_treasury(db)  # an advance is paid out of the treasury
 
     def deduct(total, why):
         r = admin_client.post(

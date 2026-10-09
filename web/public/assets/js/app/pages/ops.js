@@ -396,23 +396,91 @@
   function treasuryPanel(el) {
     A.load(el, api.get('/cash/treasury'), function (rows) {
       var manage = api.can('treasury.manage') && api.me.all_companies;
-      return h`<div class="card"><div class="card-h"><div class="card-t">${icon('landmark', 16)} الخزينة حسب الفرع</div>${manage ? h`<button type="button" class="btn btn-sm btn-primary ms-auto" data-dep>${icon('landmark', 14)} إيداع في البنك</button>` : ''}</div>
-        ${BT.chart.table(['الفرع', 'الخزينة', 'البنك', 'مقاصة الدفع عند الاستلام'], rows.map(function (r) { return [api.name(r.branch.name), fmt.money(r.treasury), fmt.money(r.bank), fmt.money(r.cod_clearing)]; }))}
-        ${api.can('treasury.manage') && !api.me.all_companies ? h`<div class="hint mt-8">الإيداع البنكي يحتاج صلاحية على كل الشركات لأن الخزينة مشتركة بين شركات الفرع.</div>` : ''}</div>`;
+      return h`<div class="card"><div class="card-h"><div class="card-t">${icon('landmark', 16)} الخزينة حسب الفرع</div>${manage ? h`<div class="ms-auto nowrap"><button type="button" class="btn btn-sm btn-outline" data-wd>${icon('banknote', 14)} سحب من البنك</button> <button type="button" class="btn btn-sm btn-primary" data-dep>${icon('landmark', 14)} إيداع في البنك</button></div>` : ''}</div>
+        <div class="table-wrap"><table class="t compact"><thead><tr><th>الفرع</th><th class="num">الخزينة</th><th class="num">البنك</th><th class="num">مقاصة الدفع عند الاستلام</th><th></th></tr></thead><tbody>
+          ${rows.map(function (r) { return h`<tr class="clickable" data-branch="${r.branch.public_id}" title="اضغط لحركات الخزينة والبنك"><td>${api.name(r.branch.name)}</td><td class="num">${fmt.money(r.treasury)}</td><td class="num">${fmt.money(r.bank)}</td><td class="num">${fmt.money(r.cod_clearing)}</td><td class="num"><button type="button" class="btn btn-sm btn-ghost" data-moves="${r.branch.public_id}">${icon('list', 13)} حركات</button></td></tr>`; })}
+        </tbody></table></div>
+        <div class="hint mt-8">الخزينة تنقص أيضاً بالمصروف المدفوع منها وبالسلف عند اعتمادها، وترجع عند إلغاء المصروف.</div>
+        ${api.can('treasury.manage') && !api.me.all_companies ? h`<div class="hint mt-8">الإيداع والسحب البنكي يحتاجان صلاحية على كل الشركات لأن الخزينة مشتركة بين شركات الفرع.</div>` : ''}</div>`;
     }).then(function (rows) {
+      var again = function () { treasuryPanel(el); };
+      var branchSelect = function (key) { return BT.f.select({ name: 'branch_id', label: 'الفرع', required: true, options: rows.map(function (r) { return { v: r.branch.id, t: api.name(r.branch.name) + ' — ' + fmt.money(r[key]) }; }), placeholder: false }); };
       var b = el.querySelector('[data-dep]');
       if (b) b.onclick = function () {
         A.formModal({
           title: 'إيداع في البنك', icon: 'landmark', size: 'sm', done: 'تم تسجيل الإيداع',
-          body: h`<div class="form">${BT.f.select({ name: 'branch_id', label: 'الفرع', required: true, options: rows.map(function (r) { return { v: r.branch.id, t: api.name(r.branch.name) + ' — ' + fmt.money(r.treasury) }; }), placeholder: false })}${BT.f.money({ name: 'amount', label: 'المبلغ', required: true, min: 0.001 })}${BT.f.input({ name: 'reference', label: 'رقم إيصال البنك', required: true })}${BT.f.upload({ name: 'photo', label: 'صورة إيصال البنك', required: true, accept: 'image/*,application/pdf' })}</div>`,
+          body: h`<div class="form">${branchSelect('treasury')}${BT.f.money({ name: 'amount', label: 'المبلغ', required: true, min: 0.001 })}${BT.f.input({ name: 'reference', label: 'رقم إيصال البنك', required: true })}${BT.f.upload({ name: 'photo', label: 'صورة إيصال البنك', required: true, accept: 'image/*,application/pdf' })}</div>`,
           // the bank's receipt is kept with the deposit (FR-CSH-07): uploaded first, then the deposit names it
           submit: function (v) {
             return api.upload(v.photo[0]).then(function (f) { return api.post('/cash/bank-deposits', { branch_id: +v.branch_id, amount: String(v.amount), reference: v.reference, receipt_sha256: f.sha256 }); });
           },
-          after: function () { treasuryPanel(el); }
+          after: again
         });
       };
+      var w = el.querySelector('[data-wd]');
+      if (w) w.onclick = function () {
+        A.formModal({
+          title: 'سحب من البنك', subtitle: 'كاش من البنك إلى خزينة الفرع', icon: 'banknote', size: 'sm', done: 'تم تسجيل السحب',
+          body: h`<div class="form">${branchSelect('bank')}${BT.f.money({ name: 'amount', label: 'المبلغ', required: true, min: 0.001 })}${BT.f.input({ name: 'reference', label: 'رقم إيصال السحب', required: true })}${BT.f.upload({ name: 'photo', label: 'صورة إيصال السحب', required: true, accept: 'image/*,application/pdf' })}</div>`,
+          submit: function (v) {
+            return api.upload(v.photo[0]).then(function (f) { return api.post('/cash/bank-withdrawals', { branch_id: +v.branch_id, amount: String(v.amount), reference: v.reference, attachment_sha256: f.sha256 }); });
+          },
+          after: again
+        });
+      };
+      A.delegate(el, 'click', '[data-branch]', function (e, tr) {
+        var row = rows.find(function (r) { return r.branch.public_id === tr.getAttribute('data-branch'); });
+        if (row) movements(row.branch, again);
+      });
     }).catch(function () {});
+  }
+
+  /* حركات خزينة الفرع أو بنكه: رصيد أول المدة، كل حركة ورصيدها بعدها، ورصيد آخر المدة */
+  function movements(branch, changed) {
+    var state = { account: 'treasury', from: BT.config.today.slice(0, 8) + '01', to: BT.config.today };
+    var dlg = BT.drawer.open({ title: 'حركات ' + api.name(branch.name), icon: 'list', size: 'lg', body: h`<div data-mv-tools></div><div data-mv class="mt-12"></div>`, buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] });
+    var tools = dlg.body.querySelector('[data-mv-tools]'), box = dlg.body.querySelector('[data-mv]');
+    var url = '/cash/treasury/' + branch.public_id + '/movements';
+    var query = function () { return { account: state.account, from: state.from, to: state.to }; };
+    function drawTools() {
+      BT.render(tools, h`<div class="toolbar"><div class="page-actions" role="tablist">
+        ${[['treasury', 'الخزينة'], ['bank', 'البنك']].map(function (t) { return h`<button type="button" role="tab" aria-selected="${t[0] === state.account ? 'true' : 'false'}" class="btn btn-sm ${t[0] === state.account ? 'btn-primary' : 'btn-ghost'}" data-acc="${t[0]}">${t[1]}</button>`; })}
+        <input class="input" type="date" data-from value="${state.from}" aria-label="من" title="من"><input class="input" type="date" data-to value="${state.to}" aria-label="إلى" title="إلى">
+        <button type="button" class="btn btn-sm btn-outline" data-mv-export>${icon('file-spreadsheet', 14)} Excel</button></div></div>`);
+    }
+    function kind(l) { return l.reverses_kind ? api.t('journal_kind', 'reversal') + ': ' + api.t('journal_kind', l.reverses_kind) : api.t('journal_kind', l.kind); }
+    function describe(l) {
+      return h`${l.driver ? api.name(l.driver.name) : ''}${l.receipt_no ? h` <span class="num">#${l.receipt_no}</span>` : ''}${l.description ? h`${l.driver ? ' · ' : ''}<span style="white-space:normal">${l.description}</span>` : ''}`;
+    }
+    function load() {
+      A.load(box, api.get(url, query()), function (m) {
+        return h`<div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))">${BT.kpi({ label: 'رصيد أول المدة', value: fmt.money(m.opening), dot: 'b' })}${BT.kpi({ label: 'رصيد آخر المدة', value: fmt.money(m.closing), dot: 'g' })}</div>
+          ${m.lines.length ? h`<div class="table-wrap"><table class="t compact" data-mv-lines><thead><tr><th>التاريخ</th><th>الحركة</th><th>البيان</th><th class="num">المبلغ</th><th class="num">الرصيد</th><th></th></tr></thead><tbody>
+            <tr class="muted"><td colspan="4">رصيد أول المدة</td><td class="num">${fmt.money(m.opening)}</td><td></td></tr>
+            ${m.lines.map(function (l) {
+              return h`<tr data-line="${l.journal_id}"><td class="num">${fmt.date(l.business_date)}<span class="sub">${fmt.time(l.created_at)}</span></td><td>${kind(l)}${l.reversed ? h` ${BT.pill('معكوسة', 'n')}` : ''}</td><td>${describe(l)}</td><td class="num"><span class="${Number(l.amount) < 0 ? 't-danger' : 't-success'}">${fmt.signed(Number(l.amount))}</span></td><td class="num"><b>${fmt.money(l.balance)}</b></td>
+                <td class="num nowrap">${l.has_attachment ? h`<button type="button" class="btn btn-sm btn-ghost" data-att="${l.journal_id}" title="المرفق">${icon('paperclip', 13)}</button>` : ''}${l.reversible && api.can('cash.reverse') ? h`<button type="button" class="btn btn-sm btn-ghost" data-rev="${l.journal_id}">${icon('rotate-ccw', 13)} عكس</button>` : ''}</td></tr>`;
+            })}</tbody></table></div>${m.truncated ? h`<div class="hint mt-8">عُرضت أول ${fmt.int(m.lines.length)} حركة: ضيّق الفترة لرؤية الباقي.</div>` : ''}` : BT.empty('list', 'لا حركات في هذه الفترة', '')}`;
+      }).catch(function () {});
+    }
+    drawTools();
+    load();
+    BT.on(tools, 'click', '[data-acc]', function (e, b) { state.account = b.getAttribute('data-acc'); drawTools(); load(); });
+    tools.addEventListener('change', function (e) {
+      if (!e.target.matches('[data-from],[data-to]')) return;
+      var from = tools.querySelector('[data-from]').value, to = tools.querySelector('[data-to]').value;
+      if (!from || !to) return;
+      if (to < from) { BT.toast('تاريخ النهاية قبل البداية', { type: 'error' }); return; }
+      state.from = from; state.to = to; load();
+    });
+    BT.on(tools, 'click', '[data-mv-export]', function () { A.downloadFile(url + '/export', query(), state.account + '-' + state.from + '-' + state.to + '.xlsx'); });
+    BT.on(box, 'click', '[data-att]', function (e, b) {
+      BT.lightbox([{ src: api.url('/cash/journals/' + b.getAttribute('data-att') + '/attachment'), caption: 'المرفق' }], 0);
+    });
+    BT.on(box, 'click', '[data-rev]', function (e, b) {
+      A.confirmRun({ title: 'عكس الحركة', message: 'يُسجَّل قيد معاكس بنفس المبلغ ويبقى الأصل ظاهراً في السجل. يُعكس القيد مرة واحدة فقط.', confirmText: 'عكس', tone: 'danger', icon: 'rotate-ccw', reason: { label: 'السبب', required: true },
+        run: function (reason) { return api.post('/cash/journals/' + b.getAttribute('data-rev') + '/reverse', { reason: reason }); }, done: 'تم عكس الحركة', after: function () { load(); if (changed) changed(); } });
+    });
   }
 
 })();

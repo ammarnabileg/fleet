@@ -106,6 +106,7 @@ class Expense(Base):
     public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
     number: Mapped[int] = mapped_column(Integer, EXPENSE_SEQ, unique=True, server_default=EXPENSE_SEQ.next_value())
     company_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("org.companies.id"))
+    branch_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("org.branches.id"))  # whose treasury paid
     type_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("finance.expense_types.id"))
     expense_date: Mapped[date] = mapped_column(Date)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 3))

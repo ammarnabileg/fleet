@@ -480,7 +480,12 @@
     "entry_number_missing": "رقم القيد في النظام القديم فارغ",
     "date_invalid": "التاريخ «{value}» غير مفهوم: اكتبه يوم/شهر/سنة",
     "entry_dates_differ": "أسطر القيد القديم رقم {number} بتواريخ مختلفة",
-    "civil_id_not_found": "لا موظف بالرقم المدني {civil_id}: يُستورد السطر بلا طرف"
+    "civil_id_not_found": "لا موظف بالرقم المدني {civil_id}: يُستورد السطر بلا طرف",
+    "expense_branch_required": "اختر الفرع الذي تُدفع من خزينته",
+    "bank_insufficient": "رصيد البنك أقل من المبلغ",
+    "disbursement_from_expense": "ألغِ المصروف بدلاً من ذلك: حركته في الخزينة تُعكس معه",
+    "reversal_date_future": "تاريخ القيد العكسي لا يكون في المستقبل",
+    "reversal_before_entry": "تاريخ القيد العكسي لا يسبق تاريخ القيد الأصلي ({date})"
   },
   "settings": {
     "branding": "الهوية",
@@ -694,7 +699,9 @@
     "writeoff": "إعدام",
     "reversal": "عكس",
     "opening": "رصيد افتتاحي",
-    "fuel": "بنزين"
+    "fuel": "بنزين",
+    "disbursement": "صرف من الخزينة",
+    "bank_withdrawal": "سحب من البنك"
   },
   "journal_status": {
     "pending": "غير معتمد",
@@ -1271,5 +1278,29 @@
     "report_missing": "بدأت يومك {date} ولم ترسل تقريرك بعد. أرسله الآن من التطبيق.",
     "fuel_approved": "قُبلت فاتورة البنزين بمبلغ {amount} د.ك وخُصمت من رصيد الكاش لديك",
     "fuel_rejected": "رُفضت فاتورة البنزين: {reason}"
+  },
+  "cash_account": {
+    "driver": "كاش السائق",
+    "treasury": "الخزينة",
+    "bank": "البنك",
+    "cod_clearing": "مقاصة الدفع عند الاستلام",
+    "adjustments": "التسويات",
+    "payroll_recovery": "يُسترد من الرواتب",
+    "writeoff": "الإعدام",
+    "opening": "أرصدة افتتاحية",
+    "fuel": "البنزين",
+    "disbursements": "المصروف من الخزينة"
+  },
+  "treasury_column": {
+    "treasury": "حركات الخزينة",
+    "bank": "حركات البنك",
+    "date": "التاريخ",
+    "time": "الوقت",
+    "kind": "الحركة",
+    "description": "البيان",
+    "amount": "المبلغ",
+    "balance": "الرصيد",
+    "opening": "رصيد أول المدة",
+    "closing": "رصيد آخر المدة"
   }
 }

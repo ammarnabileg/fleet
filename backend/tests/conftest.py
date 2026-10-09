@@ -285,3 +285,33 @@ def bearer(tokens: dict) -> dict:
 @pytest.fixture
 def company(companies):
     return companies["a"]
+
+
+FLOAT_DAY_OFFSET = 400  # days back: before any period a test posts to the books, so it makes no entry there
+
+
+def fund_treasury(db, amount="1000", branch_id=None) -> int:
+    """Cash already in a branch treasury (the default branch's unless named), dated long ago: an expense paid from
+    it or an advance can then be approved. Returns the branch id."""
+    from datetime import timedelta
+    from decimal import Decimal
+
+    from app.core.clock import today
+    from app.modules.cash import service as cash
+
+    if branch_id is None:
+        branch_id = db.scalar(text("SELECT id FROM org.branches ORDER BY is_default DESC, id LIMIT 1"))
+    amount = Decimal(amount)
+    cash._journal(
+        db,
+        "adjustment",
+        source_type="test_float",
+        source_id=branch_id,
+        lines=[(cash.account(db, "treasury", branch_id=branch_id), amount), (cash.account(db, "opening"), -amount)],
+        actor_user_id=1,  # created_by is required; not a foreign key
+        reason="test float",
+        post=True,
+        business_date=today() - timedelta(days=FLOAT_DAY_OFFSET),
+    )
+    db.commit()
+    return branch_id

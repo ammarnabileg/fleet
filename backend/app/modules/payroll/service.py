@@ -15,7 +15,7 @@ from collections.abc import Iterable
 from datetime import date
 from decimal import ROUND_DOWN, Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -28,7 +28,7 @@ from app.modules.audit import service as audit
 from app.modules.i18n import service as i18n
 from app.modules.identity import service as identity
 from app.modules.notifications import service as notifications
-from app.modules.payroll.models import Deduction, Platform, Scheme
+from app.modules.payroll.models import Deduction, Line, LineDeduction, Platform, Run, Scheme
 from app.modules.people import service as people
 
 log = logging.getLogger("fleet.payroll")
@@ -304,12 +304,56 @@ def list_deductions(
     return _out(rows[offset : offset + min(limit, 500)], db)
 
 
+def _pay_advance(db: Session, d: Deduction, employee: people.EmployeeRef, actor_user_id: int) -> None:
+    """An advance approved is cash out of the employee's branch treasury, when the books pay advances from the
+    treasury (role deduction_advance on the treasury's account, the default): the treasury on screen goes down with
+    the books, and an advance the treasury cannot cover is refused (treasury_insufficient)."""
+    from app.modules.cash import service as cash
+    from app.modules.finance import service as finance
+
+    if d.source_type != "advance" or not finance.advances_from_treasury(db):
+        return
+    lang = i18n.default_language(db).code
+    cash.disburse(
+        db,
+        branch_id=employee.branch_id,
+        amount=d.total,
+        source_type="deduction",
+        source_id=d.id,
+        reason=f"{i18n.t(db, lang, 'deduction_source.advance')} · {i18n.pick(employee.name, lang, lang)}",
+        actor_user_id=actor_user_id,
+    )
+
+
+def _taken(db: Session, deduction_id: int) -> Decimal:
+    """What approved (or paid) payroll runs took of a deduction."""
+    return db.scalar(
+        select(func.coalesce(func.sum(LineDeduction.deducted), 0))
+        .join(Line, Line.id == LineDeduction.line_id)
+        .join(Run, Run.id == Line.run_id)
+        .where(LineDeduction.deduction_id == deduction_id, Run.status.in_(("approved", "paid")))
+    )
+
+
 def cancel(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) -> dict:
+    """Cancelled with a reason. An approved advance cancelled gives back to its treasury what payroll has not taken
+    of it yet, as the books then count only what was taken (its disbursement reversed for the rest)."""
+    from app.modules.cash import service as cash
+
     d = db.scalar(_scoped(select(Deduction).where(Deduction.public_id == public_id), **scope).with_for_update())
     if d is None:
         raise AppError(404, "deduction_not_found")
     if d.status in ("cancelled", "rejected"):
         raise AppError(409, "deduction_cancelled")
+    if d.status == "approved" and d.source_type == "advance":
+        cash.undo_disbursement(
+            db,
+            source_type="deduction",
+            source_id=d.id,
+            reason=reason,
+            actor_user_id=actor_user_id,
+            amount=d.total - _taken(db, d.id),
+        )
     if d.status == "pending":  # withdrawn before its workflow decided
         approvals.withdrawn(db, "manual_deduction", [d.id])
     d.status, d.cancel_reason, d.cancelled_by, d.cancelled_at = "cancelled", reason, actor_user_id, utcnow()
@@ -349,6 +393,7 @@ def create_manual(db: Session, data: dict, *, actor_user_id: int, **scope) -> di
     # with an approval workflow for the amount it waits for its last step (BRD FR-WFL-02); otherwise it applies now
     if not approvals.submitted(db, "manual_deduction", **_approval(db, d, employee), actor_user_id=actor_user_id):
         _approved(db, d, actor_user_id)
+        _pay_advance(db, d, employee, actor_user_id)
         _tell_driver(db, d)
     db.commit()
     return deduction(db, deduction_id)
@@ -395,6 +440,7 @@ def decide_manual(db: Session, public_id, *, approve: bool, reason: str | None, 
         if approve:
             d.start_month = max(d.start_month, month_start(today()))
             _approved(db, d, actor_user_id)
+            _pay_advance(db, d, employee, actor_user_id)
             _tell_driver(db, d)
         else:
             d.status, d.cancel_reason, d.cancelled_by, d.cancelled_at = "rejected", reason, actor_user_id, utcnow()

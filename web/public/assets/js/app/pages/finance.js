@@ -88,13 +88,22 @@
         { key: 'type', label: 'النوع', render: function (e) { return h`${api.name(e.type.name)}${e.supplier ? h`<span class="sub">${e.supplier}</span>` : ''}`; } },
         { key: 'company', label: 'الشركة', render: function (e) { return api.company(e.company_id); } },
         { key: 'links', label: 'يخص', render: function (e) { var l = links(e); return l.length ? h`${l.map(function (x, i) { return h`${i ? ' · ' : ''}${x}`; })}` : '—'; } },
-        { key: 'method', label: 'الدفع', render: function (e) { return api.t('expense_payment', e.payment_method); } },
+        { key: 'method', label: 'الدفع', render: function (e) { return h`${api.t('expense_payment', e.payment_method)}${e.branch_id ? h`<span class="sub">${api.branch(e.branch_id)}</span>` : ''}`; } },
         { key: 'amount', label: 'المبلغ', num: true, render: function (e) { return amt(e.amount); } },
         { key: 'status', label: 'الحالة', render: expenseStatus }
       ],
       rowClick: function (e) { expense(e.id, function () { t.refresh(); A.refreshCounts(); }); },
       empty: { icon: 'receipt', title: 'لا توجد مصروفات هنا' }
     });
+  }
+
+  /* whose treasury pays: required when the money comes out of a treasury; the only branch is chosen already */
+  function branchField(value) {
+    var opts = api.branchOptions();
+    return BT.f.select({ name: 'branch', label: 'الفرع (خزينته تدفع)', placeholder: 'اختر الفرع…', options: opts, value: value || (opts.length === 1 ? opts[0].v : ''), hint: 'مطلوب للدفع من الخزينة: ينقص رصيد خزينة الفرع عند الاعتماد أو السداد' });
+  }
+  function needBranch(method, branch) {
+    return method === 'treasury' && !branch ? Promise.reject(new Error('اختر الفرع الذي تُدفع من خزينته')) : null;
   }
 
   function newExpense(done) {
@@ -112,6 +121,7 @@
           ${BT.f.input({ name: 'date', label: 'التاريخ', type: 'date', required: true, value: BT.config.today })}
           ${BT.f.money({ name: 'amount', label: 'المبلغ', required: true })}
           ${BT.f.select({ name: 'method', label: 'الدفع', required: true, placeholder: false, options: A.options('expense_payment', ['treasury', 'bank', 'payable']) })}
+          ${branchField()}
           ${BT.f.input({ name: 'quantity', label: 'الكمية (لتر للوقود)', optional: true, num: true })}
           ${BT.f.input({ name: 'supplier', label: 'المورد', optional: true })}
           ${BT.f.input({ name: 'ref', label: 'رقم الفاتورة أو الإيصال', optional: true })}
@@ -125,10 +135,12 @@
           var vehicle = f.vehicle ? A.picked('vehicle', f.vehicle) : null, employee = f.employee ? A.picked('employee', f.employee) : null;
           if (f.vehicle && !vehicle) return Promise.reject(new Error('اختر السيارة من القائمة'));
           if (f.employee && !employee) return Promise.reject(new Error('اختر الموظف من القائمة'));
+          var missing = needBranch(f.method, f.branch);
+          if (missing) return missing;
           var chosen = [].slice.call((dlg.form.querySelector('[name=files]') || {}).files || []);
           return Promise.all(chosen.map(function (file) { return api.upload(file).then(function (x) { return x.sha256; }); })).then(function (shas) {
             return api.post('/finance/expenses', {
-              company_id: Number(f.company), type_id: Number(f.type), expense_date: f.date, amount: String(f.amount), payment_method: f.method,
+              company_id: Number(f.company), branch_id: f.branch ? Number(f.branch) : null, type_id: Number(f.type), expense_date: f.date, amount: String(f.amount), payment_method: f.method,
               quantity: f.quantity ? String(f.quantity) : null, supplier: f.supplier || null, reference_no: f.ref || null,
               vehicle_id: vehicle, employee_id: employee, center_id: f.center || null, notes: f.notes || null, files: shas
             });
@@ -157,6 +169,7 @@
           ['النوع', api.name(e.type.name)],
           ['المبلغ', amt(e.amount)],
           e.quantity ? ['الكمية', h`<span class="num">${e.quantity}</span>`] : null,
+          e.branch_id ? ['الفرع', api.branch(e.branch_id)] : null,
           ['الدفع', api.t('expense_payment', e.payment_method) + (e.paid_at ? ' · سُدد ' + api.t('expense_payment', e.paid_from) + ' ' + fmt.dt(e.paid_at) + (e.payment_ref ? ' · ' + e.payment_ref : '') : '')],
           e.supplier ? ['المورد', e.supplier] : null,
           e.reference_no ? ['رقم الفاتورة', h`<span class="num">${e.reference_no}</span>`] : null,
@@ -175,7 +188,7 @@
     }, api.fail);
   }
   function approveExpense(e, done) {
-    A.confirmRun({ title: 'اعتماد المصروف', message: 'يدخل القيود عند التوليد التالي.', confirmText: 'اعتماد', tone: 'success', run: function () { return api.post('/finance/expenses/' + e.id + '/approve', {}); }, after: function (res) {
+    A.confirmRun({ title: 'اعتماد المصروف', message: e.payment_method === 'treasury' && e.branch_id ? 'يُصرف المبلغ من خزينة ' + api.branch(e.branch_id) + ' الآن، ويدخل القيود عند التوليد التالي.' : 'يدخل القيود عند التوليد التالي.', confirmText: 'اعتماد', tone: 'success', run: function () { return api.post('/finance/expenses/' + e.id + '/approve', {}); }, after: function (res) {
       BT.toast(res.status === 'pending' ? 'سُجّل اعتمادك' : 'اعتُمد المصروف', res.status === 'pending' ? { sub: 'بانتظار الخطوة التالية من مسار الاعتماد' } : undefined); done(res);
     } });
   }
@@ -183,13 +196,15 @@
     A.confirmRun({ title: 'رفض المصروف', confirmText: 'رفض', tone: 'danger', reason: { label: 'السبب', required: true }, run: function (reason) { return api.post('/finance/expenses/' + e.id + '/reject', { note: reason }); }, done: 'رُفض المصروف', after: done });
   }
   function cancelExpense(e, done) {
-    A.confirmRun({ title: 'إلغاء المصروف', message: e.status === 'approved' ? 'لإدخال خاطئ. إن كان له قيد فسيظهر عند التوليد لعكسه.' : 'لإدخال خاطئ.', confirmText: 'إلغاء المصروف', tone: 'danger', reason: { label: 'السبب', required: true }, run: function (reason) { return api.post('/finance/expenses/' + e.id + '/cancel', { reason: reason }); }, done: 'أُلغي المصروف', after: done });
+    A.confirmRun({ title: 'إلغاء المصروف', message: e.status === 'approved' ? 'لإدخال خاطئ. إن كان له قيد فسيظهر عند التوليد لعكسه' + (e.payment_method === 'treasury' && e.branch_id ? '، ويرجع مبلغه إلى خزينة الفرع الآن.' : '.') : 'لإدخال خاطئ.', confirmText: 'إلغاء المصروف', tone: 'danger', reason: { label: 'السبب', required: true }, run: function (reason) { return api.post('/finance/expenses/' + e.id + '/cancel', { reason: reason }); }, done: 'أُلغي المصروف', after: done });
   }
   function payExpense(e, done) {
     A.formModal({ title: 'سداد المصروف', subtitle: '#' + e.number + ' · ' + fmt.money(e.amount), icon: 'banknote', size: 'sm',
-      body: h`<div class="form">${BT.f.select({ name: 'from', label: 'من', required: true, placeholder: false, options: A.options('expense_payment', ['bank', 'treasury']) })}${BT.f.input({ name: 'ref', label: 'مرجع السداد', optional: true })}</div>`,
+      body: h`<div class="form">${BT.f.select({ name: 'from', label: 'من', required: true, placeholder: false, options: A.options('expense_payment', ['bank', 'treasury']) })}${branchField(e.branch_id)}${BT.f.input({ name: 'ref', label: 'مرجع السداد', optional: true })}</div>`,
       submitText: 'تم السداد', done: 'سُجّل السداد',
-      submit: function (v) { return api.post('/finance/expenses/' + e.id + '/pay', { paid_from: v.from, payment_ref: v.ref || null }); }, after: done });
+      submit: function (v) {
+        return needBranch(v.from, v.branch) || api.post('/finance/expenses/' + e.id + '/pay', { paid_from: v.from, branch_id: v.branch ? Number(v.branch) : null, payment_ref: v.ref || null });
+      }, after: done });
   }
 
   /* ================= القيود ================= */
@@ -262,8 +277,15 @@
           run: function () { return api.del('/finance/entries/' + e.id); }, done: 'حُذف القيد', after: function () { dlg.close(); if (done) done(); } });
       } });
       if (e.status === 'approved' && !e.reversed_by && e.source_kind !== 'reversal' && api.can('finance.approve')) btns.push({ label: 'قيد عكسي', cls: 'btn-outline', icon: 'undo-2', close: false, onClick: function (dlg) {
-        A.confirmRun({ title: 'عكس القيد #' + e.number, message: 'يُنشأ قيد معتمد بعكس كل سطر، ويصبح المستند جاهزاً ليُقيَّد من جديد.', confirmText: 'عكس القيد', tone: 'danger', reason: { label: 'السبب', required: true },
-          run: function (reason) { return api.post('/finance/entries/' + e.id + '/reverse', { reason: reason }); }, done: 'أُنشئ القيد العكسي', after: function () { dlg.close(); if (done) done(); } });
+        // dated by the accountant (today by default): not before the entry it reverses, not in the future; an
+        // opening balance reverses on its own date
+        var opening = e.source_kind === 'opening';
+        A.formModal({ title: 'عكس القيد #' + e.number, icon: 'undo-2', size: 'sm', submitText: 'عكس القيد', submitCls: 'btn-danger', done: 'أُنشئ القيد العكسي',
+          body: h`<div class="form"><p class="fs-sm">يُنشأ قيد معتمد بعكس كل سطر، ويصبح المستند جاهزاً ليُقيَّد من جديد.</p>
+            ${opening ? h`<div class="hint">قيد الأرصدة الافتتاحية يُعكس بتاريخه (${fmt.date(e.entry_date)}).</div>` : BT.f.date({ name: 'entry_date', label: 'تاريخ القيد العكسي', required: true, value: BT.config.today, min: e.entry_date, max: BT.config.today })}
+            ${BT.f.textarea({ name: 'reason', label: 'السبب', required: true, rows: 2 })}</div>`,
+          submit: function (v) { return api.post('/finance/entries/' + e.id + '/reverse', opening ? { reason: v.reason } : { reason: v.reason, entry_date: v.entry_date }); },
+          after: function () { dlg.close(); if (done) done(); } });
       } });
       BT.drawer.open({
         title: h`قيد <span class="num">#${e.number}</span> · ${amt(e.amount)}`, subtitle: api.t('entry_source', e.source_kind) + ' · ' + fmt.date(e.entry_date), icon: 'book-open', size: 'lg',

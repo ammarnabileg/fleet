@@ -372,6 +372,7 @@ def _expense_out(db: Session, rows: list[Expense]) -> list[dict]:
                 "id": str(e.public_id),
                 "number": e.number,
                 "company_id": e.company_id,
+                "branch_id": e.branch_id,
                 "type": {"id": t.id, "code": t.code, "name": t.name},
                 "expense_date": e.expense_date,
                 "amount": e.amount,
@@ -434,8 +435,14 @@ def create_expense(db: Session, data: dict, *, actor_user_id: int, all_companies
             raise AppError(422, "expense_company_mismatch")
     for sha in data.get("files", []):
         files.get(db, sha)
+    branch_id = data.get("branch_id")
+    if branch_id is not None:
+        _check_branch(db, branch_id)
+    elif data["payment_method"] == "treasury":  # the money comes out of a branch's treasury: which one
+        raise AppError(422, "expense_branch_required")
     expense = Expense(
         company_id=company_id,
+        branch_id=branch_id,
         type_id=t.id,
         expense_date=data["expense_date"],
         amount=data["amount"],
@@ -507,6 +514,40 @@ def expense_file(db: Session, public_id, sha256: str, **scope) -> files.FileInfo
     return files.get(db, sha256)
 
 
+def _check_branch(db: Session, branch_id: int) -> None:
+    if branch_id not in {b["id"] for b in org.list_branches(db)}:
+        raise AppError(422, "branch_not_found")
+
+
+def _disburse(db: Session, expense: Expense, *, actor_user_id: int) -> None:
+    """The expense's money leaves its branch's treasury now (approved paid from it, or paid later from it): the
+    treasury on screen goes down with the books (cash ledger disbursement, refused when the treasury holds less)."""
+    from app.modules.cash import service as cash
+
+    t = db.get(ExpenseType, expense.type_id)
+    first_file = db.scalar(
+        select(ExpenseFile.sha256).where(ExpenseFile.expense_id == expense.id).order_by(ExpenseFile.position).limit(1)
+    )
+    cash.disburse(
+        db,
+        branch_id=expense.branch_id,
+        amount=expense.amount,
+        source_type="expense",
+        source_id=expense.id,
+        reason=f"EXP-{expense.number} · {_name(db, t.name)}",
+        attachment_sha256=first_file,
+        actor_user_id=actor_user_id,
+    )
+
+
+def advances_from_treasury(db: Session) -> bool:
+    """Whether an advance is paid out of the treasury in the books: its role (deduction_advance) is on the treasury's
+    account, as the default chart has it. Then the advance is a disbursement of the employee's branch treasury."""
+    roles = posting.role_accounts(db)
+    advance, treasury = roles.get("deduction_advance"), roles.get("treasury")
+    return advance is not None and treasury is not None and advance.id == treasury.id
+
+
 def _approval(expense: Expense) -> dict:
     return {
         "document_id": expense.id,
@@ -528,6 +569,9 @@ def decide_expense(db: Session, public_id, *, approve: bool, note: str | None, a
     ):
         db.commit()  # this step recorded; the expense waits for the next one
         return _expense_out(db, [expense])[0]
+    # an expense entered before expenses named their branch (no branch) keeps the old way: the books only
+    if approve and expense.payment_method == "treasury" and expense.branch_id is not None:
+        _disburse(db, expense, actor_user_id=actor_user_id)
     expense.status = "approved" if approve else "rejected"
     expense.decided_by, expense.decided_at, expense.decision_note = actor_user_id, utcnow(), note
     expense.version += 1
@@ -538,10 +582,17 @@ def decide_expense(db: Session, public_id, *, approve: bool, note: str | None, a
 
 def cancel_expense(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) -> dict:
     """A wrong entry, before or after approval (not once paid later): its journal entry, if made, is then listed to
-    be reversed."""
+    be reversed; the money an approved one took from the treasury goes back to it (its disbursement reversed, with
+    the reason), in the same transaction."""
+    from app.modules.cash import service as cash
+
     expense = _get(db, public_id, lock=True, **scope)
     if expense.status not in ("pending", "approved") or expense.paid_at is not None:
         raise AppError(409, "expense_not_cancellable", status=expense.status)
+    if expense.status == "approved":
+        cash.undo_disbursement(
+            db, source_type="expense", source_id=expense.id, reason=reason, actor_user_id=actor_user_id
+        )
     expense.status, expense.cancel_reason = "cancelled", reason  # an approved one keeps who approved it, and when
     expense.version += 1
     approvals.withdrawn(db, "expense", [expense.id])
@@ -551,12 +602,27 @@ def cancel_expense(db: Session, public_id, *, reason: str, actor_user_id: int, *
 
 
 def pay_expense(
-    db: Session, public_id, *, paid_from: str, payment_ref: str | None, actor_user_id: int, **scope
+    db: Session,
+    public_id,
+    *,
+    paid_from: str,
+    payment_ref: str | None,
+    actor_user_id: int,
+    branch_id: int | None = None,
+    **scope,
 ) -> dict:
-    """A supplier's invoice entered to be paid later, paid now from the treasury or the bank."""
+    """A supplier's invoice entered to be paid later, paid now from the bank, or from a branch's treasury (which
+    then goes down by it)."""
     expense = _get(db, public_id, lock=True, **scope)
     if expense.payment_method != "payable" or expense.status != "approved" or expense.paid_at is not None:
         raise AppError(409, "expense_not_payable")
+    if branch_id is not None:
+        _check_branch(db, branch_id)
+        expense.branch_id = branch_id
+    if paid_from == "treasury":
+        if expense.branch_id is None:
+            raise AppError(422, "expense_branch_required")
+        _disburse(db, expense, actor_user_id=actor_user_id)
     expense.paid_from, expense.paid_at, expense.paid_by, expense.payment_ref = (
         paid_from,
         utcnow(),
@@ -863,8 +929,14 @@ def reverse_entry(
         # dated where it stood, the day before the books start: a corrected opening then replaces it from the start
         day = entry.entry_date
     else:
+        # dated as the accountant says (today by default): within the books, never before what it reverses, and
+        # never in the future
         day = day or today()
         _check_date(db, day)
+        if day > today():
+            raise AppError(422, "reversal_date_future")
+        if day < entry.entry_date:
+            raise AppError(422, "reversal_before_entry", date=entry.entry_date.isoformat())
     reversal = Entry(
         entry_date=day,
         source_kind="reversal",

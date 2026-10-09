@@ -231,6 +231,7 @@ def pay_expense(
         public_id,
         paid_from=body.paid_from,
         payment_ref=body.payment_ref,
+        branch_id=body.branch_id,
         actor_user_id=principal.user_id,
         **principal.scope,
     )

@@ -23,7 +23,7 @@ from tests.conftest import (
     name,
     upload,
 )
-from tests.test_finance import expense, month, payroll_settings
+from tests.test_finance import expense, month, payroll_settings, treasury_float  # noqa: F401 (fixture)
 from tests.test_maintenance import center, portal_client, quote, receive
 
 W = "/api/v1/approvals"

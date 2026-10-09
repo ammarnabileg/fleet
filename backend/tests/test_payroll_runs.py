@@ -11,7 +11,7 @@ import pytest
 from app.core.clock import today
 from app.modules.payroll import runs
 from app.modules.payroll.service import add_months
-from tests.conftest import bearer, bind_device, jpeg, login, make_driver, make_employee, make_user
+from tests.conftest import bearer, bind_device, fund_treasury, jpeg, login, make_driver, make_employee, make_user
 
 P = "/api/v1/payroll"
 MONTH = today().replace(day=1)
@@ -289,6 +289,7 @@ def test_the_run_caps_deductions_moves_the_rest_on_and_locks_the_month(
         f"{P}/statements/{sid}/approve",
         json={"working_days": 26, "valid_days": 22, "bonus": "15.000", "tips": "5.000", "cancelled_orders": "10.000"},
     )
+    fund_treasury(db)  # the advance is paid out of the treasury
     for source, total, inst in (("other", "300.000", 2), ("advance", "20.000", 1)):
         r = admin_client.post(
             "/api/v1/deductions",
