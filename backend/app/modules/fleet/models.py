@@ -16,7 +16,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -173,3 +173,36 @@ class VehicleChangeRequest(Base):
     decided_by: Mapped[int | None] = mapped_column(BigInteger)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     note: Mapped[str | None] = mapped_column(Text)
+
+
+class VehicleClaim(Base):
+    """A driver without a car registers one from the app: its plate, his odometer reading and its camera photo, and
+    condition photos. It waits for the office; approved, it becomes his custody from the claim's reading and time."""
+
+    __tablename__ = "vehicle_claims"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'approved', 'rejected')", name="status"),
+        CheckConstraint("odometer_km >= 0", name="odometer_km"),
+        Index(
+            "vehicle_claims_one_pending_idx", "employee_id", unique=True, postgresql_where=text("status = 'pending'")
+        ),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    company_id: Mapped[int] = mapped_column(BigInteger)
+    vehicle_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("fleet.vehicles.id"))
+    odometer_km: Mapped[int] = mapped_column(Integer)
+    photo_sha256: Mapped[str] = mapped_column(Text, ForeignKey("files.files.sha256"))
+    photos: Mapped[list] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))  # [{position, sha256}]
+    claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # the odometer photo's time
+    status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
+    note: Mapped[str | None] = mapped_column(Text)
+    decided_by: Mapped[int | None] = mapped_column(BigInteger)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    custody_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("fleet.custodies.id"))  # what it became
+    client_ref: Mapped[uuid.UUID] = mapped_column(UUID, unique=True)  # the app's id: a resend is recognised
+    created_by_device: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

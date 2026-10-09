@@ -1,3 +1,4 @@
+import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal
 
@@ -238,12 +239,99 @@ class MyVehicle(BaseModel):
     registration_expiry: date | None
 
 
+class ClaimPhotoOut(BaseModel):
+    position: str
+    sha256: str
+
+
+class VehicleClaimOut(BaseModel):
+    id: str
+    status: str  # pending | approved | rejected
+    plate: str
+    vehicle_id: str | None = None
+    odometer_km: int
+    claimed_at: datetime
+    created_at: datetime
+    note: str | None
+    decided_at: datetime | None
+    photos: list[ClaimPhotoOut] = []
+    driver: dict | None = None  # the office's list only
+    vehicle_last_km: int | None = None  # the office's list only: the car's last reading, to compare
+    vehicle_status: str | None = None  # the office's list only: the car as it is now
+    holder: dict | None = None  # the office's list only: who holds the car now, if anyone
+    decided_by: str | None = None  # the office's list only
+    custody_id: str | None = None  # approved: the custody it became
+
+
 class MyVehicleOut(BaseModel):
     vehicle: MyVehicle | None
     change_request: VehicleChangeOut | None
+    claim: VehicleClaimOut | None = None  # no car: the car he registered, waiting or refused
 
 
 class CloseChangeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)] | None = None
+
+
+class TransferIn(BaseModel):
+    """The car X handed to driver A while X is held by B, or while A holds Y, in one step. release: B leaves X (and A
+    gives Y back); swap: B takes Y and A takes X. other_*: Y's reading and photos, needed when A holds Y."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    vehicle_id: str
+    driver_id: str
+    mode: Literal["release", "swap"]
+    odometer_km: Km
+    photo_sha256: Sha256
+    photos: list[PhotoIn] = Field(default_factory=list, max_length=12)
+    started_at: AwareDatetime | None = None
+    other_odometer_km: Km | None = None
+    other_photo_sha256: Sha256 | None = None
+    other_photos: list[PhotoIn] = Field(default_factory=list, max_length=12)
+    note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)] | None = None
+
+
+class TransferOut(BaseModel):
+    mode: str
+    started: list[CustodyOut]
+    ended: list[CustodyOut]
+
+
+class TransferHolder(BaseModel):
+    driver: PersonRef | None
+    custody_id: str
+    since: datetime
+
+
+class TransferDriverVehicle(BaseModel):
+    id: str
+    plate_number: str
+    custody_id: str
+    since: datetime
+    last_odometer_km: int | None
+
+
+class TransferCheckOut(BaseModel):
+    holder: TransferHolder | None  # who holds the car now
+    driver_vehicle: TransferDriverVehicle | None  # the car the driver holds now
+    modes_allowed: list[str]  # handover (nobody busy) | release | swap; empty: he already holds this car
+
+
+class DriverClaimIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    plate: Plate  # as he reads it on the car; one of his company's vehicles
+    odometer_km: Km
+    photo_sha256: Sha256  # the odometer, from the app's camera
+    recorded_at: AwareDatetime  # the photo's time: the custody starts then once approved
+    photos: list[PhotoIn | Sha256] = Field(default_factory=list, max_length=12)  # condition photos
+    client_ref: uuid.UUID  # the app's id: a resend is answered vehicle_claim_exists
+
+
+class ClaimDecisionIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)] | None = None

@@ -894,5 +894,17 @@
   "vehicleChangePlate": "رقم لوحة العربية التانية",
   "vehicleChangePlateHint": "12-34567",
   "vehicleChangePendingFor": "طلبك لتغيير العربية لـ {plate} قيد المراجعة",
-  "@vehicleChangePendingFor": {"placeholders": {"plate": {"type": "String"}}}
+  "@vehicleChangePendingFor": {"placeholders": {"plate": {"type": "String"}}},
+  "claimVehicle": "تسجيل عربية جديدة",
+  "claimVehicleHint": "استلمت عربية؟ سجّلها هنا بقراءة عدادها، وتبدأ عهدتك لما المكتب يوافق.",
+  "claimTitle": "تسجيل عربية جديدة",
+  "claimPlate": "رقم لوحة العربية",
+  "claimIntro": "صوّر عداد العربية من الكاميرا واكتب القراءة. الطلب يروح للمكتب، والعربية تبقى في عهدتك من وقت الصورة لما يوافق.",
+  "claimConditionPhotos": "صور حالة العربية (اختياري)",
+  "claimSend": "إرسال للمكتب",
+  "claimPending": "طلبك لاستلام العربية {plate} مستني موافقة المكتب",
+  "@claimPending": {"placeholders": {"plate": {"type": "String"}}},
+  "claimRejected": "المكتب رفض طلبك لاستلام العربية {plate}: {reason}",
+  "@claimRejected": {"placeholders": {"plate": {"type": "String"}, "reason": {"type": "String"}}},
+  "kind_vehicle_claim": "تسجيل عربية"
 }

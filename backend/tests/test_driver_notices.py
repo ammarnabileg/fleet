@@ -93,7 +93,12 @@ def test_maintenance_decisions_and_the_vehicle_ready(admin_client, client, new_c
     assert complete(s, second["id"]).status_code == 200
     assert s["portal"].post(f"{P}/requests/{second['id']}/ready", json={}).status_code == 200
     items = notices(client, h)["items"]
-    assert [n["kind"] for n in items] == ["maintenance_ready", "maintenance_approved", "maintenance_rejected"]
+    assert [n["kind"] for n in items] == [
+        "maintenance_ready",
+        "maintenance_approved",
+        "maintenance_rejected",
+        "vehicle_handed_over",  # the car handed to him at the start: the app reads "my car" again
+    ]
     assert c["name"] in items[0]["message"] and str(second["number"]) in items[0]["message"]
     assert "تم إصلاحها في الموقع" in items[2]["message"]
 

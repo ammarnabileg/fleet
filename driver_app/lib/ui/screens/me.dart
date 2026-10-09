@@ -7,6 +7,7 @@ import '../../core/models.dart';
 import '../photos.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'claim.dart';
 import 'home.dart';
 
 String _km(Object? km) => km == null ? '—' : '\u2066${NumberFormat('#,###', 'en').format(km)}\u2069';
@@ -14,7 +15,7 @@ String _km(Object? km) => km == null ? '—' : '\u2066${NumberFormat('#,###', 'e
 String _date(Object? iso) => iso == null ? '—' : '\u2066${(iso as String).substring(0, 10)}\u2069';
 
 /// "My car" (BRD FR-APP-02): the vehicle held, its last reading and registration, and a change of vehicle asked for
-/// with the reason (FR-ASG-04).
+/// with the reason (FR-ASG-04). Without a car: the one he registers, waiting for the office's approval.
 class MyCarScreen extends StatefulWidget {
   const MyCarScreen({super.key, required this.state});
 
@@ -30,7 +31,19 @@ class _MyCarScreenState extends State<MyCarScreen> {
   @override
   void initState() {
     super.initState();
+    // his car may change while this screen is open (a swap, the car taken back): it shows the current one
+    widget.state.addListener(_changed);
     _load();
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.state.removeListener(_changed);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -61,9 +74,18 @@ class _MyCarScreenState extends State<MyCarScreen> {
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : v == null
-          ? Padding(
+          ? ListView(
               padding: const EdgeInsets.all(24),
-              child: Banner2(text: l.noCustody, icon: Icons.directions_car_outlined),
+              children: [
+                Banner2(text: l.noCustody, icon: Icons.directions_car_outlined),
+                const SizedBox(height: 14),
+                ClaimBox(
+                  state: widget.state,
+                  onChanged: () {
+                    if (mounted) setState(() {});
+                  },
+                ),
+              ],
             )
           : ListView(
               padding: const EdgeInsets.all(16),

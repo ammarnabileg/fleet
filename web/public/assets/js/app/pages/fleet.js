@@ -190,7 +190,24 @@
   BT.pages['custody'] = function (p, q) {
     A.setTitle('العُهد والتسليم');
     var v = A.view();
-    BT.render(v, h`${A.head('من يحمل كل سيارة الآن', 'التسليم والاستلام بقراءة العداد وصورته وصور الحالة، والعهد الطارئة تنتظر المراجعة', api.can('custody.assign') ? A.btn('تسليم سيارة لسائق', { icon: 'key-round', cls: 'btn-primary', action: 'handover-new' }) : '')}<div id="cus-changes"></div><div class="card"><div id="cus-table"></div></div><div id="cus-history"></div>`);
+    BT.render(v, h`${A.head('من يحمل كل سيارة الآن', 'التسليم والاستلام بقراءة العداد وصورته وصور الحالة، والعهد الطارئة تنتظر المراجعة', api.can('custody.assign') ? A.btn('تسليم سيارة لسائق', { icon: 'key-round', cls: 'btn-primary', action: 'handover-new' }) : '')}<div id="cus-claims"></div><div id="cus-changes"></div><div class="card"><div id="cus-table"></div></div><div id="cus-history"></div>`);
+    if (api.can('custody.assign')) A.pendingBox(document.getElementById('cus-claims'), {
+      key: 'vehicle-claims', url: '/vehicle-claims', title: 'طلبات استلام عربية من السائقين',
+      hint: 'السائق سجّل العربية من التطبيق بقراءة عدادها وصورته؛ العهدة تبدأ بالموافقة',
+      row: function (x) {
+        var photos = [{ src: api.url('/vehicle-claims/' + x.id + '/photo'), caption: 'صورة العداد · ' + fmt.dt(x.claimed_at) }].concat(x.photos.map(function (p) { return { src: api.url('/vehicle-claims/' + x.id + '/photos/' + p.sha256), caption: 'حالة العربية · ' + api.t('photo_position', p.position) }; }));
+        var warn = [
+          x.holder ? BT.pill('مع ' + api.name(x.holder.name), 'r') : x.vehicle_status && x.vehicle_status !== 'available' ? A.pill('vehicle_status', x.vehicle_status) : '',
+          x.vehicle_last_km != null && x.odometer_km < x.vehicle_last_km ? BT.pill('أقل من آخر قراءة (' + fmt.km(x.vehicle_last_km) + ')', 'o') : ''
+        ];
+        return h`<div data-claim="${x.id}">${A.person(x.driver)} ${A.plate(x.plate, x.vehicle_id)} <span class="num" data-claim-km>${fmt.km(x.odometer_km)}</span> كم ${warn} <span class="muted fs-sm">${fmt.dt(x.claimed_at)}</span>${A.thumbs(photos)}</div>`;
+      },
+      actions: [
+        { label: 'موافقة', cls: 'btn-primary', title: 'الموافقة على استلام العربية', message: 'تبدأ عهدة السائق للعربية بقراءة العداد اللي سجّلها ووقت صورتها، ويُبلَّغ السائق في التطبيق.', done: 'تمت الموافقة وبدأت العهدة', run: function (x) { return api.post('/vehicle-claims/' + x.id + '/approve', {}); } },
+        { label: 'رفض', tone: 'danger', title: 'رفض طلب استلام العربية', message: 'يصل السبب للسائق في التطبيق، ويقدر يسجّل عربية تانية.', reason: { label: 'السبب' }, done: 'رُفض الطلب', run: function (x, reason) { return api.post('/vehicle-claims/' + x.id + '/reject', { note: reason }); } }
+      ],
+      after: function () { t.refresh(); }
+    });
     if (api.can('custody.assign')) A.pendingBox(document.getElementById('cus-changes'), {
       key: 'vehicle-changes', url: '/vehicle-change-requests', title: 'طلبات تغيير السيارة من السائقين',
       hint: 'استلام السيارة من السائق يغلق طلبه تلقائياً؛ أو أغلقه هنا',
@@ -285,10 +302,11 @@
   /* تسليم سيارة: صورة العداد إلزامية، وصور الحالة تحفظ وضع السيارة لحظة التسليم */
   A.handover = function (pre, after) {
     var wait = BT.modal.open({ title: 'تسليم سيارة لسائق', icon: 'key-round', size: 'sm', body: A.spinner() });
-    var jobs = [pre.vehicle ? Promise.resolve([pre.vehicle]) : A.all('/vehicles', { status: 'available' }), A.all('/employees', { is_driver: true, status_code: 'active' }), A.all('/custodies', { open: true })];
+    var jobs = [pre.vehicle ? Promise.resolve([pre.vehicle]) : A.all('/vehicles'), A.all('/employees', { is_driver: true, status_code: 'active' }), A.all('/custodies', { open: true })];
     Promise.all(jobs).then(function (r) {
       wait.close();
-      var vehicles = r[0], holding = {};
+      // the free cars, and those a driver holds: taken from him in the same step
+      var vehicles = r[0].filter(function (x) { return pre.vehicle || x.status === 'available' || x.status === 'assigned'; }), holding = {};
       r[2].forEach(function (c) { if (c.driver) holding[c.driver.id] = c.vehicle.plate_number; });
       // من معه سيارة يظهر آخر القائمة مع لوحتها: التسليم له يُرفض ما لم تُستلم الأولى
       var drivers = r[1].slice().sort(function (a, b) { return (holding[a.id] ? 1 : 0) - (holding[b.id] ? 1 : 0); });
@@ -296,27 +314,106 @@
       A.formModal({
         title: 'تسليم سيارة لسائق', icon: 'key-round', size: 'lg', submitText: 'تسليم', done: 'تم التسليم وبدأت العهدة',
         body: h`<div class="form-grid">
-          ${A.picker({ name: 'vehicle', label: 'السيارة', required: true, items: vehicles.map(function (x) { return { id: x.id, label: A.vehicleLabel(x), km: x.last_odometer_km }; }), value: pre.vehicle && pre.vehicle.id, hint: pre.vehicle ? '' : 'السيارات المتاحة فقط' })}
-          ${A.picker({ name: 'driver', label: 'السائق', required: true, items: drivers.map(function (e) { return { id: e.id, label: api.name(e.name) + ' — ' + e.employee_number + (holding[e.id] ? ' · معه ' + holding[e.id] : '') }; }), hint: 'السائقون على رأس العمل؛ من معه سيارة يجب استلامها منه أولاً' })}
+          ${A.picker({ name: 'vehicle', label: 'السيارة', required: true, items: vehicles.map(function (x) { return { id: x.id, plate: x.plate_number, label: A.vehicleLabel(x) + (x.custody && x.custody.driver ? ' · مع ' + api.name(x.custody.driver.name) : ''), km: x.last_odometer_km }; }), value: pre.vehicle && pre.vehicle.id, hint: pre.vehicle ? '' : 'المتاحة، والتي مع سائق (تُستلم منه في نفس الخطوة)' })}
+          ${A.picker({ name: 'driver', label: 'السائق', required: true, items: drivers.map(function (e) { return { id: e.id, label: api.name(e.name) + ' — ' + e.employee_number + (holding[e.id] ? ' · معه ' + holding[e.id] : '') }; }), hint: 'السائقون على رأس العمل؛ من معه سيارة يرجّعها أو تتبدّل في نفس الخطوة' })}
+          <div class="full" data-transfer></div>
+          <div class="full hidden" data-other><div class="section-t" data-other-title></div><div class="form-grid">
+            ${BT.f.input({ name: 'other_odometer_km', label: 'قراءة عدادها (كم)', num: true, min: 0 })}
+            <div class="full">${BT.f.camera({ name: 'other_odo_photo', label: 'صورة عدادها', cta: 'صورة العداد', sub: 'إلزامية' })}</div>
+            <div class="full"><div class="label mb-8">صور حالتها</div>${photoFields('oph_', POSITIONS)}</div>
+          </div></div>
           ${BT.f.input({ name: 'odometer_km', label: 'قراءة العداد (كم)', required: true, num: true, min: 0, value: pre.vehicle ? pre.vehicle.last_odometer_km : '' })}
           ${BT.f.input({ name: 'started_at', label: 'وقت التسليم', type: 'datetime-local', optional: true, hint: 'اتركه للتسليم الآن. يقبل حتى 7 أيام للخلف' })}
-          ${emergency ? BT.f.radios({ name: 'kind', label: 'نوع التسليم', value: 'normal', options: [{ v: 'normal', t: 'عادي' }, { v: 'emergency', t: 'طارئ', d: 'يتجاوز الفحوصات ويحتاج سبباً ومراجعة' }], full: true }) : ''}
+          ${emergency ? h`<div class="full" data-kind>${BT.f.radios({ name: 'kind', label: 'نوع التسليم', value: 'normal', options: [{ v: 'normal', t: 'عادي' }, { v: 'emergency', t: 'طارئ', d: 'يتجاوز الفحوصات ويحتاج سبباً ومراجعة' }], full: true })}</div>` : ''}
           <div class="full hidden" data-reason>${BT.f.textarea({ name: 'reason', label: 'سبب التسليم الطارئ', rows: 2 })}</div>
           <div class="full">${BT.f.camera({ name: 'odo_photo', label: 'صورة العداد', required: true, cta: 'صورة العداد', sub: 'إلزامية' })}</div>
           <div class="full"><div class="label mb-8">صور الحالة</div>${photoFields('ph_', POSITIONS)}</div>
         </div>`,
         onOpen: function (dd) {
-          var veh = dd.el.querySelector('[name=vehicle]'), km = dd.el.querySelector('[name=odometer_km]');
+          var veh = dd.el.querySelector('[name=vehicle]'), drv = dd.el.querySelector('[name=driver]'), km = dd.el.querySelector('[name=odometer_km]');
           veh.addEventListener('change', function () { var x = (A._pick.vehicle || []).find(function (i) { return i.label === veh.value; }); if (x && x.km != null && !km.value) km.value = x.km; });
           BT.on(dd.el, 'change', '[name=kind]', function (e, r) { dd.el.querySelector('[data-reason]').classList.toggle('hidden', r.value !== 'emergency'); });
+          // the car held by another driver, or a driver who holds one: what the handover does, said before it is done
+          var seq = 0, checked = null;
+          function check() {
+            var v = A.picked('vehicle', veh.value), d = A.picked('driver', drv.value);
+            if (v + '|' + d === checked) return; // the same pair: its answer is on screen or on its way
+            checked = v + '|' + d;
+            var n = ++seq;
+            if (!v || !d) { transfer = null; drawTransfer(dd.el); return; }
+            api.get('/custodies/transfer-check', { vehicle_id: v, driver_id: d }).then(function (c) {
+              if (n !== seq) return;
+              var car = (A._pick.vehicle || []).find(function (i) { return i.id === v; }) || {};
+              transfer = c.modes_allowed.indexOf('handover') >= 0 ? null : { check: c, plate: car.plate, driver: drv.value.split(' — ')[0] };
+              drawTransfer(dd.el);
+            }, function () { if (n === seq) { transfer = null; drawTransfer(dd.el); } });
+          }
+          // on input as well: a choice from the list is complete before the field is left
+          [veh, drv].forEach(function (f) { f.addEventListener('change', check); f.addEventListener('input', check); });
+          BT.on(dd.el, 'change', '[name=mode]', function () { drawOutcome(dd.el); });
+          if (veh.value) check();
         },
         submit: function (v) {
+          if (transfer) return submitTransfer(v);
           return Promise.all([api.upload(v.odo_photo[0]), uploadPhotos(v, 'ph_', POSITIONS)]).then(function (up) {
             return api.post('/custodies', { vehicle_id: A.picked('vehicle', v.vehicle), driver_id: A.picked('driver', v.driver), odometer_km: v.odometer_km, photo_sha256: up[0].sha256, photos: up[1], started_at: fmt.kwIso(v.started_at), kind: v.kind || 'normal', reason: v.reason || null });
           });
         },
         after: after
       });
+
+      var transfer = null; // {check, plate, driver}: the car held by someone, or the driver holds one
+      function names() {
+        var c = transfer.check;
+        return { x: transfer.plate, a: transfer.driver, b: c.holder ? api.name(c.holder.driver.name) : null, y: c.driver_vehicle ? c.driver_vehicle.plate_number : null };
+      }
+      // who ends up with what, for the mode chosen
+      function outcome(mode) {
+        var n = names();
+        if (mode === 'swap') return [n.a + ' ياخد ' + n.x, n.b + ' ياخد ' + n.y];
+        return [n.a + ' ياخد ' + n.x].concat(n.b ? [n.b + ' يفضل من غير عربية'] : [], n.y ? [n.y + ' ترجع للمكتب متاحة'] : []);
+      }
+      function mode(el) { var r = el.querySelector('[name=mode]:checked'); return r ? r.value : transfer.check.modes_allowed[0]; }
+      function drawOutcome(el) {
+        var box = el.querySelector('[data-outcome]');
+        if (box && transfer) BT.render(box, h`<ul class="fs-sm mt-8">${outcome(mode(el)).map(function (x) { return h`<li>${x}</li>`; })}</ul>`);
+      }
+      function drawTransfer(el) {
+        var box = el.querySelector('[data-transfer]'), other = el.querySelector('[data-other]'), kind = el.querySelector('[data-kind]');
+        if (kind) kind.classList.toggle('hidden', !!transfer);
+        if (!transfer) { BT.render(box, ''); other.classList.add('hidden'); return; }
+        var c = transfer.check, n = names();
+        if (kind) { var normal = el.querySelector('[name=kind][value=normal]'); if (normal) normal.checked = true; el.querySelector('[data-reason]').classList.add('hidden'); }
+        other.classList.toggle('hidden', !c.driver_vehicle);
+        if (c.driver_vehicle) {
+          el.querySelector('[data-other-title]').textContent = 'العربية اللي هيرجّعها ' + n.a + ': ' + n.y;
+          var okm = el.querySelector('[name=other_odometer_km]');
+          if (!okm.value && c.driver_vehicle.last_odometer_km != null) okm.value = c.driver_vehicle.last_odometer_km;
+        }
+        if (!c.modes_allowed.length) { BT.render(box, h`<div class="banner warn fs-sm">${icon('triangle-alert', 15)}<div>${n.a} معاه العربية ${n.x} بالفعل.</div></div>`); return; }
+        var text = c.holder && !c.driver_vehicle ? 'العربية ' + n.x + ' مع ' + n.b + '. التسليم هيخرّج ' + n.b + ' منها.'
+          : c.holder ? 'العربية ' + n.x + ' مع ' + n.b + '، و' + n.a + ' معاه ' + n.y + '.'
+          : n.a + ' معاه ' + n.y + ': هيرجّعها ويستلم ' + n.x + '.';
+        var options = c.holder && !c.driver_vehicle ? [{ v: 'release', t: 'إخراج ' + n.b + ' وتسليمها لـ ' + n.a }]
+          : c.holder ? [{ v: 'swap', t: 'تبديل: ' + n.b + ' ياخد ' + n.y }, { v: 'release', t: 'إخراج ' + n.b + ' من غير عربية، و' + n.a + ' يرجّع ' + n.y }]
+          : [{ v: 'release', t: n.a + ' يرجّع ' + n.y + ' ويستلم ' + n.x }];
+        BT.render(box, h`<div class="banner warn fs-sm mb-8" data-transfer-text>${icon('repeat', 15)}<div>${text}</div></div>${BT.f.radios({ name: 'mode', label: 'التسليم يتم إزاي؟', value: options[0].v, options: options, full: true })}<div data-outcome></div>`);
+        drawOutcome(el);
+      }
+      function submitTransfer(v) {
+        var c = transfer.check, m = v.mode || c.modes_allowed[0], dv = c.driver_vehicle;
+        return BT.confirm({ title: 'تأكيد التسليم', message: 'بعد التسليم:', details: h`<ul class="fs-sm" data-confirm-outcome>${(c.modes_allowed.length ? outcome(m) : []).map(function (x) { return h`<li>${x}</li>`; })}</ul>`, confirmText: 'تسليم', tone: 'warn' }).then(function (r) {
+          if (!r.ok) return false;
+          var otherPhoto = dv && v.other_odo_photo && v.other_odo_photo[0] ? api.upload(v.other_odo_photo[0]) : null;
+          return Promise.all([api.upload(v.odo_photo[0]), uploadPhotos(v, 'ph_', POSITIONS), otherPhoto, dv ? uploadPhotos(v, 'oph_', POSITIONS) : []]).then(function (up) {
+            return api.post('/custodies/transfer', {
+              vehicle_id: A.picked('vehicle', v.vehicle), driver_id: A.picked('driver', v.driver), mode: m,
+              odometer_km: v.odometer_km, photo_sha256: up[0].sha256, photos: up[1], started_at: fmt.kwIso(v.started_at),
+              other_odometer_km: dv && v.other_odometer_km !== '' ? v.other_odometer_km : null, other_photo_sha256: up[2] ? up[2].sha256 : null, other_photos: up[3]
+            });
+          });
+        });
+      }
     }, function (err) { wait.setBody(A.errorBox(err)); });
   };
 

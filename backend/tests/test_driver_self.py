@@ -62,7 +62,11 @@ def test_his_profile_without_the_full_iban(admin_client, client, company):
 def test_my_car_and_a_change_of_vehicle_asked_for(admin_client, client, new_client, company):
     d, h = phone(admin_client, client, company)
     other = make_vehicle(admin_client, company["id"], plate_number="12-34567")
-    assert client.get("/api/v1/driver/vehicle", headers=h).json() == {"vehicle": None, "change_request": None}
+    assert client.get("/api/v1/driver/vehicle", headers=h).json() == {
+        "vehicle": None,
+        "change_request": None,
+        "claim": None,
+    }
     ask = {"requested_plate": "12-34567", "reason": "المكيف لا يعمل"}
     r = client.post("/api/v1/driver/vehicle-change-requests", headers=h, json=ask)
     assert r.status_code == 409 and r.json()["code"] == "no_open_custody"

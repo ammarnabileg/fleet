@@ -1529,4 +1529,39 @@ class AppLocalizationsAr extends AppLocalizations {
   String vehicleChangePendingFor(String plate) {
     return 'طلبك لتغيير العربية لـ $plate قيد المراجعة';
   }
+
+  @override
+  String get claimVehicle => 'تسجيل عربية جديدة';
+
+  @override
+  String get claimVehicleHint => 'استلمت عربية؟ سجّلها هنا بقراءة عدادها، وتبدأ عهدتك لما المكتب يوافق.';
+
+  @override
+  String get claimTitle => 'تسجيل عربية جديدة';
+
+  @override
+  String get claimPlate => 'رقم لوحة العربية';
+
+  @override
+  String get claimIntro =>
+      'صوّر عداد العربية من الكاميرا واكتب القراءة. الطلب يروح للمكتب، والعربية تبقى في عهدتك من وقت الصورة لما يوافق.';
+
+  @override
+  String get claimConditionPhotos => 'صور حالة العربية (اختياري)';
+
+  @override
+  String get claimSend => 'إرسال للمكتب';
+
+  @override
+  String claimPending(String plate) {
+    return 'طلبك لاستلام العربية $plate مستني موافقة المكتب';
+  }
+
+  @override
+  String claimRejected(String plate, String reason) {
+    return 'المكتب رفض طلبك لاستلام العربية $plate: $reason';
+  }
+
+  @override
+  String get kind_vehicle_claim => 'تسجيل عربية';
 }

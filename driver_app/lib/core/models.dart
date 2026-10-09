@@ -756,17 +756,23 @@ class Profile {
 
 /// "My car" (FR-APP-02) and the change of vehicle he asked for (FR-ASG-04).
 class MyVehicle {
-  MyVehicle({this.vehicle, this.request});
+  MyVehicle({this.vehicle, this.request, this.claim});
 
   factory MyVehicle.fromJson(Map<String, dynamic> j) => MyVehicle(
     vehicle: j['vehicle'] == null ? null : Map<String, dynamic>.from(j['vehicle'] as Map),
     request: j['change_request'] == null ? null : Map<String, dynamic>.from(j['change_request'] as Map),
+    claim: j['claim'] == null ? null : Map<String, dynamic>.from(j['claim'] as Map),
   );
 
   final Map<String, dynamic>? vehicle;
   final Map<String, dynamic>? request;
 
+  /// No car: the one he registered from the app ({status: pending | approved | rejected, plate, note}).
+  final Map<String, dynamic>? claim;
+
   bool get requestPending => request?['status'] == 'pending';
+  bool get claimPending => claim?['status'] == 'pending';
+  bool get claimRejected => claim?['status'] == 'rejected';
 }
 
 /// One of his documents and the renewal he sent for it (FR-APP-05).

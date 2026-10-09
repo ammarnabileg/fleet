@@ -493,5 +493,15 @@
   "moveFuel": "Fuel",
   "vehicleChangePlate": "Plate number of the other vehicle",
   "vehicleChangePlateHint": "12-34567",
-  "vehicleChangePendingFor": "Your request to change to {plate} is under review"
+  "vehicleChangePendingFor": "Your request to change to {plate} is under review",
+  "claimVehicle": "Register a new car",
+  "claimVehicleHint": "Took a car? Register it here with its odometer reading; your custody starts when the office approves.",
+  "claimTitle": "Register a new car",
+  "claimPlate": "The car's plate number",
+  "claimIntro": "Take the odometer photo with the camera and enter the reading. The request goes to the office; once approved, the car is yours from the photo's time.",
+  "claimConditionPhotos": "Photos of the car's condition (optional)",
+  "claimSend": "Send to the office",
+  "claimPending": "Your request to take the car {plate} is waiting for the office's approval",
+  "claimRejected": "The office refused your request to take the car {plate}: {reason}",
+  "kind_vehicle_claim": "Car registration"
 }

@@ -115,6 +115,42 @@ def list_custodies(
     )
 
 
+@router.get("/custodies/transfer-check", response_model=schemas.TransferCheckOut)
+def transfer_check(
+    vehicle_id: uuid.UUID,
+    driver_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("custody.assign")),
+    db: Session = Depends(get_session),
+):
+    """Before a handover: who holds the car now, the car the driver holds now, and the ways it can be done."""
+    return service.transfer_check(db, vehicle_public_id=vehicle_id, driver_public_id=driver_id, **principal.scope)
+
+
+@router.post("/custodies/transfer", response_model=schemas.TransferOut, status_code=201)
+def transfer(
+    body: schemas.TransferIn,
+    principal: Principal = Depends(require_permission("custody.assign")),
+    db: Session = Depends(get_session),
+):
+    """The car handed over while another driver holds it, or to a driver who holds one: released or swapped, at once."""
+    return service.transfer(
+        db,
+        vehicle_public_id=_uuid(body.vehicle_id, "vehicle_not_found"),
+        driver_public_id=_uuid(body.driver_id, "employee_not_found"),
+        mode=body.mode,
+        odometer_km=body.odometer_km,
+        photo_sha256=body.photo_sha256,
+        photos=[p.model_dump() for p in body.photos],
+        started_at=body.started_at,
+        other_odometer_km=body.other_odometer_km,
+        other_photo_sha256=body.other_photo_sha256,
+        other_photos=[p.model_dump() for p in body.other_photos],
+        note=body.note,
+        actor_user_id=principal.user_id,
+        **principal.scope,
+    )
+
+
 @router.get("/custodies/{public_id}", response_model=schemas.CustodyDetailOut)
 def get_custody(
     public_id: uuid.UUID,
@@ -392,4 +428,71 @@ def close_vehicle_change(
         note=body.note,
         actor_user_id=principal.user_id,
         **principal.scope,
+    )
+
+
+# ---- a car the driver registers from the app: it waits for the office
+
+
+@router.post("/driver/vehicle-claims", response_model=schemas.MyVehicleOut, status_code=201)
+def claim_vehicle(
+    body: schemas.DriverClaimIn, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
+):
+    return service.request_vehicle_claim(
+        db,
+        employee_id=device.employee_id,
+        device_id=device.device_id,
+        plate=body.plate,
+        odometer_km=body.odometer_km,
+        photo_sha256=body.photo_sha256,
+        recorded_at=body.recorded_at,
+        photos=[p if isinstance(p, str) else p.model_dump() for p in body.photos],
+        client_ref=body.client_ref,
+    )
+
+
+@router.get("/vehicle-claims", response_model=list[schemas.VehicleClaimOut])
+def vehicle_claims(
+    status: Literal["pending", "approved", "rejected", "all"] = "pending",
+    limit: Annotated[int, Query(ge=1, le=500)] = 200,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    principal: Principal = Depends(require_permission("custody.view")),
+    db: Session = Depends(get_session),
+):
+    """Waiting (the default, oldest first), one status, or "all" newest first."""
+    return service.vehicle_claims(db, status=status, limit=limit, offset=offset, **principal.scope)
+
+
+@router.get("/vehicle-claims/{public_id}/photo")
+def vehicle_claim_photo(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("custody.view")),
+    db: Session = Depends(get_session),
+):
+    return files.response(db, service.claim_photo(db, public_id, None, **principal.scope))
+
+
+@router.get("/vehicle-claims/{public_id}/photos/{sha256}")
+def vehicle_claim_condition_photo(
+    public_id: uuid.UUID,
+    sha256: Annotated[str, Path(pattern=r"^[0-9a-f]{64}$")],
+    principal: Principal = Depends(require_permission("custody.view")),
+    db: Session = Depends(get_session),
+):
+    return files.response(db, service.claim_photo(db, public_id, sha256, **principal.scope))
+
+
+@router.post("/vehicle-claims/{public_id}/{decision}", response_model=schemas.VehicleClaimOut)
+def decide_vehicle_claim(
+    public_id: uuid.UUID,
+    decision: Literal["approve", "reject"],
+    body: schemas.ClaimDecisionIn,
+    principal: Principal = Depends(require_permission("custody.assign")),
+    db: Session = Depends(get_session),
+):
+    """Approved: his custody starts from the claim's reading and time. Refused: with the reason he reads."""
+    if decision == "approve":
+        return service.approve_vehicle_claim(db, public_id, actor_user_id=principal.user_id, **principal.scope)
+    return service.reject_vehicle_claim(
+        db, public_id, note=body.note, actor_user_id=principal.user_id, **principal.scope
     )
