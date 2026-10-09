@@ -280,7 +280,7 @@ def journal_attachment(
     db: Session = Depends(get_session),
 ):
     """The bank receipt's photo of a deposit."""
-    return files.response(db, service.journal_attachment(db, public_id))
+    return files.response(db, service.journal_attachment(db, public_id, **principal.scope))
 
 
 # ---- fuel the driver paid from his cash

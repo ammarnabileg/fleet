@@ -19,7 +19,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.clock import today, utcnow
+from app.core.clock import business_date, today, utcnow
 from app.core.db import violated_constraint
 from app.core.errors import AppError
 from app.core.events import emit
@@ -313,11 +313,14 @@ def _pay_advance(db: Session, d: Deduction, employee: people.EmployeeRef, actor_
 
     if d.source_type != "advance" or not finance.advances_from_treasury(db):
         return
+    day = business_date(d.created_at)  # the day its entry in the books takes (deductions_for_posting)
+    finance.check_books_date(db, day)
     lang = i18n.default_language(db).code
     cash.disburse(
         db,
         branch_id=employee.branch_id,
         amount=d.total,
+        business_date=day,
         source_type="deduction",
         source_id=d.id,
         reason=f"{i18n.t(db, lang, 'deduction_source.advance')} · {i18n.pick(employee.name, lang, lang)}",
@@ -336,8 +339,10 @@ def _taken(db: Session, deduction_id: int) -> Decimal:
 
 
 def cancel(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) -> dict:
-    """Cancelled with a reason. An approved advance cancelled gives back to its treasury what payroll has not taken
-    of it yet, as the books then count only what was taken (its disbursement reversed for the rest)."""
+    """Cancelled with a reason (the row locked: a payroll run approving at the same moment locks its advances too).
+    An approved advance cancelled before any approved payroll took of it gives all of it back to its treasury (its
+    disbursement reversed); once payroll took part, it is refused: corrected with a manual entry or an adjustment,
+    so the treasury on screen and the books never part."""
     from app.modules.cash import service as cash
 
     d = db.scalar(_scoped(select(Deduction).where(Deduction.public_id == public_id), **scope).with_for_update())
@@ -346,14 +351,10 @@ def cancel(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
     if d.status in ("cancelled", "rejected"):
         raise AppError(409, "deduction_cancelled")
     if d.status == "approved" and d.source_type == "advance":
-        cash.undo_disbursement(
-            db,
-            source_type="deduction",
-            source_id=d.id,
-            reason=reason,
-            actor_user_id=actor_user_id,
-            amount=d.total - _taken(db, d.id),
-        )
+        taken = _taken(db, d.id)
+        if taken:
+            raise AppError(409, "advance_partly_recovered", taken=f"{taken:.3f}")
+        cash.undo_disbursement(db, source_type="deduction", source_id=d.id, reason=reason, actor_user_id=actor_user_id)
     if d.status == "pending":  # withdrawn before its workflow decided
         approvals.withdrawn(db, "manual_deduction", [d.id])
     d.status, d.cancel_reason, d.cancelled_by, d.cancelled_at = "cancelled", reason, actor_user_id, utcnow()

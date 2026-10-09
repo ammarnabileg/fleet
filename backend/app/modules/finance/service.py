@@ -83,6 +83,11 @@ def _check_date(db: Session, day: date) -> None:
         raise AppError(422, "before_books_start", date=start.isoformat())
 
 
+def check_books_date(db: Session, day: date) -> None:
+    """For other modules: refused (before_books_start) when a document of that day would never be entered."""
+    _check_date(db, day)
+
+
 def check_books_start_change(db: Session, old: date | None, new: date | None) -> None:
     """The books start moves only while nothing hangs on it: no opening entry standing, and no entry dated between the
     two dates (an earlier start would enter documents the opening already counts; a later one would leave entries
@@ -440,6 +445,8 @@ def create_expense(db: Session, data: dict, *, actor_user_id: int, all_companies
         _check_branch(db, branch_id)
     elif data["payment_method"] == "treasury":  # the money comes out of a branch's treasury: which one
         raise AppError(422, "expense_branch_required")
+    if data["payment_method"] == "treasury":
+        _treasury_day(db, data["expense_date"])
     expense = Expense(
         company_id=company_id,
         branch_id=branch_id,
@@ -519,10 +526,21 @@ def _check_branch(db: Session, branch_id: int) -> None:
         raise AppError(422, "branch_not_found")
 
 
-def _disburse(db: Session, expense: Expense, *, actor_user_id: int) -> None:
+def _treasury_day(db: Session, day: date) -> None:
+    """Money out of the treasury is dated as its entry in the books: never before the books start (the books would
+    never count it while the screen does), never in the future."""
+    _check_date(db, day)
+    if day > today():
+        raise AppError(422, "treasury_date_future")
+
+
+def _disburse(db: Session, expense: Expense, *, day: date, actor_user_id: int) -> None:
     """The expense's money leaves its branch's treasury now (approved paid from it, or paid later from it): the
-    treasury on screen goes down with the books (cash ledger disbursement, refused when the treasury holds less)."""
+    treasury on screen goes down with the books (cash ledger disbursement, refused when the treasury holds less),
+    dated as the books date it: the expense's date, or the day it is paid."""
     from app.modules.cash import service as cash
+
+    _treasury_day(db, day)
 
     t = db.get(ExpenseType, expense.type_id)
     first_file = db.scalar(
@@ -532,6 +550,7 @@ def _disburse(db: Session, expense: Expense, *, actor_user_id: int) -> None:
         db,
         branch_id=expense.branch_id,
         amount=expense.amount,
+        business_date=day,
         source_type="expense",
         source_id=expense.id,
         reason=f"EXP-{expense.number} · {_name(db, t.name)}",
@@ -571,7 +590,7 @@ def decide_expense(db: Session, public_id, *, approve: bool, note: str | None, a
         return _expense_out(db, [expense])[0]
     # an expense entered before expenses named their branch (no branch) keeps the old way: the books only
     if approve and expense.payment_method == "treasury" and expense.branch_id is not None:
-        _disburse(db, expense, actor_user_id=actor_user_id)
+        _disburse(db, expense, day=expense.expense_date, actor_user_id=actor_user_id)
     expense.status = "approved" if approve else "rejected"
     expense.decided_by, expense.decided_at, expense.decision_note = actor_user_id, utcnow(), note
     expense.version += 1
@@ -622,7 +641,7 @@ def pay_expense(
     if paid_from == "treasury":
         if expense.branch_id is None:
             raise AppError(422, "expense_branch_required")
-        _disburse(db, expense, actor_user_id=actor_user_id)
+        _disburse(db, expense, day=today(), actor_user_id=actor_user_id)  # entered on the Kuwait day it is paid
     expense.paid_from, expense.paid_at, expense.paid_by, expense.payment_ref = (
         paid_from,
         utcnow(),
@@ -930,10 +949,10 @@ def reverse_entry(
         day = entry.entry_date
     else:
         # dated as the accountant says (today by default): within the books, never before what it reverses, and
-        # never in the future
+        # not in the future (an entry dated ahead may be reversed up to its own date)
         day = day or today()
         _check_date(db, day)
-        if day > today():
+        if day > max(today(), entry.entry_date):
             raise AppError(422, "reversal_date_future")
         if day < entry.entry_date:
             raise AppError(422, "reversal_before_entry", date=entry.entry_date.isoformat())

@@ -182,7 +182,7 @@ def test_an_advance_is_paid_out_of_the_treasury_and_comes_back_when_cancelled(ad
     assert treasury(admin_client) == D("80.000") and len(journals(db, "disbursement")) == 1
 
 
-def test_an_advance_partly_taken_by_payroll_gives_back_only_the_rest(admin_client, companies, db):
+def test_an_advance_partly_taken_by_payroll_is_not_cancelled(admin_client, companies, db):
     b = companies["b"]["id"]
     fund_treasury(db, "100")
     office = make_employee(admin_client, b, basic_salary="300.000", payment_method="cash")
@@ -193,13 +193,167 @@ def test_an_advance_partly_taken_by_payroll_gives_back_only_the_rest(admin_clien
               "installments": 2, "start_month": str(first)},
     )  # fmt: skip
     assert r.status_code == 201, r.text
+    advance = r.json()
     payroll_settings(admin_client)
     run = admin_client.post("/api/v1/payroll/runs", json={"company_id": b, "month": str(first)}).json()
     assert admin_client.post(f"/api/v1/payroll/runs/{run['id']}/approve").status_code == 200
     assert treasury(admin_client) == D("40.000")
-    r = admin_client.post(f"/api/v1/deductions/{r.json()['id']}/cancel", json={"reason": "forgiven"})
+    # payroll took 30 of it: refused, the screen and the books stay together
+    r = admin_client.post(f"/api/v1/deductions/{advance['id']}/cancel", json={"reason": "forgiven"})
+    assert r.status_code == 409 and r.json()["code"] == "advance_partly_recovered"
+    assert r.json()["params"] == {"taken": "30.000"} and treasury(admin_client) == D("40.000")
+    # the run reopened: nothing taken any more, the cancel gives all of it back
+    r = admin_client.post(f"/api/v1/payroll/runs/{run['id']}/reopen", json={"reason": "a wrong figure"})
     assert r.status_code == 200, r.text
-    assert treasury(admin_client) == D("70.000")  # 30 taken in this month's payroll stays out
+    r = admin_client.post(f"/api/v1/deductions/{advance['id']}/cancel", json={"reason": "forgiven"})
+    assert r.status_code == 200, r.text
+    assert treasury(admin_client) == D("100.000")
+
+
+def books_start(client, day) -> None:
+    cur = client.get("/api/v1/settings").json()["finance"]
+    value = cur["value"] | {"books_start_date": str(day) if day else None}
+    r = client.put("/api/v1/settings/finance", json={"version": cur["version"], "value": value})
+    assert r.status_code == 200, r.text
+
+
+def test_treasury_money_is_dated_as_the_books_date_it(admin_client, company, db):
+    fund_treasury(db, "100")
+    branch = main_branch(admin_client)
+    # the books start tomorrow: nothing out of the treasury today (the books would never count it)
+    books_start(admin_client, today() + timedelta(1))
+    later = approve(admin_client, expense(admin_client, company["id"], amount="3", payment_method="payable"))
+    r = admin_client.post(f"{F}/expenses/{later['id']}/pay", json={"paid_from": "treasury", "branch_id": branch})
+    assert r.status_code == 422 and r.json()["code"] == "before_books_start"
+    types = {t["code"]: t["id"] for t in admin_client.get(f"{F}/expense-types").json()}
+    body = {"company_id": company["id"], "type_id": types["fuel"], "amount": "1", "payment_method": "treasury",
+            "branch_id": branch, "expense_date": str(today())}  # fmt: skip
+    r = admin_client.post(f"{F}/expenses", json=body)
+    assert r.status_code == 422 and r.json()["code"] == "before_books_start"
+    books_start(admin_client, None)
+
+    # out of the treasury on the day its entry takes: the expense's date, the day a payable is paid, the day an
+    # advance is made
+    e = approve(
+        admin_client, expense(admin_client, company["id"], amount="2", expense_date=str(today() - timedelta(3)))
+    )
+    r = admin_client.post(f"{F}/expenses/{later['id']}/pay", json={"paid_from": "treasury", "branch_id": branch})
+    assert r.status_code == 200, r.text
+    office = make_employee(admin_client, company["id"], basic_salary="300.000", payment_method="cash")
+    advance = {"employee_id": office["id"], "source_type": "advance", "reason": "advance", "total": "4"}
+    assert admin_client.post("/api/v1/deductions", json=advance).status_code == 201
+    assert [j.business_date for j in journals(db, "disbursement")] == [today() - timedelta(3), today(), today()]
+    admin_client.post(f"{F}/entries/post", json={"date_from": str(today() - timedelta(10)), "date_to": str(today())})
+    entries = admin_client.get(
+        f"{F}/entries", params={"date_from": str(today() - timedelta(10)), "date_to": str(today())}
+    ).json()
+    dated = {(x["source_kind"], x["source_ref"]): x["entry_date"] for x in entries}
+    assert dated[("expense", f"EXP-{e['number']}")] == str(today() - timedelta(3))
+    assert dated[("expense_payment", f"EXP-{later['number']}")] == str(today())
+    assert [d for (k, _), d in dated.items() if k == "deduction"] == [str(today())]
+
+    # dated in the future: refused from the treasury (not from the bank)
+    r = admin_client.post(f"{F}/expenses", json=body | {"expense_date": str(today() + timedelta(1))})
+    assert r.status_code == 422 and r.json()["code"] == "treasury_date_future"
+    bank_body = body | {"expense_date": str(today() + timedelta(1)), "payment_method": "bank"}
+    assert admin_client.post(f"{F}/expenses", json=bank_body).status_code == 201
+
+    # before the books start: refused when entered, and when approved if its date was moved before it since
+    start = today() - timedelta(1)
+    books_start(admin_client, start)
+    r = admin_client.post(f"{F}/expenses", json=body | {"expense_date": str(start - timedelta(1))})
+    assert r.status_code == 422 and r.json()["code"] == "before_books_start"
+    pending = expense(admin_client, company["id"], amount="1", expense_date=str(start))
+    db.execute(
+        text("UPDATE finance.expenses SET expense_date = :d WHERE public_id = :p"),
+        {"d": start - timedelta(2), "p": pending["id"]},
+    )
+    db.commit()
+    r = admin_client.post(f"{F}/expenses/{pending['id']}/approve", json={})
+    assert r.status_code == 422 and r.json()["code"] == "before_books_start"
+
+
+def test_a_reversal_never_leaves_a_treasury_or_a_bank_negative(admin_client, company):
+    driver = make_driver(admin_client, company["id"])
+    receipt = admin_client.post(f"{C}/receipts", json={"driver_id": driver["id"], "amount": "10"})
+    branch = main_branch(admin_client)
+    dep = admin_client.post(
+        f"{C}/bank-deposits",
+        json={"branch_id": branch, "amount": "10", "reference": "DEP-2", "receipt_sha256": upload(admin_client)},
+    ).json()
+    receipt_journal = next(ln for ln in moves(admin_client)["lines"] if ln["kind"] == "deposit")["journal_id"]
+    assert receipt.status_code == 201
+    r = admin_client.post(f"{C}/journals/{receipt_journal}/reverse", json={"reason": "wrong driver"})
+    assert r.status_code == 422 and r.json()["code"] == "treasury_insufficient"  # the cash went to the bank
+    wd = admin_client.post(
+        f"{C}/bank-withdrawals",
+        json={"branch_id": branch, "amount": "10", "reference": "WD-2", "attachment_sha256": upload(admin_client)},
+    ).json()
+    r = admin_client.post(f"{C}/journals/{dep['id']}/reverse", json={"reason": "wrong amount"})
+    assert r.status_code == 422 and r.json()["code"] == "bank_insufficient"  # taken back out already
+    assert admin_client.post(f"{C}/journals/{wd['id']}/reverse", json={"reason": "not taken"}).status_code == 201
+    r = admin_client.post(f"{C}/journals/{receipt_journal}/reverse", json={"reason": "wrong driver"})
+    assert r.status_code == 422 and r.json()["code"] == "treasury_insufficient"  # still in the bank
+    assert admin_client.post(f"{C}/journals/{dep['id']}/reverse", json={"reason": "wrong amount"}).status_code == 201
+    assert (
+        admin_client.post(f"{C}/journals/{receipt_journal}/reverse", json={"reason": "wrong driver"}).status_code == 201
+    )
+    assert (treasury(admin_client), bank(admin_client)) == (D("0.000"), D("0.000"))
+
+
+def test_money_out_of_a_treasury_or_bank_waits_for_the_branch_lock(admin_client, company, db):
+    """Who reads a balance before taking money out holds the branch's lock, treasury then bank: a deposit waits while
+    another transaction holds the treasury."""
+    import threading
+
+    from app.core.db import new_session
+    from app.modules.cash import service as cash
+
+    driver = make_driver(admin_client, company["id"])
+    admin_client.post(f"{C}/receipts", json={"driver_id": driver["id"], "amount": "10"})
+    branch = main_branch(admin_client)
+    photo = upload(admin_client)
+    done = {}
+    with new_session() as holder:
+        cash.lock_branches(holder, treasury=[branch])
+        t = threading.Thread(
+            target=lambda: done.setdefault(
+                "deposit",
+                admin_client.post(
+                    f"{C}/bank-deposits",
+                    json={"branch_id": branch, "amount": "10", "reference": "DEP-3", "receipt_sha256": photo},
+                ).status_code,
+            )
+        )
+        t.start()
+        t.join(1.5)
+        assert t.is_alive() and "deposit" not in done  # waiting on the treasury
+        holder.rollback()  # the lock released
+    t.join(10)
+    assert done == {"deposit": 201}
+    with new_session() as other:  # and the bank's lock for a withdrawal, taken after the treasury's
+        cash.lock_branches(other, bank=[branch])
+        held = db.scalar(
+            text("SELECT pg_try_advisory_xact_lock(hashtextextended(:k, 0))"), {"k": f"cash.bank:{branch}"}
+        )
+        assert held is False
+        db.rollback()
+
+
+def test_an_entry_dated_ahead_is_reversed_up_to_its_own_date(admin_client):
+    accounts = {a["code"]: a["id"] for a in admin_client.get(f"{F}/accounts").json()}
+    ahead = today() + timedelta(5)
+    lines = [{"account_id": accounts["6130"], "debit": "5"}, {"account_id": accounts["2110"], "credit": "5"}]
+    body = {"entry_date": str(ahead), "description": "Rent accrual", "lines": lines}
+    r = admin_client.post(f"{F}/entries/manual", json=body)
+    assert r.status_code == 201, r.text
+    entry = r.json()
+    admin_client.post(f"{F}/entries/approve", json={"ids": [entry["id"]]})
+    for day, code in ((ahead + timedelta(1), "reversal_date_future"), (ahead - timedelta(1), "reversal_before_entry")):
+        r = admin_client.post(f"{F}/entries/{entry['id']}/reverse", json={"reason": "wrong", "entry_date": str(day)})
+        assert r.status_code == 422 and r.json()["code"] == code, r.text
+    r = admin_client.post(f"{F}/entries/{entry['id']}/reverse", json={"reason": "wrong", "entry_date": str(ahead)})
+    assert r.status_code == 200 and r.json()["entry_date"] == str(ahead)
 
 
 def test_cash_from_the_bank_to_the_treasury(admin_client, new_client, company, db):
@@ -283,12 +437,18 @@ def test_the_treasury_and_bank_movements_with_their_running_balance(admin_client
     assert m["closing"] == "73.000" and m["lines"][3]["reversed"] and not m["lines"][3]["reversible"]
     assert m["lines"][4]["kind"] == "reversal" and m["lines"][4]["reverses_kind"] == "bank_deposit"
 
-    # a user of company A: sees the movements, may reverse only A's driver's receipt
+    # a user of company A only: the branch's treasury is every company's, so neither its movements, their export,
+    # nor a treasury journal's attachment
     make_user(admin_client, "cashier_a", permissions=["treasury.view", "cash.reverse"], company_ids=[a])
     c = new_client()
     login(c, "cashier_a")
-    lines = moves(c)["lines"]
-    assert [ln["reversible"] for ln in lines[:2]] == [True, False]
+    for path in ("movements", "movements/export"):
+        r = c.get(f"{C}/treasury/{branch_public_id(admin_client)}/{path}")
+        assert r.status_code == 403 and r.json()["code"] == "company_out_of_scope", path
+    r = c.get(f"{C}/journals/{dep['id']}/attachment")
+    assert r.status_code == 403 and r.json()["code"] == "company_out_of_scope"
+    assert admin_client.get(f"{C}/journals/{dep['id']}/attachment").status_code == 200
+    assert m["lines"][3]["attachment_type"] == "image/jpeg"
     # without cash.reverse nothing; without treasury.view not at all
     make_user(admin_client, "reader", permissions=["treasury.view"])
     c = new_client()
@@ -359,3 +519,39 @@ def test_every_cash_account_and_journal_kind_has_a_label(db):
     for lang, catalog in LANGS.items():
         assert catalog["cash_account"].keys() == set(ACCOUNT_KINDS), lang
         assert kinds <= catalog["journal_kind"].keys(), lang
+
+
+def test_a_run_approving_and_an_advance_cancelled_never_interleave(admin_client, companies, db):
+    """The run locks its advances before it reads them, as the cancel does: one waits for the other."""
+    import threading
+
+    from app.core.db import new_session
+
+    b = companies["b"]["id"]
+    fund_treasury(db, "100")
+    office = make_employee(admin_client, b, basic_salary="300.000", payment_method="cash")
+    first, _ = month()
+    r = admin_client.post(
+        "/api/v1/deductions",
+        json={"employee_id": office["id"], "source_type": "advance", "reason": "advance", "total": "20",
+              "start_month": str(first)},
+    )  # fmt: skip
+    assert r.status_code == 201, r.text
+    payroll_settings(admin_client)
+    run = admin_client.post("/api/v1/payroll/runs", json={"company_id": b, "month": str(first)}).json()
+    done = {}
+    with new_session() as cancelling:  # a cancel under way holds the advance
+        cancelling.execute(
+            text("SELECT id FROM payroll.deductions WHERE public_id = :p FOR UPDATE"), {"p": r.json()["id"]}
+        )
+        t = threading.Thread(
+            target=lambda: done.setdefault(
+                "run", admin_client.post(f"/api/v1/payroll/runs/{run['id']}/approve").status_code
+            )
+        )
+        t.start()
+        t.join(1.5)
+        assert t.is_alive() and not done
+        cancelling.rollback()
+    t.join(15)
+    assert done == {"run": 200}

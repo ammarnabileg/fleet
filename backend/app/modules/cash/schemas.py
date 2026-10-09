@@ -147,6 +147,7 @@ class MovementLine(BaseModel):
     amount: Decimal  # + into this account, - out of it
     balance: Decimal  # after this line
     has_attachment: bool
+    attachment_type: str | None  # its content type: an image opens in the viewer, a PDF in a new tab
     reversed: bool
     reversible: bool  # this user may reverse it from here
 

@@ -282,7 +282,7 @@
         var opening = e.source_kind === 'opening';
         A.formModal({ title: 'عكس القيد #' + e.number, icon: 'undo-2', size: 'sm', submitText: 'عكس القيد', submitCls: 'btn-danger', done: 'أُنشئ القيد العكسي',
           body: h`<div class="form"><p class="fs-sm">يُنشأ قيد معتمد بعكس كل سطر، ويصبح المستند جاهزاً ليُقيَّد من جديد.</p>
-            ${opening ? h`<div class="hint">قيد الأرصدة الافتتاحية يُعكس بتاريخه (${fmt.date(e.entry_date)}).</div>` : BT.f.date({ name: 'entry_date', label: 'تاريخ القيد العكسي', required: true, value: BT.config.today, min: e.entry_date, max: BT.config.today })}
+            ${opening ? h`<div class="hint">قيد الأرصدة الافتتاحية يُعكس بتاريخه (${fmt.date(e.entry_date)}).</div>` : BT.f.date({ name: 'entry_date', label: 'تاريخ القيد العكسي', required: true, value: BT.config.today, min: e.entry_date, max: e.entry_date > BT.config.today ? e.entry_date : BT.config.today })}
             ${BT.f.textarea({ name: 'reason', label: 'السبب', required: true, rows: 2 })}</div>`,
           submit: function (v) { return api.post('/finance/entries/' + e.id + '/reverse', opening ? { reason: v.reason } : { reason: v.reason, entry_date: v.entry_date }); },
           after: function () { dlg.close(); if (done) done(); } });

@@ -1,7 +1,7 @@
 // The treasury on screen is the books: an expense paid from a branch's treasury lowers the treasury shown in «الخزينة
 // والبنك» and appears in the branch's movements with its running balance; cash taken from the bank back to the
 // treasury with the photo of the slip, then reversed from the movements; and a GL reversal dated by the accountant.
-const { test, expect, uid, phone, settled, clearToasts, jpeg } = require('./fixtures');
+const { test, expect, uid, phone, settled, clearToasts, jpeg, pdf } = require('./fixtures');
 
 const kuwaitDay = (offset = 0) => new Date(Date.now() + 3 * 3600e3 + offset * 86400e3).toISOString().slice(0, 10);
 
@@ -16,7 +16,7 @@ test('a treasury expense lowers the branch treasury and shows in its movements; 
     company_id: company.id, branch_id: branch.id, is_driver: true, phone: phone(),
   });
   await api.post('/cash/receipts', { driver_id: driver.id, amount: '50' }); // the treasury: 50
-  const photo = await api.upload('dep.jpg', 'image/jpeg', jpeg());
+  const photo = await api.upload('dep.pdf', 'application/pdf', pdf()); // the bank's receipt as a PDF
   await api.post('/cash/bank-deposits', { branch_id: branch.id, amount: '20', reference: 'DEP-' + n, receipt_sha256: photo }); // 30 / bank 20
   const fuel = (await api.get('/finance/expense-types')).find((t) => t.code === 'fuel');
   const e = await api.post('/finance/expenses', {
@@ -45,6 +45,12 @@ test('a treasury expense lowers the branch treasury and shows in its movements; 
   await expect(lines.nth(2).locator('td').nth(4)).toHaveText('23.000');
   await expect(lines.nth(2).locator('[data-rev]')).toHaveCount(0); // undone only by cancelling the expense
   await expect(lines.nth(1).locator('[data-rev]')).toHaveCount(1);
+  // a PDF opens in a new tab, not in the image viewer
+  const link = lines.nth(1).locator('a[data-att-link]');
+  await expect(link).toHaveAttribute('target', '_blank');
+  const file = await admin.request.get(await link.getAttribute('href'));
+  expect(file.status()).toBe(200);
+  expect(file.headers()['content-type']).toContain('application/pdf');
   await admin.keyboard.press('Escape');
   await expect(admin.locator('.overlay[data-open]')).toHaveCount(0);
 
@@ -69,6 +75,10 @@ test('a treasury expense lowers the branch treasury and shows in its movements; 
   const wd = bank.filter({ hasText: 'WD-' + n });
   await expect(wd).toContainText('5.000');
   await expect(wd.locator('td').nth(4)).toHaveText('15.000');
+  await wd.locator('[data-att]').click(); // the slip's photo in the viewer
+  await expect(admin.locator('.lightbox-ov[data-open] .lb-stage img')).toHaveCount(1);
+  await admin.keyboard.press('Escape');
+  await expect(admin.locator('.lightbox-ov[data-open]')).toHaveCount(0);
   await wd.locator('[data-rev]').click();
   await top().locator('[name=reason]').fill('سحب مكرر');
   await clearToasts(admin);

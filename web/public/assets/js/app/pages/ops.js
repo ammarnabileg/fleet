@@ -398,7 +398,11 @@
       var manage = api.can('treasury.manage') && api.me.all_companies;
       return h`<div class="card"><div class="card-h"><div class="card-t">${icon('landmark', 16)} الخزينة حسب الفرع</div>${manage ? h`<div class="ms-auto nowrap"><button type="button" class="btn btn-sm btn-outline" data-wd>${icon('banknote', 14)} سحب من البنك</button> <button type="button" class="btn btn-sm btn-primary" data-dep>${icon('landmark', 14)} إيداع في البنك</button></div>` : ''}</div>
         <div class="table-wrap"><table class="t compact"><thead><tr><th>الفرع</th><th class="num">الخزينة</th><th class="num">البنك</th><th class="num">مقاصة الدفع عند الاستلام</th><th></th></tr></thead><tbody>
-          ${rows.map(function (r) { return h`<tr class="clickable" data-branch="${r.branch.public_id}" title="اضغط لحركات الخزينة والبنك"><td>${api.name(r.branch.name)}</td><td class="num">${fmt.money(r.treasury)}</td><td class="num">${fmt.money(r.bank)}</td><td class="num">${fmt.money(r.cod_clearing)}</td><td class="num"><button type="button" class="btn btn-sm btn-ghost" data-moves="${r.branch.public_id}">${icon('list', 13)} حركات</button></td></tr>`; })}
+          ${rows.map(function (r) {
+            var cells = h`<td>${api.name(r.branch.name)}</td><td class="num">${fmt.money(r.treasury)}</td><td class="num">${fmt.money(r.bank)}</td><td class="num">${fmt.money(r.cod_clearing)}</td>`;
+            // the movements are the branch's, shared by all its companies: for a user over every company
+            return api.me.all_companies ? h`<tr class="clickable" data-branch="${r.branch.public_id}" title="اضغط لحركات الخزينة والبنك">${cells}<td class="num"><button type="button" class="btn btn-sm btn-ghost" data-moves="${r.branch.public_id}">${icon('list', 13)} حركات</button></td></tr>` : h`<tr>${cells}<td></td></tr>`;
+          })}
         </tbody></table></div>
         <div class="hint mt-8">الخزينة تنقص أيضاً بالمصروف المدفوع منها وبالسلف عند اعتمادها، وترجع عند إلغاء المصروف.</div>
         ${api.can('treasury.manage') && !api.me.all_companies ? h`<div class="hint mt-8">الإيداع والسحب البنكي يحتاجان صلاحية على كل الشركات لأن الخزينة مشتركة بين شركات الفرع.</div>` : ''}</div>`;
@@ -452,6 +456,12 @@
     function describe(l) {
       return h`${l.driver ? api.name(l.driver.name) : ''}${l.receipt_no ? h` <span class="num">#${l.receipt_no}</span>` : ''}${l.description ? h`${l.driver ? ' · ' : ''}<span style="white-space:normal">${l.description}</span>` : ''}`;
     }
+    // an image opens in the viewer; a PDF (or anything else) in a new tab
+    function attachment(l) {
+      var src = api.url('/cash/journals/' + l.journal_id + '/attachment');
+      return /^image\//.test(l.attachment_type || '') ? h`<button type="button" class="btn btn-sm btn-ghost" data-att="${l.journal_id}" title="المرفق">${icon('paperclip', 13)}</button>`
+        : h`<a class="btn btn-sm btn-ghost" href="${src}" target="_blank" rel="noopener" data-att-link title="المرفق">${icon('file-text', 13)}</a>`;
+    }
     function load() {
       A.load(box, api.get(url, query()), function (m) {
         return h`<div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))">${BT.kpi({ label: 'رصيد أول المدة', value: fmt.money(m.opening), dot: 'b' })}${BT.kpi({ label: 'رصيد آخر المدة', value: fmt.money(m.closing), dot: 'g' })}</div>
@@ -459,7 +469,7 @@
             <tr class="muted"><td colspan="4">رصيد أول المدة</td><td class="num">${fmt.money(m.opening)}</td><td></td></tr>
             ${m.lines.map(function (l) {
               return h`<tr data-line="${l.journal_id}"><td class="num">${fmt.date(l.business_date)}<span class="sub">${fmt.time(l.created_at)}</span></td><td>${kind(l)}${l.reversed ? h` ${BT.pill('معكوسة', 'n')}` : ''}</td><td>${describe(l)}</td><td class="num"><span class="${Number(l.amount) < 0 ? 't-danger' : 't-success'}">${fmt.signed(Number(l.amount))}</span></td><td class="num"><b>${fmt.money(l.balance)}</b></td>
-                <td class="num nowrap">${l.has_attachment ? h`<button type="button" class="btn btn-sm btn-ghost" data-att="${l.journal_id}" title="المرفق">${icon('paperclip', 13)}</button>` : ''}${l.reversible && api.can('cash.reverse') ? h`<button type="button" class="btn btn-sm btn-ghost" data-rev="${l.journal_id}">${icon('rotate-ccw', 13)} عكس</button>` : ''}</td></tr>`;
+                <td class="num nowrap">${l.has_attachment ? attachment(l) : ''}${l.reversible && api.can('cash.reverse') ? h`<button type="button" class="btn btn-sm btn-ghost" data-rev="${l.journal_id}">${icon('rotate-ccw', 13)} عكس</button>` : ''}</td></tr>`;
             })}</tbody></table></div>${m.truncated ? h`<div class="hint mt-8">عُرضت أول ${fmt.int(m.lines.length)} حركة: ضيّق الفترة لرؤية الباقي.</div>` : ''}` : BT.empty('list', 'لا حركات في هذه الفترة', '')}`;
       }).catch(function () {});
     }

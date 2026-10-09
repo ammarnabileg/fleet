@@ -219,7 +219,7 @@ def test_nothing_before_the_books_start(admin_client, company, float_):
     early = admin_client.post(
         f"{F}/expenses",
         json={"company_id": company["id"], "type_id": types["fuel"], "expense_date": str(start - timedelta(days=2)),
-              "amount": "9", "payment_method": "treasury", "branch_id": main_branch(admin_client)},
+              "amount": "9", "payment_method": "bank"},
     ).json()  # fmt: skip
     admin_client.post(f"{F}/expenses/{early['id']}/approve", json={})
     r = admin_client.post(
