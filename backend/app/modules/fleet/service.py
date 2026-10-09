@@ -1180,17 +1180,15 @@ def maintenance_reading(
     db: Session, vehicle_id: int, *, odometer_km: int, photo_sha256: str, at: datetime, actor_user_id: int
 ) -> None:
     """The center's reading at the end of the repair (requests from before the simple flow): the next handover is
-    compared with it, not with the reception (a test drive is not distance off duty)."""
+    compared with it, not with the reception (a test drive is not distance off duty). On no custody: only the
+    driver's own pickup (or the office's, of a car nobody holds) ends a stay at the center."""
     _check_moment(at)
     _check_photo(db, photo_sha256)
-    custody = db.scalar(
-        select(Custody).where(Custody.vehicle_id == vehicle_id, Custody.ended_at.is_(None)).with_for_update()
-    )
     vehicle = _vehicle_for_update(db, vehicle_id)
     _add_reading(
         db,
         vehicle,
-        custody,
+        None,
         kind="maintenance_out",
         value_km=odometer_km,
         photo_sha256=photo_sha256,

@@ -26,7 +26,7 @@
   M.INV_STATUS = { pending: 'بانتظار الاعتماد', approved: 'معتمدة', rejected: 'مرفوضة' };
   M.FLAG = { duplicate_number: 'رقم مكرر لنفس المركز', differs_from_quote: 'تختلف عن العرض المعتمد' };
 
-  M.NOTES = { ':emergency': 'صيانة طارئة: معتمدة فوراً وتُراجع لاحقاً', ':emergency_reviewed': 'روجعت الصيانة الطارئة', ':quote_approved': 'اعتُمد عرض السعر', ':quote_within_limit': 'عرض السعر ضمن حد الاعتماد: معتمد تلقائياً', ':accident': 'إصلاح حادث: معتمد ومحال للمركز الذي قدّر الأضرار', ':accident_estimate': 'تقدير أضرار الحادث معتمد: يبدأ الإصلاح دون عرض سعر جديد', ':accident_vehicle': 'السيارة في حادث: يمر إصلاحها بالمكتب (التقدير والاعتماد)' };
+  M.NOTES = { ':emergency': 'صيانة طارئة: معتمدة فوراً وتُراجع لاحقاً', ':emergency_reviewed': 'روجعت الصيانة الطارئة', ':quote_approved': 'اعتُمد عرض السعر', ':quote_within_limit': 'عرض السعر ضمن حد الاعتماد: معتمد تلقائياً', ':accident': 'إصلاح حادث: معتمد ومحال للمركز الذي قدّر الأضرار', ':accident_estimate': 'تقدير أضرار الحادث معتمد: يبدأ الإصلاح دون عرض سعر جديد', ':accident_vehicle': 'السيارة في حادث: يمر إصلاحها بالمكتب (التقدير والاعتماد)', ':driver_changed': 'تغيّر السائق: الطلب الآن مع السائق الذي في عهدته السيارة' };
   M.note = function (n) { return n && n.charAt(0) === ':' ? (M.NOTES[n] || n.slice(1)) : n; };
   M.status = function (s) { return BT.pill(api.t('maintenance_status', s), M.TONE[s] || 'n'); };
   M.kind = function (k) { return api.t('maintenance_kind', k); };

@@ -349,3 +349,52 @@ def test_a_vehicle_in_an_accident_goes_through_the_office(admin_client, client, 
     # whether or not he picked a center
     r = driver_request(client, s, center_id=None)
     assert r.status_code == 201 and r.json()["status"] == "requested"
+
+
+def test_the_request_follows_the_car_when_it_changes_hands_before_the_reception(admin_client, client, new_client, s):
+    """Asked by A; the office hands the car to B before the center receives it: B is told it is ready, sees it,
+    collects it, and works with it; A no longer can."""
+    rid = sent(client, s)
+    b = make_driver(admin_client, s["vehicle"]["company_id"])
+    body = {"vehicle_id": s["vehicle"]["id"], "driver_id": b["id"], "mode": "release", "odometer_km": 20_120}
+    r = admin_client.post("/api/v1/custodies/transfer", json=body | {"photo_sha256": upload(admin_client)})
+    assert r.status_code == 201, r.text
+    other = new_client()
+    sb = s | {"h": bearer(bind_device(other, b["phone"]))}
+    assert [x["id"] for x in other.get(DRIVER, headers=sb["h"]).json()] == [rid]  # the car he holds now
+    receive(s, rid)
+    detail = admin_client.get(f"{M}/requests/{rid}").json()
+    assert detail["driver"]["id"] == b["id"]
+    assert ":driver_changed" in [e["note"] for e in detail["events"]]
+    assert ready(s, rid).status_code == 200
+    notices = other.get("/api/v1/driver/notifications", headers=sb["h"]).json()
+    assert notices["items"][0]["kind"] == "maintenance_ready"
+    assert other.get(DRIVER, headers=sb["h"]).json()[0]["pickup_in_app"] is True
+    assert pickup(client, s, rid).status_code == 404  # A: no longer his car nor his request
+    assert pickup(other, sb, rid).status_code == 200
+    assert admin_client.get(f"/api/v1/vehicles/{s['vehicle']['id']}").json()["status"] == "assigned"
+
+
+def test_no_step_between_the_reception_and_ready_and_only_the_pickup_ends_the_stay(admin_client, client, s, owner_db):
+    from tests.test_maintenance import complete, quote
+
+    rid = sent(client, s)
+    receive(s, rid)
+    for r in (
+        complete(s, rid),
+        s["portal"].post(f"{P}/requests/{rid}/status", json={"status": "inspection"}),
+        quote(s, rid, "20.000"),
+    ):
+        assert r.status_code == 409 and r.json()["code"] == "step_not_in_this_flow"
+    # a request from before: its completion reading does not end the stay at the center
+    s["portal"].post(f"{P}/requests/{rid}/ready", json={})  # refused (no invoice): still received
+    owner_db.execute(text("UPDATE maintenance.requests SET direct = false WHERE public_id = :r"), {"r": rid})
+    owner_db.commit()
+    assert quote(s, rid, "20.000").json()["status"] == "in_repair"
+    assert complete(s, rid).status_code == 200
+    today_ = client.get("/api/v1/driver/today", headers=s["h"]).json()
+    assert today_["custody"]["in_maintenance"] is True
+    assert start_day(client, s).json()["code"] == "vehicle_in_maintenance"
+    assert ready(s, rid).status_code == 200
+    assert pickup(client, s, rid).status_code == 200
+    assert client.get("/api/v1/driver/today", headers=s["h"]).json()["custody"]["in_maintenance"] is False

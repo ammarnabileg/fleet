@@ -528,7 +528,8 @@
     "center_required": "Choose the maintenance center",
     "pickup_by_driver": "The car is in its driver's custody: he confirms the pickup from the center in his app",
     "received_before_custody": "The reception time is before the current custody started",
-    "final_reading_required": "The car goes back to the company, not to a driver: enter the odometer after the repair with its photo"
+    "final_reading_required": "The car goes back to the company, not to a driver: enter the odometer after the repair with its photo",
+    "step_not_in_this_flow": "This step is not in this request's flow: the reception, then ready with the invoice"
   },
   "settings": {
     "branding": "Branding",

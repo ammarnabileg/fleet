@@ -22,7 +22,7 @@ from collections.abc import Iterable
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -686,7 +686,12 @@ def driver_request(db: Session, *, employee_id: int, device_id: int, data: dict)
 
 
 def for_driver(db: Session, employee_id: int, *, limit: int = 20, only: int | None = None) -> list[dict]:
-    q = select(Request).where(Request.driver_id == employee_id)
+    """His requests, and the open ones of the car he holds now (asked for while another driver held it)."""
+    custody = fleet.open_custody_for_driver(db, employee_id)
+    mine = Request.driver_id == employee_id
+    if custody is not None:
+        mine = or_(mine, and_(Request.vehicle_id == custody.vehicle_id, Request.status.in_(AT_CENTER)))
+    q = select(Request).where(mine)
     if only is not None:
         q = q.where(Request.id == only)
     rows = list(db.scalars(q.order_by(Request.created_at.desc(), Request.id.desc()).limit(limit)))
@@ -924,6 +929,17 @@ def picked_up(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
     return _detail(db, r)
 
 
+def _follow_holder(db: Session, r: Request, actor_user_id: int) -> None:
+    """The car changed hands since it was asked for: the request follows the driver who holds it now (he is told
+    it is ready, sees it, and collects it)."""
+    holder = fleet.holder(db, r.vehicle_id)
+    if holder is None or holder == r.driver_id:
+        return
+    before, r.driver_id = r.driver_id, holder
+    db.add(RequestEvent(request_id=r.id, status=r.status, by_user=actor_user_id, note=":driver_changed"))
+    _audit(db, "maintenance.driver_changed", r, actor_user_id=actor_user_id, after={"from": before, "to": holder})
+
+
 def _check_office_pickup(db: Session, r: Request) -> None:
     """The driver who holds the car collects it and confirms it in the app; the office or the center records the
     pickup only of a car nobody holds."""
@@ -1056,6 +1072,7 @@ def receive(db: Session, public_id, *, user_id: int, data: dict) -> dict:
         actor_user_id=user_id,
     )
     r.received_at, r.received_by, r.received_km = at, user_id, data["odometer_km"]
+    _follow_holder(db, r, user_id)
     r.condition_note = data.get("condition_note")
     r.seen_at = r.seen_at or utcnow()
     _event(db, r, "received", by_user=user_id, at=at, note=data.get("condition_note"))
@@ -1077,6 +1094,8 @@ def receive(db: Session, public_id, *, user_id: int, data: dict) -> dict:
 def set_status(db: Session, public_id, *, user_id: int, status: str, note: str | None) -> dict:
     center = center_of(db, user_id)
     r = _for_center(db, public_id, center, lock=True)
+    if r.direct:  # the simple flow: reception, then ready with the invoice; no step in between
+        raise AppError(409, "step_not_in_this_flow")
     # the repair itself starts only through an approved quote (submit_quote, decide_quote): "in_repair" here is
     # only the way back from waiting for parts. Straight to the center, the center starts it without one.
     allowed = PORTAL_MOVES[status] + (("received", "inspection") if status == "in_repair" and _shortcut(db, r) else ())
@@ -1093,6 +1112,8 @@ def submit_quote(db: Session, public_id, *, user_id: int, data: dict) -> dict:
     waits for the maintenance manager (BRD FR-MNT-07)."""
     center = center_of(db, user_id)
     r = _for_center(db, public_id, center, lock=True)
+    if r.direct:  # the simple flow: reception, then ready with the invoice; no step in between
+        raise AppError(409, "step_not_in_this_flow")
     if r.status not in QUOTE_FROM:
         raise AppError(409, "invalid_maintenance_status", status=r.status)
     items = [dict(i) for i in data.get("items") or []]
@@ -1140,6 +1161,8 @@ def submit_quote(db: Session, public_id, *, user_id: int, data: dict) -> dict:
 def complete(db: Session, public_id, *, user_id: int, data: dict) -> dict:
     center = center_of(db, user_id)
     r = _for_center(db, public_id, center, lock=True)
+    if r.direct:  # the simple flow: reception, then ready with the invoice; no step in between
+        raise AppError(409, "step_not_in_this_flow")
     # straight to the center, a short job goes from the reception to done (no quote, no separate start)
     done_from = ("in_repair", "waiting_parts") + (("received", "inspection") if _shortcut(db, r) else ())
     if r.status not in done_from:
@@ -1183,6 +1206,7 @@ def ready(db: Session, public_id, *, user_id: int, data: dict, can_invoice: bool
         for item in data.get("items") or []:
             item.setdefault("quantity", Decimal(1))
         _new_invoice(db, center=center, r=r, company_id=r.company_id, data=data, actor=user_id, own_file=True)
+    _follow_holder(db, r, user_id)
     held = fleet.holder(db, r.vehicle_id) is not None
     # the company collects it: the next handover compares with the center's last reading (unless it gave one when
     # the repair was completed, before the simple flow)
