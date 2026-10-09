@@ -181,7 +181,7 @@ class VehicleClaim(Base):
 
     __tablename__ = "vehicle_claims"
     __table_args__ = (
-        CheckConstraint("status IN ('pending', 'approved', 'rejected')", name="status"),
+        CheckConstraint("status IN ('pending', 'approved', 'rejected', 'superseded')", name="status"),
         CheckConstraint("odometer_km >= 0", name="odometer_km"),
         Index(
             "vehicle_claims_one_pending_idx", "employee_id", unique=True, postgresql_where=text("status = 'pending'")

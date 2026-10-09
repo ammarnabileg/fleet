@@ -73,6 +73,24 @@ class _MyCarScreenState extends State<MyCarScreen> {
       appBar: AppBar(title: Text(l.myCar)),
       body: loading
           ? const Center(child: CircularProgressIndicator())
+          : mine == null
+          // not known: never the car before, nor the button to register one
+          ? ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                Banner2(text: l.networkError, tone: BannerTone.warn, icon: Icons.cloud_off_outlined),
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  key: const Key('car-retry'),
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l.retry),
+                  onPressed: () {
+                    setState(() => loading = true);
+                    _load();
+                  },
+                ),
+              ],
+            )
           : v == null
           ? ListView(
               padding: const EdgeInsets.all(24),

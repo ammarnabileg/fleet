@@ -124,3 +124,22 @@ test('a car registered from the app waits, then the office approves it', async (
   const open = (await api.get('/custodies?open=true&limit=200')).find((c) => c.vehicle.id === v.id);
   expect(open.driver.id).toBe(d.id);
 });
+
+test('a car handed to the driver who holds it: said, and nothing is sent', async ({ admin, api }) => {
+  const n = uid();
+  const { driver, car, hold } = await setup(api, n);
+  const x = await car('X', 9000);
+  const a = await driver('A');
+  await hold(x, a);
+  label(a, x.plate_number);
+  const sent = [];
+  admin.on('request', (r) => { if (r.url().includes('/custodies/transfer') && r.method() === 'POST') sent.push(r.url()); });
+  const dlg = await openHandover(admin, x, a, a);
+  await expect(dlg.locator('[data-transfer-same]')).toContainText(a.name.ar + ' معاه العربية ' + x.plate_number);
+  await dlg.locator('input[name=odo_photo]').setInputFiles(photo('odo'));
+  await dlg.locator('button[type=submit]').click();
+  await expect(admin.locator('.toast').last()).toContainText('بالفعل');
+  await expect(dlg).toBeVisible();
+  expect(sent).toEqual([]);
+  expect((await api.get('/custodies?open=true&limit=200')).filter((c) => c.vehicle.id === x.id).map((c) => c.driver.id)).toEqual([a.id]);
+});

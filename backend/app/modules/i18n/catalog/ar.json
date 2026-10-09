@@ -517,7 +517,12 @@
     "vehicle_held_by_other": "العربية دي مع سواق تاني. كلّم المكتب.",
     "vehicle_claim_exists": "طلبك لاستلام عربية عند المكتب بالفعل",
     "vehicle_claim_not_found": "طلب استلام السيارة غير موجود",
-    "vehicle_claim_decided": "طلب استلام السيارة هذا تقرر من قبل"
+    "vehicle_claim_decided": "طلب استلام السيارة هذا تقرر من قبل",
+    "vehicle_claim_pending": "عندك طلب استلام عربية لسه مستني المكتب",
+    "vehicle_claim_expired": "الطلب قديم: ارفضه واطلب من السواق يسجّل من جديد",
+    "vehicle_changed_since_claim": "العربية اتغيّر عليها حاجة بعد الطلب (قراءة أو عهدة): ارفضه وخلّي السواق يسجّل من جديد",
+    "vehicle_claim_stale": "السواق اتسلم أو سلّم عربية بعد الطلب: ارفضه وخلّيه يسجّل من جديد",
+    "transfer_before_last_reading": "وقت التسليم قبل آخر قراءة عداد مسجّلة في العهدة: اختار وقت بعدها"
   },
   "settings": {
     "branding": "الهوية",
@@ -1307,6 +1312,7 @@
     "vehicle_swapped": "اتبدّلت عربيتك: سلّمت {from} واستلمت {to}",
     "vehicle_claim_approved": "المكتب وافق: العربية {plate} في عهدتك دلوقتي",
     "vehicle_claim_rejected": "المكتب رفض طلبك لاستلام العربية {plate}: {reason}",
+    "vehicle_claim_superseded": "طلبك لاستلام العربية {plate} اتقفل: اتسلمت عربية تانية",
     "document_renewal_approved": "اعتُمد {document} المجدد",
     "document_renewal_rejected": "رُفض {document} المجدد: {reason}. أرسله من جديد.",
     "report_rejected": "رُفض تقرير {date}: {reason}. أرسله من جديد مصححاً.",

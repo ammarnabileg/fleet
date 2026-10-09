@@ -451,10 +451,22 @@ class AppState extends ChangeNotifier {
     final before = today?.custody?.id;
     today = Today.fromJson(await api.get('/driver/today') as Map<String, dynamic>);
     final changed = today!.custody?.id != before;
-    // another car, or none: "my car" is read again whole, nothing of the one before stays
-    if (changed) myVehicle = null;
-    // no car: the one he registered (waiting for the office, or refused) shows on the home card
-    if (changed || today!.custody == null) await _quietly(loadVehicle);
+    // another car, or none: "my car" is read again whole and replaces what was shown; no car: the one he registered
+    // (waiting for the office, or refused) shows on the home card
+    if (changed || today!.custody == null) await _reloadVehicle(stale: changed);
+  }
+
+  int _vehicleReads = 0;
+
+  /// Reads "my car": what was shown stays until the answer replaces it. A read that fails once his car changed leaves
+  /// it unknown (null): the screens then show the error, never the car before nor the button to register one.
+  Future<void> _reloadVehicle({required bool stale}) async {
+    _vehicleReads++;
+    try {
+      await loadVehicle();
+    } on ApiError {
+      if (stale) myVehicle = null;
+    }
   }
 
   /// The notices that say his custody changed: handed a car, taken out of one, swapped, his registered car
@@ -465,16 +477,21 @@ class AppState extends ChangeNotifier {
     'vehicle_taken',
     'vehicle_swapped',
     'vehicle_claim_approved',
+    'vehicle_claim_rejected',
+    'vehicle_claim_superseded',
   };
   Set<String>? _carNoticesSeen;
 
   /// His custody changed: everything shown about "my car" (the car, its readings, today's day, the screens that
   /// use the current car) is read again and replaces what was there; tracking reports at once.
   Future<void> carChanged() async {
-    myVehicle = null;
-    notifyListeners();
-    await _quietly(loadToday);
-    if (myVehicle == null) await _quietly(loadVehicle);
+    final reads = _vehicleReads;
+    try {
+      await loadToday();
+    } on ApiError {
+      // the day as it was; "my car" below says whether the network is there
+    }
+    if (_vehicleReads == reads) await _reloadVehicle(stale: true);
     await Future.wait([
       if (shows('maintenance')) _quietly(loadMaintenance),
       if (shows('fines')) _quietly(loadFines),

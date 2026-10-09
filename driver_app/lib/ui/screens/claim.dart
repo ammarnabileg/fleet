@@ -20,9 +20,11 @@ class ClaimBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = context.l;
     final mine = state.myVehicle;
-    final claim = mine?.claim;
+    // only once the server said he has no car: unknown (not read yet, or the read failed) shows nothing here
+    if (mine == null || mine.vehicle != null) return const SizedBox.shrink();
+    final claim = mine.claim;
     final plate = '\u2066${claim?['plate'] ?? ''}\u2069';
-    if (mine != null && mine.claimPending) {
+    if (mine.claimPending) {
       return Banner2(
         key: const Key('claim-pending'),
         text: l.claimPending(plate),
@@ -34,7 +36,7 @@ class ClaimBox extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (mine != null && mine.claimRejected) ...[
+        if (mine.claimRejected) ...[
           Banner2(
             key: const Key('claim-rejected'),
             text: l.claimRejected(plate, '${claim?['note'] ?? ''}'),

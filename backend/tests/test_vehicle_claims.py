@@ -4,6 +4,8 @@ for the office (the client's decision); approved, his custody starts from the cl
 import uuid
 from datetime import timedelta
 
+from sqlalchemy import text
+
 from app.core.clock import utcnow
 from tests.conftest import bearer, bind_device, hand_over, jpeg, login, make_driver, make_user, make_vehicle, upload
 
@@ -51,7 +53,8 @@ def test_a_claim_waits_then_is_approved_with_its_reading_and_time(admin_client, 
     again = client.post(CLAIM, headers=h, json=body)
     assert again.status_code == 409 and again.json()["code"] == "vehicle_claim_exists"
     other, _ = ask(client, h, "44-12345")
-    assert other.status_code == 409 and other.json()["code"] == "vehicle_claim_exists"  # one waiting at a time
+    # one waiting at a time: told so (not "already recorded", which the app's outbox takes as sent)
+    assert other.status_code == 409 and other.json()["code"] == "vehicle_claim_pending"
     # no custody yet: he cannot start his day
     assert client.get("/api/v1/driver/today", headers=h).json()["custody"] is None
     assert admin_client.get(f"/api/v1/vehicles/{v['id']}").json()["status"] == "available"
@@ -170,3 +173,77 @@ def test_permissions_and_company_scope(admin_client, client, new_client, compani
     assert viewer.post(f"{V}/{row['id']}/approve", json={}).status_code == 403
     assert viewer.post(f"{V}/{row['id']}/reject", json={"note": "مش متاحة"}).status_code == 403
     assert admin_client.get(V, params={"status": "nope"}).status_code == 422
+
+
+def alerts(admin_client):
+    return [a for a in admin_client.get("/api/v1/alerts").json() if a["kind"] == "vehicle_claim_requested"]
+
+
+def test_a_waiting_claim_is_settled_when_he_gets_a_car_another_way(admin_client, client, company):
+    claimed = make_vehicle(admin_client, company["id"], plate_number="81-100")
+    other = make_vehicle(admin_client, company["id"], plate_number="81-200")
+    d, h = on_phone(admin_client, client, company)
+    assert ask(client, h, "81-100")[0].status_code == 201
+    # the office hands him another car: his claim is closed, he is told, the alert goes
+    c = hand_over(admin_client, other, d)
+    mine = client.get("/api/v1/driver/vehicle", headers=h).json()
+    assert mine["vehicle"]["plate_number"] == "81-200"
+    (row,) = admin_client.get(V, params={"status": "all"}).json()
+    assert (row["status"], row["note"]) == ("superseded", "اتسلمت عربية تانية")
+    assert "vehicle_claim_superseded" in told(client, h)
+    assert alerts(admin_client) == []
+    assert admin_client.get(V).json() == []
+    # back without a car, he may register again; this time the office hands him the very car: approved and linked
+    r = admin_client.post(
+        f"/api/v1/custodies/{c['id']}/return", json={"odometer_km": 10_050, "photo_sha256": upload(admin_client)}
+    )
+    assert r.status_code == 200, r.text
+    assert ask(client, h, "81-100", km=10_000)[0].status_code == 201
+    c2 = hand_over(admin_client, claimed, d)
+    (row,) = admin_client.get(V, params={"status": "approved"}).json()
+    assert row["custody_id"] == c2["id"]
+    assert told(client, h)[:2] == ["vehicle_handed_over", "vehicle_claim_approved"]
+    assert alerts(admin_client) == []
+
+
+def test_an_old_claim_or_one_overtaken_by_events_cannot_be_approved(admin_client, client, company, db):
+    car = make_vehicle(admin_client, company["id"], plate_number="91-100")
+    d, h = on_phone(admin_client, client, company)
+    assert ask(client, h, "91-100")[0].status_code == 201
+    (row,) = admin_client.get(V).json()
+    assert row["expired"] is False
+
+    # the car was used and given back after his photo: approving would start his custody before that
+    taken = hand_over(admin_client, car, make_driver(admin_client, company["id"]))
+    r = admin_client.post(
+        f"/api/v1/custodies/{taken['id']}/return", json={"odometer_km": 10_090, "photo_sha256": upload(admin_client)}
+    )
+    assert r.status_code == 200, r.text
+    r = admin_client.post(f"{V}/{row['id']}/approve", json={})
+    assert r.status_code == 409 and r.json()["code"] == "vehicle_changed_since_claim"
+    assert admin_client.get(V).json()[0]["status"] == "pending"
+
+    # older than a custody may start back: shown as such, and refused with its own reason
+    db.execute(text("UPDATE fleet.vehicle_claims SET claimed_at = claimed_at - interval '8 days'"))
+    db.commit()
+    assert admin_client.get(V).json()[0]["expired"] is True
+    r = admin_client.post(f"{V}/{row['id']}/approve", json={})
+    assert r.status_code == 409 and r.json()["code"] == "vehicle_claim_expired"
+    assert admin_client.post(f"{V}/{row['id']}/reject", json={"note": "قديم"}).status_code == 200
+
+
+def test_a_claim_overtaken_by_the_drivers_own_custodies_is_stale(admin_client, client, company, db):
+    make_vehicle(admin_client, company["id"], plate_number="92-100")
+    other = make_vehicle(admin_client, company["id"])
+    d, h = on_phone(admin_client, client, company)
+    assert ask(client, h, "92-100")[0].status_code == 201
+    c = hand_over(admin_client, other, d)  # supersedes the claim
+    admin_client.post(
+        f"/api/v1/custodies/{c['id']}/return", json={"odometer_km": 10_010, "photo_sha256": upload(admin_client)}
+    )
+    # a claim left waiting from before (as data from before this rule): his custodies since make it stale
+    db.execute(text("UPDATE fleet.vehicle_claims SET status = 'pending', note = NULL"))
+    db.commit()
+    (row,) = admin_client.get(V).json()
+    r = admin_client.post(f"{V}/{row['id']}/approve", json={})
+    assert r.status_code == 409 and r.json()["code"] == "vehicle_claim_stale"

@@ -517,7 +517,12 @@
     "vehicle_held_by_other": "This car is with another driver. Call the office.",
     "vehicle_claim_exists": "Your request to take a car is already with the office",
     "vehicle_claim_not_found": "Vehicle registration request not found",
-    "vehicle_claim_decided": "This vehicle registration request was already decided"
+    "vehicle_claim_decided": "This vehicle registration request was already decided",
+    "vehicle_claim_pending": "You already have a request to take a car waiting for the office",
+    "vehicle_claim_expired": "The request is too old: refuse it and ask the driver to register again",
+    "vehicle_changed_since_claim": "Something happened to the car after the request (a reading or a custody): refuse it and have the driver register again",
+    "vehicle_claim_stale": "The driver took or gave back a car after the request: refuse it and have him register again",
+    "transfer_before_last_reading": "The handover time is before the last odometer reading recorded in the custody: choose a time after it"
   },
   "settings": {
     "branding": "Branding",
@@ -1307,6 +1312,7 @@
     "vehicle_swapped": "Your vehicle was swapped: you gave {from} and took {to}",
     "vehicle_claim_approved": "The office approved: the vehicle {plate} is in your custody now",
     "vehicle_claim_rejected": "The office refused your request to take the vehicle {plate}: {reason}",
+    "vehicle_claim_superseded": "Your request to take the car {plate} was closed: you were handed another car",
     "document_renewal_approved": "Your renewed {document} was approved",
     "document_renewal_rejected": "Your renewed {document} was refused: {reason}. Send it again.",
     "report_rejected": "Your report of {date} was refused: {reason}. Send it again, corrected.",

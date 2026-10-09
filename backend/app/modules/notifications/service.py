@@ -239,6 +239,7 @@ DRIVER_KINDS: dict[str, tuple[str, ...]] = {  # kind: the params its text uses
     "vehicle_swapped": ("from", "to"),
     "vehicle_claim_approved": ("plate",),
     "vehicle_claim_rejected": ("plate", "reason"),
+    "vehicle_claim_superseded": ("plate",),
     "document_renewal_approved": ("document",),
     "document_renewal_rejected": ("document", "reason"),
     "document_expiring": ("document", "date", "days"),

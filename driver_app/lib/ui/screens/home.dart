@@ -426,8 +426,10 @@ class _VehicleCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            ClaimBox(state: state),
+            if (state.myVehicle != null && state.myVehicle!.vehicle == null) ...[
+              const SizedBox(height: 12),
+              ClaimBox(state: state),
+            ],
           ],
         ),
       );

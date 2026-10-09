@@ -791,6 +791,7 @@ def _start_custody(
         pair=pair,
     )
     _add_photos(db, custody, "handover", photos)
+    _close_pending_claim(db, driver.id, vehicle, custody, decided_by=by_user)
     vehicle.status = "assigned"
     vehicle.version += 1
     emit(
@@ -806,6 +807,33 @@ def _start_custody(
         },
     )
     return custody
+
+
+def _close_pending_claim(
+    db: Session, driver_id: int, vehicle: Vehicle, custody: Custody, *, decided_by: int | None
+) -> None:
+    """A custody started for the driver, however (the office, a transfer, his claim approved, a car collected from a
+    center): the car he registered and is still waiting for is settled with it. The same car: approved, linked to the
+    custody. Another car: superseded, and he is told; the office's alert closes either way."""
+    claim = db.scalar(
+        select(VehicleClaim)
+        .where(VehicleClaim.employee_id == driver_id, VehicleClaim.status == "pending")
+        .with_for_update()
+    )
+    if claim is None:
+        return
+    claim.decided_by, claim.decided_at = decided_by, utcnow()
+    notifications.resolve(db, f"vehicle_claim:{claim.id}")
+    if claim.vehicle_id == vehicle.id:
+        claim.status, claim.custody_id = "approved", custody.id
+        notifications.notify_driver(db, driver_id, "vehicle_claim_approved", params={"plate": vehicle.plate_number})
+        return
+    claim.status, claim.note = "superseded", CLAIM_SUPERSEDED_NOTE
+    plate = db.scalar(select(Vehicle.plate_number).where(Vehicle.id == claim.vehicle_id))
+    notifications.notify_driver(db, driver_id, "vehicle_claim_superseded", params={"plate": plate})
+
+
+CLAIM_SUPERSEDED_NOTE = "اتسلمت عربية تانية"
 
 
 def hand_back_after_maintenance(
@@ -954,6 +982,8 @@ def transfer_check(db: Session, *, vehicle_public_id, driver_public_id, **scope)
             Custody.driver_id == driver.id, Custody.ended_at.is_(None), Custody.vehicle_id != vehicle.id
         )
     )
+    if his is not None and not _in_scope(his.company_id, **scope):
+        raise AppError(403, "company_out_of_scope")  # as transfer() refuses it
     names = people.names(db, [held.driver_id] if held else [])
     other = db.get(Vehicle, his.vehicle_id) if his else None
     if held is not None and held.driver_id == driver.id:
@@ -1029,6 +1059,11 @@ def transfer(
     for c in (on_x, on_y):
         if c is not None and at <= c.started_at:
             raise AppError(422, "ended_before_start")
+    ending = [c.id for c in (on_x, on_y) if c is not None]
+    if ending and db.scalar(
+        select(OdometerReading.id).where(OdometerReading.custody_id.in_(ending), OdometerReading.recorded_at > at)
+    ):
+        raise AppError(422, "transfer_before_last_reading")  # a custody cannot end before what was recorded in it
     ids = sorted({target.id} | ({on_y.vehicle_id} if on_y else set()))
     locked = {
         v.id: v for v in db.scalars(select(Vehicle).where(Vehicle.id.in_(ids)).order_by(Vehicle.id).with_for_update())
@@ -1893,6 +1928,8 @@ def _claim_out(c: VehicleClaim, plates: dict[int, str]) -> dict:
         "note": c.note,
         "decided_at": c.decided_at,
         "photos": list(c.photos or []),
+        # waiting longer than a custody may start back: it can only be refused
+        "expired": c.status == "pending" and c.claimed_at < utcnow() - BACKDATE_LIMIT,
     }
 
 
@@ -1936,6 +1973,10 @@ def request_vehicle_claim(
     driver = people.ref(db, employee_id)
     if db.scalar(select(Custody.id).where(Custody.driver_id == employee_id, Custody.ended_at.is_(None))):
         raise AppError(409, "driver_has_custody")
+    if db.scalar(
+        select(VehicleClaim.id).where(VehicleClaim.employee_id == employee_id, VehicleClaim.status == "pending")
+    ):
+        raise AppError(409, "vehicle_claim_pending")
     vehicle = _vehicle_for_change(db, plate, driver.company_id)
     if vehicle is None:
         raise AppError(422, "vehicle_plate_not_found")
@@ -1965,8 +2006,11 @@ def request_vehicle_claim(
             db.add(claim)
             db.flush()
     except IntegrityError as exc:
-        if violated_constraint(exc) in ("vehicle_claims_one_pending_idx", "vehicle_claims_client_ref_key"):
-            raise AppError(409, "vehicle_claim_exists") from None
+        constraint = violated_constraint(exc)
+        if constraint == "vehicle_claims_client_ref_key":
+            raise AppError(409, "vehicle_claim_exists") from None  # a resend: already recorded
+        if constraint == "vehicle_claims_one_pending_idx":
+            raise AppError(409, "vehicle_claim_pending") from None  # another one waits: not this one
         raise
     notifications.raise_alert(
         db,
@@ -2063,11 +2107,29 @@ def approve_vehicle_claim(db: Session, public_id, *, actor_user_id: int, all_com
     """A normal handover from the claim: its reading, photos and time, with the checks of that moment. A car taken
     meanwhile (or a driver who got one) is refused and the claim stays waiting, for the office to refuse it."""
     claim = _claim_for_update(db, public_id, all_companies, company_ids)
-    _check_moment(claim.claimed_at)
+    if claim.claimed_at < utcnow() - BACKDATE_LIMIT:
+        raise AppError(409, "vehicle_claim_expired")  # a custody is not started that far back
     vehicle = _vehicle_for_update(db, claim.vehicle_id)
     driver = people.ref(db, claim.employee_id)
     if holder(db, vehicle.id) is not None:
         raise AppError(409, "vehicle_has_custody")
+    # the custody would start back at the claim's time: nothing may have happened to the car, nor to the driver's
+    # custodies, since then (a reading, a custody begun or ended)
+    after = claim.claimed_at
+    if db.scalar(
+        select(OdometerReading.id).where(OdometerReading.vehicle_id == vehicle.id, OdometerReading.recorded_at > after)
+    ) or db.scalar(
+        select(Custody.id).where(
+            Custody.vehicle_id == vehicle.id, or_(Custody.started_at > after, Custody.ended_at > after)
+        )
+    ):
+        raise AppError(409, "vehicle_changed_since_claim")
+    if db.scalar(
+        select(Custody.id).where(
+            Custody.driver_id == driver.id, or_(Custody.started_at > after, Custody.ended_at > after)
+        )
+    ):
+        raise AppError(409, "vehicle_claim_stale")
     _check_can_take(db, vehicle, driver, claim.claimed_at)
     custody = _start_custody(
         db,
@@ -2082,9 +2144,7 @@ def approve_vehicle_claim(db: Session, public_id, *, actor_user_id: int, all_com
         by_device=claim.created_by_device,
         photos=list(claim.photos or []),
     )
-    claim.status, claim.custody_id, claim.decided_by, claim.decided_at = "approved", custody.id, actor_user_id, utcnow()
-    notifications.resolve(db, f"vehicle_claim:{claim.id}")
-    notifications.notify_driver(db, claim.employee_id, "vehicle_claim_approved", params={"plate": vehicle.plate_number})
+    claim.decided_by = actor_user_id  # approved, linked and told as the custody started
     out = _custodies_out(db, [custody])[0]
     audit.record(
         db,

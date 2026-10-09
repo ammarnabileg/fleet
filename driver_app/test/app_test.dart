@@ -1172,6 +1172,111 @@ void main() {
     expect(find.byKey(const Key('start-day')), findsOneWidget);
   });
 
+  testWidgets('no car: the register button only once the server said so; a refusal told reloads it', (tester) async {
+    final w = (await tester.runAsync(
+      () => world(today: {'custody': null, 'start_day_done': false, 'end_day_done': false}),
+    ))!;
+    final img = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.utc(2026, 10, 4, 6, 10));
+    final items = <Map<String, dynamic>>[];
+    w.server.on('GET', '/api/v1/driver/notifications', (r) => (200, {'unread': items.length, 'items': items}));
+    // "my car" cannot be read: nothing offered, on home or on the screen
+    w.server.on('GET', '/api/v1/driver/vehicle', (r) => (503, {'code': 'unavailable'}));
+    await pumpApp(tester, w);
+    expect(find.byKey(const Key('claim-vehicle')), findsNothing);
+    expect(find.byKey(const Key('claim-pending')), findsNothing);
+
+    Map<String, dynamic>? claim = {
+      'id': 'k1',
+      'status': 'pending',
+      'plate': '12-34567',
+      'odometer_km': 900,
+      'claimed_at': '2026-10-04T06:00:00Z',
+      'created_at': '2026-10-04T06:01:00Z',
+      'note': null,
+      'decided_at': null,
+    };
+    w.server.on(
+      'GET',
+      '/api/v1/driver/vehicle',
+      (r) => (200, {'vehicle': null, 'change_request': null, 'claim': claim}),
+    );
+    await tester.runAsync(w.state.resumed);
+    await settle(tester);
+    expect(find.byKey(const Key('claim-pending')), findsOneWidget);
+
+    // the office refused it: the notice reloads "my car", the reason shows and the button is back
+    claim = {...claim, 'status': 'rejected', 'note': 'العربية مع حد تاني', 'decided_at': '2026-10-04T07:00:00Z'};
+    items.insert(0, {
+      'id': 'n1',
+      'kind': 'vehicle_claim_rejected',
+      'message': 'المكتب رفض طلبك',
+      'entity_type': null,
+      'entity_id': null,
+      'created_at': '2026-10-04T07:00:00Z',
+      'read': false,
+    });
+    await tester.runAsync(w.state.loadNotices);
+    await idle(tester);
+    expect(find.byKey(const Key('claim-rejected')), findsOneWidget);
+    expect(find.textContaining('العربية مع حد تاني'), findsOneWidget);
+
+    // sent while another one waits (from another phone, say): told, not taken as sent
+    w.server.on('POST', '/api/v1/driver/files', (r) => (201, {'sha256': 'c' * 64}));
+    w.server.on('POST', '/api/v1/driver/vehicle-claims', (r) => (409, {'code': 'vehicle_claim_pending'}));
+    tester.view.physicalSize = const Size(1080, 4400);
+    await tester.tap(find.byKey(const Key('claim-vehicle')));
+    await settle(tester);
+    await tester.enterText(find.byKey(const Key('claim-plate')), '12-34567');
+    await tester.enterText(find.byKey(const Key('claim-km')), '45300');
+    await tester.tap(find.byKey(const Key('claim-odo-photo')));
+    await idle(tester);
+    await tester.tap(find.byKey(const Key('send-claim')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/vehicle-claims'), hasLength(1));
+    expect(find.byKey(const Key('send-claim')), findsOneWidget, reason: 'still on the form');
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(await tester.runAsync(() => w.state.outbox.items()), isEmpty);
+  });
+
+  testWidgets('my car not readable: the error and a retry, never a car shown from before', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    var up = false;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/vehicle',
+      (r) => up
+          ? (
+              200,
+              {
+                'vehicle': {
+                  'plate_number': '18/23456',
+                  'make': 'Kia',
+                  'model': null,
+                  'year': null,
+                  'color': null,
+                  'since': '2026-10-02T05:00:00Z',
+                  'last_odometer_km': 45100,
+                  'last_reading_at': null,
+                  'registration_expiry': null,
+                },
+                'change_request': null,
+                'claim': null,
+              },
+            )
+          : (503, {'code': 'unavailable'}),
+    );
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('my-car')));
+    await idle(tester);
+    expect(find.byKey(const Key('car-retry')), findsOneWidget);
+    expect(find.byKey(const Key('claim-vehicle')), findsNothing);
+    up = true;
+    await tester.tap(find.byKey(const Key('car-retry')));
+    await idle(tester);
+    expect(find.byKey(const Key('car-last-km')), findsOneWidget);
+  });
+
   testWidgets('his car swapped by the office: told, the app shows the new car and nothing of the old one', (
     tester,
   ) async {

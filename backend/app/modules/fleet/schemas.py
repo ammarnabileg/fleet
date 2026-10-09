@@ -246,7 +246,7 @@ class ClaimPhotoOut(BaseModel):
 
 class VehicleClaimOut(BaseModel):
     id: str
-    status: str  # pending | approved | rejected
+    status: str  # pending | approved | rejected | superseded (he got another car meanwhile)
     plate: str
     vehicle_id: str | None = None
     odometer_km: int
@@ -261,6 +261,7 @@ class VehicleClaimOut(BaseModel):
     holder: dict | None = None  # the office's list only: who holds the car now, if anyone
     decided_by: str | None = None  # the office's list only
     custody_id: str | None = None  # approved: the custody it became
+    expired: bool = False  # waiting beyond the backdate limit: it can only be refused
 
 
 class MyVehicleOut(BaseModel):

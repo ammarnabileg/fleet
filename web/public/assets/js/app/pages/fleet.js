@@ -198,7 +198,9 @@
         var photos = [{ src: api.url('/vehicle-claims/' + x.id + '/photo'), caption: 'صورة العداد · ' + fmt.dt(x.claimed_at) }].concat(x.photos.map(function (p) { return { src: api.url('/vehicle-claims/' + x.id + '/photos/' + p.sha256), caption: 'حالة العربية · ' + api.t('photo_position', p.position) }; }));
         var warn = [
           x.holder ? BT.pill('مع ' + api.name(x.holder.name), 'r') : x.vehicle_status && x.vehicle_status !== 'available' ? A.pill('vehicle_status', x.vehicle_status) : '',
-          x.vehicle_last_km != null && x.odometer_km < x.vehicle_last_km ? BT.pill('أقل من آخر قراءة (' + fmt.km(x.vehicle_last_km) + ')', 'o') : ''
+          x.vehicle_last_km != null && x.odometer_km < x.vehicle_last_km ? BT.pill('أقل من آخر قراءة (' + fmt.km(x.vehicle_last_km) + ')', 'o') : '',
+          // older than a custody may start back: it can only be refused
+          x.expired ? h`<span data-claim-expired title="الطلب قديم: ارفضه واطلب من السواق يسجّل من جديد">${BT.pill('قديم', 'r')}</span>` : ''
         ];
         return h`<div data-claim="${x.id}">${A.person(x.driver)} ${A.plate(x.plate, x.vehicle_id)} <span class="num" data-claim-km>${fmt.km(x.odometer_km)}</span> كم ${warn} <span class="muted fs-sm">${fmt.dt(x.claimed_at)}</span>${A.thumbs(photos)}</div>`;
       },
@@ -346,7 +348,7 @@
               var car = (A._pick.vehicle || []).find(function (i) { return i.id === v; }) || {};
               transfer = c.modes_allowed.indexOf('handover') >= 0 ? null : { check: c, plate: car.plate, driver: drv.value.split(' — ')[0] };
               drawTransfer(dd.el);
-            }, function () { if (n === seq) { transfer = null; drawTransfer(dd.el); } });
+            }, function () { if (n === seq) { checked = null; transfer = null; drawTransfer(dd.el); } }); // asked again on the next change
           }
           // on input as well: a choice from the list is complete before the field is left
           [veh, drv].forEach(function (f) { f.addEventListener('change', check); f.addEventListener('input', check); });
@@ -390,7 +392,7 @@
           var okm = el.querySelector('[name=other_odometer_km]');
           if (!okm.value && c.driver_vehicle.last_odometer_km != null) okm.value = c.driver_vehicle.last_odometer_km;
         }
-        if (!c.modes_allowed.length) { BT.render(box, h`<div class="banner warn fs-sm">${icon('triangle-alert', 15)}<div>${n.a} معاه العربية ${n.x} بالفعل.</div></div>`); return; }
+        if (!c.modes_allowed.length) { BT.render(box, h`<div class="banner warn fs-sm" data-transfer-same>${icon('triangle-alert', 15)}<div>${n.a} معاه العربية ${n.x} بالفعل.</div></div>`); return; }
         var text = c.holder && !c.driver_vehicle ? 'العربية ' + n.x + ' مع ' + n.b + '. التسليم هيخرّج ' + n.b + ' منها.'
           : c.holder ? 'العربية ' + n.x + ' مع ' + n.b + '، و' + n.a + ' معاه ' + n.y + '.'
           : n.a + ' معاه ' + n.y + ': هيرجّعها ويستلم ' + n.x + '.';
@@ -402,6 +404,10 @@
       }
       function submitTransfer(v) {
         var c = transfer.check, m = v.mode || c.modes_allowed[0], dv = c.driver_vehicle;
+        if (!c.modes_allowed.length) { // he holds this car already: nothing to hand over
+          BT.toast(names().a + ' معاه العربية ' + names().x + ' بالفعل: اختار عربية تانية أو سواق تاني', { type: 'error', timeout: 6000 });
+          return Promise.resolve(false);
+        }
         return BT.confirm({ title: 'تأكيد التسليم', message: 'بعد التسليم:', details: h`<ul class="fs-sm" data-confirm-outcome>${(c.modes_allowed.length ? outcome(m) : []).map(function (x) { return h`<li>${x}</li>`; })}</ul>`, confirmText: 'تسليم', tone: 'warn' }).then(function (r) {
           if (!r.ok) return false;
           var otherPhoto = dv && v.other_odo_photo && v.other_odo_photo[0] ? api.upload(v.other_odo_photo[0]) : null;

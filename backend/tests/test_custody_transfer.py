@@ -5,7 +5,7 @@ reading per car serves its return and its handover, and the odometer rules accep
 from datetime import timedelta
 
 from app.core.clock import utcnow
-from tests.conftest import bearer, bind_device, hand_over, login, make_driver, make_user, make_vehicle, upload
+from tests.conftest import bearer, bind_device, hand_over, jpeg, login, make_driver, make_user, make_vehicle, upload
 
 T = "/api/v1/custodies/transfer"
 CHECK = "/api/v1/custodies/transfer-check"
@@ -300,6 +300,9 @@ def test_permission_and_company_scope(admin_client, new_client, companies):
         T, json=body | {"photo_sha256": upload(sup), "other_odometer_km": 10_000, "other_photo_sha256": upload(sup)}
     )
     assert r.status_code == 403 and r.json()["code"] == "company_out_of_scope"
+    # the check answers the same: nothing of a car outside his companies
+    r = sup.get(CHECK, params={"vehicle_id": x["id"], "driver_id": taker["id"]})
+    assert r.status_code == 403 and r.json()["code"] == "company_out_of_scope"
     assert custody(admin_client, x)["driver"]["id"] == holder["id"]
 
 
@@ -333,3 +336,49 @@ def test_the_driver_is_told_of_every_change_of_his_car(admin_client, client, com
     assert r.status_code == 200, r.text
     assert told(client, h)[0] == "vehicle_returned"
     assert detail(admin_client, cy)["ended_at"] is not None
+
+
+def test_a_transfer_cannot_end_a_custody_before_what_was_recorded_in_it(admin_client, client, company):
+    x = make_vehicle(admin_client, company["id"], km=70_000)
+    y = make_vehicle(admin_client, company["id"], km=80_000)
+    b, a = make_driver(admin_client, company["id"]), make_driver(admin_client, company["id"])
+    hb, ha = bearer(bind_device(client, b["phone"])), bearer(bind_device(client, a["phone"]))
+    held_an_hour(admin_client, x, b)
+    held_an_hour(admin_client, y, a)
+
+    def start_day(h, km, minutes_ago):
+        photo = client.post("/api/v1/driver/files", files={"file": ("p.jpg", jpeg(), "image/jpeg")}, headers=h)
+        at = (utcnow() - timedelta(minutes=minutes_ago)).isoformat()
+        body = {"value_km": km, "photo_sha256": photo.json()["sha256"], "recorded_at": at}
+        assert client.post("/api/v1/driver/odometer", json=body, headers=h).status_code == 201
+
+    start_day(ha, 80_010, 10)  # only on Y: a swap ending both custodies must check both cars
+    body = {
+        "vehicle_id": x["id"],
+        "driver_id": a["id"],
+        "mode": "swap",
+        "odometer_km": 70_020,
+        "other_odometer_km": 80_030,
+        "started_at": (utcnow() - timedelta(minutes=30)).isoformat(),
+    }
+    r = admin_client.post(
+        T, json=body | {"photo_sha256": upload(admin_client), "other_photo_sha256": upload(admin_client)}
+    )
+    assert r.status_code == 422 and r.json()["code"] == "transfer_before_last_reading", r.text
+    start_day(hb, 70_010, 5)
+    r = admin_client.post(
+        T,
+        json=body
+        | {
+            "started_at": (utcnow() - timedelta(minutes=8)).isoformat(),
+            "photo_sha256": upload(admin_client),
+            "other_photo_sha256": upload(admin_client),
+        },
+    )
+    assert r.status_code == 422 and r.json()["code"] == "transfer_before_last_reading", r.text  # X's, this time
+    r = admin_client.post(
+        T,
+        json=body
+        | {"started_at": None, "photo_sha256": upload(admin_client), "other_photo_sha256": upload(admin_client)},
+    )
+    assert r.status_code == 201, r.text

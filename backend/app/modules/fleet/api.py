@@ -453,7 +453,7 @@ def claim_vehicle(
 
 @router.get("/vehicle-claims", response_model=list[schemas.VehicleClaimOut])
 def vehicle_claims(
-    status: Literal["pending", "approved", "rejected", "all"] = "pending",
+    status: Literal["pending", "approved", "rejected", "superseded", "all"] = "pending",
     limit: Annotated[int, Query(ge=1, le=500)] = 200,
     offset: Annotated[int, Query(ge=0)] = 0,
     principal: Principal = Depends(require_permission("custody.view")),
