@@ -25,7 +25,7 @@ def driver_file(client, h, data=None, name="o.jpg", mime="image/jpeg") -> str:
 def payslip(admin_client, client, company, payroll_live):
     """A Keeta driver's approved month (400 orders, 3 marks: 140 - 7 - 10) with an advance installment taken."""
     set_cap(admin_client)
-    keeta = platform(admin_client, "keeta")
+    keeta = platform(admin_client, "keeta_t")  # beside the seeded platforms
     standard = scheme(admin_client, keeta["id"], KEETA)
     d = make_driver(admin_client, company["id"], platform_id=keeta["id"], iban=IBAN, basic_salary="300")
     other = make_driver(admin_client, company["id"], platform_id=keeta["id"], iban=IBAN, basic_salary="300")

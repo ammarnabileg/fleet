@@ -20,7 +20,7 @@ def setup_month(admin_client, company):
     """A Keeta driver whose penalties pass his pay, one on a platform's own rule whose platform deductions pass his
     salary, and one whose month covers everything."""
     set_cap(admin_client)
-    keeta = platform(admin_client, "keeta")
+    keeta = platform(admin_client, "keeta_t")  # beside the seeded platforms
     standard = scheme(admin_client, keeta["id"], KEETA)
     plain = admin_client.post(f"{P}/platforms", json={"code": "plain", "name": {"ar": "منصة", "en": "Plain"}}).json()
     k = make_driver(admin_client, company["id"], platform_id=keeta["id"], iban=IBAN, basic_salary="300")

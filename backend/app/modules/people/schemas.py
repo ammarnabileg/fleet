@@ -1,3 +1,4 @@
+import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
@@ -94,6 +95,21 @@ class EmployeeUpdateIn(BaseModel):
     platform_id: int | None = None
     platform_driver_id: Short | None = None
     fuel_card: bool | None = None
+
+
+class PlatformAssignIn(BaseModel):
+    """The drivers chosen in the list, put on one delivery platform (or on none) at once."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    employee_ids: list[uuid.UUID] = Field(min_length=1, max_length=1000)
+    platform_id: int | None
+
+
+class PlatformAssignOut(BaseModel):
+    updated: int
+    unchanged: int  # already on it
+    skipped: int  # not drivers
 
 
 class EmployeeOut(BaseModel):

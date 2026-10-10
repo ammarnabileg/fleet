@@ -71,6 +71,9 @@ FIELDS: dict[str, tuple[Field, ...]] = {
         Field("app_access", False, PEOPLE_OPTIONAL["app_access"]),
         Field("initial_password", False, PEOPLE_OPTIONAL["initial_password"]),
         Field("password_days", False, PEOPLE_OPTIONAL["password_days"]),
+        # his delivery platform (its code or name) and his ID on it
+        Field("platform", False, PEOPLE_OPTIONAL["platform"]),
+        Field("platform_driver_id", False, PEOPLE_OPTIONAL["platform_driver_id"]),
     ),
 }
 PASSWORD = next(f for f in FIELDS["employees"] if f.key == "initial_password")

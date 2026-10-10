@@ -22,7 +22,7 @@ def set_cap(admin_client, **extra):
 
 @pytest.fixture
 def keeta_and_talabat(admin_client, company):
-    keeta, talabat = platform(admin_client, "keeta"), platform(admin_client, "talabat")
+    keeta, talabat = platform(admin_client, "keeta_t"), platform(admin_client, "talabat_t")  # beside the seeded two
     return {
         "keeta": keeta,
         "talabat": talabat,

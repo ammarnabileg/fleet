@@ -464,3 +464,64 @@ def test_a_password_header_with_the_word_app_is_the_password_and_never_echoed(ad
     plan["sheets"][0]["columns"] = {"civil_id": 0, "name": 1, "job_title": 2, "app_access": 3}
     r = run(admin_client, data, plan)
     assert "Ali@Pass2026" not in r.text and r.json()["errors"][0]["code"] == "invalid_yes_no", r.text
+
+
+def test_the_platform_and_his_id_on_it(admin_client, company):
+    """«المنصة» by its code or a name (any case, Arabic letter variants), «رقمه في المنصة» stored as his platform ID:
+    an unknown platform is named in the row's error, and an ID needs a platform in the row or already his."""
+    plats = {p["code"]: p for p in admin_client.get("/api/v1/payroll/platforms").json()}
+    other = admin_client.post(
+        "/api/v1/payroll/platforms", json={"code": "px_one", "name": {"ar": "منصة إكس", "en": "X One"}}
+    ).json()
+    header = ["الرقم المدني", "الاسم", "المهنة", "منصة التوصيل", "معرف سائق التوصيل"]
+    data = employees_book(
+        header,
+        [
+            (ALI, "علي", "سائق", "كيتا", "K-100"),  # the Arabic name
+            (OMAR, "عمر", "سائق", " TALABAT ", 200),  # the English name, any case
+            (NOOR, "نور", "سائق", "PX_ONE", None),  # the code
+            (HANI, "هاني", "سائق", "منصه اكس", None),  # a name as typed: taa marbuta, hamza
+        ],
+    )
+    pv = preview(admin_client, data)
+    sheet = pv["sheets"][0]
+    assert sheet["mapping"] == {"civil_id": 0, "name": 1, "job_title": 2, "platform": 3, "platform_driver_id": 4}
+    plan = plan_from(pv, company["id"])
+    out = run(admin_client, data, plan, apply=True).json()
+    assert out["applied"] and out["errors"] == [], out
+    people = staff(admin_client)
+    on = {c: (people[c]["platform_id"], people[c]["platform_driver_id"]) for c in (ALI, OMAR, NOOR, HANI)}
+    assert on == {
+        ALI: (plats["keeta"]["id"], "K-100"),
+        OMAR: (plats["talabat"]["id"], "200"),
+        NOOR: (other["id"], None),
+        HANI: (other["id"], None),
+    }
+
+    # his ID alone, on the platform he already has; a move without an ID drops the old platform's one
+    data = employees_book(header, [(NOOR, "نور", "سائق", None, "X-5"), (ALI, "علي", "سائق", "طلبات", None)])
+    out = run(admin_client, data, plan_from(preview(admin_client, data), company["id"]), apply=True).json()
+    assert out["applied"], out
+    people = staff(admin_client)
+    assert (people[NOOR]["platform_id"], people[NOOR]["platform_driver_id"]) == (other["id"], "X-5")
+    assert (people[ALI]["platform_id"], people[ALI]["platform_driver_id"]) == (plats["talabat"]["id"], None)
+
+    data = employees_book(
+        header,
+        [
+            (OMAR, "عمر", "سائق", "Other app", None),
+            (SARA, "سارة", "سائق", None, "S-1"),  # new, with no platform
+            (civil("29001010003"), "سالم", "سائق", "", "S-2"),
+            (civil("29001010004"), "مدير", "مدير إداري", "طلبات", None),  # staff are on no platform
+            (HANI, "هاني", "سائق", "talabat", "200"),  # Omar's ID on that platform
+        ],
+    )
+    out = run(admin_client, data, plan_from(preview(admin_client, data), company["id"])).json()
+    assert [(e["row"], e["code"], e["params"]) for e in out["errors"]] == [
+        (2, "platform_not_found", {"value": "Other app"}),
+        (3, "platform_required", {}),
+        (4, "platform_required", {}),
+        (5, "not_a_driver", {}),
+        (6, "platform_driver_id_taken", {}),
+    ]
+    assert (staff(admin_client)[HANI]["platform_id"]) == other["id"]  # nothing applied
