@@ -264,6 +264,7 @@ def test_the_driver_sends_the_month_and_the_office_reviews_it(admin_client, clie
     assert v.post(f"{P}/statements/{sid}/approve", json=figures).status_code == 403
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_the_run_caps_deductions_moves_the_rest_on_and_locks_the_month(
     admin_client, client, new_client, staff, company, platforms, db
 ):
@@ -378,6 +379,7 @@ def _id(db, employee: dict) -> int:
     return db.execute(text("SELECT id FROM people.employees WHERE public_id = :p"), {"p": employee["id"]}).scalar()
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_the_excel_is_the_clients_sheets(admin_client, client, staff, company):
     set_cap(admin_client)
     admin_client.post(
@@ -414,6 +416,7 @@ def test_the_excel_is_the_clients_sheets(admin_client, client, staff, company):
     assert "-draft" not in named and MONTH.strftime("%Y-%m") in named
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_runs_are_approved_and_reopened_in_order(admin_client, company):
     set_cap(admin_client)
     make_employee(admin_client, company["id"], basic_salary="400.000")

@@ -100,7 +100,7 @@ def payroll_settings(admin_client):
 
 
 @pytest.fixture
-def documents(admin_client, client, companies):
+def documents(admin_client, client, companies, payroll_live):
     """One document of each kind, with amounts chosen so every balance is known."""
     a, b = companies["a"]["id"], companies["b"]["id"]
     # the cash ledger: a driver's 20.000 approved, 15.000 handed in by receipt, 10.000 taken to the bank
@@ -403,6 +403,7 @@ def test_permissions_and_company_scope(admin_client, new_client, companies):
     assert r.status_code == 403
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_a_reopened_payroll_and_a_cancelled_deduction_are_listed_to_reverse(admin_client, companies):
     b = companies["b"]["id"]
     first, _ = month()
@@ -462,6 +463,7 @@ def test_a_code_with_a_leading_zero_stays_text_in_excel():
     assert (ws.cell(2, 1).value, ws.cell(2, 1).data_type, ws.cell(2, 2).value) == ("0101", "s", D("12.5"))
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_the_default_chart_is_structured_and_salaries_go_to_two_accounts(admin_client, company):
     """Four-digit codes whose first digit is the class; every role on an account; drivers' salaries an operating
     cost, the office's an administrative one."""

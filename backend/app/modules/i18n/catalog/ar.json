@@ -538,7 +538,9 @@
     "objection_exists": "وصل هذا الاعتراض من قبل",
     "objection_not_found": "الاعتراض غير موجود",
     "objection_status_invalid": "لا يمكن تغيير حالة الاعتراض من «{status}» إلى هذه الحالة",
-    "objection_deduction_invalid": "الخصم ليس لنفس السائق"
+    "objection_deduction_invalid": "الخصم ليس لنفس السائق",
+    "payroll_not_reconciled": "اعتماد المسيرات متوقف لحد ما يتعمل اختبار المطابقة مع كشف شهر سابق. فعّله من الإعدادات بعد المطابقة.",
+    "owner_only": "هذا الإعداد يغيّره مالك النظام فقط"
   },
   "settings": {
     "branding": "الهوية",
@@ -599,7 +601,8 @@
     "finance.fiscal_year_start_month": "شهر بداية السنة المالية",
     "finance.books_start_date": "تاريخ بداية الدفاتر في النظام",
     "cash.treasury_deposit_limit": "حد إيداع الخزينة في البنك (د.ك، 0 = بلا تنبيه)",
-    "cash.treasury_deposit_weekdays": "أيام إيداع الخزينة في البنك"
+    "cash.treasury_deposit_weekdays": "أيام إيداع الخزينة في البنك",
+    "payroll.live_approval_enabled": "اعتماد المسيرات الحقيقية (بعد اختبار المطابقة مع كشف شهر سابق؛ للمالك فقط)"
   },
   "common": {
     "active": "نشط",

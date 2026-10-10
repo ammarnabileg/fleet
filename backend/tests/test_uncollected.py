@@ -2,6 +2,8 @@
 balance for review, recorded when the run is approved, never carried by itself; an accountant with payroll.approve
 carries a line to the next month (a manual deduction) or drops it, each with a note."""
 
+import pytest
+
 from tests.conftest import bearer, bind_device, login, make_driver, make_user
 from tests.test_payroll_decisions import run_lines, set_cap
 from tests.test_schemes import IBAN, KEETA, MONTH, NEXT, P, assign, platform, scheme
@@ -31,6 +33,7 @@ def setup_month(admin_client, company):
     return k, t, ok
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_penalties_above_the_pay_end_at_zero_and_wait_for_review(admin_client, company, new_client):
     k, t, ok = setup_month(admin_client, company)
     run, lines = run_lines(admin_client, company)
@@ -76,6 +79,7 @@ def test_penalties_above_the_pay_end_at_zero_and_wait_for_review(admin_client, c
     assert r.status_code == 403
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_carried_with_approval_or_dropped_with_a_note(admin_client, client, company):
     k, t, _ = setup_month(admin_client, company)
     run, _ = run_lines(admin_client, company)
@@ -121,6 +125,7 @@ def test_carried_with_approval_or_dropped_with_a_note(admin_client, client, comp
     assert {"uncollected.recorded", "uncollected.carried", "uncollected.dropped"} <= actions
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_reopening_keeps_what_was_decided_and_reviews_the_rest_again(admin_client, company):
     k, t, _ = setup_month(admin_client, company)
     run, _ = run_lines(admin_client, company)

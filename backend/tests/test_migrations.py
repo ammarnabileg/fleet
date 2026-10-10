@@ -142,3 +142,42 @@ def test_existing_schemes_become_their_version_1(database_url, admin_engine):
     finally:
         with admin_engine.connect() as c:
             c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+
+
+def test_existing_installs_start_with_the_payroll_gate_closed(database_url, admin_engine):
+    """Migration 0049: an install that already has payroll settings gets live_approval_enabled false, the rest kept."""
+    import json
+    import uuid
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    from tests.conftest import BACKEND, _url
+
+    name = f"fleet_mig_{uuid.uuid4().hex[:8]}"
+    with admin_engine.connect() as c:
+        c.execute(text(f'CREATE DATABASE "{name}"'))
+    try:
+        cfg = Config(str(BACKEND / "alembic.ini"))
+        cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+        cfg.set_main_option("sqlalchemy.url", _url(name).replace("%", "%%"))
+        command.upgrade(cfg, "0048_objections")
+        engine = create_engine(_url(name))
+        with engine.begin() as c:
+            c.execute(
+                text("INSERT INTO org.settings (key, value) VALUES ('payroll', :v)"),
+                {"v": json.dumps({"max_deduction_percent": "50.00", "deduction_cap_base": "basic"})},
+            )
+        command.upgrade(cfg, "head")
+        with engine.connect() as c:
+            value = c.scalar(text("SELECT value FROM org.settings WHERE key = 'payroll'"))
+        engine.dispose()
+        assert value == {
+            "max_deduction_percent": "50.00",
+            "deduction_cap_base": "basic",
+            "live_approval_enabled": False,
+        }
+    finally:
+        with admin_engine.connect() as c:
+            c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))

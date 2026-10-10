@@ -52,8 +52,10 @@
     if (!tabs.length) { BT.render(v, A.forbidden()); return; }
     var tab = tabs.some(function (t) { return t[0] === q.tab; }) ? q.tab : tabs[0][0];
     BT.render(v, h`${A.head('الرواتب', 'كشف المنصة الشهري لكل سائق، ثم كشف الرواتب لكل شركة وشهر بأعمدة نموذجكم، والحد الأقصى للخصم وترحيل الباقي')}
+      <div data-gate></div>
       ${BT.tabs('pay', tabs.map(function (t) { return [t[0], t[1]]; }), tab, 'tabs-line')}
       ${tabs.map(function (t) { return h`<div data-panel="${t[0]}" data-group="pay" class="${t[0] === tab ? 'active' : ''}"><div data-p="${t[0]}"></div></div>`; })}`);
+    if (api.can('payroll.view')) A.gateBanner(v.querySelector('[data-gate]'));
     var drawn = {};
     function show(t) {
       if (drawn[t]) return; drawn[t] = true;
@@ -61,6 +63,15 @@
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/payroll?tab=' + e.detail); });
     show(tab);
+  };
+
+  /* بوابة المطابقة: لا يُعتمد كشف رواتب حقيقي قبل مقارنة شهر بكشف العميل */
+  A.gateBanner = function (box) {
+    if (!box) return;
+    api.get('/payroll/gate').then(function (g) {
+      if (!document.contains(box) || g.live_approval_enabled) return;
+      BT.render(box, h`<div class="banner warn mb-12" data-gate-banner>${icon('triangle-alert', 16)}<div><b>اعتماد المسيرات متوقف لحد ما يتعمل اختبار المطابقة مع كشف شهر سابق.</b> الكشوف تُحضَّر وتُراجع وتُصدَّر عادي، لكن الاعتماد مرفوض. يفعّله مالك النظام من الإعدادات ← الرواتب بعد المطابقة.</div></div>`);
+    }, function () {});
   };
 
   /* ================= كشوف المنصات ================= */
@@ -199,6 +210,7 @@
     if (run.status === 'approved' && api.can('payroll.approve')) acts.push(A.btn('تسجيل الدفع', { icon: 'banknote', cls: 'btn-success', id: 'run-paid' }));
     if (run.status === 'draft' && api.can('payroll.approve')) acts.push(A.btn('اعتماد الكشف', { icon: 'check', cls: 'btn-primary', id: 'run-approve' }));
     return h`${A.head('رواتب ' + monthLabel(run.month) + ' — ' + api.company(run.company_id), h`${BT.pill(api.t('run_status', run.status), RUN_TONE[run.status], true)} حد الخصم ${Number(run.cap_percent)}% من ${run.cap_base === 'basic' ? 'الراتب الأساسي' : 'الراتب المستحق في الشهر'}${run.reopened ? ' · أُعيد فتحه ' + run.reopened + ' مرة' : ''}`, h`${acts}`)}
+      ${run.status === 'draft' ? h`<div data-gate></div>` : ''}
       ${run.status === 'draft' && run.blocking ? h`<div class="banner danger mb-12">${icon('circle-x', 16)}<div><b>${run.blocking} سطر غير جاهز للاعتماد</b>: كشف منصة ناقص أو بانتظار المراجعة، أو أرقام يحتاجها نظام الدفع ناقصة. أكمل الكشوف ثم أعد الحساب.</div></div>` : ''}
       ${run.lines.some(function (l) { return Number(l.cells.uncovered_penalty || 0) > 0; }) ? h`<div class="banner note mb-12" data-uncollected-note>${icon('info', 16)}<div>خصومات أكبر من المستحق في ${run.lines.filter(function (l) { return Number(l.cells.uncovered_penalty || 0) > 0; }).length} سطر: الصافي صفر والباقي «خصومات غير محصلة» تظهر للمراجعة بعد الاعتماد (تبويب «خصومات غير محصلة»)، ولا تُرحّل تلقائياً.</div></div>` : ''}
       <div class="kpis mb-16">${BT.kpi({ label: 'الموظفون', value: fmt.int(T.lines || 0), dot: 'b' })}${BT.kpi({ label: 'إجمالي المستحق', value: fmt.money(T.gross), dot: 'g' })}${BT.kpi({ label: 'إجمالي الخصومات', value: fmt.money(T.deductions), dot: 'o' })}${BT.kpi({ label: 'صافي الرواتب', value: fmt.money(T.net), dot: 'p' })}</div>
@@ -253,6 +265,7 @@
   }
   function wireRun(v, run, list) {
     var reload = function () { A.refreshIfAt('payroll/run/' + run.id); };
+    A.gateBanner(v.querySelector('[data-gate]'));
     var trail = document.getElementById('run-approvals');
     if (A.approvalHistory) A.approvalHistory(trail, 'payroll_run', run.id);
     BT.on(v, 'click', '[data-line]', function (e, tr) { var l = run.lines.find(function (x) { return x.employee.id === tr.getAttribute('data-line'); }); if (l) lineView(run, l, list); });

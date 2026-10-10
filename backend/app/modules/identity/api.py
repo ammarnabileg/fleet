@@ -74,6 +74,7 @@ def me(principal: Principal = Depends(get_principal)):
         full_name=principal.full_name,
         locale=principal.locale,
         is_superuser=principal.is_superuser,
+        all_permissions=principal.all_permissions,
         all_companies=principal.all_companies,
         permissions=sorted(principal.permissions),
         company_ids=sorted(principal.company_ids),

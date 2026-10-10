@@ -216,6 +216,12 @@ def send_statement(
 # ------------------------------------------------------------------ payroll runs
 
 
+@router.get("/payroll/gate")
+def payroll_gate(_: Principal = Depends(require_permission("payroll.view")), db: Session = Depends(get_session)):
+    """Whether runs may be approved yet (the reconciliation gate in the payroll settings)."""
+    return {"live_approval_enabled": runs.live_approval(db)}
+
+
 @router.get("/payroll/runs", response_model=list[schemas.RunOut])
 def list_runs(
     company_id: int | None = None,

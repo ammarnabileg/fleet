@@ -519,8 +519,16 @@ def _open_month(db: Session, run: Run) -> None:
     finance.check_open_month(db, _month_end(run.month))
 
 
+def live_approval(db: Session) -> bool:
+    """The reconciliation gate: no run is approved until the owner turned it on, after one month was compared with
+    a previous month's sheet of the client (runs are still computed, reviewed and exported)."""
+    return org.section_now(db, "payroll").live_approval_enabled
+
+
 def approve(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
     run = _run(db, public_id, lock=True, **scope)
+    if not live_approval(db):
+        raise AppError(409, "payroll_not_reconciled")
     if run.status != "draft":
         raise AppError(409, "run_not_draft")
     _open_month(db, run)

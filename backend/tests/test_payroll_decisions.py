@@ -177,6 +177,7 @@ def test_another_keeta_scheme_can_be_added_later_j(admin_client, company, keeta_
     assert items(lines[k]) == {"orders_pay": "200.000", "tier_bonus": "50.000"}
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_terms_change_by_version_and_paid_months_never_change(admin_client, company, keeta_and_talabat):
     set_cap(admin_client)
     s = keeta_and_talabat

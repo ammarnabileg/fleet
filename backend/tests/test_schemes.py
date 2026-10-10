@@ -309,6 +309,7 @@ def test_the_run_pays_each_driver_on_his_scheme(admin_client, company, setup):
     assert Decimal(k1["cells"]["orders_pay"]) + Decimal(k1["cells"]["tier_bonus"]) == Decimal(k1["gross"])
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_the_payslip_explains_the_month_item_by_item(admin_client, client, company, setup):
     version = admin_client.get("/api/v1/settings").json()["payroll"]["version"]
     admin_client.put(

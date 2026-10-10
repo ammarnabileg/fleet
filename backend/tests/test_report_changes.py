@@ -156,6 +156,7 @@ def test_after_approval_a_change_is_asked_for_and_decided(admin_client, client, 
     assert [c["id"] for c in mine_log] == [c["id"] for c in log]
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_no_change_once_the_months_payroll_is_approved(admin_client, client, driver, company):
     from tests.test_finance import month, payroll_settings
 

@@ -510,6 +510,25 @@ and when.
 | `GET /payroll/objections?status=&month=`, `/counts`, `/{id}`, `/{id}/attachment` | `payroll.view` |
 | `POST /payroll/objections/{id}/respond {status, response?, action_taken?, deduction_id?}` | `payroll.prepare` or `payroll.approve` |
 
+## 10. The reconciliation gate
+
+Nothing real is approved before one month is compared against a previous month's sheet of the client. The payroll
+settings carry `live_approval_enabled`, **false by default and for existing installs** (migration `0049_payroll_gate`
+writes it into a stored payroll section):
+
+- While it is false, runs are prepared, recomputed, reviewed and exported as usual, but approving one (from the run
+  page or from the approvals inbox) is refused with 409 `payroll_not_reconciled`: «اعتماد المسيرات متوقف لحد ما يتعمل
+  اختبار المطابقة مع كشف شهر سابق. فعّله من الإعدادات بعد المطابقة.» The flag is read from the database at each
+  approval, so closing it holds at once.
+- Only the owner changes it: a user with all permissions (a role with `all_permissions`, or the superuser). Anyone else
+  with `settings.update` gets 403 `owner_only` when the value would change; leaving it out of a save keeps it as it is,
+  so the rest of the payroll settings are saved as before. The change is audited with the settings.
+- The panel shows a banner on the payroll page and on a draft run while it is off (`GET /payroll/gate`, with
+  `payroll.view`); in the settings the switch is disabled for everyone but the owner (`/auth/me` says
+  `all_permissions`).
+- Tests that approve runs turn it on in their setup (`payroll_live` fixture, `api.payrollLive()` in the e2e fixtures);
+  the check itself is never relaxed.
+
 ## 11. Order of work
 
 | Step | What | Size |

@@ -51,6 +51,12 @@ def get_section(db: Session, name: str) -> BaseModel:
     return value
 
 
+def section_now(db: Session, name: str) -> BaseModel:
+    """A settings section read from the database now, not from the cache (a gate that must hold the moment it is
+    switched)."""
+    return _load(db, name)[1]
+
+
 def phone_codes(db: Session) -> bool:
     """Whether a WhatsApp code verifies a driver's phone (and a driver signs in with it): see DriverSignInSettings."""
     return get_section(db, "driver_sign_in").phone_codes

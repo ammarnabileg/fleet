@@ -538,7 +538,9 @@
     "objection_exists": "This objection already arrived",
     "objection_not_found": "Objection not found",
     "objection_status_invalid": "The objection cannot move from {status} to this status",
-    "objection_deduction_invalid": "The deduction is not the same driver's"
+    "objection_deduction_invalid": "The deduction is not the same driver's",
+    "payroll_not_reconciled": "Approving payroll runs is off until the reconciliation test against a previous month's sheet is done. Turn it on in the settings after the test.",
+    "owner_only": "Only the system owner changes this setting"
   },
   "settings": {
     "branding": "Branding",
@@ -599,7 +601,8 @@
     "finance.fiscal_year_start_month": "Fiscal year starts in month",
     "finance.books_start_date": "Books start date in the system",
     "cash.treasury_deposit_limit": "Treasury deposit limit (KWD, 0 = no alert)",
-    "cash.treasury_deposit_weekdays": "Treasury bank deposit days"
+    "cash.treasury_deposit_weekdays": "Treasury bank deposit days",
+    "payroll.live_approval_enabled": "Approve real payroll runs (after the reconciliation test against a previous month's sheet; owner only)"
   },
   "common": {
     "active": "Active",

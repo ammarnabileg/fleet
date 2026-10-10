@@ -612,7 +612,8 @@ void main() {
       final settings = await admin.call('GET', '/settings');
       await admin.call('PUT', '/settings/payroll', {
         'version': settings['payroll']['version'],
-        'value': {'max_deduction_percent': '50.00', 'deduction_cap_base': 'gross'},
+        // the reconciliation gate passed: the admin (the owner) lets runs be approved
+        'value': {'max_deduction_percent': '50.00', 'deduction_cap_base': 'gross', 'live_approval_enabled': true},
       });
       final run = await admin.call('POST', '/payroll/runs', {'company_id': own['id'], 'month': '$month-01'});
       await admin.call('POST', '/payroll/runs/${run['id']}/approve');
@@ -692,7 +693,8 @@ void main() {
       final settings = await admin.call('GET', '/settings');
       await admin.call('PUT', '/settings/payroll', {
         'version': settings['payroll']['version'],
-        'value': {'max_deduction_percent': '50.00', 'deduction_cap_base': 'gross'},
+        // the reconciliation gate passed: the admin (the owner) lets runs be approved
+        'value': {'max_deduction_percent': '50.00', 'deduction_cap_base': 'gross', 'live_approval_enabled': true},
       });
       final run = await admin.call('POST', '/payroll/runs', {'company_id': own['id'], 'month': month});
       await admin.call('POST', '/payroll/runs/${run['id']}/approve');

@@ -5,6 +5,7 @@ and nothing changing in a month whose payroll is approved."""
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import text
 
 from app.core.clock import KUWAIT, today
@@ -232,6 +233,7 @@ def _payroll_settings(admin_client, absence: str):
     assert r.status_code == 200, r.text
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_payroll_deducts_absence_and_unpaid_leave_only_as_the_settings_say(admin_client, company):
     month = today().replace(day=1)
     office = make_employee(admin_client, company["id"], basic_salary="300.000", payment_method="cash")
