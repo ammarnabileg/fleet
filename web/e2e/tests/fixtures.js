@@ -22,6 +22,12 @@ class Api {
     return text ? JSON.parse(text) : null;
   }
 
+  /** The reconciliation gate (payroll settings, owner only; the admin here is the owner): runs may be approved. */
+  async payrollLive(on = true) {
+    const s = (await this.get('/settings')).payroll;
+    return this.put('/settings/payroll', { version: s.version, value: Object.assign({}, s.value, { live_approval_enabled: on }) });
+  }
+
   get(path) { return this.call('GET', path); }
   post(path, body) { return this.call('POST', path, body || {}); }
   put(path, body) { return this.call('PUT', path, body); }

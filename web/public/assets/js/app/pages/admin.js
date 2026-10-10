@@ -369,6 +369,9 @@
   var WEEKDAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
   var DATES = { 'finance.books_start_date': true };
   var HIDDEN = { 'maintenance.direct_to_center': true }; // لم يعد يُقرأ: كل طلب يذهب مباشرة للمركز المختار
+  // يغيّرها مالك النظام فقط (دور بكل الصلاحيات): الخادم يرفض غيره (owner_only)
+  var OWNER_ONLY = { 'payroll.live_approval_enabled': 'متوقف افتراضياً: الكشوف تُحضَّر وتُراجع وتُصدَّر، والاعتماد مرفوض حتى تُقارن رواتب شهر بكشفكم لشهر سابق. يفعّله مالك النظام فقط بعد المطابقة.' };
+  function owner() { return !!api.me && (api.me.is_superuser || api.me.all_permissions); }
   var HINTS = {
     'finance.entry_approval': 'التحويل إلى «تلقائي» لا يعتمد المسودات الموجودة: اعتمدها من «القيود» ← «اعتماد المسودات». القيد اليدوي يتبع نفس الإعداد، والقيد العكسي يُعتمد فوراً دائماً.',
     'finance.fiscal_year_start_month': 'ميزان المراجعة وكشف الحساب يبدآن افتراضياً من أول السنة المالية حتى اليوم.',
@@ -387,7 +390,7 @@
             var name = form.getAttribute('data-sec'), cur = sections[name], vals = BT.form.values(form), value = {};
             Object.keys(cur.value).forEach(function (k) {
               var old = cur.value[k];
-              if (HIDDEN[name + '.' + k]) value[k] = old;
+              if (HIDDEN[name + '.' + k] || (OWNER_ONLY[name + '.' + k] && !owner())) value[k] = old;
               else if (name + '.' + k === 'cash.treasury_deposit_weekdays') value[k] = [].concat(vals[k] || []).map(Number);
               else if (ENUMS[name + '.' + k] && typeof old === 'number') value[k] = Number(vals[k]);
               else if (Array.isArray(old)) value[k] = String(vals[k] || '').split(/[,،]/).map(function (x) { return x.trim(); }).filter(Boolean);
@@ -410,6 +413,7 @@
           if (DATES[key]) return BT.f.input({ name: k, label: label, type: 'date', value: val || '', readonly: !canEdit, hint: hint });
           if (hint) return BT.f.input({ name: k, label: label, value: val == null ? '' : val, readonly: !canEdit, num: true, hint: hint });
           if (Array.isArray(val)) return BT.f.input({ name: k, label: label, value: val.join(', '), readonly: !canEdit, hint: 'قيم مفصولة بفواصل: ' + val.map(function (x) { return api.t('photo_position', x, null, '') || A.docTypeName(x); }).join('، ') });
+          if (OWNER_ONLY[key]) return h`<div class="field" data-owner-only="${key}"><label class="switch"><input type="checkbox" name="${k}"${val ? raw(' checked') : ''}${owner() && canEdit ? '' : raw(' disabled')}><span>${label}</span></label><div class="hint">${OWNER_ONLY[key]}</div></div>`;
           if (typeof val === 'boolean') return BT.f.switch({ name: k, label: label, checked: val });
           if (ENUMS[name + '.' + k]) return BT.f.select({ name: k, label: label, value: val, placeholder: false, options: ENUMS[name + '.' + k] });
           if (typeof val === 'number') return BT.f.input({ name: k, label: label, value: val, num: true, readonly: !canEdit });

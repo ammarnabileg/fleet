@@ -84,6 +84,11 @@ class Principal:
     def has(self, permission: str) -> bool:
         return self.is_superuser or permission in self.permissions
 
+    @property
+    def all_permissions(self) -> bool:
+        """The owner's access (a role with all permissions, or the superuser): settings only the owner may change."""
+        return self.is_superuser or self.permissions >= ALL_PERMISSIONS
+
     def can_access_company(self, company_id: int) -> bool:
         return self.sees_all_companies or company_id in self.company_ids
 

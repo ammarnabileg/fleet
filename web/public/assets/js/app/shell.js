@@ -259,8 +259,10 @@
     // what the drivers ask about cars and wait for: a car registered from the app, a change of car
     if (api.can('custody.assign')) jobs.push(Promise.all([api.get('/vehicle-claims'), api.get('/vehicle-change-requests')]).then(function (r) { A.counts.custody = r[0].length + r[1].length; }, function () {}));
     if (api.can('payroll.view')) jobs.push(api.get('/payroll/scheme-requests/counts').then(function (r) { A.counts.scheme_requests = r.pending; }, function () {}));
+    if (api.can('payroll.view')) jobs.push(api.get('/payroll/uncollected/counts').then(function (r) { A.counts.uncollected = r.review; }, function () {}));
+    if (api.can('payroll.view')) jobs.push(api.get('/payroll/objections/counts').then(function (r) { A.counts.objections = r.waiting; }, function () {}));
     return Promise.all(jobs).then(function () {
-      A.counts.payroll = (A.counts.statements || 0) + (A.counts.scheme_requests || 0);
+      A.counts.payroll = (A.counts.statements || 0) + (A.counts.scheme_requests || 0) + (A.counts.uncollected || 0) + (A.counts.objections || 0);
       A.renderNav((A.router && A.router.current || '').split('/')[0]);
       A.updateBell();
     });
@@ -348,6 +350,7 @@
     accident: { perm: ['accidents.view'], open: function (a) { A.go('accidents/' + a.entity_id); } },
     fine: { perm: ['fines.view'], open: function (a, after) { A.fine(a.entity_id, after); } },
     fuel_claim: { perm: ['cash.fuel_review'], label: 'مراجعة', open: function () { A.go('cash?tab=fuel'); } },
+    payroll_objection: { perm: ['payroll.view'], label: 'مراجعة', open: function (a, after) { A.objectionView(a.entity_id, after); } },
     branch: { perm: ['treasury.view'], open: function () { A.go('cash?tab=treasury'); } } // the treasury's deposit rule
     // approval_escalated: no button. It goes to every approvals.view holder, but only the approvers have it in their inbox
   };

@@ -721,7 +721,7 @@
   "payItem_tier_bonus": "بونص الشريحة",
   "payItem_missing_target": "خصم نقص التارجت",
   "payItem_marks_deduction": "خصم علامات الحضور",
-  "payItem_uncovered_penalty": "عقوبات لم تُخصم",
+  "payItem_uncovered_penalty": "خصومات غير محصلة (للمراجعة)",
   "payWhyOrders": "{orders} طلب × {rate} د.ك",
   "@payWhyOrders": {
     "placeholders": {
@@ -776,7 +776,7 @@
       }
     }
   },
-  "payWhyUncovered": "العقوبات أكبر من المستحق، والشهر لا ينزل تحت الصفر: هذا الباقي لم يُخصم",
+  "payWhyUncovered": "الخصومات أكبر من المستحق، والصافي لا ينزل تحت الصفر: هذا الباقي لم يُخصم، ويراجعه المكتب",
   "noticesTitle": "الإشعارات",
   "noticesNone": "لا توجد إشعارات بعد",
   "nameLabel": "الاسم",
@@ -915,5 +915,29 @@
   "fieldYes": "نعم",
   "fieldNo": "لا",
   "fieldInvalid": "قيمة غير صحيحة",
-  "choose": "اختر"
+  "choose": "اختر",
+  "objectPayslip": "اعتراض على الكشف",
+  "objectLine": "اعتراض على هذا البند",
+  "objectionTitle": "اعتراض على كشف الراتب",
+  "objectionOn": "على: {what}",
+  "@objectionOn": {"placeholders": {"what": {"type": "String"}}},
+  "objectionWhole": "الكشف كله",
+  "objectionReason": "سبب الاعتراض",
+  "objectionReasonShort": "اكتب السبب (3 أحرف على الأقل)",
+  "objectionFile": "صورة تثبت اعتراضك (اختياري)",
+  "objectionCamera": "الكاميرا",
+  "objectionGallery": "المعرض",
+  "objectionSent": "أُرسل اعتراضك للمكتب، وسيصلك الرد",
+  "objectionQueued": "سيُرسل اعتراضك عند عودة الاتصال",
+  "myObjections": "اعتراضاتي",
+  "objectionResponse": "رد المكتب: {text}",
+  "@objectionResponse": {"placeholders": {"text": {"type": "String"}}},
+  "objectionAction": "الإجراء: {text}",
+  "@objectionAction": {"placeholders": {"text": {"type": "String"}}},
+  "objectionStatus_open": "مفتوح",
+  "objectionStatus_in_review": "قيد المراجعة",
+  "objectionStatus_accepted": "مقبول",
+  "objectionStatus_rejected": "مرفوض",
+  "objectionStatus_closed": "مغلق",
+  "objectionInstallment": "قسط خصم"
 }

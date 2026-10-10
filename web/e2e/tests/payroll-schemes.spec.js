@@ -156,6 +156,7 @@ test('pay schemes: built, assigned, asked for, approved, and the month explained
   // ---- the run: 560 x 0.350 = 196, the 540 tier 90, 3 marks -10: 286 earned, 276 net; then approved
   const version = (await api.get('/settings')).payroll.version;
   await api.put('/settings/payroll', { version, value: { max_deduction_percent: '50.00', deduction_cap_base: 'gross' } });
+  await api.payrollLive(); // the reconciliation gate passed
   const run = await api.post('/payroll/runs', { company_id: s.company.id, month: MONTH + '-01' });
   await admin.goto('/admin.html#/payroll/run/' + run.id);
   await settled(admin);

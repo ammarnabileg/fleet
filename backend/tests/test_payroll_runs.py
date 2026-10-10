@@ -264,6 +264,7 @@ def test_the_driver_sends_the_month_and_the_office_reviews_it(admin_client, clie
     assert v.post(f"{P}/statements/{sid}/approve", json=figures).status_code == 403
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_the_run_caps_deductions_moves_the_rest_on_and_locks_the_month(
     admin_client, client, new_client, staff, company, platforms, db
 ):
@@ -378,6 +379,7 @@ def _id(db, employee: dict) -> int:
     return db.execute(text("SELECT id FROM people.employees WHERE public_id = :p"), {"p": employee["id"]}).scalar()
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_the_excel_is_the_clients_sheets(admin_client, client, staff, company):
     set_cap(admin_client)
     admin_client.post(
@@ -414,6 +416,7 @@ def test_the_excel_is_the_clients_sheets(admin_client, client, staff, company):
     assert "-draft" not in named and MONTH.strftime("%Y-%m") in named
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_runs_are_approved_and_reopened_in_order(admin_client, company):
     set_cap(admin_client)
     make_employee(admin_client, company["id"], basic_salary="400.000")
@@ -548,8 +551,12 @@ def test_rates_fixed_day_rate_and_the_basic_cap():
 
 
 def test_the_net_is_never_negative():
+    # decision D: 350 of platform deductions on a 300 month: the net stops at zero, 50 uncollected for review, and
+    # the line still goes through the approval
     c = _compute(_P(), _S(platform_deductions=Decimal("350")))
-    assert "net_negative" in c.flags
+    assert (c.gross, c.deductions, c.net) == (Decimal("300.000"), Decimal("300.000"), Decimal("0.000"))
+    assert c.cells["platform_deductions"] == Decimal("350.000") and c.cells["uncovered_penalty"] == Decimal("50.000")
+    assert c.flags == ["uncollected"] and not set(c.flags) & set(runs.BLOCKING)
     from datetime import date as d_
 
     class _D:
@@ -557,7 +564,7 @@ def test_the_net_is_never_negative():
 
     c = _compute(_P(), _S(late=Decimal("290")), dues=[runs.Due(_D(), Decimal("100"))])
     assert c.cells["advance"] == Decimal("10.000") and c.net == Decimal("0.000")  # only what was left
-    assert c.cells["carried"] == Decimal("90.000") and "net_negative" not in c.flags
+    assert c.cells["carried"] == Decimal("90.000") and c.cells["uncovered_penalty"] == Decimal("0.000")
 
 
 def test_a_name_that_looks_like_a_formula_stays_text_in_the_bank_file(admin_client, company, platforms):

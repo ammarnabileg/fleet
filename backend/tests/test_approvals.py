@@ -304,6 +304,7 @@ def test_workflow_rules(admin_client, new_client, people):
     assert events and events[0]["action"] == "approvals.workflow_updated"
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_every_process_goes_through_its_workflow(admin_client, client, new_client, company, people, owner_db):
     """A single checker's step on each of the seven processes: the superuser's own approval is refused, the checker's
     from the inbox applies the module's decision."""

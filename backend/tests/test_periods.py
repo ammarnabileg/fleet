@@ -62,6 +62,7 @@ def approve_all(client, m):
     assert client.post(f"{F}/entries/approve", json={"date_from": str(m), "date_to": str(end(m))}).status_code == 200
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_the_check_lists_what_is_left_and_the_month_closes_when_it_is_clean(
     admin_client, client, companies, db, owner_db
 ):
@@ -153,6 +154,7 @@ def test_the_check_lists_what_is_left_and_the_month_closes_when_it_is_clean(
     assert r.status_code == 409 and r.json()["code"] == "period_closed"
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_a_closed_month_takes_no_entry_from_any_path(admin_client, company, db, owner_db):
     # what stood in the month before it closed: a draft and an approved entry, an approved expense not entered
     draft = manual(admin_client, PREV + timedelta(1), approve=False)

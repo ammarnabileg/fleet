@@ -1198,7 +1198,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get payItem_marks_deduction => 'Attendance marks';
 
   @override
-  String get payItem_uncovered_penalty => 'Penalties not taken';
+  String get payItem_uncovered_penalty => 'Uncollected deductions (for review)';
 
   @override
   String payWhyOrders(String orders, String rate) {
@@ -1232,7 +1232,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get payWhyUncovered => 'Penalties above the month\'s pay are not taken: the month never goes below zero';
+  String get payWhyUncovered =>
+      'Deductions above the month\'s pay are not taken, the net never goes below zero: the office reviews the rest';
 
   @override
   String get noticesTitle => 'Notifications';
@@ -1599,4 +1600,73 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get choose => 'Choose';
+
+  @override
+  String get objectPayslip => 'Object to this payslip';
+
+  @override
+  String get objectLine => 'Object to this line';
+
+  @override
+  String get objectionTitle => 'Payslip objection';
+
+  @override
+  String objectionOn(String what) {
+    return 'About: $what';
+  }
+
+  @override
+  String get objectionWhole => 'The whole payslip';
+
+  @override
+  String get objectionReason => 'Why you object';
+
+  @override
+  String get objectionReasonShort => 'Write the reason (at least 3 letters)';
+
+  @override
+  String get objectionFile => 'A photo that shows it (optional)';
+
+  @override
+  String get objectionCamera => 'Camera';
+
+  @override
+  String get objectionGallery => 'Gallery';
+
+  @override
+  String get objectionSent => 'Your objection was sent; the office will answer';
+
+  @override
+  String get objectionQueued => 'Your objection will be sent when the connection is back';
+
+  @override
+  String get myObjections => 'My objections';
+
+  @override
+  String objectionResponse(String text) {
+    return 'The office: $text';
+  }
+
+  @override
+  String objectionAction(String text) {
+    return 'Action taken: $text';
+  }
+
+  @override
+  String get objectionStatus_open => 'Open';
+
+  @override
+  String get objectionStatus_in_review => 'In review';
+
+  @override
+  String get objectionStatus_accepted => 'Accepted';
+
+  @override
+  String get objectionStatus_rejected => 'Rejected';
+
+  @override
+  String get objectionStatus_closed => 'Closed';
+
+  @override
+  String get objectionInstallment => 'An installment';
 }

@@ -15,10 +15,12 @@ earnings and its penalties instead of the platform's rates and invalid days: doc
                   without it), of the basic salary or of the salary earned this month (earnings - invalid), and never
                   more than what is left after the month's items, so the net is never negative (FR-PAY-04). What a
                   month cannot take moves to the next one.
-    net         = earnings - invalid - month items - installments taken
+    net         = earnings - invalid - month items - installments taken, never below zero (decision D): the penalties
+                  the pay cannot cover (a scheme's, invalid days, absence, month items) are the line's uncollected
+                  balance, listed for review when the run is approved (uncollected.py), never carried by themselves
 
 A draft is recomputed at will; approving recomputes it once more, refuses lines that are not ready (a statement
-missing or waiting for review, a negative net) and locks the run and the month's statements. What each deduction
+missing or waiting for review) and locks the run and the month's statements. What each deduction
 took in approved months is what the next months build on. Reopening is for the latest approved month only.
 """
 
@@ -39,7 +41,7 @@ from app.modules.audit import service as audit
 from app.modules.identity import service as identity
 from app.modules.notifications import service as notifications
 from app.modules.org import service as org
-from app.modules.payroll import calculators, platforms, schemes, statements
+from app.modules.payroll import calculators, platforms, schemes, statements, uncollected
 from app.modules.payroll.calculators import Month, Rules
 from app.modules.payroll.columns import BY_CODE, COLUMNS, EARNING_COLUMNS, RULE_COLUMNS
 from app.modules.payroll.models import Deduction, Line, LineDeduction, Platform, Run, Scheme, Statement
@@ -54,7 +56,6 @@ BLOCKING = (
     "daily_pending",
     "scheme_missing",
     "figures_missing",
-    "net_negative",
 )
 SCHEME_CELLS = ("orders_pay", "tier_bonus", "missing_target", "marks_deduction", "uncovered_penalty")
 # installment deductions by source -> the salary-sheet column they fill
@@ -140,6 +141,7 @@ def compute(
     lacking = calculators.missing(calculators.CALCULATORS[rules.calculator], month) if on_scheme else []
 
     gross = basic if pay_basic and not on_scheme else ZERO  # a scheme is the whole of the platform's pay
+    result = None
     if on_scheme and not lacking:
         result = calculators.run(rules, month)
         gross += result.pay
@@ -169,18 +171,33 @@ def compute(
         absence = money(absent * money(basic / (platform.day_divisor if platform else 30)))
     month_items = sum((items[k] for k in MONTH_ITEMS), ZERO)
     earned = gross - invalid - absence - penalties
-    room = max(ZERO, earned - month_items)
+    # decision D: the month's penalties never take the net below zero; what the pay cannot cover is uncollected, shown
+    # for review (an accountant carries it to a later month or drops it), never carried by itself
+    charges = invalid + absence + penalties + month_items
+    taken = min(charges, max(gross, ZERO))
+    uncollected = charges - taken + (result.uncovered if result else ZERO)
+    room = gross - taken
     allowed = min(month_cap(basic if cap_base == "basic" else max(earned, ZERO), cap_percent), room)
     for d in sorted(dues, key=lambda x: (x.deduction.start_month, x.deduction.id)):
         d.deducted = min(d.due, allowed)
         allowed -= d.deducted
-    taken = {code: ZERO for code in SOURCE_COLUMN.values()}
+    by_column = {code: ZERO for code in SOURCE_COLUMN.values()}
     for d in dues:
-        taken[SOURCE_COLUMN[d.deduction.source_type]] += d.deducted
-    installments = sum(taken.values(), ZERO)
+        by_column[SOURCE_COLUMN[d.deduction.source_type]] += d.deducted
+    installments = sum(by_column.values(), ZERO)
     carried = sum((d.due - d.deducted for d in dues), ZERO)
-    deductions = invalid + absence + penalties + month_items + installments
+    deductions = taken + installments
     net = gross - deductions
+    if uncollected and on_scheme:  # the payslip's item says the whole of it
+        breakdown = [b for b in breakdown if b["code"] != "uncovered_penalty"]
+        breakdown.append(
+            {
+                "code": "uncovered_penalty",
+                "amount": str(money(uncollected)),
+                "why": {"uncovered": str(money(uncollected))},
+            }
+        )
+    scheme_cells["uncovered_penalty"] = uncollected
 
     flags = []
     if system.get("pending_reports"):  # their orders, valid days and cash count only once reviewed
@@ -193,8 +210,8 @@ def compute(
         flags.append("scheme_missing")
     if lacking:
         flags.append("figures_missing")  # the reviewer enters them from the platform's report
-    if earned - month_items < 0:
-        flags.append("net_negative")
+    if uncollected:
+        flags.append("uncollected")  # not blocking: listed for review once the run is approved
     if pay_basic and not basic and not on_scheme:
         flags.append("no_basic_salary")
     if profile["payment_method"] != "cash" and not profile["iban"]:
@@ -232,7 +249,7 @@ def compute(
         "invalid_days_deduction": invalid,
         "absence_deduction": absence,
         **{k: items[k] for k in MONTH_ITEMS},
-        **taken,
+        **by_column,
         "carried": carried,
         "net": net,
         "blank": None,
@@ -326,7 +343,7 @@ def _fill(db: Session, run: Run) -> None:
     dues = dues_for(db, ids, month)
     plats = platforms.all_by_id(db)
     assigned = schemes.for_month(db, ids, month)
-    rules = schemes.rules_for(db, {s.id: s for s in assigned.values()})
+    rules = schemes.rules_for(db, {s.id: s for s in assigned.values()}, month)  # each scheme's version of the month
     with_schemes = schemes.platforms_with_schemes(db)
     lang = i18n.default_language(db).code
     absence_rule = org.get_section(db, "payroll").absence_deduction
@@ -337,6 +354,7 @@ def _fill(db: Session, run: Run) -> None:
         scheme = assigned.get(p["id"])
         if scheme is not None and scheme.platform_id != p["platform_id"]:
             scheme = None  # he moved platform: his old platform's scheme does not apply
+        terms = rules.get(scheme.id) if scheme else None
         c = compute(
             p,
             platform,
@@ -347,7 +365,7 @@ def _fill(db: Session, run: Run) -> None:
             cap_base=run.cap_base,
             name_lang=lang,
             scheme_name=scheme.name if scheme else None,
-            rules=rules.get(scheme.id) if scheme else None,
+            rules=terms[0] if terms else None,
             needs_scheme=bool(p["is_driver"] and p["platform_id"] in with_schemes),
             absence_rule=absence_rule,
         )
@@ -362,6 +380,7 @@ def _fill(db: Session, run: Run) -> None:
             net=c.net,
             flags=c.flags,
             scheme_id=scheme.id if scheme else None,
+            scheme_version=terms[1] if terms else None,
             breakdown=c.breakdown,
         )
         db.add(line)
@@ -423,6 +442,7 @@ def _out(db: Session, r: Run, *, lines: bool = False) -> dict:
                 "flags": list(line.flags),
                 "statement_id": sts.get(line.statement_id),
                 "breakdown": line.breakdown,
+                "scheme_version": line.scheme_version,
             }
             for line in rows
         ]
@@ -499,8 +519,16 @@ def _open_month(db: Session, run: Run) -> None:
     finance.check_open_month(db, _month_end(run.month))
 
 
+def live_approval(db: Session) -> bool:
+    """The reconciliation gate: no run is approved until the owner turned it on, after one month was compared with
+    a previous month's sheet of the client (runs are still computed, reviewed and exported)."""
+    return org.section_now(db, "payroll").live_approval_enabled
+
+
 def approve(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
     run = _run(db, public_id, lock=True, **scope)
+    if not live_approval(db):
+        raise AppError(409, "payroll_not_reconciled")
     if run.status != "draft":
         raise AppError(409, "run_not_draft")
     _open_month(db, run)
@@ -522,6 +550,7 @@ def approve(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
         return detail(db, public_id, **scope)
     run.status, run.approved_by, run.approved_at = "approved", actor_user_id, utcnow()
     run.version += 1
+    uncollected.record_for_run(db, run, actor_user_id=actor_user_id)  # decision D: for review, never carried by itself
     employees = set(db.scalars(select(Line.employee_id).where(Line.run_id == run.id)))
     for employee_id in people.driver_ids(db, employees):  # the payslip is in the app now
         notifications.notify_driver(
@@ -584,6 +613,7 @@ def reopen(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
     if db.scalar(select(Run.id).where(Run.company_id == run.company_id, Run.month > run.month, Run.status != "draft")):
         raise AppError(409, "later_run_approved")
     run.status, run.approved_by, run.approved_at = "draft", None, None
+    uncollected.clear_for_reopen(db, run)
     run.reopened += 1
     run.version += 1
     approvals.submitted(db, "payroll_run", **_approval(run), actor_user_id=actor_user_id)  # to be approved again
@@ -623,10 +653,17 @@ def mark_paid(db: Session, public_id, *, payment_ref: str | None, actor_user_id:
 # ------------------------------------------------------------------ the driver's payslips
 
 
+# shown even when the client's sheet has no column for them, just before the net, once any line has one: no line's
+# net may be lower than its sheet adds up to without saying why (an absence deduction), nor hide what it could not take
+EXTRA_COLUMNS = (
+    ("absence_deduction", ("absence_days", "absence_deduction")),
+    ("uncovered_penalty", ("uncovered_penalty",)),  # decision D: the uncollected balance, for review
+)
+
+
 def sheet_columns(platform: Platform | None, labels: dict, cells: Iterable[dict] = ()) -> list[dict]:
-    """The platform's sheet as the client set it, or every column. An absence deduction, or a rule block's line, with
-    an amount in any of the lines (`cells`) is shown even when the client's sheet has no column for it, just before
-    the net: no line's net may be lower than its sheet adds up to without saying why."""
+    """The platform's sheet as the client set it, or every column; plus EXTRA_COLUMNS, and the lines of a scheme's
+    rule blocks, when any of the lines (`cells`) has an amount there and the client's sheet has no column for it."""
     cells = list(cells)
 
     def used(code: str) -> bool:
@@ -641,12 +678,14 @@ def sheet_columns(platform: Platform | None, labels: dict, cells: Iterable[dict]
         return [{"code": c, "header": labels.get(c, c)} for c in codes]
     cols = list(platform.columns)
     codes = {c["code"] for c in cols}
-    wanted = [k for k in ("absence_days", "absence_deduction") if used("absence_deduction")] + rule
-    extra = [{"code": k, "header": labels.get(k, k)} for k in wanted if k not in codes]
-    if not extra:
-        return cols
-    at = next((i for i, c in enumerate(cols) if c["code"] == "net"), len(cols))
-    return cols[:at] + extra + cols[at:]
+    for trigger, adds in (*EXTRA_COLUMNS, *((k, (k,)) for k in rule)):
+        if trigger in codes or not used(trigger):
+            continue
+        extra = [{"code": k, "header": labels.get(k, k)} for k in adds if k not in codes]
+        at = next((i for i, c in enumerate(cols) if c["code"] == "net"), len(cols))
+        cols = cols[:at] + extra + cols[at:]
+        codes |= set(adds)
+    return cols
 
 
 def payslips(db: Session, employee_id: int) -> list[dict]:
@@ -666,13 +705,18 @@ def payslips(db: Session, employee_id: int) -> list[dict]:
     out = []
     for line, run in rows:
         platform = plats.get(line.platform_id)
+        explained = {b["code"] for b in line.breakdown or []}  # the scheme's items already say it
         cols = [
             c
             for c in sheet_columns(platform, labels, [line.cells])
-            if c["code"] not in IDENTITY and c["code"] in BY_CODE
+            if c["code"] not in IDENTITY
+            and c["code"] in BY_CODE
+            and not (c["code"] == "uncovered_penalty" and c["code"] in explained)
         ]
+        uncollected_amount = money(line.cells.get("uncovered_penalty"))
         out.append(
             {
+                "run_id": str(run.public_id),
                 "month": run.month,
                 "status": run.status,
                 "platform": {"id": platform.id, "code": platform.code, "name": platform.name} if platform else None,
@@ -683,6 +727,7 @@ def payslips(db: Session, employee_id: int) -> list[dict]:
                 "gross": line.gross,
                 "deductions": line.deductions,
                 "net": line.net,
+                "uncollected": uncollected_amount,  # decision D: what the pay could not cover, for review
             }
         )
     return out

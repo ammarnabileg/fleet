@@ -5,13 +5,13 @@ from (re-importing the same month replaces, never adds), the approved exceptions
 per order agreed with one driver on his scheme.
 
 Revision ID: 0050_platform_fields
-Revises: 0045_seed_platforms
+Revises: 0049_payroll_gate
 """
 
 from alembic import op
 
 revision = "0050_platform_fields"
-down_revision = "0045_seed_platforms"
+down_revision = "0049_payroll_gate"
 branch_labels = None
 depends_on = None
 

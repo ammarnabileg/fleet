@@ -77,6 +77,7 @@ def test_each_platform_asks_its_own_daily_fields(admin_client, client, company, 
     assert client.get("/api/v1/driver/reports/form", headers=ht).json()["fields"] == []
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_the_month_comes_from_the_approved_daily_reports(admin_client, client, company, two, owner_db):
     version = admin_client.get("/api/v1/settings").json()["payroll"]["version"]
     admin_client.put(

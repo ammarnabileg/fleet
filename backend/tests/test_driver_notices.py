@@ -3,6 +3,8 @@ concerns him leaves a notice in his own list, in his language, read or unread; n
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from app.core.clock import today
 from tests.conftest import bearer, bind_device, hand_over, jpeg, make_driver, make_vehicle, upload
 from tests.test_finance import month, payroll_settings
@@ -146,6 +148,7 @@ def test_an_accident_charged_a_fine_charged_and_a_deduction(admin_client, client
     assert "شريحة بيانات" in items[0]["message"] and "30.000" in items[1]["message"]
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_a_payslip_ready_and_a_document_about_to_expire(admin_client, client, company, db):
     from app.modules.documents import service as documents
 

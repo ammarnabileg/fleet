@@ -91,3 +91,12 @@ def test_what_each_calculator_needs():
     assert calc.missing(calc.CALCULATORS["batch"], Month(orders=10)) == ["batch_level"]
     assert calc.missing(calc.CALCULATORS["tiered_target"], Month(orders=10, attendance_marks=0)) == ["star_day_failed"]
     assert calc.missing(calc.CALCULATORS["per_order"], Month(orders=0)) == []
+
+
+def test_the_clients_final_decisions_on_a_reduced_keeta_month():
+    """A: no tier bonus; B: the shortfall at 0.350 even at the 0.200 price; C: no -30 on top of the reduced price."""
+    r = keeta(800, marks=5)
+    assert codes(r) == {"orders_pay": D("160.000")} and (r.pay, r.penalties) == (D("160.000"), 0)
+    r = keeta(400, marks=5)
+    assert codes(r) == {"orders_pay": D("80.000"), "missing_target": D("-7.000")}
+    assert r.pay - r.penalties == D("73.000")

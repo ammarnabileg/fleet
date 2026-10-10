@@ -36,6 +36,7 @@ def close_directly(owner_db, month) -> None:
     owner_db.commit()
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_a_closed_months_document_that_changed_is_entered_in_the_first_open_month(admin_client, companies, owner_db):
     """A deduction of 60 made last month, payroll took 30, the month closed, then the deduction is cancelled: its
     entry (60) is reversed today and its new figure (30) is entered on the first day of this month."""

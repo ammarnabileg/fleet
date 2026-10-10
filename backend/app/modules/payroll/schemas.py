@@ -272,6 +272,7 @@ class LineOut(BaseModel):
     flags: list[str]
     statement_id: str | None
     breakdown: list[dict] = []  # a pay scheme's items: orders, tier bonus, penalties, with why
+    scheme_version: int | None = None  # the scheme's terms version the month was paid on
 
 
 class RunOut(BaseModel):
@@ -299,6 +300,7 @@ class RunDetail(RunOut):
 
 
 class PayslipOut(BaseModel):
+    run_id: str  # what an objection to it names
     month: date
     status: str  # approved | paid
     platform: dict | None
@@ -308,6 +310,7 @@ class PayslipOut(BaseModel):
     gross: Decimal
     deductions: Decimal
     net: Decimal
+    uncollected: Decimal = Decimal(0)  # penalties the pay could not cover: not deducted, for the office's review
 
 
 # ------------------------------------------------------------------ pay schemes
@@ -355,8 +358,12 @@ class SchemeUpdateIn(BaseModel):
     description: LocalizedText | None = None
     is_active: bool | None = None
     driver_selectable: bool | None = None
-    # what drivers are paid on: refused once a driver is on the scheme (a new price is a new scheme)
+    # the shape of rule: refused once the scheme is used (another shape is another scheme)
     calculator: CalculatorCode | None = None
+    # the terms below: a new version from this month («يسري من»), required once the scheme is used; never a month an
+    # approved payroll paid on the scheme
+    effective_month: date | None = None
+    version_note: Note | None = None
     per_order: Money | None = None
     target_orders: int | None = Field(None, ge=0, le=100_000)
     required_valid_days: int | None = Field(None, ge=0, le=31)
@@ -390,6 +397,12 @@ class SchemeOut(BaseModel):
     steps: list[dict]
     drivers: int  # on it this month
     version: int
+    version_no: int  # the terms above: this month's version
+    effective_month: date  # from when that version applies
+    next_version: dict | None  # a later version already set: {version_no, effective_month}
+    used: bool  # a driver was put on it or a payroll used it: a change of terms needs its month
+    change_from: date  # the earliest month a change of terms may take effect
+    versions: list[dict]  # every version with its terms, the newest first
 
 
 class AssignSchemeIn(BaseModel):
@@ -477,3 +490,80 @@ class RejectSchemeRequestIn(BaseModel):
 
     version: int | None = None
     note: Note  # the driver reads why
+
+
+# ------------------------------------------------------------------ the uncollected deductions balance (decision D)
+
+
+class UncollectedOut(BaseModel):
+    id: str
+    run: dict  # {id, month, status}
+    employee: dict | None
+    company_id: int
+    month: date
+    amount: Decimal
+    reason: dict  # {gross, items: [{code, amount}]}: the month's penalties
+    status: str  # review | carried | dropped
+    note: str | None
+    deduction: dict | None  # carried: the manual deduction made {id, start_month, status}
+    decided_by: str | None
+    decided_at: datetime | None
+    created_at: datetime
+    version: int
+
+
+class UncollectedDecisionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
+    version: int | None = None
+
+
+# ------------------------------------------------------------------ objections to a payslip
+
+ObjectionText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=1000)]
+
+
+class ObjectionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    item_code: Annotated[str, StringConstraints(pattern=r"^[a-z_]{2,40}(:[0-9a-f-]{36})?$")] | None = None  # none: all
+    reason: ObjectionText
+    attachment_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")] | None = None
+    client_ref: uuid.UUID  # made by the app once: a retry is recognised
+
+
+class ObjectionOut(BaseModel):
+    id: str
+    run_id: str
+    month: date
+    item_code: str | None
+    item_amount: Decimal | None
+    reason: str
+    has_attachment: bool
+    status: str
+    response: str | None
+    action_taken: str | None
+    deduction: dict | None
+    created_at: datetime
+    updated_at: datetime
+    version: int
+
+
+class OfficeObjectionOut(ObjectionOut):
+    employee: dict | None
+    company_id: int
+    run_status: str
+    handled_by: str | None
+    handled_at: datetime | None
+    payslip: dict | None = None  # in the detail: the line as approved
+
+
+class ObjectionAnswerIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["open", "in_review", "accepted", "rejected", "closed"]
+    response: ObjectionText | None = None  # what the driver reads; required to accept or reject
+    action_taken: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
+    deduction_id: uuid.UUID | None = None  # the settlement made for a later month
+    version: int | None = None

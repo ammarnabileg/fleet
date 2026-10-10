@@ -8,6 +8,7 @@ from datetime import timedelta
 from decimal import Decimal as D
 
 import openpyxl
+import pytest
 from sqlalchemy import text
 
 from app.core.clock import today
@@ -182,6 +183,7 @@ def test_an_advance_is_paid_out_of_the_treasury_and_comes_back_when_cancelled(ad
     assert treasury(admin_client) == D("80.000") and len(journals(db, "disbursement")) == 1
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_an_advance_partly_taken_by_payroll_is_not_cancelled(admin_client, companies, db):
     b = companies["b"]["id"]
     fund_treasury(db, "100")
@@ -521,6 +523,7 @@ def test_every_cash_account_and_journal_kind_has_a_label(db):
         assert kinds <= catalog["journal_kind"].keys(), lang
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_a_run_approving_and_an_advance_cancelled_never_interleave(admin_client, companies, db):
     """The run locks its advances before it reads them, as the cancel does: one waits for the other."""
     import threading

@@ -142,6 +142,9 @@ class PayrollSettings(_Section):
     # absence days and unpaid leave days (BR-18, FR-PAY-01): not deducted until the client decides (BRD 7.2); or a
     # day's wage each (the basic salary over the platform's day divisor, 30 without a platform)
     absence_deduction: Literal["none", "daily_wage"] = "none"
+    # the reconciliation gate: payroll runs are computed, reviewed and exported, but none is approved until one month
+    # was compared with a previous month's sheet of the client. Off by default; only the owner turns it on
+    live_approval_enabled: bool = False
 
 
 class DailyReportSettings(_Section):

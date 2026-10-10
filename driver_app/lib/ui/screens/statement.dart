@@ -9,6 +9,7 @@ import '../photos.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'home.dart';
+import 'objection.dart';
 
 const _maxShots = 6;
 
@@ -247,16 +248,37 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
   Future<void> _reload() async {
     try {
       await widget.state.loadPayslips();
+      await widget.state.loadObjections();
     } on ApiError {
       // offline: the last list stays
     }
     if (mounted) setState(() {});
   }
 
+  Future<void> _object(Payslip p, {String? code, String? label, String? amount}) async {
+    final sent = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ObjectionScreen(state: widget.state, payslip: p, itemCode: code, label: label, amount: amount),
+      ),
+    );
+    if (sent != null && mounted) setState(() {});
+  }
+
+  /// What an objection is about, as its payslip calls it.
+  String _subject(AppLocalizations l, Objection o) {
+    final code = o.itemCode;
+    if (code == null) return l.objectionWhole;
+    if (code.startsWith('deduction:')) return l.objectionInstallment;
+    final slip = widget.state.payslips.where((p) => p.runId == o.runId).firstOrNull;
+    if (slip != null && slip.breakdown.any((b) => b.code == code)) return PayItemRow.label(l, code);
+    return slip?.rows.where((r) => r.code == code).firstOrNull?.header ?? PayItemRow.label(l, code);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = context.l;
     final slips = widget.state.payslips;
+    final objections = widget.state.objections;
     return Scaffold(
       appBar: AppBar(title: Text(l.payslipsTitle)),
       body: RefreshIndicator(
@@ -265,7 +287,18 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
           padding: const EdgeInsets.all(20),
           children: [
             if (slips.isEmpty) Text(l.payslipsNone, style: const TextStyle(color: AppColors.muted)),
-            for (final p in slips) PayslipCard(payslip: p),
+            for (final p in slips)
+              PayslipCard(
+                payslip: p,
+                onObject: p.runId == null
+                    ? null
+                    : ({String? code, String? label, String? amount}) =>
+                          _object(p, code: code, label: label, amount: amount),
+              ),
+            if (objections.isNotEmpty) ...[
+              SectionTitle(l.myObjections),
+              for (final o in objections) ObjectionTile(objection: o, label: _subject(l, o)),
+            ],
           ],
         ),
       ),
@@ -273,10 +306,13 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
   }
 }
 
+typedef ObjectTo = void Function({String? code, String? label, String? amount});
+
 class PayslipCard extends StatelessWidget {
-  const PayslipCard({super.key, required this.payslip});
+  const PayslipCard({super.key, required this.payslip, this.onObject});
 
   final Payslip payslip;
+  final ObjectTo? onObject; // the payslip, or one line of it, objected to
 
   static final _amount = RegExp(r'^-?\d+\.\d{3}$');
 
@@ -309,7 +345,13 @@ class PayslipCard extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
-              for (final b in p.breakdown) PayItemRow(item: b),
+              for (final b in p.breakdown)
+                PayItemRow(
+                  item: b,
+                  onObject: onObject == null
+                      ? null
+                      : () => onObject!(code: b.code, label: PayItemRow.label(l, b.code), amount: b.amount),
+                ),
               if (p.rows.any((r) => r.code != 'net')) const Divider(),
             ],
             for (final r in p.rows.where((r) => r.code != 'net'))
@@ -321,6 +363,11 @@ class PayslipCard extends StatelessWidget {
                       child: Text(r.header, style: const TextStyle(color: AppColors.muted)),
                     ),
                     Text(show(r.value)),
+                    if (onObject != null && r.value != null && _amount.hasMatch(r.value!))
+                      _ObjectButton(
+                        key: Key('object-${r.code}'),
+                        onPressed: () => onObject!(code: r.code, label: r.header, amount: r.value),
+                      ),
                   ],
                 ),
               ),
@@ -337,6 +384,16 @@ class PayslipCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (onObject != null)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  key: const Key('object-payslip'),
+                  onPressed: () => onObject!(),
+                  icon: const Icon(Icons.report_outlined, size: 19),
+                  label: Text(l.objectPayslip),
+                ),
+              ),
           ],
         ),
       ),
@@ -344,11 +401,29 @@ class PayslipCard extends StatelessWidget {
   }
 }
 
+/// The small flag next to a payslip line: an objection to that line.
+class _ObjectButton extends StatelessWidget {
+  const _ObjectButton({super.key, required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    onPressed: onPressed,
+    tooltip: context.l.objectLine,
+    visualDensity: VisualDensity.compact,
+    iconSize: 18,
+    color: AppColors.muted,
+    icon: const Icon(Icons.outlined_flag),
+  );
+}
+
 /// One item of the scheme's month on the payslip: what it is, why (orders × rate, the tier reached, …), and the amount.
 class PayItemRow extends StatelessWidget {
-  const PayItemRow({super.key, required this.item});
+  const PayItemRow({super.key, required this.item, this.onObject});
 
   final PayItem item;
+  final VoidCallback? onObject;
 
   static String _n(Object? v) => '\u2066${v ?? ''}\u2069';
 
@@ -403,6 +478,7 @@ class PayItemRow extends StatelessWidget {
             money(item.amount, l.kwd),
             style: TextStyle(color: info ? AppColors.muted : (negative ? AppColors.danger : null)),
           ),
+          if (onObject != null) _ObjectButton(key: Key('object-${item.code}'), onPressed: onObject!),
         ],
       ),
     );

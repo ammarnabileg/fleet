@@ -2462,7 +2462,8 @@ void main() {
       find.descendant(of: find.byKey(const Key('pay-item-missing_target')), matching: find.textContaining('112.000')),
     );
     expect(penalty.style!.color, AppColors.danger);
-    expect(find.text('عقوبات لم تُخصم'), findsOneWidget);
+    expect(find.text('خصومات غير محصلة (للمراجعة)'), findsOneWidget);
+    expect(find.byKey(const Key('object-payslip')), findsNothing); // an older server sends no run: nothing to name
     await shot(tester, '28-payslip-scheme');
   });
 
@@ -2532,6 +2533,176 @@ void main() {
       find.descendant(of: find.byKey(const Key('pay-item-marks_deduction')), matching: find.textContaining('20.000')),
     );
     expect(penalty.style!.color, AppColors.danger);
+  });
+
+  Map<String, dynamic> objectionSlip() => {
+    'run_id': 'run-9',
+    'month': '2026-09-01',
+    'status': 'approved',
+    'platform': null,
+    'rows': [
+      {'code': 'gross', 'header': 'إجمالي الراتب', 'value': '140.000'},
+      {'code': 'net', 'header': 'صافي الراتب', 'value': '123.000'},
+    ],
+    'scheme': {
+      'name': {'ar': 'كيتا الأساسي', 'en': 'Keeta base'},
+    },
+    'breakdown': [
+      {
+        'code': 'orders_pay',
+        'amount': '140.000',
+        'why': {'orders': 400, 'rate': '0.350'},
+      },
+      {
+        'code': 'missing_target',
+        'amount': '-7.000',
+        'why': {'target': 420, 'missing': 20, 'rate': '0.350'},
+      },
+    ],
+    'gross': '140.000',
+    'deductions': '17.000',
+    'net': '123.000',
+    'uncollected': '0.000',
+  };
+
+  Future<World> openPayslips(WidgetTester tester, {List<Map<String, dynamic>> mine = const []}) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on('GET', '/api/v1/driver/payslips', (r) => (200, [objectionSlip()]));
+    w.server.on('GET', '/api/v1/driver/objections', (r) => (200, mine));
+    await pumpApp(tester, w);
+    await tester.dragUntilVisible(
+      find.byKey(const Key('payslips')),
+      find.byType(ListView).first,
+      const Offset(0, -200),
+    );
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('payslips')));
+    await idle(tester);
+    return w;
+  }
+
+  testWidgets('objection to one payslip line: the reason, a photo from the gallery, sent with the line', (
+    tester,
+  ) async {
+    final img = await tester.runAsync(testImage);
+    Photos.gallery = () async => TakenPhoto(img!, DateTime.now());
+    final w = await openPayslips(tester);
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'e' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('POST', '/api/v1/driver/payslips/run-9/objections', (r) {
+      final b = jsonDecode(r.body) as Map;
+      return (
+        201,
+        {
+          'id': 'ob-1',
+          'run_id': 'run-9',
+          'month': '2026-09-01',
+          'item_code': b['item_code'],
+          'item_amount': '-7.000',
+          'reason': b['reason'],
+          'has_attachment': true,
+          'status': 'open',
+          'response': null,
+          'action_taken': null,
+          'deduction': null,
+          'created_at': '2026-10-02T08:00:00Z',
+          'updated_at': '2026-10-02T08:00:00Z',
+          'version': 1,
+        },
+      );
+    });
+    expect(find.byKey(const Key('object-payslip')), findsOneWidget);
+    expect(find.byKey(const Key('object-gross')), findsOneWidget); // a sheet amount can be objected to as well
+    await tester.tap(find.byKey(const Key('object-missing_target')));
+    await settle(tester);
+    expect(find.textContaining('خصم نقص التارجت'), findsWidgets);
+    expect(find.text('اعتراض على كشف الراتب'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('send-objection')));
+    await settle(tester);
+    expect(find.text('اكتب السبب (3 أحرف على الأقل)'), findsOneWidget); // the reason is required
+    await tester.enterText(find.byKey(const Key('objection-reason')), 'عملت 425 طلب حسب تطبيق المنصة');
+    await tester.tap(find.byKey(const Key('objection-gallery')));
+    await idle(tester);
+    expect(find.byKey(const Key('objection-photo')), findsOneWidget);
+    w.server.on(
+      'GET',
+      '/api/v1/driver/objections',
+      (r) => (
+        200,
+        [
+          {
+            'id': 'ob-1',
+            'run_id': 'run-9',
+            'month': '2026-09-01',
+            'item_code': 'missing_target',
+            'item_amount': '-7.000',
+            'reason': 'عملت 425 طلب حسب تطبيق المنصة',
+            'has_attachment': true,
+            'status': 'open',
+            'response': null,
+            'action_taken': null,
+          },
+        ],
+      ),
+    );
+    await reveal(tester, find.byKey(const Key('send-objection')));
+    await tester.tap(find.byKey(const Key('send-objection')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/files').single.url.queryParameters['source'], 'upload');
+    final body = jsonDecode(w.server.calls('/api/v1/driver/payslips/run-9/objections', method: 'POST').single.body);
+    expect(
+      (body['item_code'], body['reason'], body['attachment_sha256']),
+      ('missing_target', 'عملت 425 طلب حسب تطبيق المنصة', 'e' * 64),
+    );
+    expect(body.containsKey('run_id'), isFalse); // it names the run in the path
+    expect(RegExp(r'^[0-9a-f-]{36}$').hasMatch(body['client_ref'] as String), isTrue);
+    expect(find.text('أُرسل اعتراضك للمكتب، وسيصلك الرد'), findsOneWidget);
+    await settle(tester);
+    expect(find.byKey(const Key('objection-ob-1')), findsOneWidget); // back on the payslips, in his objections
+  });
+
+  testWidgets('objection to the whole payslip, and his objections with the status and the office answer', (
+    tester,
+  ) async {
+    final w = await openPayslips(
+      tester,
+      mine: [
+        {
+          'id': 'ob-2',
+          'run_id': 'run-9',
+          'month': '2026-09-01',
+          'item_code': 'orders_pay',
+          'item_amount': '140.000',
+          'reason': 'الطلبات ناقصة',
+          'has_attachment': false,
+          'status': 'rejected',
+          'response': 'تقرير المنصة 400 طلب',
+          'action_taken': null,
+        },
+      ],
+    );
+    w.server.on('POST', '/api/v1/driver/payslips/run-9/objections', (r) => (201, {'id': 'ob-3'}));
+    await reveal(tester, find.byKey(const Key('objection-ob-2')));
+    final tile = find.byKey(const Key('objection-ob-2'));
+    expect(find.descendant(of: tile, matching: find.text('مرفوض')), findsOneWidget);
+    expect(find.descendant(of: tile, matching: find.textContaining('رد المكتب: تقرير المنصة 400 طلب')), findsOneWidget);
+    expect(find.descendant(of: tile, matching: find.textContaining('قيمة الطلبات')), findsOneWidget);
+    await shot(tester, '40-objections');
+
+    await reveal(tester, find.byKey(const Key('object-payslip')));
+    await tester.tap(find.byKey(const Key('object-payslip')));
+    await settle(tester);
+    expect(find.text('على: الكشف كله'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('objection-reason')), 'الكشف كله غير صحيح');
+    await tester.tap(find.byKey(const Key('send-objection')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/payslips/run-9/objections', method: 'POST').single.body);
+    expect(body['item_code'], isNull);
+    expect(body.containsKey('attachment_sha256'), isFalse);
+    expect(w.server.calls('/api/v1/driver/files'), isEmpty);
   });
 
   testWidgets('no phone on file: civil ID and the initial password, then the phone and its WhatsApp code', (

@@ -156,13 +156,16 @@ def test_a_driver_is_on_one_scheme_per_month_and_paid_months_never_change(admin_
     assert r.json()["skipped"][0]["code"] == "payroll_locked"
     assert assign(admin_client, s["fixed_1"], d, month=NEXT).json()["set"] == 1
 
-    # a scheme drivers are on keeps its prices: a new price is a new scheme
+    # a scheme drivers are on changes its terms only as a version from a month, and never its way of computing
     r = admin_client.patch(f"{P}/schemes/{s['fixed_1']['id']}", json={"version": 1, "per_order": "0.400"})
+    assert r.status_code == 422 and r.json()["params"] == {"field": "effective_month"}, r.text
+    r = admin_client.patch(f"{P}/schemes/{s['fixed_1']['id']}", json={"version": 1, "calculator": "tiered_target"})
     assert r.status_code == 409 and r.json()["code"] == "scheme_in_use"
     r = admin_client.patch(f"{P}/schemes/{s['fixed_1']['id']}", json={"version": 1, "driver_selectable": False})
     assert r.status_code == 200 and r.json()["driver_selectable"] is False
     r = admin_client.patch(f"{P}/schemes/{s['fixed_2']['id']}", json={"version": 1, "per_order": "0.560"})
-    assert r.status_code == 200 and r.json()["per_order"] == "0.560"  # no driver on it any more
+    assert r.status_code == 200 and r.json()["per_order"] == "0.560"  # nobody on it any more: simply redefined
+    assert [v["version_no"] for v in r.json()["versions"]] == [1]
 
 
 def test_the_driver_asks_from_the_app_and_the_office_decides(admin_client, client, company, setup, new_client):
@@ -306,6 +309,7 @@ def test_the_run_pays_each_driver_on_his_scheme(admin_client, company, setup):
     assert Decimal(k1["cells"]["orders_pay"]) + Decimal(k1["cells"]["tier_bonus"]) == Decimal(k1["gross"])
 
 
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
 def test_the_payslip_explains_the_month_item_by_item(admin_client, client, company, setup):
     version = admin_client.get("/api/v1/settings").json()["payroll"]["version"]
     admin_client.put(
