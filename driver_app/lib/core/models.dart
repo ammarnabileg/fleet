@@ -516,6 +516,8 @@ class PlatformStatus {
 /// An approved month's salary, in the rows of the driver's platform sheet.
 class Payslip {
   Payslip({
+    this.runId,
+    this.uncollected,
     required this.month,
     required this.status,
     required this.rows,
@@ -527,6 +529,8 @@ class Payslip {
   });
 
   factory Payslip.fromJson(Map<String, dynamic> j) => Payslip(
+    runId: j['run_id'] as String?,
+    uncollected: j['uncollected'] as String?,
     month: j['month'] as String,
     status: j['status'] as String,
     rows: [
@@ -549,6 +553,8 @@ class Payslip {
     ],
   );
 
+  final String? runId; // what an objection to it names
+  final String? uncollected; // penalties the pay could not cover: not deducted, for the office's review
   final String month;
   final String status; // approved | paid
   final List<({String header, String code, String? value})> rows;
@@ -559,6 +565,46 @@ class Payslip {
   final List<PayItem> breakdown; // how the scheme computed the month
 
   String? scheme(String lang) => schemeName == null ? null : schemeName![lang] ?? schemeName!['ar'];
+}
+
+/// The driver's objection to a payslip (all of it, or one line) and the office's answer.
+class Objection {
+  Objection({
+    required this.id,
+    required this.runId,
+    required this.month,
+    required this.reason,
+    required this.status,
+    this.itemCode,
+    this.itemAmount,
+    this.response,
+    this.actionTaken,
+    this.hasAttachment = false,
+  });
+
+  factory Objection.fromJson(Map<String, dynamic> j) => Objection(
+    id: j['id'] as String,
+    runId: j['run_id'] as String,
+    month: j['month'] as String,
+    reason: j['reason'] as String,
+    status: j['status'] as String,
+    itemCode: j['item_code'] as String?,
+    itemAmount: j['item_amount'] as String?,
+    response: j['response'] as String?,
+    actionTaken: j['action_taken'] as String?,
+    hasAttachment: j['has_attachment'] as bool? ?? false,
+  );
+
+  final String id;
+  final String runId;
+  final String month;
+  final String reason;
+  final String status; // open | in_review | accepted | rejected | closed
+  final String? itemCode; // none: the whole payslip
+  final String? itemAmount;
+  final String? response;
+  final String? actionTaken;
+  final bool hasAttachment;
 }
 
 /// One item of a scheme's month: what it is (a salary-sheet column), the amount (penalties negative), and its reason.

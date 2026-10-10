@@ -47,6 +47,7 @@
     if (api.can('payroll.view')) tabs.push(['statements', 'كشوف المنصات'], ['runs', 'كشوف الرواتب']);
     if (api.can('payroll.view')) tabs.push(['schemes', 'أنظمة الدفع'], ['requests', 'طلبات تغيير النظام' + (A.counts.scheme_requests ? ' (' + A.counts.scheme_requests + ')' : '')]);
     if (api.can('payroll.view')) tabs.push(['uncollected', 'خصومات غير محصلة' + (A.counts.uncollected ? ' (' + A.counts.uncollected + ')' : '')]);
+    if (api.can('payroll.view')) tabs.push(['objections', 'الاعتراضات' + (A.counts.objections ? ' (' + A.counts.objections + ')' : '')]);
     if (api.can('payroll.view') || api.can('settings.update')) tabs.push(['platforms', 'المنصات']);
     if (!tabs.length) { BT.render(v, A.forbidden()); return; }
     var tab = tabs.some(function (t) { return t[0] === q.tab; }) ? q.tab : tabs[0][0];
@@ -56,7 +57,7 @@
     var drawn = {};
     function show(t) {
       if (drawn[t]) return; drawn[t] = true;
-      ({ statements: statementsPanel, runs: runsPanel, schemes: A.schemesPanel, requests: A.schemeRequestsPanel, uncollected: uncollectedPanel, platforms: platformsPanel })[t](v.querySelector('[data-p="' + t + '"]'), q);
+      ({ statements: statementsPanel, runs: runsPanel, schemes: A.schemesPanel, requests: A.schemeRequestsPanel, uncollected: uncollectedPanel, objections: objectionsPanel, platforms: platformsPanel })[t](v.querySelector('[data-p="' + t + '"]'), q);
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/payroll?tab=' + e.detail); });
     show(tab);
@@ -337,6 +338,85 @@
     });
   }
 
+  /* ================= اعتراضات السائقين على كشوف الرواتب ================= */
+  var OBJ_TONE = { open: 'o', in_review: 'b', accepted: 'g', rejected: 'r', closed: 'n' };
+  var OBJ_NEXT = { open: ['in_review', 'accepted', 'rejected', 'closed'], in_review: ['in_review', 'accepted', 'rejected', 'closed'], accepted: ['accepted', 'closed'], rejected: ['rejected', 'closed'], closed: [] };
+  function objectionItem(o) {
+    if (!o.item_code) return 'الكشف كله';
+    if (o.item_code.indexOf('deduction:') === 0) return 'قسط خصم';
+    return api.t('payroll_column', o.item_code);
+  }
+  function objectionsPanel(el, q) {
+    var month = q.month || '';
+    BT.render(el, h`<div class="card"><div class="hint mb-12">يعترض السائق من التطبيق على كشف راتبه المعتمد أو على بند منه، بسبب ومرفق إن وُجد. الرد يصله بإشعار. الاعتراض لا يغيّر كشف الرواتب المعتمد: التسوية خصم يدوي لشهر قادم يُربط بالاعتراض.</div>
+      <div class="flex gap-8 items-end wrap mb-12"><div class="field" style="max-width:200px"><label for="f-obj-month">شهر الكشف</label><input class="input" type="month" id="f-obj-month" value="${month}"></div></div><div data-t></div></div>`);
+    var t = BT.table(el.querySelector('[data-t]'), {
+      chips: { value: q.status || 'open,in_review', all: false, options: [{ v: 'open,in_review', t: 'بانتظار الرد' }].concat(['accepted', 'rejected', 'closed'].map(function (k) { return { v: k, t: api.t('objection_status', k) }; })).concat([{ v: 'all', t: 'الكل' }]) },
+      fetch: function (s) { return api.get('/payroll/objections', { status: s.chip === 'all' ? null : s.chip, month: month ? month + '-01' : null, limit: s.limit, offset: s.offset }); },
+      empty: { icon: 'message-square', title: 'لا توجد اعتراضات هنا', text: 'يعترض السائق من شاشة كشف الراتب في التطبيق' },
+      columns: [
+        { key: 'employee', label: 'السائق', render: function (o) { return A.person(o.employee); } },
+        { key: 'month', label: 'الكشف', render: function (o) { return h`<a href="#/payroll/run/${o.run_id}">${monthLabel(o.month)}</a>`; } },
+        { key: 'item', label: 'البند', render: function (o) { return h`${objectionItem(o)}${o.item_amount != null ? h`<span class="sub num">${amt(o.item_amount)}</span>` : ''}`; } },
+        { key: 'reason', label: 'السبب', render: function (o) { return h`<span class="fs-sm">${o.reason}</span>${o.has_attachment ? h` ${icon('paperclip', 13)}` : ''}`; } },
+        { key: 'status', label: 'الحالة', render: function (o) { return BT.pill(api.t('objection_status', o.status), OBJ_TONE[o.status]); } },
+        { key: 'created_at', label: 'الإرسال', render: function (o) { return h`<span class="num">${fmt.dt(o.created_at)}</span>`; } }
+      ],
+      rowClick: function (o) { A.objectionView(o.id, function () { t.refresh(); if (A.refreshCounts) A.refreshCounts(); }); }
+    });
+    el.querySelector('#f-obj-month').addEventListener('change', function (e) { month = e.target.value || ''; t.refresh(); });
+  }
+  A.objectionView = function (id, done) {
+    api.get('/payroll/objections/' + id).then(function (o) {
+      var can = (api.can('payroll.prepare') || api.can('payroll.approve')) && o.status !== 'closed';
+      var slip = o.payslip;
+      var btns = [{ label: 'إغلاق', cls: 'btn-ghost' }];
+      function answer(dlg, extra) {
+        var form = dlg.panel.querySelector('form[data-answer]');
+        var v = BT.form.values(form);
+        var body = Object.assign({ status: v.status, response: v.response || null, action_taken: v.action_taken || null, version: o.version }, extra || {});
+        return api.post('/payroll/objections/' + o.id + '/respond', body);
+      }
+      if (can) {
+        if (api.can('deductions.manage')) btns.push({ label: 'إنشاء تسوية', cls: 'btn-outline', icon: 'minus-circle', close: false, onClick: function (dlg) {
+          var next = new Date(+o.month.slice(0, 4), +o.month.slice(5, 7), 1); // the month after the payslip's
+          var start = next.getFullYear() + '-' + String(next.getMonth() + 1).padStart(2, '0');
+          if (start < thisMonth()) start = thisMonth();
+          A.manualDeduction(function (d) {
+            if (!d || !d.id) return;
+            answer(dlg, { deduction_id: d.id }).then(function () { BT.toast('رُبطت التسوية بالاعتراض'); dlg.close(); done(); }, api.fail);
+          }, { employee_id: o.employee.id, reason: 'تسوية اعتراض على كشف ' + monthLabel(o.month), start: start, source_type: 'other' });
+        } });
+        btns.push({ label: 'حفظ الرد', cls: 'btn-primary', icon: 'check', close: false, onClick: function (dlg) {
+          var form = dlg.panel.querySelector('form[data-answer]');
+          if (!BT.form.validate(form)) return;
+          answer(dlg).then(function () { BT.toast('حُفظ الرد ووصل السائق إشعار'); dlg.close(); done(); }, api.fail);
+        } });
+      }
+      BT.drawer.open({
+        title: 'اعتراض على كشف ' + monthLabel(o.month), subtitle: api.name((o.employee || {}).name || {}), icon: 'message-square', size: 'lg', buttons: btns,
+        body: h`<div class="flex gap-8 wrap mb-12">${BT.pill(api.t('objection_status', o.status), OBJ_TONE[o.status], true)}${BT.pill('الكشف ' + api.t('run_status', o.run_status), 'n')}</div>
+          ${BT.kv([
+            ['البند', h`${objectionItem(o)}${o.item_amount != null ? h` · <span class="num">${amt(o.item_amount)}</span>` : ''}`],
+            ['سبب السائق', o.reason],
+            ['المرفق', o.has_attachment ? h`<a href="${api.url('/payroll/objections/' + o.id + '/attachment')}" target="_blank" rel="noopener" data-attachment>${icon('paperclip', 13)} فتح المرفق</a>` : '—'],
+            ['كشف الرواتب', h`<a href="#/payroll/run/${o.run_id}">${monthLabel(o.month)}</a>`],
+            slip ? ['الكشف كما اعتُمد', h`المستحق ${amt(slip.gross)} · الخصومات ${amt(slip.deductions)} · الصافي <b>${amt(slip.net)}</b>`] : null,
+            o.response ? ['رد المكتب', o.response] : null,
+            o.action_taken ? ['الإجراء المتخذ', o.action_taken] : null,
+            o.deduction ? ['التسوية', fmt.money(o.deduction.total) + ' من ' + monthLabel(o.deduction.start_month) + ' · ' + api.t('deduction_status', o.deduction.status)] : null,
+            o.handled_by ? ['آخر رد', o.handled_by + ' · ' + fmt.dt(o.handled_at)] : null
+          ].filter(Boolean))}
+          ${slip && slip.breakdown.length ? breakdown({ breakdown: slip.breakdown, cells: slip.cells }) : ''}
+          ${can ? h`<form data-answer class="form mt-16" novalidate><div class="section-t">الرد</div>
+            ${BT.f.select({ name: 'status', label: 'الحالة', value: OBJ_NEXT[o.status][0], placeholder: false, options: OBJ_NEXT[o.status].map(function (k) { return { v: k, t: api.t('objection_status', k) }; }) })}
+            ${BT.f.textarea({ name: 'response', label: 'الرد الذي يقرؤه السائق (إلزامي للقبول أو الرفض)', value: o.response || '' })}
+            ${BT.f.input({ name: 'action_taken', label: 'الإجراء المتخذ', optional: true, value: o.action_taken || '' })}
+            <div class="hint">كشف الرواتب المعتمد لا يتغير: «إنشاء تسوية» يفتح خصماً يدوياً للشهر القادم ويربطه بالاعتراض.</div></form>` : ''}`
+      });
+    }, api.fail);
+  };
+
   /* ================= المنصات ================= */
   var RULE_HINT = 'الصافي = الأساسي (إن كانت المنصة تدفعه) + الطلبات × السعر + الساعات × السعر + الأيام الصالحة × السعر + البونص والبقشيش − الأيام غير الصالحة − خصومات الشهر − الأقساط (بحد الخصم)';
   function platformsPanel(el) {
@@ -427,17 +507,18 @@
   }
 
   /* ================= خصم يدوي: سلفة أو شريحة هاتف ================= */
-  A.manualDeduction = function (done) {
+  A.manualDeduction = function (done, preset) { // preset: {employee_id, reason, start, source_type} (a settlement)
+    preset = preset || {};
     allEmployees({}).then(function (rows) {
       A.formModal({
         title: 'خصم جديد', subtitle: 'سلفة أو شريحة هاتف أو غيرها، بأقساط شهرية', icon: 'minus-circle',
         done: function (d) { return d && d.status === 'pending' ? 'أُرسل الخصم للاعتماد' : 'سُجّل الخصم'; },
-        body: h`<div class="form-grid"><div class="full">${A.picker({ name: 'employee', label: 'الموظف', required: true, items: rows.map(function (e) { return { id: e.id, label: api.name(e.name) + ' — ' + e.employee_number }; }) })}</div>
-          ${BT.f.select({ name: 'source_type', label: 'النوع', required: true, placeholder: false, options: ['advance', 'sim', 'other'].map(function (k) { return { v: k, t: api.t('deduction_source', k) }; }) })}
-          ${BT.f.input({ name: 'reason', label: 'السبب (يظهر في كشف الراتب)', required: true })}
+        body: h`<div class="form-grid"><div class="full">${A.picker({ name: 'employee', label: 'الموظف', required: true, value: preset.employee_id, items: rows.map(function (e) { return { id: e.id, label: api.name(e.name) + ' — ' + e.employee_number }; }) })}</div>
+          ${BT.f.select({ name: 'source_type', label: 'النوع', required: true, placeholder: false, value: preset.source_type, options: ['advance', 'sim', 'other'].map(function (k) { return { v: k, t: api.t('deduction_source', k) }; }) })}
+          ${BT.f.input({ name: 'reason', label: 'السبب (يظهر في كشف الراتب)', required: true, value: preset.reason || '' })}
           ${BT.f.money({ name: 'total', label: 'الإجمالي', required: true })}
           ${BT.f.input({ name: 'installments', label: 'عدد الأقساط', value: 1, num: true, required: true })}
-          ${BT.f.input({ name: 'start', label: 'أول شهر', type: 'month', value: thisMonth(), required: true })}</div>`,
+          ${BT.f.input({ name: 'start', label: 'أول شهر', type: 'month', value: preset.start || thisMonth(), required: true })}</div>`,
         submit: function (v) { return api.post('/deductions', { employee_id: A.picked('employee', v.employee), source_type: v.source_type, reason: v.reason, total: Number(v.total).toFixed(3), installments: Math.round(Number(v.installments)), start_month: v.start + '-01' }); },
         after: done
       });

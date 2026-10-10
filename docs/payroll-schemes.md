@@ -478,6 +478,38 @@ line stays, and the next approval only records what was not decided yet, so noth
 Panel: Payroll → «خصومات غير محصلة» (count badge): month filter, status chips, search by driver, the balance under
 review per driver, and the decision drawer. The run page says which lines have an uncollected balance.
 
+## 9. The driver's objection to a payslip
+
+`payroll.objections` (migration `0048_objections`): the payslip (the driver's line in an approved or paid run, named by
+the run, since a reopened run rebuilds its lines), the item objected to or none for the whole payslip, the amount the
+payslip showed for it, his reason (required), an optional attachment (a photo or a PDF this phone uploaded, from the
+camera or the gallery), the status `open → in_review → accepted | rejected → closed`, the office's response (required
+to accept or reject), the action taken (free text, and an optional link to the settlement deduction), who handled it
+and when.
+
+- **Items**: a scheme item of the payslip (`orders_pay`, `tier_bonus`, `missing_target`, `marks_deduction`, …), any
+  non-zero amount of the sheet (plus the gross and the net), or one installment deduction taken (`deduction:<id>`).
+  Anything else is 422 `objection_item_invalid`.
+- **Scope**: a driver objects only to his own approved payslips (another's, or a draft, is 404 `payslip_not_found`)
+  and lists only his own objections. A resend from the app's outbox is recognised by its `client_ref` (409
+  `objection_exists`).
+- **Office**: Payroll → «الاعتراضات» (count badge of those waiting; filters by status and month). `payroll.view`
+  sees them (and the alert raised for each new one); `payroll.prepare` or `payroll.approve` answers. The drawer shows
+  the payslip line as approved, the attachment, the answer form, and «إنشاء تسوية», which opens the existing manual
+  deduction form for the next month and links what it creates.
+- **Driver**: on the payslip screen, «اعتراض على الكشف» and a flag on every line open the form (reason, optional
+  photo); «اعتراضاتي» lists them with their status and the office's answer; a notice arrives at each change of
+  status.
+- **An approved run is never edited by an objection.** The existing deductions module has no positive adjustment, so
+  money owed to the driver is recorded as the action taken (for example a bonus on next month's statement); money
+  owed by him is the linked manual deduction.
+
+| Call | Who |
+|---|---|
+| `POST /driver/payslips/{run_id}/objections {item_code?, reason, attachment_sha256?, client_ref}`, `GET /driver/objections`, `GET /driver/objections/{id}/attachment` | the driver (app screen `payslips`) |
+| `GET /payroll/objections?status=&month=`, `/counts`, `/{id}`, `/{id}/attachment` | `payroll.view` |
+| `POST /payroll/objections/{id}/respond {status, response?, action_taken?, deduction_id?}` | `payroll.prepare` or `payroll.approve` |
+
 ## 11. Order of work
 
 | Step | What | Size |

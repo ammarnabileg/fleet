@@ -532,7 +532,13 @@
     "step_not_in_this_flow": "This step is not in this request's flow: the reception, then ready with the invoice",
     "scheme_version_month": "The change applies from {from} or later: the months before it were paid on this scheme or have a later version",
     "uncollected_not_found": "Uncollected balance line not found",
-    "uncollected_decided": "This line was already decided ({status})"
+    "uncollected_decided": "This line was already decided ({status})",
+    "payslip_not_found": "Payslip not found",
+    "objection_item_invalid": "This line is not on the payslip",
+    "objection_exists": "This objection already arrived",
+    "objection_not_found": "Objection not found",
+    "objection_status_invalid": "The objection cannot move from {status} to this status",
+    "objection_deduction_invalid": "The deduction is not the same driver's"
   },
   "settings": {
     "branding": "Branding",
@@ -667,7 +673,8 @@
     "fuel_claim": "Fuel claim from {name} for {amount} KWD awaits review",
     "treasury_deposit_due": "The {branch} treasury holds {balance} KWD (limit {limit}): deposit it at the bank",
     "treasury_deposit_day": "Today is the bank deposit day for the {branch} treasury: it holds {balance} KWD",
-    "treasury_not_closed": "{branch} treasury: {day} had movements and is not counted and closed"
+    "treasury_not_closed": "{branch} treasury: {day} had movements and is not counted and closed",
+    "payroll_objection": "New objection from {driver} to the {month} payslip"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -1147,7 +1154,8 @@
     "delegation": "Delegation",
     "fuel_claim": "Fuel claim",
     "period": "Month of the books",
-    "uncollected": "Uncollected deductions"
+    "uncollected": "Uncollected deductions",
+    "payroll_objection": "Payslip objection"
   },
   "audit_actor": {
     "user": "User",
@@ -1342,7 +1350,8 @@
     "scheme_request_rejected": "Your request to change to pay scheme {scheme} was refused: {reason}",
     "report_missing": "You started your day {date} but have not sent your report yet. Send it now from the app.",
     "fuel_approved": "Your fuel claim was approved for {amount} KWD and taken off the cash you hold",
-    "fuel_rejected": "Your fuel claim was rejected: {reason}"
+    "fuel_rejected": "Your fuel claim was rejected: {reason}",
+    "objection_updated": "Your objection to the {month} payslip: {status}. The office says: {response}"
   },
   "cash_account": {
     "driver": "Driver's cash",
@@ -1408,5 +1417,12 @@
     "carried": "Carried to next month",
     "dropped": "Dropped",
     "deduction_reason": "Uncollected deductions from the {month} payroll: {note}"
+  },
+  "objection_status": {
+    "open": "Open",
+    "in_review": "In review",
+    "accepted": "Accepted",
+    "rejected": "Rejected",
+    "closed": "Closed"
   }
 }

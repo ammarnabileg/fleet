@@ -77,6 +77,7 @@ class AppState extends ChangeNotifier {
   List<Fine> fines = [];
   PlatformStatus? statements;
   List<Payslip> payslips = [];
+  List<Objection> objections = [];
   DriverSchemes? schemes;
   Fuel? fuel; // null until loaded, or when the server has no fuel for him: the app offers none
   Notices? notices;
@@ -402,6 +403,7 @@ class AppState extends ChangeNotifier {
     fines = [];
     statements = null;
     payslips = [];
+    objections = [];
     schemes = null;
     fuel = null;
     unawaited(db.put('fuel', null)); // whether he may claim fuel was his, not the next driver's
@@ -703,6 +705,26 @@ class AppState extends ChangeNotifier {
   Future<void> loadPayslips() async => payslips = [
     for (final p in await api.get('/driver/payslips') as List) Payslip.fromJson(p as Map<String, dynamic>),
   ];
+
+  Future<void> loadObjections() async => objections = [
+    for (final o in await api.get('/driver/objections') as List) Objection.fromJson(o as Map<String, dynamic>),
+  ];
+
+  /// An objection to a payslip: all of it ([itemCode] none) or one line, the reason, a photo if he has one. Through the
+  /// outbox, so a lost answer is retried without a second objection.
+  Future<SendResult> sendObjection({
+    required String runId,
+    String? itemCode,
+    required String reason,
+    String? attachmentPath,
+  }) async {
+    final id = await outbox.add(
+      'objection',
+      {'run_id': runId, 'client_ref': const Uuid().v4(), 'item_code': itemCode, 'reason': reason},
+      {'attachment_sha256': ?attachmentPath},
+    );
+    return _sendNow(id, after: loadObjections);
+  }
 
   Future<void> loadSchemes() async =>
       schemes = DriverSchemes.fromJson(await api.get('/driver/schemes') as Map<String, dynamic>);

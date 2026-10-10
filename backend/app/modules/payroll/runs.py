@@ -691,6 +691,7 @@ def payslips(db: Session, employee_id: int) -> list[dict]:
             )
         out.append(
             {
+                "run_id": str(run.public_id),
                 "month": run.month,
                 "status": run.status,
                 "platform": {"id": platform.id, "code": platform.code, "name": platform.name} if platform else None,

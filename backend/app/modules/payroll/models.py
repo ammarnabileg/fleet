@@ -460,3 +460,40 @@ class Uncollected(Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+
+
+class Objection(Base):
+    """A driver's objection to his payslip (all of it, or one line), answered by the office. Never edits the run."""
+
+    __tablename__ = "objections"
+    __table_args__ = (
+        CheckConstraint("extract(day FROM month) = 1", name="month"),
+        CheckConstraint("length(btrim(reason)) > 0", name="reason"),
+        CheckConstraint("status IN ('open', 'in_review', 'accepted', 'rejected', 'closed')", name="status"),
+        CheckConstraint("status NOT IN ('accepted', 'rejected') OR response IS NOT NULL", name="answered"),
+        Index("objections_status_idx", "status", "created_at"),
+        Index("objections_employee_id_idx", "employee_id", "created_at"),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    run_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("payroll.runs.id"))
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    company_id: Mapped[int] = mapped_column(BigInteger)
+    month: Mapped[date] = mapped_column(Date)
+    item_code: Mapped[str | None] = mapped_column(Text)
+    item_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    reason: Mapped[str] = mapped_column(Text)
+    attachment_sha256: Mapped[str | None] = mapped_column(Text, ForeignKey("files.files.sha256"))
+    status: Mapped[str] = mapped_column(Text, server_default=text("'open'"))
+    response: Mapped[str | None] = mapped_column(Text)
+    action_taken: Mapped[str | None] = mapped_column(Text)
+    deduction_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.deductions.id"))
+    handled_by: Mapped[int | None] = mapped_column(BigInteger)
+    handled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    client_ref: Mapped[uuid.UUID] = mapped_column(UUID, unique=True)
+    submitted_by_device: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))

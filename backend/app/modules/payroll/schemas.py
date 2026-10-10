@@ -300,6 +300,7 @@ class RunDetail(RunOut):
 
 
 class PayslipOut(BaseModel):
+    run_id: str  # what an objection to it names
     month: date
     status: str  # approved | paid
     platform: dict | None
@@ -515,4 +516,54 @@ class UncollectedDecisionIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
+    version: int | None = None
+
+
+# ------------------------------------------------------------------ objections to a payslip
+
+ObjectionText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=1000)]
+
+
+class ObjectionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    item_code: Annotated[str, StringConstraints(pattern=r"^[a-z_]{2,40}(:[0-9a-f-]{36})?$")] | None = None  # none: all
+    reason: ObjectionText
+    attachment_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")] | None = None
+    client_ref: uuid.UUID  # made by the app once: a retry is recognised
+
+
+class ObjectionOut(BaseModel):
+    id: str
+    run_id: str
+    month: date
+    item_code: str | None
+    item_amount: Decimal | None
+    reason: str
+    has_attachment: bool
+    status: str
+    response: str | None
+    action_taken: str | None
+    deduction: dict | None
+    created_at: datetime
+    updated_at: datetime
+    version: int
+
+
+class OfficeObjectionOut(ObjectionOut):
+    employee: dict | None
+    company_id: int
+    run_status: str
+    handled_by: str | None
+    handled_at: datetime | None
+    payslip: dict | None = None  # in the detail: the line as approved
+
+
+class ObjectionAnswerIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["open", "in_review", "accepted", "rejected", "closed"]
+    response: ObjectionText | None = None  # what the driver reads; required to accept or reject
+    action_taken: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
+    deduction_id: uuid.UUID | None = None  # the settlement made for a later month
     version: int | None = None

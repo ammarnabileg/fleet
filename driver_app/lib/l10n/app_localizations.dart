@@ -2231,7 +2231,7 @@ abstract class AppLocalizations {
   /// No description provided for @payItem_uncovered_penalty.
   ///
   /// In ar, this message translates to:
-  /// **'عقوبات لم تُخصم'**
+  /// **'خصومات غير محصلة (للمراجعة)'**
   String get payItem_uncovered_penalty;
 
   /// No description provided for @payWhyOrders.
@@ -2279,7 +2279,7 @@ abstract class AppLocalizations {
   /// No description provided for @payWhyUncovered.
   ///
   /// In ar, this message translates to:
-  /// **'العقوبات أكبر من المستحق، والشهر لا ينزل تحت الصفر: هذا الباقي لم يُخصم'**
+  /// **'الخصومات أكبر من المستحق، والصافي لا ينزل تحت الصفر: هذا الباقي لم يُخصم، ويراجعه المكتب'**
   String get payWhyUncovered;
 
   /// No description provided for @noticesTitle.
@@ -2887,6 +2887,132 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'العربية لسه في عهدتك، بس مفيش يوم شغل بيها لحد ما تستلمها من المركز وتأكد الاستلام هنا.'**
   String get mntInMaintenanceHint;
+
+  /// No description provided for @objectPayslip.
+  ///
+  /// In ar, this message translates to:
+  /// **'اعتراض على الكشف'**
+  String get objectPayslip;
+
+  /// No description provided for @objectLine.
+  ///
+  /// In ar, this message translates to:
+  /// **'اعتراض على هذا البند'**
+  String get objectLine;
+
+  /// No description provided for @objectionTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'اعتراض على كشف الراتب'**
+  String get objectionTitle;
+
+  /// No description provided for @objectionOn.
+  ///
+  /// In ar, this message translates to:
+  /// **'على: {what}'**
+  String objectionOn(String what);
+
+  /// No description provided for @objectionWhole.
+  ///
+  /// In ar, this message translates to:
+  /// **'الكشف كله'**
+  String get objectionWhole;
+
+  /// No description provided for @objectionReason.
+  ///
+  /// In ar, this message translates to:
+  /// **'سبب الاعتراض'**
+  String get objectionReason;
+
+  /// No description provided for @objectionReasonShort.
+  ///
+  /// In ar, this message translates to:
+  /// **'اكتب السبب (3 أحرف على الأقل)'**
+  String get objectionReasonShort;
+
+  /// No description provided for @objectionFile.
+  ///
+  /// In ar, this message translates to:
+  /// **'صورة تثبت اعتراضك (اختياري)'**
+  String get objectionFile;
+
+  /// No description provided for @objectionCamera.
+  ///
+  /// In ar, this message translates to:
+  /// **'الكاميرا'**
+  String get objectionCamera;
+
+  /// No description provided for @objectionGallery.
+  ///
+  /// In ar, this message translates to:
+  /// **'المعرض'**
+  String get objectionGallery;
+
+  /// No description provided for @objectionSent.
+  ///
+  /// In ar, this message translates to:
+  /// **'أُرسل اعتراضك للمكتب، وسيصلك الرد'**
+  String get objectionSent;
+
+  /// No description provided for @objectionQueued.
+  ///
+  /// In ar, this message translates to:
+  /// **'سيُرسل اعتراضك عند عودة الاتصال'**
+  String get objectionQueued;
+
+  /// No description provided for @myObjections.
+  ///
+  /// In ar, this message translates to:
+  /// **'اعتراضاتي'**
+  String get myObjections;
+
+  /// No description provided for @objectionResponse.
+  ///
+  /// In ar, this message translates to:
+  /// **'رد المكتب: {text}'**
+  String objectionResponse(String text);
+
+  /// No description provided for @objectionAction.
+  ///
+  /// In ar, this message translates to:
+  /// **'الإجراء: {text}'**
+  String objectionAction(String text);
+
+  /// No description provided for @objectionStatus_open.
+  ///
+  /// In ar, this message translates to:
+  /// **'مفتوح'**
+  String get objectionStatus_open;
+
+  /// No description provided for @objectionStatus_in_review.
+  ///
+  /// In ar, this message translates to:
+  /// **'قيد المراجعة'**
+  String get objectionStatus_in_review;
+
+  /// No description provided for @objectionStatus_accepted.
+  ///
+  /// In ar, this message translates to:
+  /// **'مقبول'**
+  String get objectionStatus_accepted;
+
+  /// No description provided for @objectionStatus_rejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'مرفوض'**
+  String get objectionStatus_rejected;
+
+  /// No description provided for @objectionStatus_closed.
+  ///
+  /// In ar, this message translates to:
+  /// **'مغلق'**
+  String get objectionStatus_closed;
+
+  /// No description provided for @objectionInstallment.
+  ///
+  /// In ar, this message translates to:
+  /// **'قسط خصم'**
+  String get objectionInstallment;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
