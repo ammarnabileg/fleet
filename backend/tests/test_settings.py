@@ -13,7 +13,12 @@ def test_defaults_validation_versioning_audit_and_event(admin_client, db):
     s = admin_client.get("/api/v1/settings").json()
     assert s["tracking"] == {
         "version": 0,
-        "value": {"interval_moving_s": 30, "interval_stationary_s": 300, "signal_loss_minutes": 10},
+        "value": {
+            "interval_moving_s": 30,
+            "interval_stationary_s": 300,
+            "signal_loss_minutes": 10,
+            "retention_months": 0,
+        },
     }
     bad = admin_client.put("/api/v1/settings/tracking", json={"version": 0, "value": {"interval_moving_s": 1}})
     assert bad.status_code == 422 and bad.json()["code"] == "invalid_settings"
@@ -24,7 +29,13 @@ def test_defaults_validation_versioning_audit_and_event(admin_client, db):
     ok = admin_client.put("/api/v1/settings/cash", json={"version": 0, "value": {"driver_balance_alert": "75.500"}})
     assert ok.status_code == 200 and ok.json() == {
         "version": 1,
-        "value": {"driver_balance_alert": "75.500", "report_review_hours": 24},
+        "value": {
+            "driver_balance_alert": "75.500",
+            "report_review_hours": 24,
+            "fuel_max_amount": "50.000",
+            "treasury_deposit_limit": "0.000",
+            "treasury_deposit_weekdays": [],
+        },
     }
     stale = admin_client.put("/api/v1/settings/cash", json={"version": 0, "value": {}})
     assert stale.status_code == 409 and stale.json()["code"] == "version_conflict"
@@ -53,3 +64,12 @@ def test_client_settings_file_applies_cleanly(database_url):
             version, model = org.all_sections(db)[section]
             assert version == 1
             assert {k: model.model_dump(mode="json")[k] for k in value} == value
+
+
+def test_branding_is_public_and_follows_the_settings(client, admin_client):
+    assert client.get("/api/v1/branding").json() == {"display_name": "BrilliantTech Fleet", "primary_color": "#0A6CFF"}
+    v = admin_client.get("/api/v1/settings").json()["branding"]["version"]
+    r = admin_client.put("/api/v1/settings/branding", json={"version": v, "value": {"display_name": "شركة التجربة"}})
+    assert r.status_code == 200, r.text
+    anonymous = client.__class__(client.app)  # no session cookie
+    assert anonymous.get("/api/v1/branding").json()["display_name"] == "شركة التجربة"

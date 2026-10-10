@@ -29,25 +29,25 @@
   <div class="auth">
     <section class="auth-form">
       <div class="auth-box">
-        <div class="flex items-center gap-10 mb-16"><span class="logo lg"><i data-icon="diamond" data-size="22"></i></span><div><div class="brand-name" style="font-size:19px">Brilliant<i>Tech</i></div><div class="muted fs-sm" id="portal-name">نظام إدارة الأسطول · لوحة الإدارة</div></div></div>
+        <div class="flex items-center gap-10 mb-16"><span class="logo lg"><i data-icon="diamond" data-size="22"></i></span><div><div class="brand-name" style="font-size:19px">Brilliant<i>Tech</i></div><div class="muted fs-sm">نظام إدارة الأسطول · لوحة الإدارة</div></div></div>
 
         <!-- الخطوة 1: اسم المستخدم وكلمة المرور -->
         <form id="step1" class="form" novalidate>
-          <div><h2>تسجيل الدخول</h2><p class="muted fs-sm mt-4">أجواد جروب</p></div>
-          <div class="field"><label for="u">رقم الجوال أو اسم المستخدم</label><input class="input" id="u" name="user" required autocomplete="username" value="sami.alansari"><div class="err-msg"></div></div>
-          <div class="field"><label for="p">كلمة المرور</label><div class="input-group"><input class="input" id="p" name="pw" type="password" required autocomplete="current-password" value="demo-password"><button type="button" class="addon" id="show-pw" aria-label="إظهار كلمة المرور" style="cursor:pointer"><i data-icon="eye" data-size="16"></i></button></div><div class="err-msg"></div></div>
-          <div class="between"><label class="check"><input type="checkbox" name="remember" checked><span>تذكرني على هذا الجهاز</span></label><button type="button" class="btn btn-link fs-sm" id="forgot">نسيت كلمة المرور؟</button></div>
+          <div><h2>تسجيل الدخول</h2><p class="muted fs-sm mt-4" id="client-name">نظام إدارة الأسطول</p></div>
+          <div class="field"><label for="u">اسم المستخدم</label><input class="input" id="u" name="user" required autocomplete="username" autofocus dir="ltr"><div class="err-msg"></div></div>
+          <div class="field"><label for="p">كلمة المرور</label><div class="input-group"><input class="input" id="p" name="pw" type="password" required autocomplete="current-password" dir="ltr"><button type="button" class="addon" id="show-pw" aria-label="إظهار كلمة المرور" style="cursor:pointer"><i data-icon="eye" data-size="16"></i></button></div><div class="err-msg"></div></div>
+          <div class="err-msg center" id="login-err" role="alert"></div>
+          <div class="between"><span></span><button type="button" class="btn btn-link fs-sm" id="forgot">نسيت كلمة المرور؟</button></div>
           <button type="submit" class="btn btn-primary btn-lg btn-block">متابعة</button>
         </form>
 
-        <!-- الخطوة 2: رمز التحقق -->
+        <!-- الخطوة 2: رمز التحقق بخطوتين (تطبيق المصادقة) -->
         <form id="step2" class="form hidden" novalidate>
-          <div><h2>التحقق بخطوتين</h2><p class="muted fs-sm mt-4">أدخل الرمز المرسل إلى الجوال المنتهي بـ <b class="num">••••0399</b></p></div>
+          <div><h2>التحقق بخطوتين</h2><p class="muted fs-sm mt-4">أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة على جوالك (Google Authenticator أو Microsoft Authenticator).</p></div>
           <div id="otp-box"></div>
-          <div class="err-msg center" id="otp-err">الرمز غير صحيح</div>
+          <div class="err-msg center" id="otp-err" role="alert"></div>
           <button type="submit" class="btn btn-primary btn-lg btn-block">دخول</button>
-          <div class="between fs-sm"><button type="button" class="btn btn-link" id="back1"><i data-icon="arrow-right" data-size="14"></i> رجوع</button><span class="muted" id="resend">إعادة الإرسال بعد <span class="num">00:30</span></span></div>
-          <div class="banner info fs-sm"><i data-icon="info" data-size="15"></i><div>للتجربة: أي 6 أرقام عدا 000000.</div></div>
+          <div class="between fs-sm"><button type="button" class="btn btn-link" id="back1"><i data-icon="arrow-right" data-size="14"></i> رجوع</button><span class="muted">الرمز يتجدد كل 30 ثانية</span></div>
         </form>
 
         <div class="auth-foot">الاستضافة على خوادم BrilliantTech · اتصال مشفّر</div>
@@ -65,42 +65,11 @@
       </div>
     </section>
   </div>
+  <script src="assets/js/config.js"></script>
   <script src="assets/js/core.js"></script>
   <script src="assets/js/icons.js"></script>
   <script src="assets/js/ui.js"></script>
-  <script>
-    (function () {
-      var BT = window.BT, s1 = document.getElementById('step1'), s2 = document.getElementById('step2');
-      var target = /portal=1/.test(location.search) ? 'portal.html' : 'admin.html';
-      if (target === 'portal.html') document.getElementById('portal-name').textContent = 'بوابة مراكز الصيانة';
-      BT.hydrate(document);
-      BT.render(document.getElementById('otp-box'), BT.otp.html(6));
-      BT.form.live(s1);
-      document.getElementById('show-pw').onclick = function () { var p = document.getElementById('p'); p.type = p.type === 'password' ? 'text' : 'password'; };
-      s1.addEventListener('submit', function (e) {
-        e.preventDefault(); if (!BT.form.validate(s1)) return;
-        var b = s1.querySelector('[type=submit]'); b.classList.add('is-loading');
-        setTimeout(function () { b.classList.remove('is-loading'); s1.classList.add('hidden'); s2.classList.remove('hidden'); s2.querySelector('.otp input').focus(); timer(); }, 600);
-      });
-      document.getElementById('back1').onclick = function () { s2.classList.add('hidden'); s1.classList.remove('hidden'); };
-      function timer() {
-        var n = 30, el = document.getElementById('resend');
-        var t = setInterval(function () { n--; if (n <= 0) { clearInterval(t); el.innerHTML = '<button type="button" class="btn btn-link">إعادة إرسال الرمز</button>'; el.querySelector('button').onclick = function () { BT.toast('أُرسل رمز جديد'); el.innerHTML = 'إعادة الإرسال بعد <span class="num">00:30</span>'; timer(); }; } else el.querySelector('span').textContent = '00:' + String(n).padStart(2, '0'); }, 1000);
-      }
-      function verify() {
-        var box = s2.querySelector('.otp'), v = BT.otp.value(box), err = document.getElementById('otp-err');
-        if (v.length < 6 || v === '000000') { box.classList.add('invalid'); err.style.display = 'block'; return; }
-        err.style.display = 'none'; location.href = target;
-      }
-      s2.addEventListener('submit', function (e) { e.preventDefault(); verify(); });
-      s2.addEventListener('otp:complete', verify);
-      document.getElementById('forgot').onclick = function () {
-        BT.modal.open({ title: 'استعادة كلمة المرور', icon: 'key-round', size: 'sm', form: true,
-          body: BT.h`<div class="form">${BT.f.input({ name: 'phone', label: 'رقم الجوال المسجل', required: true, validate: 'kwPhone', maxlength: 8 })}</div>`,
-          buttons: [{ label: 'إلغاء', cls: 'btn-ghost' }, { label: 'إرسال رابط', cls: 'btn-primary', submit: true }],
-          onSubmit: function (f) { BT.toast('أُرسل رابط إعادة التعيين إلى ' + f.phone); } });
-      };
-    })();
-  </script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/login.js"></script>
 </body>
 </html>

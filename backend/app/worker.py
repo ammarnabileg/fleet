@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 
 from app.core.config import get_settings
 
@@ -9,6 +10,16 @@ celery = Celery(
     broker=settings.celery_broker_url,
     include=[
         "app.modules.integrations.tasks",
+        "app.modules.files.tasks",
+        "app.modules.identity.tasks",
+        "app.modules.tracking.tasks",
+        "app.modules.documents.tasks",
+        "app.modules.daily_ops.tasks",
+        "app.modules.cash.tasks",
+        "app.modules.accidents.tasks",
+        "app.modules.finance.tasks",
+        "app.modules.approvals.tasks",
+        "app.modules.notifications.tasks",
     ],
 )
 
@@ -27,4 +38,19 @@ celery.conf.update(
 # Each module adds its periodic tasks here when it is implemented (spec, appendix H).
 celery.conf.beat_schedule = {
     "outbox-relay": {"task": "integrations.relay_outbox", "schedule": 5.0},
+    "signal-loss": {"task": "tracking.scan_signal_loss", "schedule": 60.0},
+    "messaging-channel": {"task": "identity.check_messaging_channel", "schedule": 300.0},
+    "link-queue": {"task": "identity.send_queued_link", "schedule": 20.0},  # the pace itself is in the settings
+    "position-partitions": {"task": "tracking.maintain_partitions", "schedule": crontab(hour=2, minute=10)},
+    "document-expiry": {"task": "documents.scan_expiring", "schedule": crontab(hour=7, minute=0)},
+    "daily-report-overdue": {"task": "daily_ops.scan_overdue", "schedule": crontab(minute=5)},
+    "daily-report-missing": {"task": "daily_ops.scan_missing", "schedule": crontab(hour=23, minute=30)},  # Kuwait
+    "ledger-invariants": {"task": "cash.check_invariants", "schedule": crontab(hour=2, minute=0)},
+    "treasury-deposit-day": {"task": "cash.scan_treasury", "schedule": crontab(hour=7, minute=0), "args": ("morning",)},
+    "treasury-day-end": {"task": "cash.scan_treasury", "schedule": crontab(hour=23, minute=55), "args": ("night",)},
+    "police-reports": {"task": "accidents.scan_police_reports", "schedule": crontab(hour=9, minute=15)},
+    "finance-entries": {"task": "finance.post_entries", "schedule": crontab(hour=3, minute=30)},
+    "approval-escalation": {"task": "approvals.escalate", "schedule": crontab(minute="*/15")},
+    "driver-push": {"task": "notifications.push", "schedule": 30.0},  # does nothing until push is switched on
+    "files-to-r2": {"task": "files.copy_to_r2", "schedule": 600.0},  # does nothing until R2 is switched on
 }

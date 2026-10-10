@@ -1,0 +1,641 @@
+/* =====================================================================
+   app/pages/ops.js — التقارير اليومية، الكاش والخزينة، التقارير
+   كل مبلغ من الخادم نص بثلاث خانات عشرية؛ الواجهة لا تحسب أرصدة بنفسها.
+   ===================================================================== */
+(function () {
+  'use strict';
+  var BT = window.BT, h = BT.h, raw = BT.raw, icon = BT.icon, fmt = BT.fmt, api = BT.api, A = BT.A;
+  var amt = function (s, cls) { return BT.amt(Number(s), cls ? { cls: cls } : null); };
+
+  /* تنزيل ملف بنفس جلسة الواجهة ولغتها */
+  A.downloadFile = function (path, query, filename) {
+    return fetch(api.url(path, query), { credentials: 'same-origin', headers: { 'Accept-Language': api.lang } }).then(function (res) {
+      if (!res.ok) return res.json().then(function (b) { throw new api.ApiError(res.status, b); }, function () { throw new api.ApiError(res.status, {}); });
+      return res.blob();
+    }).then(function (blob) {
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+    }).catch(function (err) { BT.toast(api.message(err), { type: 'error', timeout: 6000 }); });
+  };
+
+  /* ================= التقارير اليومية ================= */
+  /* السائق بدأ يومه من جديد بعد إنهائه: تقرير الفترة الثانية يُضاف لليوم، ولا يحل محل الأول */
+  var session = function (r) { return r.session > 1 ? h` ${BT.pill('فترة ' + r.session, 'b')}` : ''; };
+  BT.pages['daily'] = function (p, q) {
+    A.setTitle('التقارير اليومية');
+    var v = A.view(), filters = { day: q.date || '' };
+    BT.render(v, h`${A.head('تقارير السائقين اليومية', 'عدد الطلبات والكاش المحصّل ولقطة شاشة تطبيق الطلبات. الاعتماد يرحّل الكاش إلى حساب السائق، والتصحيح يحتاج سبباً', '')}<div id="daily-changes"></div><div class="card"><div id="daily-table"></div></div>`);
+    var el = document.getElementById('daily-table');
+    var review = api.can('daily_reports.review');
+    if (review) changeRequests(document.getElementById('daily-changes'), function () { t.refresh(); });
+    var t = BT.table(el, {
+      fetch: function (s) { return api.get('/daily-reports', { status: s.chip, business_date: filters.day, limit: s.limit, offset: s.offset }); },
+      chips: { value: q.status || 'submitted', all: false, options: A.options('report_status', ['submitted', 'returned', 'approved', 'rejected']) },
+      tools: h`<input class="input" type="date" data-day value="${filters.day}" aria-label="يوم العمل" title="يوم العمل">`,
+      selectable: review,
+      id: function (r) { return r.id; },
+      bulk: [{ label: 'اعتماد المحدد كما هو', icon: 'check', cls: 'btn-primary', run: function (rows, clear) { bulkApprove(rows.filter(function (r) { return r.status === 'submitted'; }), function () { clear(); t.refresh(); }); } }],
+      columns: [
+        { key: 'driver', label: 'السائق', render: function (r) { return A.person(r.driver, r.vehicle_plate || ''); } },
+        { key: 'business_date', label: 'اليوم', render: function (r) { return h`<span class="num">${fmt.date(r.business_date)}</span>${session(r)}`; } },
+        { key: 'orders', label: 'الطلبات', num: true, render: function (r) { return r.orders_count != null ? h`<span class="num">${fmt.int(r.orders_count)}</span>${off(r, 'orders')}` : '—'; } },
+        { key: 'valid_day', label: 'حسب المنصة', render: function (r) { return r.valid_day == null ? '—' : r.valid_day ? BT.pill('صالح', 'g') : BT.pill('غير صالح', 'n'); } },
+        { key: 'cash', label: 'الكاش', num: true, render: function (r) { return h`${amt(r.cash_amount)}${off(r, 'cash')}${r.approved_cash != null && Number(r.approved_cash) !== Number(r.cash_amount) ? h`<span class="sub">المعتمد ${fmt.money(r.approved_cash)}</span>` : ''}`; } },
+        { key: 'shot', label: 'اللقطة', render: function (r) { return r.has_screenshot ? icon('image', 16, 't-success') : raw('<span class="muted">—</span>'); } },
+        { key: 'status', label: 'الحالة', render: function (r) { return h`${A.pill('report_status', r.status)}${r.late ? h` ${BT.pill('متأخر', 'o')}` : ''}${r.change_pending ? h` ${BT.pill('طلب تعديل', 'b')}` : ''}`; } },
+        { key: 'submitted_at', label: 'أُرسل', render: function (r) { return fmt.dt(r.submitted_at); } }
+      ],
+      rowClick: function (r) { A.report(r, t.refresh); },
+      empty: { icon: 'clipboard-check', title: 'لا توجد تقارير هنا' }
+    });
+    el.querySelector('[data-day]').addEventListener('change', function (e) { filters.day = e.target.value; t.refresh(); });
+  };
+
+  // FR-DWR-06: what a change touched, as the reviewer reads it
+  var FIELD_LABEL = { orders_count: 'الطلبات', cash_amount: 'الكاش', valid_day: 'اليوم حسب المنصة', screenshot_sha256: 'لقطة الشاشة', notes: 'الملاحظات' };
+  function fieldValue(k, v) {
+    if (v == null || v === '') return '—';
+    if (k === 'cash_amount') return fmt.money(v);
+    if (k === 'valid_day') return v ? 'صالح' : 'غير صالح';
+    if (k === 'screenshot_sha256') return 'صورة';
+    return String(v);
+  }
+  function diff(c) {
+    var keys = Object.keys(c.after || {});
+    if (!keys.length) return '';
+    return h`${keys.map(function (k) { return h`<div class="fs-sm">${FIELD_LABEL[k] || k}: <span class="num">${fieldValue(k, (c.before || {})[k])}</span> ← <b class="num">${fieldValue(k, c.after[k])}</b></div>`; })}`;
+  }
+  var CHANGE_KIND = { edit: 'عدّله السائق', returned: 'أُعيد للسائق', request: 'طلب تعديل بعد الاعتماد' };
+  var CHANGE_STATUS = { pending: ['بانتظار القرار', 'o'], approved: ['وافق', 'g'], rejected: ['رُفض', 'r'] };
+  function changeLog(list) {
+    if (!list.length) return '';
+    return h`<div class="section-t mt-16">سجل التعديلات</div><div class="timeline">${list.map(function (c) {
+      var st = CHANGE_STATUS[c.status];
+      var tone = c.kind === 'returned' ? 'o' : st ? st[1] : 'b';
+      return h`<div class="tl-item" data-change="${c.kind}"><span class="tl-ic ${tone}">${icon(c.kind === 'returned' ? 'undo-2' : 'pencil', 13)}</span><div class="flex-1"><div class="tl-t">${CHANGE_KIND[c.kind] || c.kind}${st ? h` ${BT.pill(st[0], st[1])}` : ''}</div><div class="tl-d">${fmt.dt(c.created_at)}</div>${diff(c)}${c.reason ? h`<div class="tl-d">السبب: ${c.reason}</div>` : ''}${c.decision_note ? h`<div class="tl-d">القرار: ${c.decision_note}</div>` : ''}</div></div>`;
+    })}</div>`;
+  }
+  function changeRequests(box, after) {
+    api.get('/daily-reports/change-requests').then(function (list) {
+      if (!document.contains(box)) return;
+      if (!list.length) { BT.render(box, ''); return; }
+      BT.render(box, h`<div class="card mb-16" data-change-requests><div class="card-h"><b>طلبات تعديل تقارير معتمدة</b> <span class="muted fs-sm">يطلبها السائق بعد الاعتماد؛ الموافقة ترحّل فرق الكاش بقيد تسوية بسببه</span></div><div class="card-b">${list.map(function (c) {
+        return h`<div class="between mb-12" data-change-id="${c.id}"><div>${A.person(c.driver)} <span class="num muted">${fmt.date(c.business_date)}</span>${diff(c)}<div class="fs-sm muted">السبب: ${c.reason || '—'}</div></div><div class="nowrap"><button type="button" class="btn btn-sm btn-primary" data-change-ok="${c.id}">موافقة</button> <button type="button" class="btn btn-sm btn-outline" data-change-no="${c.id}">رفض</button></div></div>`;
+      })}</div></div>`);
+      var reload = function () { changeRequests(box, after); if (after) after(); A.refreshCounts(); };
+      box.querySelectorAll('[data-change-ok]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          A.confirmRun({ title: 'الموافقة على التعديل', message: 'يأخذ التقرير الأرقام الجديدة، ويُرحّل فرق الكاش لحساب السائق بسببه.', confirmText: 'موافقة', tone: 'success',
+            run: function () { return api.post('/daily-reports/change-requests/' + b.getAttribute('data-change-ok') + '/approve', {}); }, done: 'تمت الموافقة على التعديل', after: reload });
+        });
+      });
+      box.querySelectorAll('[data-change-no]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          A.confirmRun({ title: 'رفض التعديل', message: 'يصل السبب للسائق في التطبيق.', confirmText: 'رفض', tone: 'danger', reason: { label: 'سبب الرفض' },
+            run: function (reason) { return api.post('/daily-reports/change-requests/' + b.getAttribute('data-change-no') + '/reject', { note: reason }); }, done: 'تم رفض التعديل', after: reload });
+        });
+      });
+    }, function () { BT.render(box, ''); });
+  }
+
+  // FR-DWR-08: far from the driver's own 30-day average, by the percent set in the settings
+  function off(r, field) { return (r.deviations || []).indexOf(field) >= 0 ? h` ${BT.pill('بعيد عن متوسطه', 'o')}` : ''; }
+
+  function evidence(r, ev) {
+    var a = ev.average, km = function (n) { return n == null ? '—' : h`<span class="num">${fmt.int(n)}</span> كم`; };
+    var photos = [];
+    // يوم بأكثر من فترة: التقرير يُراجع على فترته (من تقريره السابق في اليوم)، ومسافة اليوم كله بجانبها
+    var part = ev.sessions > 1 ? 'الفترة' : 'اليوم';
+    if (ev.start) photos.push({ src: api.url('/daily-reports/' + r.id + '/odometer/start'), caption: 'عداد بداية ' + part + ' ' + fmt.int(ev.start.km) + ' كم' });
+    if (ev.end) photos.push({ src: api.url('/daily-reports/' + r.id + '/odometer/end'), caption: (ev.end.kind === 'return' ? 'عداد استلام السيارة ' : 'عداد نهاية ' + part + ' ') + fmt.int(ev.end.km) + ' كم' });
+    var avg = a.days ? h`<span class="num">${fmt.int(a.days)}</span> يوم معتمد: الطلبات <span class="num">${a.orders == null ? '—' : a.orders}</span> · الكاش ${a.cash == null ? '—' : amt(a.cash)}${a.km != null ? h` · <span class="num">${fmt.int(a.km)}</span> كم` : ''}` : h`<span class="muted">لا توجد تقارير معتمدة في آخر 30 يوماً</span>`;
+    return h`<div class="section-t mt-16">العداد والمتوسط</div>
+      <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
+        <div>${photos.length ? A.thumbs(photos) : BT.empty('gauge', 'لا قراءة عداد لهذا اليوم', 'لم يبدأ السائق يومه بقراءة')}</div>
+        <div>${BT.kv([['مسافة ' + part, ev.km != null ? km(ev.km) : (ev.start ? h`<span class="muted">${ev.sessions > 1 ? 'لم تُغلق الفترة بقراءة' : 'لم يُغلق اليوم بقراءة'}</span>` : '—')], ev.sessions > 1 ? ['مسافة اليوم كله (' + fmt.int(ev.sessions) + ' فترات)', ev.day_km != null ? km(ev.day_km) : '—'] : null, ['متوسط آخر 30 يوماً', avg], ev.deviations.length ? ['انحراف', h`${ev.deviations.map(function (f) { return BT.pill(f === 'orders' ? 'الطلبات بعيدة عن متوسطه' : 'الكاش بعيد عن متوسطه', 'o'); })}`] : null].filter(Boolean))}</div>
+      </div>`;
+  }
+
+  function bulkApprove(rows, done) {
+    if (!rows.length) { BT.toast('لا يوجد تقارير بانتظار المراجعة في التحديد', { type: 'info' }); return; }
+    A.confirmRun({ title: 'اعتماد ' + rows.length + ' تقرير', message: 'تُعتمد بالمبالغ التي أرسلها السائقون دون تعديل. التقرير الذي يحتاج تصحيحاً افتحه واعتمده منفرداً مع السبب.', confirmText: 'اعتماد', tone: 'success',
+      run: function () {
+        var ok = 0, failed = [];
+        return rows.reduce(function (pr, r) {
+          return pr.then(function () { return api.post('/daily-reports/' + r.id + '/approve', {}).then(function () { ok++; }, function (err) { failed.push(api.name(r.driver && r.driver.name) + ': ' + api.message(err)); }); });
+        }, Promise.resolve()).then(function () {
+          BT.toast('اعتُمد ' + ok + ' تقرير', { type: failed.length ? 'warning' : 'success', sub: failed.length ? 'تعذر ' + failed.length + ': ' + failed.slice(0, 2).join(' · ') : '', timeout: failed.length ? 8000 : 3800 });
+          A.refreshCounts(); done();
+        });
+      } });
+  }
+
+  A.report = function (r, after) {
+    var canReview = r.status === 'submitted' && api.can('daily_reports.review');
+    var body = h`<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
+      <div>${r.has_screenshot ? A.thumbs([{ src: api.url('/daily-reports/' + r.id + '/screenshot'), caption: 'لقطة تطبيق الطلبات' }]) : BT.empty('image', 'بدون لقطة شاشة', '')}</div>
+      <div>${BT.kv([['السائق', A.person(r.driver)], ['السيارة', r.vehicle_plate ? BT.plate(r.vehicle_plate) : '—'], ['يوم العمل', h`<span class="num">${fmt.date(r.business_date)}</span>${session(r)}`], ['الطلبات', r.orders_count != null ? h`<span class="num">${fmt.int(r.orders_count)}</span>` : '—'], r.valid_day != null ? ['اليوم حسب تطبيق المنصة', r.valid_day ? BT.pill('صالح', 'g') : BT.pill('غير صالح', 'n')] : null, ['الكاش المُبلّغ', amt(r.cash_amount)], r.approved_cash != null ? ['الكاش المعتمد', amt(r.approved_cash)] : null, ['الحالة', A.pill('report_status', r.status)], ['أُرسل', h`${fmt.dt(r.submitted_at)}${r.late ? h` ${BT.pill('متأخر — بعد يومه', 'o')}` : ''}`], r.notes ? ['ملاحظات السائق', r.notes] : null, r.review_note ? ['ملاحظة المراجعة', r.review_note] : null].filter(Boolean))}</div></div>
+      <div data-evidence></div><div data-changes></div>
+      ${canReview ? h`<div class="form mt-16">${BT.f.money({ name: 'cash_amount', label: 'الكاش الصحيح (اختياري)', hint: 'اتركه فارغاً لاعتماد المبلغ كما أرسله السائق' })}${BT.f.textarea({ name: 'reason', label: 'السبب (إلزامي عند التصحيح أو الرفض أو الإعادة للسائق)', rows: 2 })}</div>` : ''}`;
+    var showEvidence = function (d) {
+      var el = d.panel.querySelector('[data-evidence]'), log = d.panel.querySelector('[data-changes]');
+      if (el) A.load(el, api.get('/daily-reports/' + r.id + '/evidence'), function (ev) { return evidence(r, ev); }).catch(function () {});
+      if (log) api.get('/daily-reports/' + r.id + '/changes').then(function (list) { if (document.contains(log)) BT.render(log, changeLog(list)); }, function () {});
+      return d;
+    };
+    if (!canReview) return showEvidence(BT.drawer.open({ title: 'تقرير يومي', icon: 'clipboard-list', size: 'lg', body: body, buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] }));
+    var dlg = BT.drawer.open({
+      title: 'مراجعة تقرير يومي', icon: 'clipboard-check', size: 'lg', form: true, body: body,
+      buttons: [{ label: 'إعادة للسائق', cls: 'btn-ghost', icon: 'undo-2', close: false, onClick: function () { decide('send-back'); return false; } }, { label: 'رفض', cls: 'btn-outline', icon: 'x', close: false, onClick: function () { decide('reject'); return false; } }, { label: 'اعتماد', cls: 'btn-primary', icon: 'check', submit: true }],
+      onSubmit: function () { decide('approve'); return false; }
+    });
+    showEvidence(dlg);
+    function decide(kind) {
+      var v = BT.form.values(dlg.form), reason = (v.reason || '').trim();
+      if (kind === 'reject' && !reason) { BT.toast('اكتب سبب الرفض', { type: 'error' }); return; }
+      if (kind === 'send-back' && !reason) { BT.toast('اكتب ما يصححه السائق في خانة السبب', { type: 'error' }); return; }
+      if (kind === 'approve' && v.cash_amount !== '' && !reason) { BT.toast('التصحيح يحتاج سبباً', { type: 'error' }); return; }
+      var call = kind === 'approve' ? api.post('/daily-reports/' + r.id + '/approve', { cash_amount: v.cash_amount === '' ? null : String(v.cash_amount), reason: reason || null }) : api.post('/daily-reports/' + r.id + '/' + kind, { reason: reason });
+      var btn = { 'send-back': 0, reject: 1, approve: 2 }[kind];
+      dlg.busy(btn, true);
+      call.then(function (res) {
+        // with a workflow, an approval may only record this step: the report stays waiting for the next
+        BT.toast(kind === 'reject' ? 'تم رفض التقرير' : kind === 'send-back' ? 'أُعيد التقرير للسائق للتصحيح' : res && res.status === 'approved' ? 'تم اعتماد التقرير' : 'سُجلت موافقتك؛ ينتظر الخطوة التالية');
+        dlg.close(); A.refreshCounts(); if (after) after();
+      }, function (err) { dlg.busy(btn, false); BT.toast(api.message(err), { type: 'error', timeout: 6000 }); });
+    }
+    return dlg;
+  };
+
+  /* ================= الكاش والخزينة ================= */
+  BT.pages['cash'] = function (p, q) {
+    A.setTitle('الكاش والخزينة');
+    var v = A.view(), tab = q.tab === 'treasury' || q.tab === 'fuel' || q.tab === 'petty' ? q.tab : 'balances';
+    var tabs = [];
+    if (api.can('cash.view')) tabs.push(['balances', 'أرصدة السائقين']);
+    if (api.can('treasury.view')) tabs.push(['treasury', 'الخزينة والبنك']);
+    if (api.can('treasury.view') && api.me.all_companies) tabs.push(['petty', 'العهد النقدية']);
+    if (api.canAny(['cash.view', 'cash.fuel_review'])) tabs.push(['fuel', 'البنزين', A.counts.fuel || null]);
+    if (!tabs.some(function (t) { return t[0] === tab; })) tab = tabs[0][0];
+    BT.render(v, h`${A.head('دفتر الكاش', 'كل حركة قيد مزدوج لا يُحذف: التصحيح بقيد تسوية أو عكس مع السبب. رصيد السائق = ما في ذمته للشركة', api.can('cash.collect') ? A.btn('استلام كاش بإيصال', { icon: 'hand-coins', cls: 'btn-primary', action: 'cash-receipt' }) : '')}
+      ${tabs.length > 1 ? BT.tabs('cash', tabs, tab, 'tabs-line') : ''}
+      <div data-panel="balances" data-group="cash" class="${tab === 'balances' ? 'active' : ''}"><div id="bal-panel"></div></div>
+      <div data-panel="treasury" data-group="cash" class="${tab === 'treasury' ? 'active' : ''}"><div id="tre-panel"></div></div>
+      <div data-panel="fuel" data-group="cash" class="${tab === 'fuel' ? 'active' : ''}"><div id="fuel-panel"></div></div>
+      <div data-panel="petty" data-group="cash" class="${tab === 'petty' ? 'active' : ''}"><div id="petty-panel"></div></div>`);
+    var drawn = {};
+    function show(t) {
+      if (drawn[t]) return; drawn[t] = true;
+      if (t === 'balances') balancesPanel(document.getElementById('bal-panel'));
+      if (t === 'treasury') treasuryPanel(document.getElementById('tre-panel'));
+      if (t === 'fuel') fuelPanel(document.getElementById('fuel-panel'));
+      if (t === 'petty') pettyPanel(document.getElementById('petty-panel'));
+    }
+    v.addEventListener('bt:tab', function (e) { show(e.detail); });
+    show(tab);
+    if (q.tab === 'receipts' && api.can('cash.collect')) A.receipt(null);
+  };
+  BT.actions['cash-receipt'] = function () { A.receipt(null); };
+
+  function balancesPanel(el) {
+    A.load(el, Promise.all([api.get('/cash/balances'), api.get('/cash/receipts/unconfirmed')]), function (r) {
+      var rows = r[0], late = r[1];
+      var sum = function (k) { return rows.reduce(function (s, r) { return s + Number(r[k]); }, 0); };
+      var over = rows.filter(function (r) { return r.over_limit; }).length;
+      setTimeout(function () {
+        var tbl = el.querySelector('[data-bal]');
+        if (!tbl) return;
+        BT.table(tbl, {
+          rows: rows, pageSize: 25,
+          search: { placeholder: 'اسم السائق…', text: function (r) { return api.name(r.driver.name); } },
+          chips: { key: 'over_limit', options: [{ v: 'true', t: 'فوق الحد' }], match: function (r, c) { return String(r.over_limit) === c; } },
+          sort: { key: 'total', dir: 'desc' },
+          columns: [
+            { key: 'driver', label: 'السائق', sort: function (r) { return api.name(r.driver.name); }, render: function (r) { return A.person(r.driver, api.company(r.company_id)); } },
+            { key: 'posted', label: 'معتمد', num: true, sort: function (r) { return Number(r.posted); }, render: function (r) { return amt(r.posted); } },
+            { key: 'pending', label: 'غير معتمد', num: true, sort: function (r) { return Number(r.pending); }, render: function (r) { return Number(r.pending) ? amt(r.pending) : raw('<span class="muted">—</span>'); } },
+            { key: 'total', label: 'الإجمالي', num: true, sort: function (r) { return Number(r.total); }, render: function (r) { return h`<b>${amt(r.total)}</b>${r.over_limit ? h` ${BT.pill('فوق الحد', 'o')}` : ''}`; } }
+          ],
+          rowClick: function (r) { A.statement(r.driver); },
+          rowMenu: function (r) {
+            var m = [{ label: 'كشف الحساب', icon: 'receipt-text', onClick: function () { A.statement(r.driver); } }];
+            if (api.can('cash.collect')) m.push({ label: 'استلام كاش بإيصال', icon: 'hand-coins', onClick: function () { A.receipt(r.driver); } });
+            if (api.can('cash.adjust')) m.push({ label: 'تسوية يدوية', icon: 'scale', onClick: function () { A.adjust(r.driver); } });
+            if (api.can('cash.writeoff')) m.push({ label: 'تسوية نهاية الخدمة', icon: 'user-round-check', onClick: function () { A.settle(r.driver, r); } });
+            return m;
+          },
+          foot: function (list) { return h`<tr><td>الإجمالي (${fmt.int(list.length)})</td><td class="num">${fmt.kwd(list.reduce(function (s, r) { return s + Number(r.posted); }, 0))}</td><td class="num">${fmt.kwd(list.reduce(function (s, r) { return s + Number(r.pending); }, 0))}</td><td class="num"><b>${fmt.kwd(list.reduce(function (s, r) { return s + Number(r.total); }, 0))}</b></td><td></td></tr>`; },
+          empty: { icon: 'wallet', title: 'لا توجد أرصدة', text: 'تظهر هنا أرصدة السائقين بعد أول تقرير معتمد أو رصيد افتتاحي' }
+        });
+      });
+      // receipts the drivers have not confirmed a day after they were given (FR-CSH-05): ask them before it is forgotten
+      var lateCard = late.length ? h`<div class="card mb-16" data-unconfirmed><div class="card-h"><div class="card-t">${icon('receipt', 16)} إيصالات لم يؤكدها السائق بعد 24 ساعة ${BT.pill(fmt.int(late.length), 'o')}</div><span class="card-meta">اسأل السائق: هل استلم الكاش منه من أعطاه الإيصال؟</span></div>
+        <div class="table-wrap"><table class="t compact"><thead><tr><th>السائق</th><th class="num">رقم الإيصال</th><th class="num">المبلغ</th><th class="num">أُعطي في</th></tr></thead>
+        <tbody>${late.map(function (x) { return h`<tr data-receipt="${x.id}"><td>${api.name(x.driver.name)}</td><td class="num">${x.receipt_no}</td><td class="num">${fmt.money(x.amount)}</td><td class="num">${fmt.dt(x.created_at)}</td></tr>`; })}</tbody></table></div></div>` : '';
+      return h`${lateCard}<div class="kpis">${BT.kpi({ label: 'لدى السائقين (الإجمالي)', value: fmt.kwd(sum('total')), sub: BT.config.currency, dot: 'o' })}${BT.kpi({ label: 'منه معتمد', value: fmt.kwd(sum('posted')), dot: 'g' })}${BT.kpi({ label: 'منه غير معتمد', value: fmt.kwd(sum('pending')), sub: 'تقارير بانتظار المراجعة', dot: 'b' })}${BT.kpi({ label: 'فوق حد التنبيه', value: fmt.int(over), sub: 'تنبيه فقط، لا يوقف السائق', dot: 'r', tone: over ? 'danger' : null })}</div>
+        <div class="card">${api.can('cash.view') && api.can('reports.export') ? h`<div class="card-h"><span></span><button type="button" class="btn btn-sm btn-outline ms-auto" data-csv>${icon('download', 14)} تصدير CSV</button></div>` : ''}<div data-bal></div></div>`;
+    }).then(function () {
+      var c = el.querySelector('[data-csv]');
+      if (c) c.onclick = function () { A.downloadFile('/reports/cash-balances', { format: 'csv' }, 'cash-balances.csv'); };
+    }).catch(function () {});
+  }
+
+  A.statement = function (driver) {
+    var dlg = BT.drawer.open({ title: 'كشف حساب: ' + api.name(driver.name), icon: 'receipt-text', size: 'lg', body: A.spinner(), buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] });
+    api.get('/cash/drivers/' + driver.id + '/statement').then(function (s) {
+      dlg.setBody(h`<div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">${BT.kpi({ label: 'معتمد', value: fmt.money(s.posted), dot: 'g' })}${BT.kpi({ label: 'غير معتمد', value: fmt.money(s.pending), dot: 'b' })}${BT.kpi({ label: 'الإجمالي', value: fmt.money(s.total), dot: 'o' })}</div>
+        ${s.lines.length ? h`<div class="table-wrap"><table class="t compact"><thead><tr><th>الحركة</th><th class="num">اليوم</th><th class="num">المبلغ</th><th class="num">الحالة</th><th></th></tr></thead><tbody>${s.lines.map(function (l) {
+          var canRev = l.status === 'posted' && api.can('cash.reverse') && l.kind !== 'reversal';
+          return h`<tr><td>${api.t('journal_kind', l.kind)}${l.reason ? h`<span class="sub">${l.reason}</span>` : ''}</td><td class="num">${fmt.date(l.business_date)}</td><td class="num"><span class="${Number(l.amount) > 0 ? '' : 't-success'}">${fmt.signed(Number(l.amount))}</span></td><td class="num">${A.pill('journal_status', l.status)}</td><td class="num">${canRev ? h`<button type="button" class="btn btn-sm btn-ghost" data-rev="${l.journal_id}">${icon('rotate-ccw', 13)} عكس</button>` : ''}</td></tr>`;
+        })}</tbody></table></div>` : BT.empty('receipt-text', 'لا توجد حركات', '')}
+        <div class="hint mt-8">موجب = يزيد ما في ذمة السائق (تحصيل)، سالب = ينقصه (إيداع أو تسوية).</div>`);
+      BT.on(dlg.body, 'click', '[data-rev]', function (e, b) {
+        A.confirmRun({ title: 'عكس الحركة', message: 'يُسجَّل قيد معاكس بنفس المبلغ ويبقى الأصل ظاهراً في السجل. يُعكس القيد مرة واحدة فقط.', confirmText: 'عكس', tone: 'danger', icon: 'rotate-ccw', reason: { label: 'السبب', required: true },
+          run: function (reason) { return api.post('/cash/journals/' + b.getAttribute('data-rev') + '/reverse', { reason: reason }); }, done: 'تم عكس الحركة', after: function () { dlg.close(); A.statement(driver); refreshCash(); } });
+      });
+    }, function (err) { dlg.setBody(A.errorBox(err)); });
+  };
+  function refreshCash() { if (A.router.current === 'cash') A.router.refresh(); }
+
+  function driverPicker(driver) {
+    if (driver) return h`<div class="field"><label>السائق</label><div class="input" style="display:flex;align-items:center">${api.name(driver.name)}</div><input type="hidden" name="driver_id" value="${driver.id}"></div>`;
+    return null;
+  }
+  function withDrivers(driver, build) {
+    if (driver) { build(driverPicker(driver), function (v) { return v.driver_id; }); return; }
+    A.all('/employees', { is_driver: true }).then(function (rows) {
+      build(A.picker({ name: 'drv', label: 'السائق', required: true, items: rows.map(function (e) { return { id: e.id, label: api.name(e.name) + ' — ' + e.employee_number }; }) }), function (v) { return A.picked('drv', v.drv); });
+    }, api.fail).catch(function () {});
+  }
+
+  /* إيصال استلام كاش: رقم متسلسل، والسائق يؤكده من التطبيق */
+  A.receipt = function (driver) {
+    withDrivers(driver, function (field, idOf) {
+      A.formModal({
+        title: 'استلام كاش بإيصال', icon: 'hand-coins', size: 'sm', submitText: 'استلام وطباعة الإيصال', done: false,
+        body: h`<div class="form">${field}${BT.f.money({ name: 'amount', label: 'المبلغ المستلم', required: true, min: 0.001 })}<div class="hint">يُرحّل فوراً: ينقص رصيد السائق ويزيد خزينة فرعه، ويصل الإيصال لتطبيق السائق ليؤكده.</div></div>`,
+        submit: function (v) {
+          var did = idOf(v);
+          return api.post('/cash/receipts', { driver_id: did, amount: String(v.amount) }).then(function (rc) {
+            BT.toast('إيصال رقم ' + rc.receipt_no, { sub: fmt.money(rc.amount) + ' ' + BT.config.currency });
+            printReceipt(rc, driver ? api.name(driver.name) : v.drv);
+            refreshCash();
+          });
+        }
+      });
+    });
+  };
+  function printReceipt(rc, name) {
+    BT.print(h`<div style="font-family:inherit;padding:24px;max-width:420px" dir="rtl"><h2 style="margin:0">${A.brand || ''}</h2><div>إيصال استلام نقدية رقم <b class="num">${rc.receipt_no}</b></div><hr>
+      ${BT.kv([['استلمنا من', name], ['المبلغ', h`<b class="num">${fmt.money(rc.amount)}</b> ${BT.config.currency}`], ['الفرع', api.branch(rc.branch_id)], ['التاريخ', fmt.dt(rc.created_at)], ['المستلم', api.me.full_name]])}
+      <div style="margin-top:40px;display:flex;justify-content:space-between"><span>توقيع المستلم ____________</span><span>توقيع السائق ____________</span></div></div>`);
+  }
+
+  A.adjust = function (driver) {
+    A.formModal({
+      title: 'تسوية يدوية', subtitle: api.name(driver.name), icon: 'scale', size: 'sm',
+      done: function (j) { return j && j.status === 'pending' ? 'أُرسلت التسوية للاعتماد: تظهر غير معتمدة حتى تُعتمد' : 'تم تسجيل التسوية'; },
+      body: h`<div class="form">${BT.f.radios({ name: 'dir', label: 'الاتجاه', required: true, value: 'plus', options: [{ v: 'plus', t: 'يزيد ما عليه', d: 'مبلغ لم يُسجَّل' }, { v: 'minus', t: 'ينقص ما عليه', d: 'مبلغ سُجّل بالخطأ' }] })}${BT.f.money({ name: 'amount', label: 'المبلغ', required: true, min: 0.001 })}${BT.f.textarea({ name: 'reason', label: 'السبب', required: true, rows: 2 })}</div>`,
+      submit: function (v) { var a = Number(v.amount).toFixed(3); return api.post('/cash/adjustments', { driver_id: driver.id, amount: v.dir === 'minus' ? '-' + a : a, reason: v.reason }); },
+      after: refreshCash
+    });
+  };
+
+  A.settle = function (driver, bal) {
+    var owed = Number(bal.posted);
+    A.formModal({
+      title: 'تسوية نهاية الخدمة', subtitle: api.name(driver.name), icon: 'user-round-check', done: 'تمت التسوية وأُقفل الحساب',
+      body: h`<div class="form">${BT.kv([['الرصيد المعتمد', amt(bal.posted)], ['غير معتمد', amt(bal.pending)]])}
+        ${Number(bal.pending) ? h`<div class="banner warn fs-sm">${icon('triangle-alert', 15)}<div>توجد حركات غير معتمدة: اعتمد تقاريره أو ارفضها أولاً.</div></div>` : ''}
+        ${owed > 0 ? h`<p class="fs-sm">قسّم المبلغ الذي عليه بين الخصم من الراتب والإعدام، بحيث يصبح الرصيد صفراً.</p>${BT.f.money({ name: 'payroll_amount', label: 'يُخصم من مستحقاته', value: owed.toFixed(3) })}${BT.f.money({ name: 'writeoff_amount', label: 'يُعدم (يحتاج سبباً)', value: '0.000' })}` : h`<p class="fs-sm">${owed < 0 ? 'للسائق مبلغ على الشركة يُصرف من خزينة فرعه.' : 'الرصيد صفر: تُقفل الحساب فقط.'}</p>`}
+        ${BT.f.textarea({ name: 'reason', label: 'السبب / ملاحظة', rows: 2, optional: true })}<div class="hint">متاحة فقط لمن انتهت خدمته.</div></div>`,
+      submit: function (v) { return api.post('/cash/settlements', { driver_id: driver.id, payroll_amount: String(v.payroll_amount || 0), writeoff_amount: String(v.writeoff_amount || 0), reason: v.reason || null }); },
+      after: refreshCash
+    });
+  };
+
+  /* ================= البنزين المدفوع من كاش السائق =================
+     يُسجَّل في الدفتر فقط إن كان البنزين على الشركة حسب نظام دفع السائق: القبول ينقص ما في ذمته
+     (مدين مصروف الوقود / دائن كاش السائقين). الخطأ في القبول يُصحَّح بعكس القيد من كشف الحساب. */
+  var FUEL_STATUS = { pending: ['بانتظار المراجعة', 'o'], approved: ['مقبول', 'g'], rejected: ['مرفوض', 'r'] };
+  function fuelStatus(c) { var s = FUEL_STATUS[c.status] || [c.status, 'n']; return BT.pill(s[0], s[1]); }
+  function fuelReceipt(c) { return A.thumbs([{ src: api.url('/cash/fuel-claims/' + c.id + '/receipt'), caption: 'فاتورة ' + fmt.money(c.amount) }]); }
+  function fuelCovered(c) {
+    if (c.covered) return '';
+    return h`<div class="banner warn fs-sm mt-8" data-not-covered>${icon('triangle-alert', 15)}<div>${c.fuel_card ? 'لديه كارت بنزين من الشركة' : 'البنزين على السائق حسب نظام دفعه الآن'}: لا يُقبل، ارفضه مع السبب.</div></div>`;
+  }
+  function fuelApprove(c, after) {
+    A.formModal({
+      title: 'قبول فاتورة البنزين', subtitle: api.name(c.driver.name) + ' — ' + fmt.money(c.amount) + ' ' + BT.config.currency, icon: 'fuel', size: 'sm', submitText: 'قبول وترحيل', done: 'قُبلت الفاتورة ونقص رصيد السائق',
+      body: h`<div class="form">${BT.f.money({ name: 'amount', label: 'المبلغ المعتمد', required: true, min: 0.001, value: c.amount })}${BT.f.textarea({ name: 'note', label: 'ملاحظة', optional: true, rows: 2, hint: 'مطلوبة إن غيّرت المبلغ' })}
+        <div class="hint">يُرحّل فوراً: ينقص رصيد كاش السائق بالمبلغ المعتمد، ويُقيَّد مدين مصروف الوقود / دائن كاش السائقين.</div></div>`,
+      submit: function (v) {
+        var amount = Number(v.amount).toFixed(3);
+        return api.post('/cash/fuel-claims/' + c.id + '/approve', { amount: amount, note: v.note || null });
+      },
+      after: after
+    });
+  }
+  function fuelReject(c, after) {
+    A.confirmRun({ title: 'رفض فاتورة البنزين', message: api.name(c.driver.name) + ' — ' + fmt.money(c.amount) + ' ' + BT.config.currency + '. لا يُسجَّل شيء في الكاش، ويصل السبب للسائق.', confirmText: 'رفض', tone: 'danger', icon: 'x', reason: { label: 'السبب', required: true },
+      run: function (reason) { return api.post('/cash/fuel-claims/' + c.id + '/reject', { reason: reason }); }, done: 'رُفضت الفاتورة', after: after });
+  }
+  function fuelPanel(el) {
+    var month = BT.config.today.slice(0, 7);
+    var review = api.can('cash.fuel_review');
+    BT.render(el, h`<div data-fuel-queue></div><div class="card"><div class="card-h"><div class="card-t">${icon('fuel', 16)} كل فواتير البنزين</div><div class="ms-auto" style="min-width:160px">${BT.f.input({ name: 'fuel_month', label: '', type: 'month', value: month })}</div></div><div data-fuel-all></div></div>`);
+    var queue = el.querySelector('[data-fuel-queue]'), all = el.querySelector('[data-fuel-all]');
+    function reload() { drawQueue(); drawAll(); A.refreshCounts(); }
+    function drawQueue() {
+      api.get('/cash/fuel-claims', { status: 'pending', limit: 500 }).then(function (list) {
+        if (!document.contains(queue)) return;
+        if (!list.length) { BT.render(queue, ''); return; }
+        BT.render(queue, h`<div class="card mb-16" data-pending="fuel"><div class="card-h"><div class="card-t">${icon('fuel', 16)} بانتظار المراجعة ${BT.pill(fmt.int(list.length), 'o')}</div><span class="card-meta">راجع الفاتورة عند استلام كاش السائق</span></div><div class="card-b">${list.map(function (c) {
+          return h`<div class="between mb-12" data-pending-id="${c.id}" style="gap:12px;align-items:flex-start"><div style="width:96px">${fuelReceipt(c)}</div><div class="flex-1">
+            <div><b>${api.name(c.driver.name)}</b> <span class="muted fs-sm">${c.vehicle_plate || ''}</span></div>
+            <div class="fs-sm">دُفع في <span class="num">${fmt.dt(c.paid_at)}</span> · <b class="num">${fmt.money(c.amount)}</b> ${BT.config.currency}${c.odometer_km != null ? h` · العداد <span class="num">${fmt.int(c.odometer_km)}</span> كم` : ''}</div>
+            ${c.notes ? h`<div class="fs-sm muted">${c.notes}</div>` : ''}${fuelCovered(c)}</div>
+            ${review ? h`<div class="nowrap">${c.covered ? h`<button type="button" class="btn btn-sm btn-success" data-fuel-approve>${icon('check', 13)} قبول</button> ` : ''}<button type="button" class="btn btn-sm btn-outline" data-fuel-reject>${icon('x', 13)} رفض</button></div>` : ''}</div>`;
+        })}</div></div>`);
+        queue.querySelectorAll('[data-pending-id]').forEach(function (row) {
+          var c = list.find(function (x) { return x.id === row.getAttribute('data-pending-id'); });
+          var ok = row.querySelector('[data-fuel-approve]'), no = row.querySelector('[data-fuel-reject]');
+          if (ok) ok.onclick = function () { fuelApprove(c, reload); };
+          if (no) no.onclick = function () { fuelReject(c, reload); };
+        });
+      }, function () { BT.render(queue, ''); });
+    }
+    function drawAll() {
+      var p = month.split('-'), y = +p[0], m = +p[1], last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      A.load(all, api.get('/cash/fuel-claims', { from: month + '-01', to: month + '-' + last, limit: 500 }), function (rows) {
+        setTimeout(function () {
+          var t = all.querySelector('[data-fuel-table]');
+          if (!t) return;
+          BT.table(t, {
+            rows: rows, pageSize: 25,
+            search: { placeholder: 'اسم السائق أو اللوحة…', text: function (c) { return api.name(c.driver.name) + ' ' + (c.vehicle_plate || ''); } },
+            chips: { key: 'status', all: 'الكل', options: [{ v: 'pending', t: 'بانتظار المراجعة' }, { v: 'approved', t: 'مقبولة' }, { v: 'rejected', t: 'مرفوضة' }], match: function (c, v) { return c.status === v; } },
+            columns: [
+              { key: 'paid_at', label: 'دُفع في', render: function (c) { return h`<span class="num">${fmt.dt(c.paid_at)}</span>`; } },
+              { key: 'driver', label: 'السائق', render: function (c) { return A.person(c.driver, c.vehicle_plate || ''); } },
+              { key: 'amount', label: 'المبلغ', num: true, render: function (c) { return amt(c.amount); } },
+              { key: 'approved_amount', label: 'المعتمد', num: true, render: function (c) { return c.approved_amount ? amt(c.approved_amount) : raw('<span class="muted">—</span>'); } },
+              { key: 'status', label: 'الحالة', render: function (c) { return h`${fuelStatus(c)}${c.decision_note ? h`<span class="sub">${c.decision_note}</span>` : ''}`; } }
+            ],
+            rowClick: function (c) {
+              BT.lightbox([{ src: api.url('/cash/fuel-claims/' + c.id + '/receipt'), caption: api.name(c.driver.name) + ' — ' + fmt.money(c.amount) }], 0);
+            },
+            empty: { icon: 'fuel', title: 'لا توجد فواتير بنزين في هذا الشهر', text: 'يسجلها السائق من التطبيق عندما يكون البنزين على الشركة حسب نظام دفعه' }
+          });
+        });
+        return h`<div data-fuel-table></div>`;
+      }).catch(function () {});
+    }
+    var input = el.querySelector('[name=fuel_month]');
+    if (input) input.addEventListener('change', function () { if (input.value) { month = input.value; drawAll(); } });
+    drawQueue(); drawAll();
+  }
+
+  function treasuryPanel(el) {
+    A.load(el, api.get('/cash/treasury'), function (rows) {
+      var manage = api.can('treasury.manage') && api.me.all_companies;
+      return h`<div class="card"><div class="card-h"><div class="card-t">${icon('landmark', 16)} الخزينة حسب الفرع</div>${manage ? h`<div class="ms-auto nowrap"><button type="button" class="btn btn-sm btn-outline" data-wd>${icon('banknote', 14)} سحب من البنك</button> <button type="button" class="btn btn-sm btn-primary" data-dep>${icon('landmark', 14)} إيداع في البنك</button></div>` : ''}</div>
+        <div class="table-wrap"><table class="t compact"><thead><tr><th>الفرع</th><th class="num">الخزينة</th><th class="num">البنك</th><th class="num">مقاصة الدفع عند الاستلام</th><th></th></tr></thead><tbody>
+          ${rows.map(function (r) {
+            var cells = h`<td>${api.name(r.branch.name)}</td><td class="num">${fmt.money(r.treasury)}</td><td class="num">${fmt.money(r.bank)}</td><td class="num">${fmt.money(r.cod_clearing)}</td>`;
+            // the movements are the branch's, shared by all its companies: for a user over every company
+            return api.me.all_companies ? h`<tr class="clickable" data-branch="${r.branch.public_id}" title="اضغط لحركات الخزينة والبنك">${cells}<td class="num nowrap">${manage ? h`<button type="button" class="btn btn-sm btn-outline" data-close-day="${r.branch.public_id}">${icon('calculator', 13)} جرد وإقفال اليوم</button> ` : ''}<button type="button" class="btn btn-sm btn-ghost" data-moves="${r.branch.public_id}">${icon('list', 13)} حركات</button></td></tr>` : h`<tr>${cells}<td></td></tr>`;
+          })}
+        </tbody></table></div>
+        <div class="hint mt-8">الخزينة تنقص أيضاً بالمصروف المدفوع منها وبالسلف عند اعتمادها، وترجع عند إلغاء المصروف.</div>
+        ${api.can('treasury.manage') && !api.me.all_companies ? h`<div class="hint mt-8">الإيداع والسحب البنكي وجرد الخزينة تحتاج صلاحية على كل الشركات لأن الخزينة مشتركة بين شركات الفرع.</div>` : ''}</div>
+        ${api.me.all_companies ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('calculator', 16)} جرد وإقفال الأيام</div></div><div data-closings></div>
+          <div class="hint mt-8">في آخر كل يوم: عُدّ الكاش في الدرج وسجّله، واكتب سبب أي فرق. اليوم المقفول لا تُسجَّل عليه حركات خزينة بعد ذلك؛ آخر يوم مقفول فقط يُعاد فتحه.</div></div>` : ''}`;
+    }).then(function (rows) {
+      var again = function () { treasuryPanel(el); };
+      var box = el.querySelector('[data-closings]');
+      if (box) closingsList(box, rows, again);
+      A.delegate(el, 'click', '[data-close-day]', function (e, b) {
+        e.stopPropagation();
+        var row = rows.find(function (r) { return r.branch.public_id === b.getAttribute('data-close-day'); });
+        if (row) closeDay(row.branch, again);
+      });
+      var branchSelect = function (key) { return BT.f.select({ name: 'branch_id', label: 'الفرع', required: true, options: rows.map(function (r) { return { v: r.branch.id, t: api.name(r.branch.name) + ' — ' + fmt.money(r[key]) }; }), placeholder: false }); };
+      var b = el.querySelector('[data-dep]');
+      if (b) b.onclick = function () {
+        A.formModal({
+          title: 'إيداع في البنك', icon: 'landmark', size: 'sm', done: 'تم تسجيل الإيداع',
+          body: h`<div class="form">${branchSelect('treasury')}${BT.f.money({ name: 'amount', label: 'المبلغ', required: true, min: 0.001 })}${BT.f.input({ name: 'reference', label: 'رقم إيصال البنك', required: true })}${BT.f.upload({ name: 'photo', label: 'صورة إيصال البنك', required: true, accept: 'image/*,application/pdf' })}</div>`,
+          // the bank's receipt is kept with the deposit (FR-CSH-07): uploaded first, then the deposit names it
+          submit: function (v) {
+            return api.upload(v.photo[0]).then(function (f) { return api.post('/cash/bank-deposits', { branch_id: +v.branch_id, amount: String(v.amount), reference: v.reference, receipt_sha256: f.sha256 }); });
+          },
+          after: again
+        });
+      };
+      var w = el.querySelector('[data-wd]');
+      if (w) w.onclick = function () {
+        A.formModal({
+          title: 'سحب من البنك', subtitle: 'كاش من البنك إلى خزينة الفرع', icon: 'banknote', size: 'sm', done: 'تم تسجيل السحب',
+          body: h`<div class="form">${branchSelect('bank')}${BT.f.money({ name: 'amount', label: 'المبلغ', required: true, min: 0.001 })}${BT.f.input({ name: 'reference', label: 'رقم إيصال السحب', required: true })}${BT.f.upload({ name: 'photo', label: 'صورة إيصال السحب', required: true, accept: 'image/*,application/pdf' })}</div>`,
+          submit: function (v) {
+            return api.upload(v.photo[0]).then(function (f) { return api.post('/cash/bank-withdrawals', { branch_id: +v.branch_id, amount: String(v.amount), reference: v.reference, attachment_sha256: f.sha256 }); });
+          },
+          after: again
+        });
+      };
+      A.delegate(el, 'click', '[data-branch]', function (e, tr) {
+        if (e.target.closest('[data-close-day]')) return;
+        var row = rows.find(function (r) { return r.branch.public_id === tr.getAttribute('data-branch'); });
+        if (row) movements(row.branch, again);
+      });
+    }).catch(function () {});
+  }
+
+  /* العهد النقدية: موظف يمسك كاش للمصروفات الصغيرة، يُصرف له من خزينة فرع ويرد الباقي إليها */
+  function pettyPanel(el) {
+    var manage = api.can('treasury.manage');
+    A.load(el, Promise.all([api.get('/cash/petty'), api.get('/cash/treasury'), api.get('/cash/petty/status')]), function (r) {
+      var rows = r[0], ready = r[2].role_ready;
+      return h`<div class="card"><div class="card-h"><div class="card-t">${icon('wallet', 16)} العهد النقدية</div>${manage ? h`<div class="ms-auto nowrap"><button type="button" class="btn btn-sm btn-outline" data-petty-return>${icon('rotate-ccw', 14)} رد عهدة</button> <button type="button" class="btn btn-sm btn-primary" data-petty-fund${ready ? '' : raw(' disabled')}>${icon('hand-coins', 14)} صرف عهدة</button></div>` : ''}</div>
+        ${ready ? '' : h`<div class="banner warn mb-12" data-petty-role>${icon('triangle-alert', 16)}<div>اربط دور العهد النقدية بحساب في دليل الحسابات («المالية» ← «دليل الحسابات» ← «ربط الأدوار»): لا تُصرف عهدة قبل ذلك حتى تدخل الدفاتر.</div></div>`}
+        ${rows.length ? h`<div class="table-wrap"><table class="t compact" data-petty><thead><tr><th>الموظف</th><th>الفرع</th><th class="num">الرصيد</th><th>آخر حركة</th><th></th></tr></thead><tbody>
+          ${rows.map(function (x) {
+            return h`<tr data-holder="${x.employee.id}"><td>${api.name(x.employee.name)}</td><td>${x.branch_id ? api.branch(x.branch_id) : '—'}</td><td class="num"><b>${fmt.money(x.balance)}</b></td><td class="num">${x.last_movement ? fmt.date(x.last_movement) : '—'}</td>
+              <td class="num nowrap"><button type="button" class="btn btn-sm btn-ghost" data-petty-moves="${x.employee.id}">${icon('list', 13)} حركات</button></td></tr>`;
+          })}</tbody></table></div>` : BT.empty('wallet', 'لا عهد نقدية بعد', manage ? 'اصرف عهدة لموظف من خزينة فرع' : '')}
+        <div class="hint mt-8">العهدة تُصرف من خزينة فرع (تنقص الخزينة وتزيد العهدة)، ومصروفات الموظف تُسجَّل «من عهدة» فتنقص عهدته عند الاعتماد، والباقي يُرد للخزينة. في الدفاتر: حساب 1115 العهد النقدية.</div></div>`;
+    }).then(function (r) {
+      if (!r) return;
+      var rows = r[0], boxes = r[1], again = function () { pettyPanel(el); };
+      var branchSelect = function () { return BT.f.select({ name: 'branch_id', label: 'خزينة الفرع', required: true, placeholder: false, options: boxes.map(function (b) { return { v: b.branch.id, t: api.name(b.branch.name) + ' — ' + fmt.money(b.treasury) }; }) }); };
+      var move = function (kind, holderId) {
+        return function (v) {
+          var id = holderId(v);
+          if (!id) return Promise.reject(new Error('اختر الموظف من القائمة'));
+          return api.post('/cash/petty/' + id + '/' + kind, { branch_id: Number(v.branch_id), amount: String(v.amount), note: (v.note || '').trim() || null });
+        };
+      };
+      var f = el.querySelector('[data-petty-fund]');
+      if (f) f.onclick = function () {
+        A.allEmployees({}).catch(function () { return []; }).then(function (people) {
+          A.formModal({
+            title: 'صرف عهدة', subtitle: 'كاش من خزينة الفرع إلى موظف', icon: 'hand-coins', size: 'sm', done: 'تم صرف العهدة',
+            body: h`<div class="form">${A.picker({ name: 'holder', label: 'الموظف', required: true, items: people.map(function (x) { return { id: x.id, label: x.employee_number + ' · ' + api.name(x.name) }; }) })}${branchSelect()}${BT.f.money({ name: 'amount', label: 'المبلغ', required: true, min: 0.001 })}${BT.f.input({ name: 'note', label: 'ملاحظة', optional: true })}</div>`,
+            submit: move('fund', function (v) { return A.picked('holder', v.holder); }),
+            after: again
+          });
+        });
+      };
+      var b = el.querySelector('[data-petty-return]');
+      if (b) b.onclick = function () {
+        if (!rows.length) { BT.toast('لا عهد نقدية بعد', { type: 'error' }); return; }
+        A.formModal({
+          title: 'رد عهدة', subtitle: 'الباقي من العهدة إلى خزينة الفرع', icon: 'rotate-ccw', size: 'sm', done: 'تم رد العهدة',
+          body: h`<div class="form">${BT.f.select({ name: 'holder', label: 'الموظف', required: true, placeholder: false, options: rows.map(function (x) { return { v: x.employee.id, t: api.name(x.employee.name) + ' — ' + fmt.money(x.balance) }; }) })}${branchSelect()}${BT.f.money({ name: 'amount', label: 'المبلغ', required: true, min: 0.001 })}${BT.f.input({ name: 'note', label: 'ملاحظة', optional: true })}</div>`,
+          submit: move('return', function (v) { return v.holder; }),
+          after: again
+        });
+      };
+      A.delegate(el, 'click', '[data-petty-moves]', function (e, btn) {
+        var x = rows.find(function (y) { return y.employee.id === btn.getAttribute('data-petty-moves'); });
+        if (x) movements(null, again, { url: '/cash/petty/' + x.employee.id + '/movements', title: 'عهدة ' + api.name(x.employee.name) });
+      });
+    }).catch(function () {});
+  }
+
+  /* آخر إقفالات الخزائن (كل الفروع): الرصيد في الدفاتر، المعدود، والفرق؛ «إعادة فتح» على آخر يوم مقفول في كل فرع */
+  function closingsList(box, rows, changed) {
+    var manage = api.can('treasury.manage');
+    A.load(box, Promise.all(rows.map(function (r) { return api.get('/cash/treasury/' + r.branch.public_id + '/closings'); })), function (all) {
+      var list = [];
+      all.forEach(function (x) { x.lines.forEach(function (c) { list.push(Object.assign({ branch: x.branch }, c)); }); });
+      list.sort(function (a, b) { return a.day < b.day ? 1 : a.day > b.day ? -1 : 0; });
+      if (!list.length) return BT.empty('calculator', 'لا أيام مقفولة بعد', 'ابدأ بزر «جرد وإقفال اليوم» على الفرع');
+      return h`<div class="table-wrap"><table class="t compact" data-closings-table><thead><tr><th>الفرع</th><th>اليوم</th><th class="num">في الدفاتر</th><th class="num">المعدود</th><th class="num">الفرق</th><th>السبب</th><th>أقفله</th><th></th></tr></thead><tbody>
+        ${list.slice(0, 60).map(function (c) {
+          var d = Number(c.difference);
+          return h`<tr data-closing="${c.id}"${c.reopened_at ? raw(' class="muted"') : ''}><td>${api.name(c.branch.name)}</td><td class="num">${fmt.date(c.day)}</td><td class="num">${fmt.money(c.book_balance)}</td><td class="num">${fmt.money(c.counted)}</td>
+            <td class="num"><span class="${d < 0 ? 't-danger' : d > 0 ? 't-success' : 'muted'}">${d ? fmt.signed(d) : '0.000'}</span></td><td style="white-space:normal">${c.note || ''}${c.reopened_at ? h`<div class="sub">${BT.pill('أُعيد فتحه', 'n')} ${c.reopen_reason}</div>` : ''}</td>
+            <td><span class="sub">${c.closed_by || ''}</span><span class="sub">${fmt.time(c.closed_at)}</span></td>
+            <td class="num">${c.reopenable && manage ? h`<button type="button" class="btn btn-sm btn-ghost" data-reopen="${c.id}">${icon('rotate-ccw', 13)} إعادة فتح</button>` : ''}</td></tr>`;
+        })}</tbody></table></div>`;
+    }).catch(function () {});
+    BT.on(box, 'click', '[data-reopen]', function (e, b) {
+      A.confirmRun({ title: 'إعادة فتح اليوم', message: 'يُعكس فرق الجرد (إن وُجد) بنفس تاريخ اليوم، ويُفتح اليوم لتسجيل حركاته ثم جرده من جديد.', confirmText: 'إعادة فتح', tone: 'danger', icon: 'rotate-ccw', reason: { label: 'السبب', required: true },
+        run: function (reason) { return api.post('/cash/treasury/closings/' + b.getAttribute('data-reopen') + '/reopen', { reason: reason }); }, done: 'أُعيد فتح اليوم', after: changed });
+    });
+  }
+
+  /* جرد وإقفال يوم في خزينة فرع: المعدود (مبلغاً أو بالفئات) مقابل رصيد الدفاتر في نهاية اليوم، والفرق بسببه */
+  var DENOM_LABELS = { '20': '20 د.ك', '10': '10 د.ك', '5': '5 د.ك', '1': '1 د.ك', '0.5': 'نصف دينار', '0.25': 'ربع دينار', '0.100': '100 فلس', '0.050': '50 فلس', '0.020': '20 فلس', '0.010': '10 فلوس', '0.005': '5 فلوس' };
+  function closeDay(branch, changed) {
+    var url = '/cash/treasury/' + branch.public_id + '/closing';
+    api.get(url).then(function (st) {
+      var book = Number(st.book_balance);
+      var grid = h`<div class="denoms" data-denoms style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px">${st.denominations.map(function (k) {
+        return h`<label class="field" style="margin:0"><span class="fs-sm muted">${DENOM_LABELS[k] || k}</span><input class="input num-in" type="number" min="0" step="1" inputmode="numeric" data-den="${k}" placeholder="0"></label>`;
+      })}</div>`;
+      var dlg = A.formModal({
+        title: 'جرد وإقفال اليوم', subtitle: api.name(branch.name), icon: 'calculator', size: 'md', submitText: 'إقفال اليوم', done: 'تم إقفال اليوم',
+        body: h`<div class="form">${BT.f.date({ name: 'day', label: 'اليوم', required: true, value: st.day, max: BT.config.today, hint: st.last_closed_day ? 'آخر يوم مقفول: ' + fmt.date(st.last_closed_day) + (st.open_days.length ? ' · أيام عليها حركات ولم تُقفل: ' + st.open_days.map(fmt.date).join('، ') : '') : 'أول جرد: يبدأ منه تسلسل الأيام' })}
+          <div class="field full"><div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))">${BT.kpi({ label: 'رصيد الخزينة في الدفاتر نهاية اليوم', value: h`<span data-book>${fmt.money(book)}</span>`, dot: 'b' })}${BT.kpi({ label: 'الفرق', value: h`<span data-diff>—</span>`, dot: 'n' })}</div></div>
+          ${BT.f.money({ name: 'counted', label: 'المعدود في الدرج', required: true, min: 0, hint: 'أو عُدّ بالفئات تحت: يُجمع المبلغ وحده' })}
+          <div class="field full"><details data-denoms-box><summary>العدّ بالفئات (أوراق وعملات)</summary><div class="mt-8">${grid}</div></details></div>
+          ${BT.f.textarea({ name: 'note', label: 'سبب الفرق', optional: true, full: true, rows: 2, hint: 'مطلوب إذا اختلف المعدود عن الدفاتر' })}</div>`,
+        onOpen: function (d) {
+          var form = d.form;
+          var counted = form.querySelector('[name=counted]'), dayIn = form.querySelector('[name=day]');
+          var denoms = function () {
+            var used = false, total = 0;
+            form.querySelectorAll('[data-den]').forEach(function (i) { var n = parseInt(i.value, 10); if (n > 0) { used = true; total += n * Math.round(Number(i.getAttribute('data-den')) * 1000); } });
+            return used ? total / 1000 : null;
+          };
+          var redraw = function () {
+            var sum = denoms();
+            if (sum != null) { counted.value = sum.toFixed(3); counted.readOnly = true; } else counted.readOnly = false;
+            var diffEl = form.querySelector('[data-diff]');
+            if (counted.value === '') { diffEl.className = ''; diffEl.textContent = '—'; return; }
+            var diff = Math.round((Number(counted.value) - book) * 1000) / 1000;
+            diffEl.className = diff < 0 ? 't-danger' : 't-success';
+            diffEl.textContent = diff ? fmt.signed(diff) + (diff < 0 ? ' عجز' : ' زيادة') : 'مطابق';
+          };
+          form.addEventListener('input', function (e) { if (e.target.matches('[data-den],[name=counted]')) redraw(); });
+          dayIn.addEventListener('change', function () {
+            if (!dayIn.value) return;
+            api.get(url, { day: dayIn.value }).then(function (x) { book = Number(x.book_balance); form.querySelector('[data-book]').textContent = fmt.money(book); redraw(); }, api.fail).catch(function () {});
+          });
+        },
+        submit: function (v, d) {
+          var form = d.form, den = null;
+          form.querySelectorAll('[data-den]').forEach(function (i) { var n = parseInt(i.value, 10); if (n > 0) { den = den || {}; den[i.getAttribute('data-den')] = n; } });
+          var diff = Math.round((Number(v.counted) - book) * 1000);
+          if (diff && !(v.note || '').trim()) return Promise.reject(new Error('اكتب سبب الفرق بين المعدود والدفاتر'));
+          var body = { day: v.day, counted: String(v.counted), note: (v.note || '').trim() || null };
+          if (den) body.denominations = den;
+          return api.post('/cash/treasury/' + branch.public_id + '/close', body);
+        },
+        after: changed
+      });
+      return dlg;
+    }, api.fail).catch(function () {});
+  }
+
+  /* حركات خزينة الفرع أو بنكه: رصيد أول المدة، كل حركة ورصيدها بعدها، ورصيد آخر المدة */
+  // opts {url, title}: another cash account's movements (a holder's petty cash custody), without the treasury/bank tabs
+  function movements(branch, changed, opts) {
+    opts = opts || {};
+    var state = { account: 'treasury', from: BT.config.today.slice(0, 8) + '01', to: BT.config.today };
+    var dlg = BT.drawer.open({ title: opts.title || 'حركات ' + api.name(branch.name), icon: 'list', size: 'lg', body: h`<div data-mv-tools></div><div data-mv class="mt-12"></div>`, buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] });
+    var tools = dlg.body.querySelector('[data-mv-tools]'), box = dlg.body.querySelector('[data-mv]');
+    var url = opts.url || '/cash/treasury/' + branch.public_id + '/movements';
+    var query = function () { return opts.url ? { from: state.from, to: state.to } : { account: state.account, from: state.from, to: state.to }; };
+    function drawTools() {
+      BT.render(tools, h`<div class="toolbar"><div class="page-actions" role="tablist">
+        ${opts.url ? '' : [['treasury', 'الخزينة'], ['bank', 'البنك']].map(function (t) { return h`<button type="button" role="tab" aria-selected="${t[0] === state.account ? 'true' : 'false'}" class="btn btn-sm ${t[0] === state.account ? 'btn-primary' : 'btn-ghost'}" data-acc="${t[0]}">${t[1]}</button>`; })}
+        <input class="input" type="date" data-from value="${state.from}" aria-label="من" title="من"><input class="input" type="date" data-to value="${state.to}" aria-label="إلى" title="إلى">
+        ${opts.url ? '' : h`<button type="button" class="btn btn-sm btn-outline" data-mv-export>${icon('file-spreadsheet', 14)} Excel</button>`}</div></div>`);
+    }
+    function kind(l) { return l.reverses_kind ? api.t('journal_kind', 'reversal') + ': ' + api.t('journal_kind', l.reverses_kind) : api.t('journal_kind', l.kind); }
+    function describe(l) {
+      return h`${l.driver ? api.name(l.driver.name) : ''}${l.receipt_no ? h` <span class="num">#${l.receipt_no}</span>` : ''}${l.description ? h`${l.driver ? ' · ' : ''}<span style="white-space:normal">${l.description}</span>` : ''}`;
+    }
+    // an image opens in the viewer; a PDF (or anything else) in a new tab
+    function attachment(l) {
+      var src = api.url('/cash/journals/' + l.journal_id + '/attachment');
+      return /^image\//.test(l.attachment_type || '') ? h`<button type="button" class="btn btn-sm btn-ghost" data-att="${l.journal_id}" title="المرفق">${icon('paperclip', 13)}</button>`
+        : h`<a class="btn btn-sm btn-ghost" href="${src}" target="_blank" rel="noopener" data-att-link title="المرفق">${icon('file-text', 13)}</a>`;
+    }
+    function load() {
+      A.load(box, api.get(url, query()), function (m) {
+        return h`<div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))">${BT.kpi({ label: 'رصيد أول المدة', value: fmt.money(m.opening), dot: 'b' })}${BT.kpi({ label: 'رصيد آخر المدة', value: fmt.money(m.closing), dot: 'g' })}</div>
+          ${m.closed_through ? h`<div class="hint mb-8" data-closed-through>${icon('lock', 12)} الخزينة مقفولة بالجرد حتى ${fmt.date(m.closed_through)}: لا حركات عليها بتاريخ قبل ذلك.</div>` : ''}
+          ${m.lines.length ? h`<div class="table-wrap"><table class="t compact" data-mv-lines><thead><tr><th>التاريخ</th><th>الحركة</th><th>البيان</th><th class="num">المبلغ</th><th class="num">الرصيد</th><th></th></tr></thead><tbody>
+            <tr class="muted"><td colspan="4">رصيد أول المدة</td><td class="num">${fmt.money(m.opening)}</td><td></td></tr>
+            ${m.lines.map(function (l) {
+              return h`<tr data-line="${l.journal_id}"><td class="num">${fmt.date(l.business_date)}<span class="sub">${fmt.time(l.created_at)}</span></td><td>${kind(l)}${l.reversed ? h` ${BT.pill('معكوسة', 'n')}` : ''}${l.closed ? h` <span title="يوم مقفول بالجرد">${icon('lock', 11)}</span>` : ''}</td><td>${describe(l)}</td><td class="num"><span class="${Number(l.amount) < 0 ? 't-danger' : 't-success'}">${fmt.signed(Number(l.amount))}</span></td><td class="num"><b>${fmt.money(l.balance)}</b></td>
+                <td class="num nowrap">${l.has_attachment ? attachment(l) : ''}${l.reversible && api.can('cash.reverse') ? h`<button type="button" class="btn btn-sm btn-ghost" data-rev="${l.journal_id}">${icon('rotate-ccw', 13)} عكس</button>` : ''}</td></tr>`;
+            })}</tbody></table></div>${m.truncated ? h`<div class="hint mt-8">عُرضت أول ${fmt.int(m.lines.length)} حركة: ضيّق الفترة لرؤية الباقي.</div>` : ''}` : BT.empty('list', 'لا حركات في هذه الفترة', '')}`;
+      }).catch(function () {});
+    }
+    drawTools();
+    load();
+    BT.on(tools, 'click', '[data-acc]', function (e, b) { state.account = b.getAttribute('data-acc'); drawTools(); load(); });
+    tools.addEventListener('change', function (e) {
+      if (!e.target.matches('[data-from],[data-to]')) return;
+      var from = tools.querySelector('[data-from]').value, to = tools.querySelector('[data-to]').value;
+      if (!from || !to) return;
+      if (to < from) { BT.toast('تاريخ النهاية قبل البداية', { type: 'error' }); return; }
+      state.from = from; state.to = to; load();
+    });
+    BT.on(tools, 'click', '[data-mv-export]', function () { A.downloadFile(url + '/export', query(), state.account + '-' + state.from + '-' + state.to + '.xlsx'); });
+    BT.on(box, 'click', '[data-att]', function (e, b) {
+      BT.lightbox([{ src: api.url('/cash/journals/' + b.getAttribute('data-att') + '/attachment'), caption: 'المرفق' }], 0);
+    });
+    BT.on(box, 'click', '[data-rev]', function (e, b) {
+      A.confirmRun({ title: 'عكس الحركة', message: 'يُسجَّل قيد معاكس بنفس المبلغ ويبقى الأصل ظاهراً في السجل. يُعكس القيد مرة واحدة فقط.', confirmText: 'عكس', tone: 'danger', icon: 'rotate-ccw', reason: { label: 'السبب', required: true },
+        run: function (reason) { return api.post('/cash/journals/' + b.getAttribute('data-rev') + '/reverse', { reason: reason }); }, done: 'تم عكس الحركة', after: function () { load(); if (changed) changed(); } });
+    });
+  }
+
+})();

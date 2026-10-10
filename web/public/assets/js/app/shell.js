@@ -1,0 +1,522 @@
+/* =====================================================================
+   BrilliantTech — app/shell.js  (هيكل لوحة الإدارة المربوطة بالخادم)
+   القائمة حسب صلاحيات المستخدم، التنبيهات، قائمة المستخدم، البحث، والتنقل.
+   كل صفحة في assets/js/app/pages/*.js وتسجّل نفسها في BT.pages['key'].
+   قالب الواجهات القديم ببيانات تجريبية بقي في demo.html للعرض فقط.
+   ===================================================================== */
+(function () {
+  'use strict';
+  var BT = window.BT, h = BT.h, raw = BT.raw, icon = BT.icon, api = BT.api;
+  var A = BT.A = BT.A || {};
+  BT.pages = BT.pages || {};
+  A.counts = {};
+
+  var IMPORT_PERMS = ['employees.create', 'employees.update', 'vehicles.create', 'vehicles.update', 'documents.manage'];
+
+  /* ---------- القائمة الجانبية: مجموعات بأسماء واضحة، ولا يظهر إلا ما يملك المستخدم صلاحيته ----------
+     أعلاها ما يُفتح كل يوم (اللوحة والتنبيهات والاعتمادات والتقارير)، ثم السيارات، ثم المحاسبة، ثم الموظفون،
+     ثم الإدارة. كل مجموعة تُطوى وتُفتح بضغطة، ومجموعة الصفحة المفتوحة مفتوحة دائماً. */
+  A.NAV = [
+    { sec: null, items: [
+      { key: 'dashboard', icon: 'house', label: 'لوحة التحكم', any: ['dashboard.view'] },
+      { key: 'alerts', icon: 'bell-ring', label: 'التنبيهات', count: 'alerts', hot: true },
+      { key: 'approvals', icon: 'list-checks', label: 'طلبات تنتظر اعتمادك', any: ['approvals.view'], count: 'approvals', hot: true },
+      { key: 'reports', icon: 'chart-column', label: 'التقارير', any: ['reports.view', 'cash.view'] }
+    ] },
+    { sec: 'السيارات والتشغيل', id: 'fleet', icon: 'car', items: [
+      { key: 'tracking', icon: 'map', label: 'التتبع الحي', any: ['tracking.live'], count: 'signal_lost', hot: true },
+      { key: 'vehicles', icon: 'car', label: 'السيارات', any: ['vehicles.view'] },
+      { key: 'custody', icon: 'key-round', label: 'تسليم واستلام السيارات', any: ['custody.view'], count: 'custody' },
+      { key: 'odometer', icon: 'gauge', label: 'العداد', any: ['odometer.view'], count: 'odometer' },
+      { key: 'daily', icon: 'clipboard-list', label: 'التقارير اليومية', any: ['daily_reports.view'], count: 'daily' },
+      { key: 'maintenance', icon: 'wrench', label: 'الصيانة', any: ['maintenance.view', 'invoices.view'], count: 'maintenance' },
+      { key: 'accidents', icon: 'shield-alert', label: 'الحوادث', any: ['accidents.view'], count: 'accidents' },
+      { key: 'fines', icon: 'file-warning', label: 'المخالفات المرورية', any: ['fines.view'], count: 'fines' }
+    ] },
+    { sec: 'المحاسبة والفلوس', id: 'money', icon: 'calculator', items: [
+      { key: 'cash', icon: 'wallet', label: 'الكاش والخزينة', any: ['cash.view', 'treasury.view', 'cash.fuel_review'], count: 'fuel' },
+      { key: 'finance', icon: 'landmark', label: 'المصروفات والقيود', any: ['finance.view'], count: 'expenses' },
+      { key: 'deductions', icon: 'minus-circle', label: 'الخصومات', any: ['deductions.view'] },
+      { key: 'payroll', icon: 'banknote', label: 'الرواتب', any: ['payroll.view', 'settings.update'], count: 'payroll' },
+      { key: 'guide', icon: 'book-open', label: 'إرشادات المحاسبة', any: ['finance.view', 'cash.view', 'treasury.view'] }
+    ] },
+    { sec: 'الموظفون', id: 'people', icon: 'users', items: [
+      { key: 'employees', icon: 'users', label: 'الموظفون والسائقون', any: ['employees.view'], count: 'onboarding' },
+      { key: 'attendance', icon: 'calendar-x', label: 'الغياب والإجازات', any: ['leaves.view'], count: 'leaves' }
+    ] },
+    { sec: 'الإدارة', id: 'admin', icon: 'settings', items: [
+      { key: 'import', icon: 'file-spreadsheet', label: 'استيراد من إكسل', all: IMPORT_PERMS },
+      { key: 'settings', icon: 'settings', label: 'الإعدادات والصلاحيات', any: ['settings.view', 'users.view', 'roles.view', 'companies.view', 'branches.manage', 'i18n.manage'] },
+      { key: 'integrations', icon: 'puzzle', label: 'التكاملات', any: ['integrations.manage'] },
+      { key: 'audit', icon: 'shield-check', label: 'سجل التدقيق', any: ['audit.view'] }
+    ] }
+  ];
+  A.allowed = function (it) {
+    if (!it) return false;
+    if (it.all) return it.all.every(api.can);
+    return !it.any || api.canAny(it.any);
+  };
+  A.navItem = function (key) { var f = null; A.NAV.forEach(function (s) { s.items.forEach(function (i) { if (i.key === key) f = i; }); }); return f; };
+  A.firstAllowed = function () { var f = null; A.NAV.forEach(function (s) { s.items.forEach(function (i) { if (!f && A.allowed(i)) f = i.key; }); }); return f || 'alerts'; };
+
+  /* المجموعات المطوية تُحفظ على هذا الجهاز فقط (كلها مفتوحة أول مرة) */
+  var NAV_SHUT = 'bt.nav.shut';
+  function shutGroups() { try { return JSON.parse(localStorage.getItem(NAV_SHUT) || '[]'); } catch (e) { return []; } }
+  A.toggleNavGroup = function (id) {
+    var shut = shutGroups();
+    shut = shut.indexOf(id) >= 0 ? shut.filter(function (x) { return x !== id; }) : shut.concat([id]);
+    try { localStorage.setItem(NAV_SHUT, JSON.stringify(shut)); } catch (e) { /* بلا تخزين: تبقى مفتوحة */ }
+    A.renderNav(A._navActive);
+  };
+
+  A.renderNav = function (active) {
+    A._navActive = active;
+    var shut = shutGroups();
+    function link(it) {
+      var c = it.count ? A.counts[it.count] : null;
+      return h`<a class="nav-item${it.key === active ? ' active' : ''}" href="#/${it.key}"${it.key === active ? raw(' aria-current="page"') : ''}>${icon(it.icon, 17)}<span>${it.label}</span>${c ? h`<span class="count${it.hot ? ' hot' : ''}">${c >= 200 ? '200+' : c}</span>` : ''}</a>`;
+    }
+    BT.render(document.getElementById('nav'), h`${A.NAV.map(function (s) {
+      var items = s.items.filter(A.allowed);
+      if (!items.length) return '';
+      if (!s.id) return h`<div class="nav-top">${items.map(link)}</div>`;
+      var here = items.some(function (it) { return it.key === active; });
+      var open = here || shut.indexOf(s.id) < 0;
+      // مطوية: مجموع ما ينتظر فيها يظهر على عنوانها، فلا يختفي شيء
+      var waiting = open ? 0 : items.reduce(function (n, it) { return n + ((it.count && A.counts[it.count]) || 0); }, 0);
+      var hot = items.some(function (it) { return it.hot && it.count && A.counts[it.count]; });
+      return h`<div class="nav-group${open ? ' open' : ''}">
+        <button type="button" class="nav-head" data-action="nav-group" data-arg="${s.id}" aria-expanded="${open ? 'true' : 'false'}">${icon(s.icon, 15)}<span>${s.sec}</span>${waiting ? h`<span class="count${hot ? ' hot' : ''}">${waiting >= 200 ? '200+' : waiting}</span>` : ''}<span class="chev">${icon('chevron-down', 14)}</span></button>
+        <div class="nav-items">${items.map(link)}</div>
+      </div>`;
+    })}`);
+  };
+
+  /* ---------- أدوات مشتركة للصفحات ---------- */
+  A.view = function () { return document.getElementById('view'); };
+  A.setTitle = function (title, crumbs) {
+    document.title = title + ' — ' + (A.brand || BT.config.systemName);
+    BT.render(document.getElementById('tb-title'), h`${crumbs && crumbs.length ? h`<div class="crumbs">${crumbs.map(function (c, i) { return h`${i ? icon('chevron-left', 12) : ''}${c[1] ? h`<a href="#/${c[1]}">${c[0]}</a>` : c[0]}`; })}</div>` : h`<div class="crumbs">${A.brand || ''}${A.brand ? ' · ' : ''}${BT.fmt.dateLong(BT.config.today)}</div>`}<h1>${title}</h1>`);
+  };
+  A.head = function (title, sub, actions) {
+    return h`<div class="page-head"><div><h2>${title}</h2>${sub ? h`<p>${sub}</p>` : ''}</div>${actions ? h`<div class="page-actions">${actions}</div>` : ''}</div>`;
+  };
+  A.btn = function (label, opts) {
+    opts = opts || {};
+    return h`<button type="button" class="btn ${opts.cls || 'btn-secondary'}"${opts.action ? h` data-action="${opts.action}"` : ''}${opts.arg != null ? h` data-arg="${opts.arg}"` : ''}${opts.id ? h` id="${opts.id}"` : ''}>${opts.icon ? icon(opts.icon, 15) : ''}${label}</button>`;
+  };
+  A.go = function (path) { A.router.go(path); };
+  A.spinner = function (text) { return h`<div class="page-loading"><span class="spinner"></span>${text || 'جاري التحميل…'}</div>`; };
+  A.errorBox = function (err) {
+    return h`<div class="card"><div class="card-b">${BT.empty('wifi-off', 'تعذر تحميل البيانات', api.message(err), raw('<button type="button" class="btn btn-sm btn-secondary mt-8" data-action="reload">إعادة المحاولة</button>'))}</div></div>`;
+  };
+  BT.actions['reload'] = function () { A.router.refresh(); };
+  /* بعد حفظ: تُعاد رسم الصفحة فقط إن كان المستخدم ما زال عليها؛ إن انتقل لصفحة أخرى قبل وصول الرد لا تُمس (ولا فلاترها) */
+  A.refreshIfAt = function (prefix) { if (location.hash.indexOf('#/' + prefix) === 0) A.router.refresh(); };
+  /* كل صفوف قائمة من الخادم (200 في كل طلب) لقوائم الاختيار: السائق رقم 201 يجب أن يُختار كالأول */
+  A.all = function (path, params) {
+    var out = [];
+    function page(offset) {
+      return api.get(path, Object.assign({}, params, { limit: 200, offset: offset })).then(function (rows) {
+        out = out.concat(rows);
+        return rows.length === 200 && out.length < 5000 ? page(offset + 200) : out;
+      });
+    }
+    return page(0);
+  };
+  /* معالج نقرات لعنصر يُعاد رسمه بنفسه (لوحة تُحدَّث بعد الحفظ): معالج واحد دائماً، بآخر بيانات.
+     BT.on مباشرة في كل رسم يضيف معالجاً جديداً كل مرة، فتفتح النقرة نموذجين أو ترسل الطلب مرتين. */
+  A.delegate = function (el, evt, sel, fn) {
+    var reg = el._delegated || (el._delegated = {}), key = evt + ' ' + sel;
+    if (!reg[key]) BT.on(el, evt, sel, function (e, t) { reg[key](e, t); });
+    reg[key] = fn;
+  };
+  /* يعرض التحميل ثم المحتوى، أو رسالة خطأ مع إعادة المحاولة. el مثبّت عند بداية الصفحة. */
+  A.load = function (el, promise, render) {
+    BT.render(el, A.spinner());
+    return Promise.resolve(promise).then(function (data) {
+      if (document.contains(el)) {
+        try { BT.render(el, render(data)); } catch (e) { // a screen's own bug: said, not an endless spinner
+          if (window.console) console.error(e);
+          BT.render(el, A.errorBox(e));
+        }
+      }
+      return data;
+    }, function (err) {
+      if (err instanceof api.ApiError && err.status === 401) return;
+      if (document.contains(el)) BT.render(el, A.errorBox(err));
+      throw err;
+    });
+  };
+  A.forbidden = function () {
+    return h`<div class="card"><div class="card-b">${BT.empty('lock', 'لا تملك صلاحية هذه الصفحة', 'اطلب من مدير النظام إضافة الصلاحية إلى دورك.')}</div></div>`;
+  };
+  /* تنظيف عند مغادرة الصفحة (مثل إغلاق اتصال الخريطة الحية) */
+  var leaving = [];
+  A.onLeave = function (fn) { leaving.push(fn); };
+
+  A.person = function (ref, sub) { return ref ? BT.person(api.name(ref.name) || '—', sub) : raw('<span class="muted">—</span>'); };
+  A.plate = function (plate, id) { return plate ? (id && api.can('vehicles.view') ? h`<a class="plate" href="#/vehicles/${id}">${plate}</a>` : BT.plate(plate)) : '—'; };
+  A.tone = {
+    vehicle_status: { available: 'o', assigned: 'g', maintenance: 'b', accident: 'r', inactive: 'n' },
+    app_access: { none: 'n', active: 'g', suspended: 'o', disabled: 'r' },
+    severity: { info: 'b', warning: 'o', critical: 'r' },
+    onboarding_status: { none: 'n', draft: 'n', submitted: 'o', approved: 'g', rejected: 'r' },
+    link_status: { queued: 'b', sent: 'g', failed: 'r', cancelled: 'n', already_queued: 'b' },
+    journal_status: { pending: 'o', posted: 'g', rejected: 'r' },
+    report_status: { submitted: 'o', approved: 'g', rejected: 'r' },
+    custody_kind: { normal: 'n', emergency: 'r' }
+  };
+  A.pill = function (ns, code, tone) { return BT.pill(api.t(ns, code), tone || (A.tone[ns] || {})[code] || 'n'); };
+  A.options = function (ns, codes) { return codes.map(function (c) { return { v: c, t: api.t(ns, c) }; }); };
+
+  /* صور محمية بالجلسة: تُفتح بالضغط في عارض الصور */
+  A.thumbs = function (items) { // [{src, caption}]
+    if (!items.length) return raw('<div class="muted fs-sm">لا توجد صور</div>');
+    var key = BT.uid('th');
+    A._thumbs = A._thumbs || {};
+    A._thumbs[key] = items;
+    return h`<div class="thumbs">${items.map(function (it, i) { return h`<figure data-thumbs="${key}" data-i="${i}"><img src="${it.src}" alt="${it.caption || ''}" loading="lazy"><figcaption>${it.caption || ''}</figcaption></figure>`; })}</div>`;
+  };
+  document.addEventListener('click', function (e) {
+    var f = e.target.closest && e.target.closest('[data-thumbs]');
+    if (!f) return;
+    BT.lightbox(A._thumbs[f.getAttribute('data-thumbs')] || [], +f.getAttribute('data-i'));
+  });
+
+  /* نموذج في نافذة: onSubmit يعيد Promise، والخطأ يبقي النافذة مفتوحة مع رسالة */
+  A.formModal = function (o) {
+    return BT.modal.open({
+      title: o.title, subtitle: o.subtitle, icon: o.icon, size: o.size, form: true,
+      body: o.body,
+      buttons: [{ label: 'إلغاء', cls: 'btn-ghost' }, { label: o.submitText || 'حفظ', cls: o.submitCls || 'btn-primary', submit: true }],
+      onOpen: o.onOpen,
+      onSubmit: function (vals, dlg) {
+        return Promise.resolve(o.submit(vals, dlg)).then(function (res) {
+          if (res === false) return false; // nothing done (a confirmation declined): the form stays open
+          // done may depend on the answer: a document that waits for its approval workflow says so (FR-WFL-02)
+          if (o.done !== false) BT.toast((typeof o.done === 'function' ? o.done(res) : o.done) || 'تم الحفظ');
+          if (o.after) o.after(res);
+          return true;
+        }).catch(api.fail);
+      }
+    });
+  };
+  /* صندوق طلبات تنتظر قراراً أعلى الصفحة (يختفي إن لم يوجد شيء): لكل طلب سطر وأزرار بتأكيد (وسبب إن لزم) */
+  A.pendingBox = function (box, o) {
+    var reload = function () { A.pendingBox(box, o); if (o.after) o.after(); A.refreshCounts(); };
+    return api.get(o.url).then(function (list) {
+      if (!document.contains(box)) return;
+      if (!list.length) { BT.render(box, ''); return; }
+      BT.render(box, h`<div class="card mb-16" data-pending="${o.key}"><div class="card-h"><b>${o.title}</b> <span class="muted fs-sm">${o.hint || ''}</span></div><div class="card-b">${list.map(function (x) {
+        return h`<div class="between mb-12" data-pending-id="${x.id}"><div class="flex-1">${o.row(x)}</div><div class="nowrap">${o.actions.map(function (a, i) { return h`<button type="button" class="btn btn-sm ${a.cls || 'btn-outline'}" data-act="${i}">${a.label}</button> `; })}</div></div>`;
+      })}</div></div>`);
+      box.querySelectorAll('[data-pending-id]').forEach(function (rowEl) {
+        var item = list.find(function (x) { return x.id === rowEl.getAttribute('data-pending-id'); });
+        rowEl.querySelectorAll('[data-act]').forEach(function (b) {
+          var a = o.actions[+b.getAttribute('data-act')];
+          b.addEventListener('click', function () {
+            A.confirmRun({ title: a.title, message: a.message, confirmText: a.label, tone: a.tone || 'success', reason: a.reason,
+              run: function (reason) { return a.run(item, reason); }, done: a.done, after: reload });
+          });
+        });
+      });
+    }, function () { BT.render(box, ''); });
+  };
+  /* إجراء بتأكيد (وسبب إن لزم) */
+  A.confirmRun = function (o) {
+    return BT.confirm(o).then(function (r) {
+      if (!r.ok) return null;
+      return Promise.resolve(o.run(r.reason)).then(function (res) { if (o.done) BT.toast(o.done); if (o.after) o.after(res); return res; }, function (err) { BT.toast(api.message(err), { type: 'error', timeout: 6000 }); });
+    });
+  };
+  A.loadScript = function (src) {
+    A._scripts = A._scripts || {};
+    if (!A._scripts[src]) A._scripts[src] = new Promise(function (ok, bad) { var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = bad; document.head.appendChild(s); });
+    return A._scripts[src];
+  };
+  A.loadCss = function (href) { if (!document.querySelector('link[href="' + href + '"]')) { var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href; document.head.appendChild(l); } };
+  A.download = function (path, query) { var a = document.createElement('a'); a.href = api.url(path, query); a.download = ''; document.body.appendChild(a); a.click(); a.remove(); };
+  A.query = function (q) { return Object.keys(q).filter(function (k) { return q[k] != null && q[k] !== ''; }).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(q[k]); }).join('&'); };
+
+  /* ---------- العدادات في القائمة (كل دقيقة) ---------- */
+  A.refreshCounts = function () {
+    var jobs = [api.get('/alerts/summary').then(function (s) { A.counts.alerts = s.open; }, function () {})];
+    if (api.can('dashboard.view')) jobs.push(api.get('/dashboard').then(function (d) {
+      A.counts.daily = d.daily_reports ? d.daily_reports.waiting_review : null;
+      A.counts.signal_lost = d.drivers ? d.drivers.signal_lost : null;
+    }, function () {}));
+    if (api.can('odometer.view')) jobs.push(api.get('/odometer/readings', { review_status: 'pending', limit: 200 }).then(function (r) { A.counts.odometer = r.length; }, function () {}));
+    if (api.can('maintenance.approve')) jobs.push(api.get('/maintenance/requests', { status: 'requested,quote_pending', limit: 200 }).then(function (r) { A.counts.maintenance = r.length; }, function () {}));
+    if (api.can('fines.manage') || api.can('deductions.manage')) jobs.push(api.get('/fines', { status: 'open', limit: 200 }).then(function (r) { A.counts.fines = r.length; }, function () {}));
+    if (api.can('accidents.view')) jobs.push(api.get('/accidents', { stage: api.can('accidents.approve') ? 'reported,estimate_pending,awaiting_outcome' : 'reported,estimate_pending', limit: 200 }).then(function (r) { A.counts.accidents = r.length; }, function () {}));
+    if (api.can('finance.approve')) jobs.push(api.get('/finance/expenses', { status: 'pending', limit: 200 }).then(function (r) { A.counts.expenses = r.length; }, function () {}));
+    if (api.can('approvals.view')) jobs.push(api.get('/approvals/inbox').then(function (r) { A.counts.approvals = r.length; }, function () {}));
+    if (api.can('leaves.approve')) jobs.push(api.get('/leaves', { status: 'pending', limit: 200 }).then(function (r) { A.counts.leaves = r.length; }, function () {}));
+    if (api.can('employees.onboarding')) jobs.push(api.get('/onboarding', { status: 'submitted', limit: 200 }).then(function (r) { A.counts.onboarding = r.length; }, function () {}));
+    if (api.can('payroll.prepare')) jobs.push(api.get('/payroll/statements/counts').then(function (r) { A.counts.statements = r.submitted; }, function () {}));
+    if (api.can('cash.fuel_review')) jobs.push(api.get('/cash/fuel-claims/pending-count').then(function (r) { A.counts.fuel = r.count; }, function () {}));
+    // what the drivers ask about cars and wait for: a car registered from the app, a change of car
+    if (api.can('custody.assign')) jobs.push(Promise.all([api.get('/vehicle-claims'), api.get('/vehicle-change-requests')]).then(function (r) { A.counts.custody = r[0].length + r[1].length; }, function () {}));
+    if (api.can('payroll.view')) jobs.push(api.get('/payroll/scheme-requests/counts').then(function (r) { A.counts.scheme_requests = r.pending; }, function () {}));
+    if (api.can('payroll.view')) jobs.push(api.get('/payroll/uncollected/counts').then(function (r) { A.counts.uncollected = r.review; }, function () {}));
+    if (api.can('payroll.view')) jobs.push(api.get('/payroll/objections/counts').then(function (r) { A.counts.objections = r.waiting; }, function () {}));
+    return Promise.all(jobs).then(function () {
+      A.counts.payroll = (A.counts.statements || 0) + (A.counts.scheme_requests || 0) + (A.counts.uncollected || 0) + (A.counts.objections || 0);
+      A.renderNav((A.router && A.router.current || '').split('/')[0]);
+      A.updateBell();
+    });
+  };
+
+  /* ---------- التنبيهات ---------- */
+  A.updateBell = function () {
+    var b = document.getElementById('bell-badge'), n = A.counts.alerts || 0;
+    if (b) { b.textContent = n > 99 ? '99+' : n; b.hidden = !n; }
+  };
+
+  /* ---------- تنبيه جديد يظهر وحده ----------
+     كل بضع ثوانٍ (وفور العودة إلى الصفحة) يُسأل الخادم عن عدد التنبيهات المفتوحة وأحدثها. إذا وصل جديد: رسالة
+     صغيرة تقول ما هو، والعدادات، وتُعاد رسم لوحة التحكم أو صفحة التنبيهات في مكانها. لا يُغلق نافذة مفتوحة:
+     يؤجَّل الرسم حتى تُغلق. */
+  var lastAlerts = null;
+  A.pollAlerts = function () {
+    return api.get('/alerts/summary').then(function (s) {
+      var before = lastAlerts, latest = s.latest ? s.latest.id : null;
+      lastAlerts = { open: s.open, latest: latest };
+      A.counts.alerts = s.open;
+      A.updateBell();
+      if (!before) return; // the first look only notes where things stand
+      var arrived = latest && latest !== before.latest && s.open > before.open;
+      // one alert born of what this user just did (he saw it when saving): the bell counts it, no second toast
+      var own = arrived && s.open - before.open === 1 && api.touchedRecently(s.latest.entity_id);
+      if (arrived && !own) {
+        var n = s.open - before.open;
+        BT.toast(n > 1 ? h`${n} تنبيهات جديدة · آخرها: ${s.latest.message}` : s.latest.message, {
+          type: { critical: 'error', warning: 'warning' }[s.latest.severity] || 'info', timeout: 8000,
+          action: { label: 'عرض', fn: function () { A.go('alerts'); } }
+        });
+      }
+      if (arrived || s.open !== before.open || latest !== before.latest) { A.refreshCounts(); A.redrawLive(); }
+      else if (A._stale) A.redrawLive();
+    }, function () {});
+  };
+  A.redrawLive = function () {
+    if (document.querySelector('.overlay[data-open], .menu.show')) { A._stale = true; return; } // a drawer, dialog or menu in use
+    A._stale = false;
+    var cur = (A.router && A.router.current) || '';
+    if (cur === 'alerts' && A._alertsTable) A._alertsTable.refresh();
+    else if (cur === 'dashboard' && A._dashboardRedraw) A._dashboardRedraw();
+  };
+  BT.actions['notifications'] = function (arg, el) {
+    var pop = BT.popover(el, h`<div class="nm-h"><b>التنبيهات المفتوحة</b><a class="btn btn-link fs-sm" href="#/alerts">عرض الكل</a></div><div class="nm-list" data-alerts>${A.spinner()}</div>`, { cls: 'notif-menu' });
+    if (!pop) return;
+    api.get('/alerts', { limit: 15 }).then(function (rows) {
+      var list = pop.querySelector('[data-alerts]');
+      if (!list) return;
+      if (!rows.length) { BT.render(list, BT.empty('bell', 'لا توجد تنبيهات مفتوحة')); return; }
+      BT.render(list, h`${rows.map(function (a) {
+        var tone = { critical: 'danger', warning: 'warning', info: 'info' }[a.severity];
+        return h`<div class="notif" style="cursor:default"><span class="li-ic" style="width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--${tone}-soft);color:var(--${tone}-text)">${icon(a.severity === 'critical' ? 'siren' : a.severity === 'warning' ? 'triangle-alert' : 'info', 16)}</span><span class="flex-1"><span class="n-t" style="display:block">${a.message}</span><span class="n-d">${BT.fmt.since(a.created_at)}</span>${A.alertTarget(a) ? h`<span style="display:block;margin-top:6px">${A.alertButton(a)}</span>` : ''}</span><button type="button" class="btn btn-sm btn-ghost" data-ack="${a.id}" title="تم الاطلاع">${icon('check', 14)}</button></div>`;
+      })}`);
+      BT.on(list, 'click', '[data-ack]', function (e, b) {
+        b.disabled = true;
+        api.post('/alerts/' + b.getAttribute('data-ack') + '/ack').then(function () { b.closest('.notif').remove(); A.counts.alerts = Math.max(0, (A.counts.alerts || 1) - 1); A.updateBell(); A.renderNav(A.router.current.split('/')[0]); }, function (err) { b.disabled = false; BT.toast(api.message(err), { type: 'error' }); });
+      });
+    }, function (err) { var list = pop.querySelector('[data-alerts]'); if (list) BT.render(list, BT.empty('wifi-off', api.message(err))); });
+  };
+
+  /* ---------- من التنبيه إلى ما يخصه ----------
+     كل تنبيه يفتح السجل الذي يتكلم عنه، حيث يُتخذ القرار: طلب التسجيل بزرّي «اعتماد» و«إعادة للسائق»، العهدة،
+     المخالفة، طلب الصيانة، الحادث؛ وما لا يُفتح وحده بعد يفتح صفحته التي فيها القرار. الزر يظهر لمن يملك كل
+     صلاحيات الوصول إليه، فلا يقود أحداً إلى صفحة مغلقة عليه. */
+  var DEVICE_KINDS = ['otp_delivery_failed', 'device_replaced', 'mock_location'];
+  var CASH_KINDS = ['cash_balance_high', 'driver_left_with_cash'];
+  // the expiring-documents list wide enough for the alert's document (a commercial licence warns 60 days ahead)
+  function docsWindow(a) { var n = Number(a.params.days) || 0; return [30, 60, 90, 180, 365].filter(function (d) { return d >= n; })[0] || 365; }
+  A.alertTargets = {
+    onboarding: { perm: ['employees.onboarding'], label: 'مراجعة واعتماد', primary: true, open: function (a, after) { A.reviewRegistration(a.entity_id, after); } },
+    employee: { perm: function (a) { return CASH_KINDS.indexOf(a.kind) >= 0 ? ['cash.view'] : ['employees.view']; }, open: function (a) {
+      if (CASH_KINDS.indexOf(a.kind) >= 0) A.go('cash'); // where his cash is collected or settled
+      else A.employee(a.entity_id, DEVICE_KINDS.indexOf(a.kind) >= 0 ? 'device' : null);
+    } },
+    custody: { perm: ['custody.view'], open: function (a, after) { A.custody(a.entity_id, after); } },
+    vehicle: { perm: ['custody.view', 'custody.assign'], open: function () { A.go('custody'); } }, // the change requests box with its buttons
+    odometer_reading: { perm: ['odometer.view'], open: function () { A.go('odometer'); } },
+    document: { perm: ['employees.view', 'documents.view'], open: function (a) { A.go('employees?tab=docs&days=' + docsWindow(a)); } },
+    document_renewal: { perm: ['employees.view', 'documents.view', 'documents.manage'], label: 'مراجعة', open: function () { A.go('employees?tab=docs'); } },
+    daily_report: { perm: ['daily_reports.view'], open: function (a) { A.go('daily' + (a.params.date ? '?date=' + encodeURIComponent(a.params.date) : '')); } },
+    maintenance_request: { perm: ['maintenance.view'], open: function (a) { A.go('maintenance/' + a.entity_id); } },
+    maintenance_invoice: { perm: ['invoices.view'], open: function () { A.go('maintenance?tab=invoices'); } },
+    accident: { perm: ['accidents.view'], open: function (a) { A.go('accidents/' + a.entity_id); } },
+    fine: { perm: ['fines.view'], open: function (a, after) { A.fine(a.entity_id, after); } },
+    fuel_claim: { perm: ['cash.fuel_review'], label: 'مراجعة', open: function () { A.go('cash?tab=fuel'); } },
+    payroll_objection: { perm: ['payroll.view'], label: 'مراجعة', open: function (a, after) { A.objectionView(a.entity_id, after); } },
+    branch: { perm: ['treasury.view'], open: function () { A.go('cash?tab=treasury'); } } // the treasury's deposit rule
+    // approval_escalated: no button. It goes to every approvals.view holder, but only the approvers have it in their inbox
+  };
+  A.alertTarget = function (a) {
+    var t = a && a.entity_type && a.entity_id ? A.alertTargets[a.entity_type] : null;
+    var perms = t ? [].concat(typeof t.perm === 'function' ? t.perm(a) : t.perm) : [];
+    return t && perms.every(function (p) { return api.can(p); }) ? t : null;
+  };
+  var shownAlerts = {}; // the alerts on screen, by id, for the button's click
+  // plain: a closed alert (a decided registration) keeps a quiet «فتح», not the call to decide
+  A.alertButton = function (a, plain) {
+    var t = A.alertTarget(a);
+    if (!t) return raw('');
+    shownAlerts[a.id] = a;
+    var primary = t.primary && !plain;
+    return h`<button type="button" class="btn btn-sm ${primary ? 'btn-primary' : 'btn-soft'}" data-action="alert-open" data-arg="${a.id}">${icon(primary ? 'user-round-check' : 'arrow-left', 13)} ${(!plain && t.label) || 'فتح'}</button>`;
+  };
+  BT.actions['alert-open'] = function (id) {
+    var a = shownAlerts[id], t = A.alertTarget(a);
+    if (!t) return;
+    BT.closeMenu(); // the bell's menu, so the drawer is not under it
+    t.open(a, function () {
+      // the decision closed the alert on the server: redraw what is on screen (by the route drawn, which after
+      // sign-in is the default page with no hash), keeping the alerts table's chip and page
+      A.refreshCounts();
+      if (A.router.current === 'alerts' && A._alertsTable) A._alertsTable.refresh();
+      else A.router.refresh();
+    });
+  };
+
+  /* ---------- قائمة المستخدم ---------- */
+  BT.actions['user-menu'] = function (arg, el) {
+    var dark = BT.theme.get() === 'dark';
+    BT.menu(el, [
+      { head: api.me.full_name + ' · ' + api.me.username },
+      { label: 'تغيير كلمة المرور', icon: 'key-round', onClick: function () { A.changePassword(false); } },
+      { label: 'التحقق بخطوتين', icon: 'shield-check', onClick: A.setupMfa },
+      { sep: true },
+      { label: dark ? 'الوضع الفاتح' : 'الوضع الداكن', icon: dark ? 'sun' : 'moon', onClick: function () { BT.theme.toggle(); } },
+      { sep: true },
+      { label: 'تسجيل الخروج', icon: 'log-out', danger: true, onClick: A.logout }
+    ], { focus: true });
+  };
+  A.logout = function () {
+    api.post('/auth/logout').then(null, function () { /* الجلسة منتهية أصلاً */ }).then(function () { location.href = 'login.html'; });
+  };
+  A.changePassword = function (forced) {
+    return BT.modal.open({
+      title: forced ? 'غيّر كلمة المرور للمتابعة' : 'تغيير كلمة المرور', icon: 'key-round', size: 'sm', form: true, dismissible: !forced,
+      subtitle: forced ? 'كلمة المرور الحالية مؤقتة، اختر كلمة مرور جديدة خاصة بك' : null,
+      body: h`<div class="form">${BT.f.input({ name: 'old', label: 'كلمة المرور الحالية', type: 'password', required: true })}
+        ${BT.f.input({ name: 'pw', label: 'كلمة المرور الجديدة', type: 'password', required: true, hint: 'كلمة طويلة يصعب تخمينها؛ الخادم يرفض القصيرة' })}
+        ${BT.f.input({ name: 'pw2', label: 'تأكيد كلمة المرور', type: 'password', required: true, validate: 'samePw' })}</div>`,
+      buttons: forced ? [{ label: 'تسجيل الخروج', cls: 'btn-ghost', onClick: function () { A.logout(); return false; } }, { label: 'حفظ', cls: 'btn-primary', submit: true }] : [{ label: 'إلغاء', cls: 'btn-ghost' }, { label: 'حفظ', cls: 'btn-primary', submit: true }],
+      onSubmit: function (v) {
+        return api.post('/auth/password', { current_password: v.old, new_password: v.pw }).then(function () {
+          api.me.must_change_password = false;
+          BT.toast('تم تغيير كلمة المرور');
+        }).catch(api.fail);
+      }
+    }).promise;
+  };
+  BT.validators.samePw = function (v, el, form) { return v === form.querySelector('[name=pw]').value ? '' : 'كلمتا المرور غير متطابقتين'; };
+
+  A.setupMfa = function () {
+    BT.confirm({ title: 'التحقق بخطوتين', icon: 'shield-check', message: 'ستحتاج تطبيق مصادقة على جوالك (Google Authenticator أو Microsoft Authenticator). بعد التفعيل يُطلب الرمز من التطبيق عند كل دخول. إن كان مفعّلاً، يستبدل هذا الإعداد المفتاح القديم.', confirmText: 'متابعة' }).then(function (r) {
+      if (!r.ok) return;
+      Promise.all([api.post('/auth/mfa/setup'), A.loadScript('assets/vendor/qrcode/qrcode.js')]).then(function (res) {
+        var uri = res[0].otpauth_uri, secret = (uri.match(/secret=([A-Z2-7]+)/i) || [])[1] || '';
+        var qr = window.qrcode(0, 'M'); qr.addData(uri); qr.make();
+        BT.modal.open({
+          title: 'امسح الرمز بتطبيق المصادقة', icon: 'shield-check', size: 'sm', form: true,
+          body: h`<div class="center">${raw(qr.createSvgTag({ cellSize: 5, margin: 2, scalable: true }).replace('<svg ', '<svg style="width:220px;height:220px;background:#fff;border-radius:12px" '))}</div>
+            <p class="muted fs-sm mt-8">أو أدخل المفتاح يدوياً: <b class="num ltr" style="word-break:break-all">${secret}</b></p>
+            <div class="form mt-12">${BT.f.input({ name: 'code', label: 'الرمز الظاهر في التطبيق', required: true, num: true, maxlength: 6, pattern: '\\d{6}', msg: '6 أرقام' })}</div>`,
+          buttons: [{ label: 'إلغاء', cls: 'btn-ghost' }, { label: 'تفعيل', cls: 'btn-primary', submit: true }],
+          onSubmit: function (v) {
+            return api.post('/auth/mfa/enable', { code: String(v.code).padStart(6, '0') }).then(function () { BT.toast('تم تفعيل التحقق بخطوتين'); }).catch(api.fail);
+          }
+        });
+      }, api.fail).catch(function () {});
+    });
+  };
+
+  /* ---------- نطاق الشركات ---------- */
+  BT.actions['switch-branch'] = function (arg, el) {
+    var mine = api.me.all_companies ? api.companies : api.companies.filter(function (c) { return api.me.company_ids.indexOf(c.id) > -1; });
+    BT.menu(el, [{ head: api.me.all_companies ? 'صلاحيتك تشمل كل الشركات' : 'الشركات ضمن صلاحيتك' }].concat(mine.map(function (c) {
+      return { label: api.name(c.name), icon: 'building-2', sub: c.is_active ? '' : 'غير نشطة' };
+    })), { align: 'start' });
+  };
+  function scopeLabel() {
+    var mine = api.me.all_companies ? api.companies : api.companies.filter(function (c) { return api.me.company_ids.indexOf(c.id) > -1; });
+    if (mine.length === 1) return api.name(mine[0].name);
+    return api.me.all_companies ? 'كل الشركات' : mine.length + ' شركات';
+  }
+
+  /* ---------- البحث (Ctrl + K) ---------- */
+  BT.openSearch = function () {
+    BT.cmdk({
+      placeholder: 'اكتب اسم صفحة، أو رقم لوحة، أو اسم سائق ثم Enter…',
+      source: function () {
+        var out = [];
+        A.NAV.forEach(function (s) { s.items.filter(A.allowed).forEach(function (it) { out.push({ group: 'الصفحات', label: it.label, icon: it.icon, run: function () { A.go(it.key); } }); }); });
+        if (api.can('vehicles.view')) out.push({ group: 'بحث', label: 'بحث في السيارات…', icon: 'car', keywords: 'لوحة سيارة plate', run: function () { A.go('vehicles'); } });
+        if (api.can('employees.view')) out.push({ group: 'بحث', label: 'بحث في الموظفين والسائقين…', icon: 'users', keywords: 'سائق موظف driver', run: function () { A.go('employees'); } });
+        out.push({ group: 'إجراءات', label: BT.theme.get() === 'dark' ? 'الوضع الفاتح' : 'الوضع الداكن', icon: 'moon', run: BT.theme.toggle });
+        return out;
+      }
+    });
+  };
+  BT.actions['search'] = function () { BT.openSearch(); };
+  BT.actions['nav-group'] = function (id) { A.toggleNavGroup(id); };
+  BT.actions['toggle-nav'] = function () { document.getElementById('app').classList.toggle('nav-open'); };
+  BT.actions['theme'] = function () { BT.theme.toggle(); };
+
+  /* ---------- التشغيل ---------- */
+  function fillUser() {
+    var me = api.me;
+    document.querySelectorAll('[data-me-name]').forEach(function (e) { e.textContent = me.full_name; });
+    document.querySelectorAll('[data-me-sub]').forEach(function (e) { e.textContent = me.is_superuser ? 'مدير النظام' : me.username; });
+    document.querySelectorAll('[data-me-av]').forEach(function (e) { e.textContent = BT.fmt.initials(me.full_name); });
+    document.querySelectorAll('[data-scope]').forEach(function (e) { e.textContent = scopeLabel(); });
+  }
+  function boot() {
+    BT.hydrate(document);
+    BT.render(A.view(), A.spinner('جاري فتح الجلسة…'));
+    api.boot().then(function () {
+      api.get('/branding', null, { noRedirect: true }).then(function (b) { A.brand = b.display_name; document.querySelectorAll('[data-brand]').forEach(function (e) { e.textContent = b.display_name; }); if (A.router) A.router.refresh(); }, function () {});
+      fillUser();
+      var routes = {};
+      Object.keys(BT.pages).forEach(function (k) {
+        routes[k] = function (p, q) {
+          var it = A.navItem(k.split('/')[0]);
+          if (it && !A.allowed(it)) { A.setTitle(it.label); BT.render(A.view(), A.forbidden()); return; }
+          BT.pages[k](p, q);
+        };
+      });
+      A.router = BT.router(routes, {
+        default: A.firstAllowed(),
+        view: A.view,
+        onBefore: function (r) {
+          leaving.splice(0).forEach(function (fn) { try { fn(); } catch (e) { /* ignore */ } });
+          BT.closeAll(); BT.closeMenu();
+          var old = A.view(), fresh = old.cloneNode(false); old.replaceWith(fresh);
+          document.getElementById('app').classList.remove('nav-open');
+          A.renderNav(r.current.split('/')[0]);
+          window.scrollTo(0, 0);
+          var m = document.querySelector('.main'); if (m) m.scrollTop = 0;
+        }
+      });
+      BT.on(document.getElementById('sidebar'), 'click', '.nav-item', function () { document.getElementById('app').classList.remove('nav-open'); });
+      document.querySelector('.sb-backdrop').addEventListener('click', function () { document.getElementById('app').classList.remove('nav-open'); });
+      var start = function () {
+        A.router.start();
+        A.refreshCounts();
+        A.pollAlerts();
+        setInterval(function () { if (!document.hidden) A.refreshCounts(); }, (BT.config.refreshCountsSec || 60) * 1000);
+        setInterval(function () { if (!document.hidden) A.pollAlerts(); }, (BT.config.alertsPollSec || 15) * 1000);
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) A.pollAlerts(); }); // catch up on return
+      };
+      if (api.me.must_change_password) A.changePassword(true).then(start); else start();
+    }, function (err) {
+      if (err instanceof api.ApiError && err.status === 401) return; // إلى صفحة الدخول
+      BT.render(A.view(), A.errorBox(err));
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else setTimeout(boot, 0);
+})();

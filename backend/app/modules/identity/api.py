@@ -5,8 +5,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.db import get_session
-from app.modules.identity import schemas, service
+from app.core.errors import AppError
+from app.core.ratelimit import failures_limited, limited
+from app.modules.i18n import service as i18n
+from app.modules.identity import claims, link_queue, recovery, schemas, service
 from app.modules.identity.service import Principal, get_principal, require_permission
+from app.modules.onboarding import service as onboarding
+from app.modules.people import service as people
 
 router = APIRouter(prefix="/api/v1", tags=["identity"])
 
@@ -28,7 +33,7 @@ def _client(request: Request) -> dict:
     return {"ip": request.client.host if request.client else None, "user_agent": request.headers.get("user-agent")}
 
 
-@router.post("/auth/login", response_model=schemas.LoginOut)
+@router.post("/auth/login", response_model=schemas.LoginOut, dependencies=[Depends(failures_limited("sign_in"))])
 def login(body: schemas.LoginIn, request: Request, response: Response, db: Session = Depends(get_session)):
     result = service.login(db, body.username, body.password, **_client(request))
     _set_cookie(response, result.token)
@@ -37,11 +42,22 @@ def login(body: schemas.LoginIn, request: Request, response: Response, db: Sessi
     )
 
 
-@router.post("/auth/mfa/verify", response_model=schemas.LoginOut)
+@router.post("/auth/mfa/verify", response_model=schemas.LoginOut, dependencies=[Depends(failures_limited("sign_in"))])
 def verify_mfa(body: schemas.CodeIn, request: Request, response: Response, db: Session = Depends(get_session)):
     result = service.verify_mfa(db, request.cookies.get(service.SESSION_COOKIE), body.code, **_client(request))
     _set_cookie(response, result.token)
     return schemas.LoginOut(mfa_required=False, csrf_token=result.csrf_token)
+
+
+@router.post("/auth/password-reset", status_code=202, dependencies=[Depends(limited("otp_send"))])
+def request_password_reset(body: schemas.ResetCodeIn, request: Request, db: Session = Depends(get_session)):
+    """A code on WhatsApp to the phone saved on the account (FR-USR-03); the same answer for any username."""
+    recovery.request_code(db, body.username, ip=_client(request)["ip"])
+
+
+@router.post("/auth/password-reset/confirm", status_code=204, dependencies=[Depends(failures_limited("sign_in"))])
+def reset_password_with_code(body: schemas.ResetWithCodeIn, db: Session = Depends(get_session)):
+    recovery.reset(db, body.username, code=body.code, new_password=body.new_password, mfa_code=body.mfa_code)
 
 
 @router.post("/auth/logout", status_code=204)
@@ -56,13 +72,22 @@ def me(principal: Principal = Depends(get_principal)):
         public_id=principal.public_id,
         username=principal.username,
         full_name=principal.full_name,
+        locale=principal.locale,
         is_superuser=principal.is_superuser,
-        all_branches=principal.all_branches,
+        all_permissions=principal.all_permissions,
+        all_companies=principal.all_companies,
         permissions=sorted(principal.permissions),
-        branch_ids=sorted(principal.branch_ids),
+        company_ids=sorted(principal.company_ids),
         csrf_token=principal.csrf_token,
         must_change_password=principal.must_change_password,
     )
+
+
+@router.put("/auth/me/locale", status_code=204)
+def set_locale(
+    body: schemas.LocaleIn, principal: Principal = Depends(get_principal), db: Session = Depends(get_session)
+):
+    service.set_own_locale(db, principal, body.locale)
 
 
 @router.post("/auth/password", status_code=204)
@@ -90,7 +115,7 @@ def list_users(principal: Principal = Depends(require_permission("users.view")),
 @router.post("/users", response_model=schemas.UserOut, status_code=201)
 def create_user(
     body: schemas.UserCreateIn,
-    principal: Principal = Depends(require_permission("users.manage")),
+    principal: Principal = Depends(require_permission("users.create")),
     db: Session = Depends(get_session),
 ):
     return service.create_user(db, principal, **body.model_dump())
@@ -100,7 +125,7 @@ def create_user(
 def update_user(
     public_id: uuid.UUID,
     body: schemas.UserUpdateIn,
-    principal: Principal = Depends(require_permission("users.manage")),
+    principal: Principal = Depends(require_permission("users.update")),
     db: Session = Depends(get_session),
 ):
     changes = body.model_dump(exclude_unset=True)
@@ -112,14 +137,14 @@ def update_user(
 def reset_password(
     public_id: uuid.UUID,
     body: schemas.PasswordResetIn,
-    principal: Principal = Depends(require_permission("users.manage")),
+    principal: Principal = Depends(require_permission("users.update")),
     db: Session = Depends(get_session),
 ):
     service.reset_password(db, principal, public_id, body.new_password)
 
 
 @router.get("/roles", response_model=list[schemas.RoleOut])
-def list_roles(_: Principal = Depends(require_permission("users.view")), db: Session = Depends(get_session)):
+def list_roles(_: Principal = Depends(require_permission("roles.view")), db: Session = Depends(get_session)):
     return service.list_roles(db)
 
 
@@ -144,6 +169,238 @@ def update_role(
     return service.update_role(db, principal, code, version=version, changes=changes)
 
 
-@router.get("/permissions", response_model=list[schemas.PermissionOut])
-def list_permissions(_: Principal = Depends(get_principal)):
-    return [schemas.PermissionOut(code=c, name_ar=ar, name_en=en) for c, (ar, en) in sorted(service.catalog().items())]
+@router.get("/permissions", response_model=list[schemas.PermissionGroupOut])
+def list_permissions(
+    request: Request,
+    lang: str | None = None,
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_session),
+):
+    code = lang or i18n.negotiate(db, principal.locale, request.headers.get("accept-language"))
+    return service.permission_groups(db, code)
+
+
+# ---- driver app: binding by phone + OTP, then rotating bearer tokens (no cookies, so no CSRF)
+
+
+@router.post("/driver/auth/otp", status_code=202, dependencies=[Depends(limited("otp_send"))])
+def request_otp(body: schemas.OtpRequestIn, request: Request, db: Session = Depends(get_session)):
+    """Same answer whether or not the phone belongs to a driver."""
+    service.request_otp(db, phone=body.phone, device_uid=body.device_uid, ip=_client(request)["ip"])
+    return {"status": "sent"}
+
+
+@router.post(
+    "/driver/auth/verify", response_model=schemas.TokensOut, dependencies=[Depends(failures_limited("otp_check"))]
+)
+def verify_otp(body: schemas.OtpVerifyIn, db: Session = Depends(get_session)):
+    return service.verify_otp(
+        db,
+        phone=body.phone,
+        device_uid=body.device_uid,
+        code=body.code,
+        platform=body.platform,
+        model=body.model,
+        app_version=body.app_version,
+    )
+
+
+@router.post(
+    "/driver/auth/activate", response_model=schemas.TokensOut, dependencies=[Depends(failures_limited("sign_in"))]
+)
+def activate(body: schemas.ActivateIn, db: Session = Depends(get_session)):
+    """The app opens the activation link: the token (from after the "#") binds this phone, no OTP needed."""
+    return service.activate(
+        db,
+        token=body.token,
+        device_uid=body.device_uid,
+        platform=body.platform,
+        model=body.model,
+        app_version=body.app_version,
+    )
+
+
+@router.post("/driver/auth/claim", response_model=schemas.ClaimStartOut)
+def claim_start(body: schemas.ClaimStartIn, request: Request, db: Session = Depends(get_session)):
+    """His civil ID and the initial password the office gave him (once), or without phone codes his own password."""
+    return claims.start(
+        db,
+        civil_id=body.civil_id,
+        password=body.password,
+        device_uid=body.device_uid,
+        ip=_client(request)["ip"],
+        platform=body.platform,
+        model=body.model,
+        app_version=body.app_version,
+    )
+
+
+@router.post("/driver/auth/claim/password", response_model=schemas.TokensOut)
+def claim_password(body: schemas.ClaimPasswordIn, db: Session = Depends(get_session)):
+    """Without phone codes: the password he chooses replaces the initial one; this phone is bound and the
+    self-registration follows."""
+    return claims.choose_password(
+        db,
+        token=body.claim_token,
+        device_uid=body.device_uid,
+        password=body.password,
+        platform=body.platform,
+        model=body.model,
+        app_version=body.app_version,
+        on_claimed=lambda driver: onboarding.start(db, driver),
+    )
+
+
+@router.post(
+    "/driver/auth/claim/phone", response_model=schemas.ClaimPhoneOut, dependencies=[Depends(limited("otp_send"))]
+)
+def claim_phone(body: schemas.ClaimPhoneIn, db: Session = Depends(get_session)):
+    """His phone: a WhatsApp code goes to it. Only a verified phone becomes his."""
+    return claims.send_code(db, token=body.claim_token, device_uid=body.device_uid, phone=body.phone)
+
+
+@router.post(
+    "/driver/auth/claim/verify", response_model=schemas.TokensOut, dependencies=[Depends(failures_limited("otp_check"))]
+)
+def claim_verify(body: schemas.ClaimVerifyIn, db: Session = Depends(get_session)):
+    """The code: the phone is his, this phone is bound, and the self-registration (documents, IBAN) follows."""
+    return claims.verify(
+        db,
+        token=body.claim_token,
+        device_uid=body.device_uid,
+        code=body.code,
+        platform=body.platform,
+        model=body.model,
+        app_version=body.app_version,
+        on_claimed=lambda driver: onboarding.start(db, driver),
+    )
+
+
+@router.post("/driver/auth/refresh", response_model=schemas.TokensOut)
+def refresh(body: schemas.RefreshIn, db: Session = Depends(get_session)):
+    return service.refresh_tokens(db, body.refresh_token)
+
+
+@router.post("/driver/auth/logout", status_code=204)
+def driver_logout(
+    device: service.DevicePrincipal = Depends(service.require_device), db: Session = Depends(get_session)
+):
+    service.logout_device(db, device)
+
+
+@router.post("/driver/push-token", status_code=204)
+def push_token(
+    body: schemas.PushTokenIn,
+    device: service.DevicePrincipal = Depends(service.require_device),
+    db: Session = Depends(get_session),
+):
+    """The Firebase token the app got on this phone, and its language: notices are pushed to it."""
+    service.set_push_token(db, device.device_id, body.token, body.lang)
+
+
+# ---- driver devices administration
+
+
+@router.get("/employees/{public_id}/devices", response_model=list[schemas.DeviceOut])
+def list_devices(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("devices.manage")),
+    db: Session = Depends(get_session),
+):
+    return service.list_devices(db, people.ref_by_public_id(db, public_id, **principal.scope))
+
+
+@router.post("/employees/{public_id}/activation-link", response_model=schemas.ActivationLinkOut, status_code=201)
+def create_activation_link(
+    public_id: uuid.UUID,
+    body: schemas.ActivationLinkIn,
+    principal: Principal = Depends(require_permission("devices.manage")),
+    db: Session = Depends(get_session),
+):
+    """Always to the driver's registered number: the sender cannot choose another one."""
+    driver = people.ref_by_public_id(db, public_id, **principal.scope)
+    with_onboarding = onboarding.needed(db, driver.id) if body.onboarding is None else body.onboarding
+    if with_onboarding:
+        onboarding.start(db, driver)  # same transaction as the link: both or neither
+    return service.create_activation_link(
+        db, driver, channel=body.channel, actor_user_id=principal.user_id, onboarding=with_onboarding
+    )
+
+
+@router.post("/driver-claims", response_model=schemas.ClaimsOut)
+def set_claims(
+    body: schemas.ClaimsIn,
+    principal: Principal = Depends(require_permission("devices.manage")),
+    db: Session = Depends(get_session),
+):
+    """Lets these drivers sign in once with their civil ID and this password (drivers without a bound phone)."""
+    drivers = [people.ref_by_public_id(db, i, **principal.scope) for i in dict.fromkeys(body.employee_ids)]
+    out = claims.set_claims(db, drivers, password=body.password, days=body.days, actor_user_id=principal.user_id)
+    db.commit()
+    return out
+
+
+@router.get("/employees/{public_id}/claim", response_model=schemas.ClaimStatusOut | None)
+def claim_status(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("devices.manage")),
+    db: Session = Depends(get_session),
+):
+    return claims.status(db, people.ref_by_public_id(db, public_id, **principal.scope).id)
+
+
+@router.delete("/employees/{public_id}/claim", status_code=204)
+def revoke_claim(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("devices.manage")),
+    db: Session = Depends(get_session),
+):
+    claims.revoke(db, people.ref_by_public_id(db, public_id, **principal.scope), actor_user_id=principal.user_id)
+
+
+@router.post("/activation-links/bulk", response_model=schemas.BulkLinksOut, status_code=202)
+def bulk_links(
+    body: schemas.BulkLinksIn,
+    principal: Principal = Depends(require_permission("devices.manage")),
+    db: Session = Depends(get_session),
+):
+    """Queued, then sent one by one over WhatsApp at the pace set in the settings (never all at once)."""
+    if body.all_unbound:
+        drivers = link_queue.unbound_drivers(db, **principal.scope)
+    else:
+        ids = []
+        for raw in body.employee_ids:
+            try:
+                ids.append(uuid.UUID(raw))
+            except ValueError:
+                raise AppError(404, "employee_not_found") from None
+        drivers = [people.ref_by_public_id(db, i, **principal.scope) for i in ids]
+    onboarding_for = {d.id for d in drivers if d.can_use_app and onboarding.needed(db, d.id)}
+    for d in drivers:
+        if d.id in onboarding_for:
+            onboarding.start(db, d)
+    return link_queue.queue(db, drivers, onboarding_for=onboarding_for, actor_user_id=principal.user_id)
+
+
+@router.get("/activation-links/queue", response_model=schemas.QueueOut)
+def link_queue_status(
+    principal: Principal = Depends(require_permission("devices.manage")), db: Session = Depends(get_session)
+):
+    return link_queue.summary(db, **principal.scope)
+
+
+@router.post("/activation-links/queue/cancel")
+def cancel_link_queue(
+    principal: Principal = Depends(require_permission("devices.manage")), db: Session = Depends(get_session)
+):
+    return {"cancelled": link_queue.cancel_waiting(db, actor_user_id=principal.user_id, **principal.scope)}
+
+
+@router.post("/devices/{public_id}/revoke", status_code=204)
+def revoke_device(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("devices.manage")),
+    db: Session = Depends(get_session),
+):
+    """Unbind: the driver must verify the phone again (OTP) to use the app."""
+    service.revoke_device(db, public_id, actor_user_id=principal.user_id, **principal.scope)

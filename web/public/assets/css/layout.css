@@ -52,6 +52,25 @@
 
 .sb-nav { display: flex; flex-direction: column; gap: 1px; }
 .nav-sec { font-size: 11px; color: var(--faint); margin: 14px 10px 5px; font-weight: 500; }
+.nav-top { display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px; }
+/* a group: its name as a button (fold and unfold), its pages under it */
+.nav-group { border-top: 1px solid var(--border); padding-top: 6px; margin-top: 4px; }
+.nav-head {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: none; border: 0; cursor: pointer; font: inherit; text-align: start;
+  font-size: 12.5px; font-weight: 700; color: var(--text-3);
+  padding: 7px 10px; border-radius: 9px;
+}
+.nav-head:hover { background: var(--surface-3); color: var(--text); }
+.nav-head svg { color: var(--text-3); flex-shrink: 0; }
+.nav-head .count { margin-inline-start: auto; font-size: 11px; font-weight: 600; min-width: 20px; height: 20px; padding: 0 6px;
+  border-radius: 10px; background: var(--surface-3); color: var(--text-3); display: inline-flex; align-items: center; justify-content: center; direction: ltr; }
+.nav-head .count.hot { background: var(--danger-soft); color: var(--danger-text); }
+.nav-head .chev { margin-inline-start: auto; display: inline-flex; transition: transform .15s; }
+.nav-head .count + .chev { margin-inline-start: 6px; }
+.nav-group:not(.open) .nav-head .chev { transform: rotate(90deg); }
+.nav-items { display: flex; flex-direction: column; gap: 1px; padding-inline-start: 6px; }
+.nav-group:not(.open) .nav-items { display: none; }
 .nav-item {
   display: flex; align-items: center; gap: 10px;
   font-size: 13.5px; color: var(--text-2);

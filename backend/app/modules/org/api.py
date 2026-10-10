@@ -1,17 +1,45 @@
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.db import get_session
+from app.core.errors import AppError
+from app.modules.files import service as files
 from app.modules.identity.service import Principal, get_principal, require_permission
 from app.modules.org import schemas, service
 
 router = APIRouter(prefix="/api/v1", tags=["org"])
 
 
-def _scope(p: Principal) -> dict:
-    return {"all_branches": p.sees_all_branches, "branch_ids": p.branch_ids}
+@router.get("/branding", response_model=schemas.BrandingOut)
+def branding(db: Session = Depends(get_session)):
+    """Public: the sign-in page shows the installation's name before anyone signs in."""
+    b = service.get_section(db, "branding")
+    return schemas.BrandingOut(display_name=b.display_name, primary_color=b.primary_color)
+
+
+@router.get("/driver/app-config", response_model=schemas.DriverAppConfigOut)
+def driver_app_config(db: Session = Depends(get_session)):
+    """Asked by the app before and after sign-in (no secrets in it): how the driver signs in, the screens this client
+    hides, and the splash screen."""
+    return service.driver_app_config(db)
+
+
+@router.get("/driver/splash/{sha256}")
+def driver_splash(sha256: str, db: Session = Depends(get_session)):
+    """The splash image, before sign-in: only the one set now."""
+    info = service.splash_file(db)
+    if info is None or info.sha256 != sha256:
+        raise AppError(404, "file_not_found")
+    return files.response(db, info)
+
+
+@router.get("/app-screens", response_model=schemas.AppScreensOut)
+def app_screens(_: Principal = Depends(require_permission("settings.view"))):
+    """The driver app's screens an office may hide, and those it may not."""
+    return service.app_screens()
 
 
 @router.get("/settings", response_model=dict[str, schemas.SettingOut])
@@ -26,41 +54,92 @@ def get_settings(_: Principal = Depends(require_permission("settings.view")), db
 def put_settings(
     section: str,
     body: schemas.SettingIn,
-    principal: Principal = Depends(require_permission("settings.manage")),
+    principal: Principal = Depends(require_permission("settings.update")),
     db: Session = Depends(get_session),
 ):
+    if section == "finance":  # the books start moves only while nothing hangs on it
+        from app.modules.finance import service as finance
+
+        new = (body.value or {}).get("books_start_date")
+        finance.check_books_start_change(
+            db,
+            service.get_section(db, "finance").books_start_date,
+            date.fromisoformat(new) if isinstance(new, str) and new else None,
+        )
+    value_in = body.value
+    if section == "payroll":  # approving real payroll is the owner's call, after the reconciliation test
+        current = service.section_now(db, "payroll").live_approval_enabled
+        value_in = {"live_approval_enabled": current} | dict(body.value or {})  # left out: unchanged
+        if value_in["live_approval_enabled"] != current and not principal.all_permissions:
+            raise AppError(403, "owner_only", setting="payroll.live_approval_enabled")
     version, value = service.update_section(
-        db, section, body.value, expected_version=body.version, actor_user_id=principal.user_id
+        db, section, value_in, expected_version=body.version, actor_user_id=principal.user_id
     )
+    if section == "cash":  # a new limit or deposit days apply now, not at the next scan
+        from app.modules.cash import service as cash
+
+        cash.check_treasury(db)
+        cash.recheck_deposit_day(db)
+        db.commit()
     return schemas.SettingOut(version=version, value=value.model_dump(mode="json"))
 
 
+# ---- companies: the legal entities employees and vehicles belong to
+
+
+@router.get("/companies/options", response_model=list[schemas.CompanyOption])
+def company_options(principal: Principal = Depends(get_principal), db: Session = Depends(get_session)):
+    """Names only, for the company drop-downs of other screens."""
+    return service.list_companies(db, **principal.scope)
+
+
 @router.get("/companies", response_model=list[schemas.CompanyOut])
-def list_companies(_: Principal = Depends(get_principal), db: Session = Depends(get_session)):
-    return [
-        schemas.CompanyOut(public_id=str(c.public_id), name_ar=c.name_ar, name_en=c.name_en, is_active=c.is_active)
-        for c in service.list_companies(db)
-    ]
+def list_companies(
+    principal: Principal = Depends(require_permission("companies.view")), db: Session = Depends(get_session)
+):
+    return service.list_companies(db, **principal.scope)
+
+
+@router.get("/companies/{public_id}", response_model=schemas.CompanyOut)
+def get_company(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("companies.view")),
+    db: Session = Depends(get_session),
+):
+    return service.get_company(db, public_id, **principal.scope)
 
 
 @router.post("/companies", response_model=schemas.CompanyOut, status_code=201)
 def create_company(
     body: schemas.CompanyIn,
-    principal: Principal = Depends(require_permission("branches.manage")),
+    principal: Principal = Depends(require_permission("companies.create")),
     db: Session = Depends(get_session),
 ):
-    c = service.create_company(db, name_ar=body.name_ar, name_en=body.name_en, actor_user_id=principal.user_id)
-    return schemas.CompanyOut(public_id=str(c.public_id), name_ar=c.name_ar, name_en=c.name_en, is_active=c.is_active)
+    return service.create_company(
+        db, body.model_dump(), all_companies=principal.sees_all_companies, actor_user_id=principal.user_id
+    )
+
+
+@router.patch("/companies/{public_id}", response_model=schemas.CompanyOut)
+def update_company(
+    public_id: uuid.UUID,
+    body: schemas.CompanyUpdateIn,
+    principal: Principal = Depends(require_permission("companies.update")),
+    db: Session = Depends(get_session),
+):
+    changes = body.model_dump(exclude_unset=True)
+    version = changes.pop("version")
+    return service.update_company(
+        db, public_id, version=version, changes=changes, actor_user_id=principal.user_id, **principal.scope
+    )
+
+
+# ---- branches: operational locations, visible to everyone signed in
 
 
 @router.get("/branches", response_model=list[schemas.BranchOut])
-def list_branches(principal: Principal = Depends(get_principal), db: Session = Depends(get_session)):
-    return service.list_branches(db, **_scope(principal))
-
-
-@router.get("/branches/{public_id}", response_model=schemas.BranchOut)
-def get_branch(public_id: uuid.UUID, principal: Principal = Depends(get_principal), db: Session = Depends(get_session)):
-    return service.get_branch(db, public_id, **_scope(principal))
+def list_branches(_: Principal = Depends(get_principal), db: Session = Depends(get_session)):
+    return service.list_branches(db)
 
 
 @router.post("/branches", response_model=schemas.BranchOut, status_code=201)
@@ -69,7 +148,7 @@ def create_branch(
     principal: Principal = Depends(require_permission("branches.manage")),
     db: Session = Depends(get_session),
 ):
-    return service.create_branch(db, **body.model_dump(), actor_user_id=principal.user_id)
+    return service.create_branch(db, name=body.name, actor_user_id=principal.user_id)
 
 
 @router.patch("/branches/{public_id}", response_model=schemas.BranchOut)
@@ -81,6 +160,4 @@ def update_branch(
 ):
     changes = body.model_dump(exclude_unset=True)
     version = changes.pop("version")
-    return service.update_branch(
-        db, public_id, version=version, changes=changes, actor_user_id=principal.user_id, **_scope(principal)
-    )
+    return service.update_branch(db, public_id, version=version, changes=changes, actor_user_id=principal.user_id)

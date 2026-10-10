@@ -265,7 +265,7 @@
 
   /* ---------------- القائمة والتشغيل ---------------- */
   BT.actions['p-user-menu'] = function (a, el) {
-    BT.menu(el, [{ head: USER.name }, { label: BT.theme.get() === 'dark' ? 'الوضع الفاتح' : 'الوضع الداكن', icon: 'moon', onClick: BT.theme.toggle }, { sep: true }, { head: 'عرض كمركز آخر (تجريبي)' }].concat(D.centers.map(function (c) { return { label: c.name, icon: 'store', checked: c.id === C.id, onClick: function () { BT.store.set('portal-center', c.id); location.reload(); } }; })).concat([{ sep: true }, { label: 'لوحة الإدارة', icon: 'house', onClick: function () { location.href = 'admin.html'; } }, { label: 'تسجيل الخروج', icon: 'log-out', danger: true, onClick: function () { location.href = 'login.html?portal=1'; } }]), { focus: true });
+    BT.menu(el, [{ head: USER.name }, { label: BT.theme.get() === 'dark' ? 'الوضع الفاتح' : 'الوضع الداكن', icon: 'moon', onClick: BT.theme.toggle }, { sep: true }, { head: 'عرض كمركز آخر (تجريبي)' }].concat(D.centers.map(function (c) { return { label: c.name, icon: 'store', checked: c.id === C.id, onClick: function () { BT.store.set('portal-center', c.id); location.reload(); } }; })).concat([{ sep: true }, { label: 'لوحة الإدارة', icon: 'house', onClick: function () { location.href = 'demo-admin.html'; } }, { label: 'تسجيل الخروج', icon: 'log-out', danger: true, onClick: function () { location.href = 'demo.html'; } }]), { focus: true });
   };
   BT.actions['theme'] = function () { BT.theme.toggle(); };
   BT.actions['toggle-nav'] = function () { document.getElementById('app').classList.toggle('nav-open'); };

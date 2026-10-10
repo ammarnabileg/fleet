@@ -1,0 +1,109 @@
+"""Messages to a driver's phone (the sign-in code), behind one small interface chosen by configuration.
+
+- "whatsapp": WhatsApp through an Evolution API instance.
+- "panel": set up from the control panel (integrations); until it is switched on there, nothing can be sent.
+- "log": development and tests only. It refuses production, so codes never end up in production logs.
+
+Delivery failures raise DeliveryError. The caller still answers the driver the same way (otherwise a failure
+would reveal that the phone belongs to a driver) and raises an alert, so supervisors learn the channel is down.
+"""
+
+import logging
+from dataclasses import dataclass
+from functools import lru_cache
+from urllib.parse import quote
+
+import httpx
+
+from app.core.config import get_settings
+
+log = logging.getLogger("fleet.messaging")
+
+
+class DeliveryError(Exception):
+    pass
+
+
+class NotOnWhatsApp(DeliveryError):
+    """The number has no WhatsApp account."""
+
+
+@dataclass(frozen=True)
+class Message:
+    to: str
+    text: str
+
+
+class LogProvider:
+    def __init__(self) -> None:
+        if get_settings().is_production:
+            raise RuntimeError("the log messaging provider must not be used in production: set MESSAGING_PROVIDER")
+        self.sent: list[Message] = []  # tests read the codes from here
+
+    def send(self, to: str, text: str) -> None:
+        self.sent.append(Message(to, text))
+        log.info("message to %s: %s", to, text)
+
+    def connection_state(self) -> str:
+        return "open"
+
+
+class EvolutionProvider:
+    """WhatsApp through Evolution API (v2): POST /message/sendText/{instance} with the `apikey` header."""
+
+    def __init__(self, url: str, api_key: str, instance: str, *, transport=None, timeout: float = 10.0) -> None:
+        self._instance = quote(instance, safe="")
+        self._client = httpx.Client(
+            base_url=url.rstrip("/"), headers={"apikey": api_key}, timeout=timeout, transport=transport
+        )
+
+    def _call(self, method: str, path: str, **kwargs) -> httpx.Response:
+        try:
+            response = self._client.request(method, path, **kwargs)
+        except httpx.HTTPError as exc:
+            raise DeliveryError(f"evolution api unreachable: {exc.__class__.__name__}") from None
+        if response.status_code == 400 and '"exists":false' in response.text.replace(" ", ""):
+            raise NotOnWhatsApp("the number has no WhatsApp account")
+        if response.status_code >= 300:
+            raise DeliveryError(f"evolution api answered {response.status_code}")
+        return response
+
+    def send(self, to: str, text: str) -> None:
+        # Evolution expects the international number without "+": +96550000000 -> 96550000000.
+        # No link preview: WhatsApp would fetch the activation link to draw it.
+        body = {"number": to.lstrip("+"), "text": text, "linkPreview": False}
+        self._call("POST", f"/message/sendText/{self._instance}", json=body)
+
+    def connection_state(self) -> str:
+        """ "open" when the WhatsApp session is connected; "close" or "connecting" when it needs attention."""
+        body = self._call("GET", f"/instance/connectionState/{self._instance}").json()
+        return str((body.get("instance") or {}).get("state") or body.get("state") or "unknown")
+
+
+class PanelProvider:
+    """WhatsApp is set up from the control panel and is not switched on yet."""
+
+    def send(self, to: str, text: str) -> None:
+        raise DeliveryError("WhatsApp is not set up in the control panel")
+
+    def connection_state(self) -> str:
+        return "unconfigured"
+
+
+@lru_cache
+def provider() -> LogProvider | EvolutionProvider | PanelProvider:
+    """The server's own configuration. Callers use integrations.service.messenger(db): the control panel's
+    settings, when WhatsApp is switched on there, come first."""
+    settings = get_settings()
+    if settings.messaging_provider == "log":
+        return LogProvider()
+    if settings.messaging_provider == "panel":
+        return PanelProvider()
+    if settings.messaging_provider == "whatsapp":
+        missing = [
+            n for n in ("evolution_api_url", "evolution_api_key", "evolution_instance") if not getattr(settings, n)
+        ]
+        if missing:
+            raise RuntimeError(f"WhatsApp messaging needs {', '.join(m.upper() for m in missing)}")
+        return EvolutionProvider(settings.evolution_api_url, settings.evolution_api_key, settings.evolution_instance)
+    raise RuntimeError(f"unknown messaging provider {settings.messaging_provider!r}")

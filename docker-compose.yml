@@ -1,0 +1,246 @@
+name: fleet
+
+# At the repository's root: build paths are relative to it, which is also where a deploy platform runs compose from
+# (Coolify passes --project-directory <repository>, whatever its base directory). By hand: docker compose up -d here.
+# Every setting is a ${VARIABLE} here, read from the deploy platform's variables (Coolify lists them on its
+# Environment Variables screen) or from .env next to this file (copy deploy/.env.example). ${VAR:?...} stops the deploy with that message
+# while the value is missing. Passwords go inside URLs: letters and digits only (openssl rand -hex 24).
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+x-app-env: &app-env
+  APP_ENV: production
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (openssl rand -hex 32)}
+  DATABASE_URL: postgresql+psycopg://fleet_app:${FLEET_APP_DB_PASSWORD:?set FLEET_APP_DB_PASSWORD}@postgres:5432/fleet
+  CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD}@redis-queue:6379/0
+  CACHE_REDIS_URL: redis://:${REDIS_PASSWORD}@redis-cache:6379/0
+  LIVE_BROKER: redis
+  PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL, the address drivers open (https://...)}
+  FILES_DIR: /data/files
+  MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-10}
+  MESSAGING_PROVIDER: ${MESSAGING_PROVIDER:-panel}
+  EVOLUTION_API_URL: ${EVOLUTION_API_URL:-}
+  EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
+  EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-}
+  RATE_SIGN_IN_PER_15MIN: ${RATE_SIGN_IN_PER_15MIN:-60}
+  RATE_OTP_SEND_PER_HOUR: ${RATE_OTP_SEND_PER_HOUR:-30}
+  RATE_OTP_CHECK_PER_15MIN: ${RATE_OTP_CHECK_PER_15MIN:-60}
+  RATE_UPLOADS_PER_HOUR: ${RATE_UPLOADS_PER_HOUR:-600}
+  RATE_LIMIT_EXEMPT: ${RATE_LIMIT_EXEMPT:-}
+  HR_INTEGRATION_MODE: ${HR_INTEGRATION_MODE:-off}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+
+x-app: &app
+  # no fixed image name: two deployments on one server (staging, production) would overwrite each other's image
+  build: ./backend
+  environment: *app-env
+  restart: unless-stopped
+  logging: *logging
+  volumes:
+    - files:/data/files
+
+x-app-deps: &app-deps
+  migrate:
+    condition: service_healthy
+  redis-queue:
+    condition: service_healthy
+  redis-cache:
+    condition: service_healthy
+
+services:
+  web:
+    build: ./web
+    restart: unless-stopped
+    logging: *logging
+    expose: ["80"]
+    volumes:
+      - ${MAPS_DIR:-/srv/fleet-maps}:/srv/maps:ro   # the Kuwait map file (maps/update-map.sh); missing: no base map
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:              # a static page, so it says nginx serves, whatever the api is doing
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/login.html || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256m }
+
+  # runs the migrations as the owner, then stays up idle and healthy: a container that exits is shown by the platform
+  # (Coolify) as an unhealthy, degraded application. A failed migration exits non-zero, never becomes healthy, and
+  # nothing that depends on it starts.
+  migrate:
+    <<: *app
+    restart: "no"
+    init: true                # sleep does not stop on SIGTERM by itself: a redeploy would wait for the kill timeout
+    environment:
+      <<: *app-env
+      DATABASE_URL: postgresql+psycopg://fleet_owner:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/fleet
+    command: ["sh", "-c", "rm -f /tmp/migrated && alembic upgrade head && touch /tmp/migrated && exec sleep infinity"]
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/migrated"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 900s      # a long migration is not a failure; healthy as soon as it is done
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 512m }
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    # the client's address from X-Forwarded-For, trusting only the proxy on the private network: with "*" uvicorn
+    # takes the first address in the header, which the client writes himself, and the limits by address mean nothing
+    command: ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000",
+              "--workers", "${API_WORKERS:-4}", "--proxy-headers",
+              "--forwarded-allow-ips", "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1"]
+    expose: ["8000"]
+    depends_on: *app-deps
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 2g }
+
+  worker:
+    <<: *app
+    command: ["celery", "-A", "app.worker", "worker", "--concurrency", "4", "--loglevel", "INFO"]
+    depends_on: *app-deps
+    healthcheck:              # the worker answers through the broker: alive and connected
+      test: ["CMD-SHELL", "celery -A app.worker inspect ping -d celery@$$HOSTNAME --timeout 10 > /dev/null"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 3g }
+
+  beat:                       # exactly one replica
+    <<: *app
+    command: ["celery", "-A", "app.worker", "beat", "--loglevel", "INFO",
+              "--schedule", "/tmp/celerybeat-schedule"]
+    depends_on: *app-deps
+    healthcheck:              # beat is the container's main process: running means it is up (it exits on a lost broker)
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits: { cpus: "0.25", memory: 256m }
+
+  postgres:
+    build: ./deploy/postgres
+    restart: unless-stopped
+    logging: *logging
+    shm_size: 1g
+    environment:
+      POSTGRES_DB: fleet
+      POSTGRES_USER: fleet_owner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      FLEET_APP_DB_PASSWORD: ${FLEET_APP_DB_PASSWORD}   # creates the app's login on the first start (initdb/)
+      # pgBackRest reads PGBACKREST_* over its config file: the backup bucket comes from here
+      PGBACKREST_REPO1_S3_ENDPOINT: ${PGBACKREST_REPO1_S3_ENDPOINT:-}
+      PGBACKREST_REPO1_S3_BUCKET: ${PGBACKREST_REPO1_S3_BUCKET:-}
+      PGBACKREST_REPO1_S3_REGION: ${PGBACKREST_REPO1_S3_REGION:-us-east-1}
+      PGBACKREST_REPO1_PATH: ${PGBACKREST_REPO1_PATH:-/fleet}
+      PGBACKREST_REPO1_S3_KEY: ${PGBACKREST_REPO1_S3_KEY:-}
+      PGBACKREST_REPO1_S3_KEY_SECRET: ${PGBACKREST_REPO1_S3_KEY_SECRET:-}
+      PGBACKREST_REPO1_CIPHER_PASS: ${PGBACKREST_REPO1_CIPHER_PASS:-}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-1GB}           # about a quarter of the server's memory
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-3GB}  # about three quarters
+      - -c
+      - work_mem=32MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - max_connections=100
+      - -c
+      - max_wal_size=4GB
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      # no archiving until the backup bucket is set: a failing archive_command keeps every WAL file and fills the
+      # disk. With the bucket set: PG_ARCHIVE_COMMAND=pgbackrest --stanza=fleet archive-push %p (backup-and-restore.sh)
+      - archive_command=${PG_ARCHIVE_COMMAND:-/bin/true}
+      - -c
+      - archive_timeout=60
+      - -c
+      - idle_in_transaction_session_timeout=60s
+      - -c
+      - log_min_duration_statement=500
+      - -c
+      - timezone=UTC
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fleet_owner -d fleet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits: { cpus: "3", memory: "${PG_MEMORY_LIMIT:-4g}" }
+
+  redis-queue:                # Celery broker + rate limits: never evict, persist every second
+    image: redis:7-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec",
+              "--maxmemory", "512mb", "--maxmemory-policy", "noeviction",
+              "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - redisqueue:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 768m }
+
+  redis-cache:                # cache + live-map pub/sub: disposable, evicts least recently used
+    image: redis:7-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command: ["redis-server", "--save", "", "--appendonly", "no",
+              "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru",
+              "--requirepass", "${REDIS_PASSWORD}"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits: { cpus: "0.25", memory: 384m }
+
+volumes:
+  pgdata:
+  redisqueue:
+  files:

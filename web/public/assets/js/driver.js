@@ -1,6 +1,7 @@
 /* =====================================================================
    BrilliantTech UI — driver.js  (تطبيق السائق)
-   الشاشات: الدخول ← رمز OTP ← الرئيسية · بدء اليوم (العداد) · التقرير اليومي ·
+   الشاشات: رابط التفعيل ← التسجيل الأول (بياناتك · مستنداتك · سيارتك · مراجعة) ← بانتظار المشرف ·
+   الدخول ← رمز OTP ← الرئيسية · بدء اليوم (العداد) · التقرير اليومي ·
    الكاش والإيصالات · الصيانة · الإبلاغ عن حادث · حسابي · المستندات
    بوب أب (bottom sheets): الإشعارات · تأكيد الإرسال · تأكيد استلام إيصال ·
    ربط الهاتف · قسيمة الراتب · تحذير فرق العداد · تسجيل الخروج
@@ -56,7 +57,7 @@
       <div class="lang-switch" style="align-self:center"><button type="button" class="active">العربية</button><button type="button" data-d="lang">English</button></div>
       <form id="lg-form" class="form" novalidate><div class="field"><label>رقم الجوال</label><div class="phone-in"><span class="cc">🇰🇼 +965</span><input class="input" name="phone" inputmode="numeric" maxlength="8" required data-validate="kwPhone" placeholder="6512 3480" value="${ME.phone}"></div><div class="err-msg"></div></div>
       <button type="submit" class="btn btn-primary d-cta">إرسال رمز التحقق</button></form>
-      <div class="d-sub center" style="margin-top:auto">يصلك رمز من 6 أرقام برسالة SMS. الحساب يعمل على هاتف واحد فقط.</div></div>`;
+      <div class="d-sub center" style="margin-top:auto">يصلك رمز من 6 أرقام على واتساب. أول مرة؟ افتح رابط التفعيل الذي أرسله المشرف. الحساب يعمل على هاتف واحد فقط.</div></div>`;
   };
   SCREENS.login.noTabs = true;
   SCREENS.login.after = function () {
@@ -84,6 +85,76 @@
     box.addEventListener('otp:complete', check);
     document.getElementById('otp-go').onclick = check;
   };
+
+  /* ---------- التسجيل الأول (بعد رابط التفعيل، دون OTP) ----------
+     API: GET/PUT /api/v1/driver/onboarding · POST /api/v1/driver/onboarding/submit
+     الصور: POST /api/v1/driver/files?source=camera (السيارة والعداد) أو source=upload (المستندات)
+     المستندات وصور السيارة المطلوبة تأتي من الإعدادات (required_documents, vehicle_photos). */
+  var OB_STEPS = ['بياناتك', 'مستنداتك', 'سيارتك', 'مراجعة'];
+  var OB_DOCS = [['residence', 'الإقامة'], ['driving_license', 'رخصة القيادة'], ['passport', 'جواز السفر']];
+  var OB_SIDES = [['front', 'أمام'], ['back', 'خلف'], ['right', 'يمين'], ['left', 'يسار']];
+  S.ob = { status: 'draft', note: null, data: {} };
+  function obSteps(cur) {
+    return h`<div class="stepper" style="margin-bottom:4px">${OB_STEPS.map(function (s, i) { return h`${i ? raw('<div class="step-line' + (i <= cur ? ' done' : '') + '"></div>') : ''}<div class="step${i === cur ? ' active' : i < cur ? ' done' : ''}"><span class="sn">${i < cur ? icon('check', 13) : i + 1}</span>${i === cur ? s : ''}</div>`; })}</div>`;
+  }
+  function docTile(name, label) {
+    return h`<label class="cam-tile" style="min-height:96px"><span class="cam-ic">${icon('file-up', 18)}</span><span>${label}</span><input type="file" accept="image/*,application/pdf" name="${name}" required data-msg="صورة المستند مطلوبة"></label>`;
+  }
+  SCREENS.onboard = function (p) {
+    var step = p.step || 0, d = S.ob.data, body;
+    if (step === 0) body = h`<div class="d-card col" style="gap:12px">
+        <div class="kv"><div><span>الاسم</span><b>${ME.name}</b></div><div><span>الجوال</span><span class="num" dir="ltr">+965 ${ME.phone}</span></div></div>
+        ${BT.f.input({ name: 'civil', label: 'الرقم المدني', optional: true, validate: 'civilId', maxlength: 12, num: true, value: d.civil || '', hint: 'اتركه فارغاً إذا كانت الإقامة تحت الإجراء' })}
+        ${BT.f.select({ name: 'nat', label: 'الجنسية', required: true, value: d.nat || '', options: ['الهند', 'باكستان', 'بنغلاديش', 'نيبال', 'سريلانكا', 'مصر', 'الفلبين', 'أخرى'] })}</div>`;
+    else if (step === 1) body = h`${OB_DOCS.map(function (doc) { return h`<div class="d-card col" style="gap:10px"><b>${doc[1]}</b>
+        <div class="field"><div class="cam-grid" style="grid-template-columns:1fr 1fr">${docTile(doc[0] + '-f', 'الوجه')}${docTile(doc[0] + '-b', 'الظهر')}</div><div class="err-msg"></div></div>
+        ${BT.f.date({ name: doc[0] + '-exp', label: 'تاريخ الانتهاء', required: true })}</div>`; })}
+        <div class="banner info fs-sm">${icon('info', 15)}<div>صوّر المستند كاملاً وواضحاً، أو اختر صورة أو PDF من هاتفك.</div></div>`;
+    else if (step === 2) body = h`<div class="d-card col" style="gap:12px">
+        ${BT.f.switch({ name: 'none', label: 'لا توجد سيارة معي الآن', checked: !!d.none })}
+        <div id="ob-car" class="col${d.none ? ' hidden' : ''}" style="gap:12px">
+          ${BT.f.input({ name: 'plate', label: 'رقم اللوحة', required: true, value: d.plate || '', placeholder: '18/23456', hint: 'كما هو مكتوب على اللوحة' })}
+          ${BT.f.camera({ name: 'odo-ph', label: 'صورة العداد', required: true, cta: 'التقط صورة العداد', msg: 'صورة العداد مطلوبة' })}
+          ${BT.f.input({ name: 'odo', label: 'قراءة العداد', required: true, num: true, lg: true, value: d.odo || '', placeholder: '000000' })}
+          <div class="field"><div class="label mb-8">صور السيارة <span class="t-danger">*</span></div><div class="cam-grid">${OB_SIDES.map(function (s) { return h`<label class="cam-tile"><span class="cam-ic">${icon('camera', 18)}</span><span>${s[1]}</span><input type="file" accept="image/*" capture="environment" name="ph-${s[0]}" required data-msg="التقط الصور الأربع من الكاميرا"></label>`; })}</div><div class="err-msg"></div></div>
+        </div></div>
+        <div class="banner info fs-sm">${icon('shield-check', 15)}<div>هذه الصور تثبت حالة السيارة عند استلامك لها. تبدأ عهدتك بعد اعتماد المشرف.</div></div>`;
+    else body = h`<div class="d-card"><div class="list">
+        ${[['user-round', 'بياناتك', (d.nat || '—') + (d.civil ? ' · ' + d.civil : '')], ['file-badge', 'مستنداتك', OB_DOCS.length + ' مستندات بالوجه والظهر'], ['car', 'سيارتك', d.none ? 'لا توجد سيارة' : (d.plate || '—') + ' · العداد ' + (d.odo ? fmt.km(+d.odo) : '—') + ' · 4 صور']].map(function (r, i) {
+          return h`<div class="li"><span class="li-ic g">${icon(r[0], 16)}</span><div class="li-main"><div class="li-t">${r[1]}</div><div class="li-d">${r[2]}</div></div><button type="button" class="btn btn-sm btn-ghost" data-ob-edit="${i}">${icon('pencil', 13)} تعديل</button></div>`; })}
+        </div></div>
+        <div class="banner info fs-sm">${icon('info', 15)}<div>بعد الإرسال لا يمكنك التعديل إلا إذا أعاده المشرف لك مع السبب.</div></div>`;
+    return screen({ title: 'التسجيل الأول', back: step > 0, body: h`<form id="ob-form" class="col" novalidate style="gap:12px">${obSteps(step)}
+      ${S.ob.status === 'rejected' && step === 0 ? h`<div class="banner danger fs-sm">${icon('triangle-alert', 15)}<div><b>يحتاج تصحيحاً:</b> ${S.ob.note}</div></div>` : ''}
+      ${body}<button type="submit" class="btn btn-primary d-cta">${step < 3 ? 'التالي' : h`${icon('send', 17)} إرسال للمشرف`}</button></form>` });
+  };
+  SCREENS.onboard.noTabs = true;
+  SCREENS.onboard.after = function (p) {
+    var step = p.step || 0, f = document.getElementById('ob-form'); BT.form.live(f);
+    var sw = f.querySelector('[name=none]');
+    if (sw) sw.addEventListener('change', function () {
+      var car = f.querySelector('#ob-car'); car.classList.toggle('hidden', sw.checked);
+      BT.$$('input,select', car).forEach(function (x) { if (sw.checked) x.removeAttribute('required'); else if (x.type !== 'checkbox') x.setAttribute('required', ''); });
+    });
+    BT.on(f, 'click', '[data-ob-edit]', function (e, b) { go('onboard', { step: +b.getAttribute('data-ob-edit') }, { replace: true }); });
+    viewEl.querySelector('[data-back]') && viewEl.querySelector('[data-back]').addEventListener('click', function (e) { e.stopPropagation(); go('onboard', { step: step - 1 }, { replace: true }); }, true);
+    f.addEventListener('submit', function (e) {
+      e.preventDefault(); if (!BT.form.validate(f)) return;
+      Object.assign(S.ob.data, BT.form.values(f));
+      if (step < 3) return go('onboard', { step: step + 1 }, { replace: true });
+      S.ob.status = 'submitted'; go('ob-wait', {}, { reset: true }); BT.toast('أُرسلت بياناتك للمشرف', { sub: 'يصلك إشعار على واتساب عند المراجعة' });
+    });
+  };
+  SCREENS['ob-wait'] = function () {
+    return screen({ title: 'التسجيل الأول', body: h`<div class="d-card col center" style="gap:10px;padding:24px 16px"><span class="cam-ic" style="width:56px;height:56px;border-radius:50%;background:var(--primary-soft);color:var(--primary-strong);display:flex;align-items:center;justify-content:center;margin:0 auto">${icon('hourglass', 26)}</span>
+      <b style="font-size:17px">بياناتك عند المشرف للمراجعة</b><div class="d-sub">يصلك إشعار على واتساب عند الاعتماد أو إذا احتاج شيء للتصحيح.</div></div>
+      <div class="d-card"><div class="timeline">
+        <div class="tl-item"><span class="tl-ic g">${icon('check', 13)}</span><div><div class="tl-t">أُرسلت البيانات والمستندات وصور السيارة</div><div class="tl-d">الآن</div></div></div>
+        <div class="tl-item"><span class="tl-ic">${icon('hourglass', 13)}</span><div><div class="tl-t">مراجعة المشرف</div><div class="tl-d">عادةً خلال يوم عمل</div></div></div>
+        <div class="tl-item"><span class="tl-ic">${icon('key-round', 13)}</span><div><div class="tl-t">بدء العهدة والتتبع</div><div class="tl-d">بعد الاعتماد</div></div></div></div></div>
+      <button type="button" class="btn btn-ghost" data-d="ob-rejected">مثال: أعاده المشرف للتصحيح</button>` });
+  };
+  SCREENS['ob-wait'].noTabs = true;
 
   /* ---------- الرئيسية ---------- */
   SCREENS.home = function () {
@@ -247,6 +318,7 @@
     'reset-day': function () { S.day = 'not-started'; REP.orders = null; REP.cash = null; go('home', {}, { reset: true }); BT.toast('يوم جديد للتجربة', { type: 'info', sub: 'ابدأ اليوم ثم أرسل التقرير' }); },
     shot: function () { BT.lightbox({ html: h`<div class="shot lg" style="cursor:default"><div class="shot-in"><div class="s-top"><span>${REP.sent}</span><span>▮▮▮</span></div><div style="font-weight:700;margin-top:8px">ملخص اليوم</div><div class="s-box"><small>الطلبات المكتملة</small><b>${REP.orders}</b></div><div class="s-box"><small>النقد المحصّل (د.ك)</small><b>${fmt.kwd(REP.cash)}</b></div></div></div>`, caption: 'لقطة الشاشة المرفوعة' }); },
     payslip: function () { var r = D.payroll.rows.find(function (x) { return x.empId === ME.id; }); BT.sheet.open({ title: 'راتب ' + D.payroll.month, icon: 'receipt', body: h`<div class="kv"><div><span>الأساسي</span><span class="num">${fmt.kwd(r.basic)}</span></div><div><span>الحوافز</span><span class="num">${fmt.kwd(r.incentives)}</span></div><div><span>الخصومات</span><span class="num">${fmt.kwd(r.deductions)}</span></div><div class="total"><span>الصافي</span><b class="num">${fmt.kwd(r.net)} د.ك</b></div></div><div class="d-sub mt-8">بانتظار اعتماد الكشف — قد يتغير قبل الإقفال.</div>`, buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] }); },
+    'ob-rejected': function () { S.ob.status = 'rejected'; S.ob.note = 'صورة الإقامة غير واضحة، صوّرها من جديد'; go('onboard', { step: 0 }, { reset: true }); },
     lang: function () { BT.toast('English is available in the production app', { type: 'info', sub: 'هذا القالب بالعربية فقط' }); },
     resend: function () { BT.toast('أُرسل رمز جديد'); },
     logout: function () { BT.confirm({ sheet: true, title: 'تسجيل الخروج', message: 'لن يُرسل موقعك بعد تسجيل الخروج. إذا كانت السيارة معك يُنبَّه المشرف.', confirmText: 'تسجيل الخروج', tone: 'danger', icon: 'log-out' }).then(function (r) { if (r.ok) go('login', {}, { reset: true }); }); }
@@ -262,12 +334,13 @@
       if (t.hasAttribute('data-go')) return go(t.getAttribute('data-go'));
       var fn = D_ACT[t.getAttribute('data-d')]; if (fn) fn();
     });
-    var jumps = [['login', 'الدخول و OTP'], ['home', 'الرئيسية'], ['start', 'بدء اليوم'], ['report-new', 'التقرير اليومي'], ['cash', 'الكاش'], ['receipts', 'تأكيد إيصال'], ['maint-new', 'طلب صيانة'], ['accident', 'حادث'], ['account', 'حسابي']];
+    var jumps = [['onboard', 'التسجيل الأول'], ['ob-wait', 'بانتظار المراجعة'], ['login', 'الدخول و OTP'], ['home', 'الرئيسية'], ['start', 'بدء اليوم'], ['report-new', 'التقرير اليومي'], ['cash', 'الكاش'], ['receipts', 'تأكيد إيصال'], ['maint-new', 'طلب صيانة'], ['accident', 'حادث'], ['account', 'حسابي']];
     BT.render(document.getElementById('jump'), h`${jumps.map(function (j) { return h`<button type="button" class="chip" data-jump="${j[0]}">${j[1]}</button>`; })}`);
     BT.on(document.getElementById('jump'), 'click', '[data-jump]', function (e, b) {
       var k = b.getAttribute('data-jump');
       if (k === 'report-new') { S.day = 'started'; REP.orders = null; return go('report', {}, { reset: true }); }
       if (k === 'start') { S.day = 'not-started'; return go('start', {}, { reset: true }); }
+      if (k === 'onboard') { S.ob = { status: 'draft', note: null, data: {} }; return go('onboard', { step: 0 }, { reset: true }); }
       go(k, {}, { reset: true });
     });
     setInterval(function () { var d = new Date(); var el = document.getElementById('sb-time'); if (el) el.textContent = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0'); }, 20000);

@@ -188,5 +188,16 @@
   body.printing #bt-print { display: block !important; }
   body.printing::before { display: none; }
   #bt-print .receipt { border: 0; }
+  /* a report printed or saved as PDF: every row, the header repeated on each page */
+  .print-report { font-size: 10.5pt; color: #000; }
+  .print-report .pr-head { border-bottom: 1px solid #999; padding-bottom: 6pt; margin-bottom: 8pt; }
+  .print-report h1 { font-size: 15pt; margin: 0 0 3pt; }
+  .print-report h2 { font-size: 12pt; margin: 12pt 0 4pt; break-after: avoid; }
+  .print-report table { width: 100%; border-collapse: collapse; }
+  .print-report th, .print-report td { border: 1px solid #bbb; padding: 3pt 5pt; text-align: start; vertical-align: top; }
+  .print-report th.num, .print-report td.num { text-align: end; }
+  .print-report thead { display: table-header-group; }
+  .print-report tr { break-inside: avoid; }
+  .print-report .sub { display: block; font-size: 8.5pt; color: #444; }
 }
 #bt-print { display: none; }

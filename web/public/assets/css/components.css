@@ -147,6 +147,7 @@ table.t tr.clickable { cursor: pointer; }
 table.t tr.selected td { background: var(--primary-softer); }
 table.t tr.row-warn td:first-child { box-shadow: inset -3px 0 0 var(--warning); }
 table.t tr.row-danger td:first-child { box-shadow: inset -3px 0 0 var(--danger); }
+table.t tr.group-row td { background: var(--surface-2); color: var(--text); font-size: 12.5px; padding-top: 8px; padding-bottom: 8px; }
 table.t th.sortable { cursor: pointer; user-select: none; }
 table.t th.sortable:hover { color: var(--text); }
 table.t th .sort-ic { opacity: .35; margin-inline-start: 3px; vertical-align: -2px; }
@@ -473,3 +474,40 @@ button.li:hover, a.li:hover { background: var(--surface-hover); text-decoration:
 .diff-new { background: var(--success-soft); color: var(--success-text); padding: 0 4px; border-radius: 4px; }
 .code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 12px; background: #0F1722; color: #D6E2F5; border-radius: 10px; padding: 12px 14px; direction: ltr; text-align: left; overflow-x: auto; white-space: pre; line-height: 1.6; }
 .link-row { display: inline-flex; align-items: center; gap: 4px; color: var(--primary-strong); font-weight: 600; font-size: 12.5px; }
+
+/* ---------- Live data states ---------- */
+.spinner { display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-inline-end-color: transparent; animation: bt-spin .7s linear infinite; vertical-align: -3px; }
+.t-loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 36px 12px; color: var(--muted); }
+.page-loading { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 220px; color: var(--muted); }
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+.thumbs figure { margin: 0; border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; background: var(--surface-2); cursor: zoom-in; }
+.thumbs img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.thumbs figcaption { font-size: 11.5px; padding: 4px 8px; color: var(--text-3); }
+.live-map { height: calc(100vh - 230px); min-height: 420px; border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--border); }
+.live-map { position: relative; }
+.live-map .maplibregl-map, .live-map .maplibregl-popup-content { font-family: inherit; }
+.live-map .maplibregl-popup-content { background: var(--surface); color: var(--text); border-radius: var(--r-md); padding: 12px 14px; box-shadow: var(--shadow-md); }
+.live-map .maplibregl-popup-close-button { color: var(--text-3); font-size: 18px; }
+.live-map [class*="maplibregl-popup-anchor-top"] .maplibregl-popup-tip { border-bottom-color: var(--surface); }
+.live-map [class*="maplibregl-popup-anchor-bottom"] .maplibregl-popup-tip { border-top-color: var(--surface); }
+.live-map .maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--surface); }
+.live-map .maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--surface); }
+.live-map .maplibregl-marker { cursor: pointer; }
+.route-end { width: 16px; height: 16px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
+.route-end.start { background: #16a34a; } .route-end.end { background: #dc2626; }
+.veh-mark { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .3); }
+.veh-mark.g { background: var(--success); } .veh-mark.o { background: var(--warning); } .veh-mark.r { background: var(--danger); } .veh-mark.n { background: var(--muted); }
+.veh-mark.sel { outline: 3px solid var(--primary); outline-offset: 1px; }
+.side-list { max-height: calc(100vh - 230px); overflow: auto; }
+.toolbar .page-actions .select, .toolbar .page-actions .input { width: auto; min-width: 150px; }
+
+/* trial balance: a row opens its account's statement under it */
+table.t tr[data-account] svg { transition: transform .15s; color: var(--text-3); }
+table.t tr[data-account].open svg { transform: rotate(-90deg); }
+table.t tr[data-account].open td { background: var(--primary-soft); }
+table.t td.ledger-cell { background: var(--surface-2); padding: 12px 16px 16px; }
+
+/* the accountant's guide */
+.guide p { margin: 0 0 8px; line-height: 1.8; }
+.guide-list { margin: 0; padding-inline-start: 20px; line-height: 1.9; }
+.guide-list li { margin-bottom: 4px; }

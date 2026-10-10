@@ -1,0 +1,486 @@
+/* =====================================================================
+   app/pages/fleet.js — السيارات، العُهد والتسليم، العداد
+   ===================================================================== */
+(function () {
+  'use strict';
+  var BT = window.BT, h = BT.h, raw = BT.raw, icon = BT.icon, fmt = BT.fmt, api = BT.api, A = BT.A;
+  var STATUSES = ['available', 'assigned', 'maintenance', 'accident', 'inactive'];
+  var POSITIONS = ['front', 'back', 'left', 'right', 'interior'];
+
+  /* حقل اختيار بالبحث (datalist): يعيد المعرّف من النص المختار */
+  A._pick = {};
+  A.picker = function (o) { // {name, label, required | optional, items:[{id, label}], value}
+    var id = BT.uid('dl');
+    A._pick[o.name] = o.items;
+    var current = o.value ? (o.items.find(function (x) { return x.id === o.value; }) || {}).label : '';
+    return h`<div class="field${o.full ? ' full' : ''}"><label for="f-${o.name}">${o.label}${o.required ? raw('<span class="req">*</span>') : o.optional ? raw(' <span class="opt">(اختياري)</span>') : ''}</label><input class="input" id="f-${o.name}" name="${o.name}" list="${id}" autocomplete="off"${o.required ? raw(' required') : ''} value="${current || ''}" placeholder="${o.placeholder || 'اكتب للبحث…'}" data-validate="picked" data-pick="${o.name}"><datalist id="${id}">${o.items.map(function (x) { return h`<option value="${x.label}"></option>`; })}</datalist>${o.hint ? h`<div class="hint">${o.hint}</div>` : ''}<div class="err-msg"></div></div>`;
+  };
+  A.picked = function (name, text) { var x = (A._pick[name] || []).find(function (i) { return i.label === text; }); return x ? x.id : null; };
+  BT.validators.picked = function (v, el) { return A.picked(el.getAttribute('data-pick'), v) ? '' : 'اختر من القائمة'; };
+
+  function photoFields(prefix, positions) {
+    return h`<div class="cam-grid" style="grid-template-columns:repeat(${positions.length},minmax(0,1fr))">${positions.map(function (p) { return BT.f.camera({ name: prefix + p, cta: api.t('photo_position', p), sub: 'اختياري' }); })}</div>`;
+  }
+  function uploadPhotos(v, prefix, positions) {
+    return Promise.all(positions.filter(function (p) { return v[prefix + p] && v[prefix + p][0]; }).map(function (p) {
+      return api.upload(v[prefix + p][0]).then(function (f) { return { position: p, sha256: f.sha256 }; });
+    }));
+  }
+  A.vehicleLabel = function (v) { return v.plate_number + (v.make ? ' — ' + v.make + ' ' + (v.model || '') : ''); };
+
+  /* ================= السيارات ================= */
+  BT.pages['vehicles'] = function (p, q) {
+    A.setTitle('السيارات');
+    var v = A.view(), filters = { company: '' };
+    BT.render(v, h`${A.head('سجل السيارات', 'الحالة والعهدة الحالية وآخر قراءة عداد لكل سيارة', api.can('vehicles.create') ? A.btn('إضافة سيارة', { icon: 'plus', cls: 'btn-primary', action: 'vehicle-new' }) : '')}<div class="card"><div id="veh-table"></div></div>`);
+    var el = document.getElementById('veh-table');
+    var t = BT.table(el, {
+      fetch: function (s) { return api.get('/vehicles', { q: s.q, status: s.chip, company_id: filters.company, limit: s.limit, offset: s.offset }); },
+      search: { placeholder: 'رقم اللوحة أو الماركة أو رقم الشاصي…' },
+      chips: { value: q.status || '', options: A.options('vehicle_status', STATUSES) },
+      tools: api.companies.length > 1 ? h`<select class="select" data-f="company" aria-label="الشركة"><option value="">كل الشركات</option>${api.companyOptions().map(function (c) { return h`<option value="${c.v}">${c.t}</option>`; })}</select>` : null,
+      columns: [
+        { key: 'plate', label: 'اللوحة', render: function (x) { return h`<span class="plate">${x.plate_number}</span><span class="sub ltr">${[x.make, x.model, x.year].filter(Boolean).join(' ')}</span>`; } },
+        { key: 'company', label: 'الشركة / الفرع', render: function (x) { return h`${api.company(x.company_id)}<span class="sub">${api.branch(x.branch_id)}</span>`; } },
+        { key: 'status', label: 'الحالة', render: function (x) { return A.pill('vehicle_status', x.status); } },
+        { key: 'driver', label: 'في عهدة', render: function (x) { return x.custody ? A.person(x.custody.driver, 'منذ ' + fmt.dt(x.custody.started_at)) : raw('<span class="muted">—</span>'); } },
+        { key: 'km', label: 'العداد', num: true, render: function (x) { return x.last_odometer_km != null ? h`<span class="num">${fmt.km(x.last_odometer_km)}</span>` : '—'; } }
+      ],
+      rowClick: function (x) { A.go('vehicles/' + x.id); },
+      empty: { icon: 'car', title: 'لا توجد سيارات مطابقة' }
+    });
+    A.refreshVehicles = t.refresh;
+    BT.on(el, 'change', '[data-f]', function (e, s) { filters.company = s.value; t.refresh(); });
+  };
+
+  BT.actions['vehicle-new'] = function () { A.vehicleForm(null, function (x) { A.go('vehicles/' + x.id); }); };
+  A.vehicleForm = function (x, after) {
+    var editing = !!x;
+    x = x || { company_id: (api.companyOptions()[0] || {}).v, branch_id: api.defaultBranch(), status: 'available' };
+    A.formModal({
+      title: editing ? 'تعديل السيارة' : 'إضافة سيارة', subtitle: editing ? x.plate_number : null, icon: editing ? 'pencil' : 'car', size: 'lg', done: editing ? 'تم حفظ التعديلات' : 'تمت إضافة السيارة',
+      body: h`<div class="form-grid">
+        ${BT.f.input({ name: 'plate_number', label: 'رقم اللوحة', required: true, value: x.plate_number, placeholder: '18/23456' })}
+        ${BT.f.input({ name: 'vin', label: 'رقم الشاصي (VIN)', optional: true, value: x.vin, maxlength: 17 })}
+        ${BT.f.input({ name: 'make', label: 'الماركة', optional: true, value: x.make })}${BT.f.input({ name: 'model', label: 'الموديل', optional: true, value: x.model })}
+        ${BT.f.input({ name: 'year', label: 'سنة الصنع', optional: true, value: x.year, num: true, min: 1990, max: 2100 })}${BT.f.input({ name: 'color', label: 'اللون', optional: true, value: x.color })}
+        ${BT.f.select({ name: 'company_id', label: 'الشركة المالكة', required: true, value: x.company_id, options: api.companyOptions(), placeholder: false })}
+        ${BT.f.select({ name: 'branch_id', label: 'الفرع', required: true, value: x.branch_id, options: api.branchOptions(), placeholder: false })}
+        ${editing ? BT.f.select({ name: 'status', label: 'الحالة', required: true, value: x.status, placeholder: false, options: A.options('vehicle_status', STATUSES.filter(function (s) { return s !== 'assigned' || x.status === 'assigned'; })), hint: '«في العهدة» تُضبط تلقائياً بالتسليم والاستلام' }) : BT.f.input({ name: 'last_odometer_km', label: 'العداد الحالي (كم)', optional: true, num: true, min: 0 })}
+      </div>`,
+      submit: function (v) {
+        var body = { plate_number: v.plate_number.trim(), vin: v.vin || null, make: v.make || null, model: v.model || null, year: v.year === '' ? null : v.year, color: v.color || null, company_id: +v.company_id, branch_id: +v.branch_id };
+        if (!editing) { body.last_odometer_km = v.last_odometer_km === '' ? null : v.last_odometer_km; return api.post('/vehicles', body); }
+        var changes = { version: x.version };
+        Object.keys(body).forEach(function (k) { if (body[k] !== (x[k] == null ? null : x[k])) changes[k] = body[k]; });
+        if (v.status !== x.status) changes.status = v.status;
+        return api.patch('/vehicles/' + x.id, changes);
+      },
+      after: after
+    });
+  };
+
+  /* ---------- ملف السيارة ---------- */
+  BT.pages['vehicles/:id'] = function (p) {
+    A.setTitle('ملف سيارة', [['السيارات', 'vehicles'], ['ملف سيارة']]);
+    var v = A.view(), id = p.id;
+    var jobs = [api.get('/vehicles/' + id)];
+    jobs.push(api.can('custody.view') ? api.get('/custodies', { vehicle_id: id, limit: 20 }) : Promise.resolve(null));
+    jobs.push(api.can('odometer.view') ? api.get('/odometer/readings', { vehicle_id: id, limit: 20 }) : Promise.resolve(null));
+    jobs.push(api.can('documents.view') ? Promise.all([api.get('/documents', { owner_type: 'vehicle', owner_id: id }), A.docTypes()]).then(function (x) { return x[0]; }) : Promise.resolve(null));
+    A.load(v, Promise.all(jobs), function (r) {
+      var x = r[0], custodies = r[1], readings = r[2], docs = r[3];
+      A.setTitle(x.plate_number, [['السيارات', 'vehicles'], [x.plate_number]]);
+      var actions = [];
+      if (api.can('custody.view')) actions.push(A.btn('من كان يقود؟', { icon: 'search', cls: 'btn-outline', id: 'who-drove' }));
+      if (api.can('tracking.history')) actions.push(h`<a class="btn btn-outline" href="#/tracking?route=${x.id}">${icon('route', 15)}المسار</a>`);
+      if (api.can('vehicles.update')) actions.push(A.btn('تعديل', { icon: 'pencil', cls: 'btn-outline', id: 'veh-edit' }));
+      if (api.can('custody.assign')) actions.push(x.custody ? A.btn('استلام السيارة', { icon: 'log-in', cls: 'btn-primary', id: 'veh-return' }) : A.btn('تسليم لسائق', { icon: 'key-round', cls: 'btn-primary', id: 'veh-handover' }));
+      setTimeout(function () { wire(x); });
+      return h`${A.head(h`<span class="plate" style="font-size:20px">${x.plate_number}</span>`, [x.make, x.model, x.year, x.color].filter(Boolean).join(' · ') || 'بدون بيانات الطراز', actions)}
+        <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)">
+          <div class="card"><div class="card-h"><div class="card-t">البيانات</div>${A.pill('vehicle_status', x.status)}</div>${BT.kv([['الشركة', api.company(x.company_id)], ['الفرع', api.branch(x.branch_id)], ['رقم الشاصي', x.vin ? h`<span class="num ltr">${x.vin}</span>` : '—'], ['آخر قراءة عداد', x.last_odometer_km != null ? h`<span class="num">${fmt.km(x.last_odometer_km)}</span> كم` : '—'], ['العهدة الحالية', x.custody ? h`${A.person(x.custody.driver)} <span class="muted fs-sm">منذ ${fmt.dt(x.custody.started_at)}</span>` : raw('<span class="muted">لا يوجد</span>')]])}</div>
+          <div class="card"><div class="card-h"><div class="card-t">${icon('key-round', 16)} سجل العُهد</div></div>${custodies == null ? raw('<div class="muted fs-sm">يحتاج صلاحية العهد</div>') : custodies.length ? h`<div class="list">${custodies.map(function (c) { return h`<button type="button" class="li" data-custody="${c.id}" style="width:100%;text-align:start"><span class="li-ic ${c.ended_at ? '' : 'g'}">${icon(c.ended_at ? 'history' : 'key-round', 16)}</span><div class="li-main"><div class="li-t">${A.person(c.driver)}</div><div class="li-d">${fmt.dt(c.started_at)} ← ${c.ended_at ? fmt.dt(c.ended_at) : 'مستمرة'}</div></div>${c.kind === 'emergency' ? A.pill('custody_kind', 'emergency') : ''}${c.needs_review ? BT.pill('تحتاج مراجعة', 'o') : ''}</button>`; })}</div>` : BT.empty('key-round', 'لم تُسلَّم بعد', '')}</div>
+        </div>
+        ${readings ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('gauge', 16)} قراءات العداد</div><a class="link-row" href="#/odometer">صفحة العداد ${icon('arrow-left', 14)}</a></div><div id="veh-readings"></div></div>` : ''}
+        ${api.can('maintenance.view') ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('wrench', 16)} الصيانة</div><a class="link-row" href="#/maintenance">صفحة الصيانة ${icon('arrow-left', 14)}</a></div><div id="veh-mnt"></div></div>` : ''}
+        ${api.can('accidents.view') ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('shield-alert', 16)} الحوادث</div><a class="link-row" href="#/accidents">صفحة الحوادث ${icon('arrow-left', 14)}</a></div><div id="veh-acc"></div></div>` : ''}
+        ${api.can('fines.view') ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('file-warning', 16)} المخالفات المرورية</div><a class="link-row" href="#/fines">صفحة المخالفات ${icon('arrow-left', 14)}</a></div><div id="veh-fines"></div></div>` : ''}
+        ${api.can('finance.view') ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('receipt', 16)} المصروفات</div><a class="link-row" href="#/finance">صفحة المالية ${icon('arrow-left', 14)}</a></div><div id="veh-expenses"></div></div>` : ''}
+        ${docs ? h`<div class="card mt-16"><div class="card-h"><div class="card-t">${icon('file-badge', 16)} مستندات السيارة</div></div><div id="veh-docs">${vehDocs(docs)}</div></div>` : ''}
+        ${api.can('reports.view') && api.can('odometer.view') ? h`<div class="card mt-16" data-veh-usage><div class="card-h"><div><div class="card-t">${icon('chart-column', 16)} الاستخدام اليومي — آخر 30 يوماً</div><div class="card-meta">كيلومترات العداد مع سائق في كل يوم، كما يحسبها تقرير الكيلومترات</div></div><button type="button" class="btn btn-sm btn-outline ms-auto" data-usage-table>${icon('table-2', 14)} جدول</button></div><div id="veh-usage"></div></div>` : ''}
+        ${api.can('custody.view') ? raw('<div id="veh-changes"></div>') : ''}
+        ${api.can('audit.view') ? h`<div class="card mt-16" data-veh-audit><div class="card-h"><div class="card-t">${icon('shield-check', 16)} سجل التعديلات</div><a class="link-row" href="#/audit">سجل التدقيق ${icon('arrow-left', 14)}</a></div><div id="veh-audit"></div></div>` : ''}`;
+      function wire(x) {
+        if (document.getElementById('veh-usage')) vehicleUsage(document.getElementById('veh-usage'), x);
+        if (document.getElementById('veh-audit')) vehicleAudit(document.getElementById('veh-audit'), x);
+        if (document.getElementById('veh-mnt') && A.vehicleMaintenance) A.vehicleMaintenance(document.getElementById('veh-mnt'), x);
+        if (document.getElementById('veh-acc') && A.vehicleAccidents) A.vehicleAccidents(document.getElementById('veh-acc'), x);
+        if (document.getElementById('veh-fines') && A.vehicleFines) A.vehicleFines(document.getElementById('veh-fines'), x);
+        if (document.getElementById('veh-expenses') && A.vehicleExpenses) A.vehicleExpenses(document.getElementById('veh-expenses'), x);
+        if (readings && document.getElementById('veh-readings')) BT.table(document.getElementById('veh-readings'), { rows: readings, pageSize: 0, columns: readingColumns(false), rowClick: function (rd) { A.reading(rd); } });
+        var on = function (sel, fn) { var b = document.getElementById(sel); if (b) b.onclick = fn; };
+        on('veh-edit', function () { A.vehicleForm(x, function () { A.refreshIfAt('vehicles/' + x.id); }); });
+        on('veh-handover', function () { A.handover({ vehicle: x }, function () { A.refreshIfAt('vehicles/' + x.id); }); });
+        on('veh-return', function () { A.returnVehicle(x.custody.id, x, function () { A.refreshIfAt('vehicles/' + x.id); }); });
+        on('who-drove', function () { A.whoDrove(x); });
+        A.changeRequestsTable(document.getElementById('veh-changes'), { vehicle_id: x.id });
+        BT.on(v, 'click', '[data-custody]', function (e, b) { A.custody(b.getAttribute('data-custody')); });
+        BT.on(v, 'click', '[data-doc-add]', function () { A.addDocument('vehicle', x.id, function () { A.refreshIfAt('vehicles/' + x.id); }); });
+      }
+    }).catch(function () {});
+  };
+  /* FR-VEH-04: the vehicle's days over the last 30, from the kilometers report filtered to it (the same counting) */
+  function vehicleUsage(el, x) {
+    var to = BT.date.today(), from = BT.date.add(to, -29);
+    var fleetUse = api.can('vehicles.view') ? api.get('/reports/fleet', { date_from: from, date_to: to, vehicle_id: x.id }).then(function (r) { return r.by_vehicle[0] || null; }, function () { return null; }) : Promise.resolve(null);
+    A.load(el, Promise.all([api.get('/reports/kilometers', { date_from: from, date_to: to, vehicle_id: x.id }), fleetUse]), function (r) {
+      var days = r[0].by_day, use = r[1];
+      var total = days.reduce(function (s, d) { return s + d.with_driver; }, 0), driven = days.filter(function (d) { return d.with_driver > 0; }).length;
+      var gps = days.reduce(function (s, d) { return s + Number(d.gps); }, 0);
+      setTimeout(function () {
+        var chart = el.querySelector('[data-usage-chart]');
+        if (chart) BT.chart.bars(chart, { name: 'كيلومترات كل يوم', labels: days.map(function (d) { return fmt.dm(d.day); }), values: days.map(function (d) { return d.with_driver; }), format: fmt.int, unitLabel: 'كم', height: 200 });
+        var b = el.closest('[data-veh-usage]').querySelector('[data-usage-table]');
+        if (b) b.onclick = function () {
+          BT.modal.open({ title: 'الاستخدام اليومي: ' + x.plate_number, icon: 'table-2', size: 'lg', buttons: [{ label: 'إغلاق', cls: 'btn-primary' }],
+            body: BT.chart.table(['اليوم', 'مع سائق', 'منه خارج العمل', 'بلا سائق', 'في المركز', 'GPS'], days.slice().reverse().map(function (d) { return [BT.date.dayName(d.day) + ' ' + fmt.date(d.day), fmt.int(d.with_driver), fmt.int(d.off_duty), fmt.int(d.unattended), fmt.int(d.center), fmt.int(Number(d.gps))]; })) });
+        };
+      });
+      return h`<div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+          ${BT.kpi({ label: 'كم مع سائق', value: fmt.int(total), sub: 'في 30 يوماً', dot: 'b' })}
+          ${BT.kpi({ label: 'أيام قيدت فيها', value: fmt.int(driven), sub: driven ? 'بمتوسط ' + fmt.int(total / driven) + ' كم لليوم' : 'لم تتحرك مع سائق', dot: 'g' })}
+          ${BT.kpi({ label: 'أيام في العهدة', value: use ? fmt.int(use.days_held) : '—', sub: use && use.use_percent != null ? 'نسبة الاستخدام ' + use.use_percent + '%' : 'خارج الخدمة', dot: 'o' })}
+          ${BT.kpi({ label: 'كم بحسب GPS', value: fmt.int(gps), sub: 'خطوط مستقيمة بين نقاط الهاتف', dot: 'n' })}
+        </div><div data-usage-chart></div>`;
+    }).catch(function () {});
+  }
+
+  /* FR-VEH-04: who changed the vehicle's record, when and why; each opens in full */
+  function vehicleAudit(el, x) {
+    A.load(el, api.get('/audit', { entity_type: 'vehicle', entity_id: x.id, limit: 20 }), function (events) {
+      setTimeout(function () {
+        BT.on(el, 'click', '[data-event]', function (e, b) { A.auditEvent(events[+b.getAttribute('data-event')]); });
+      });
+      return events.length ? h`<div class="list">${events.map(function (e, i) { return h`<button type="button" class="li" data-event="${i}" style="width:100%;text-align:start"><span class="li-ic">${icon('history', 16)}</span><div class="li-main"><div class="li-t"><span class="ltr fs-sm">${e.action}</span>${e.comment ? h` <span class="muted fs-sm">— ${e.comment}</span>` : ''}</div><div class="li-d">${A.auditActor(e)} · <span class="num">${fmt.dt(e.occurred_at)}</span></div></div></button>`; })}</div>` : BT.empty('shield-check', 'لا تعديلات مسجلة', '');
+    }).catch(function () {});
+  }
+
+  function vehDocs(docs) {
+    return h`${docs.length ? h`<div class="list">${docs.map(function (d) { var n = d.expiry_date ? BT.date.daysLeft(d.expiry_date) : null; return h`<div class="li"><span class="li-ic">${icon('file-badge', 16)}</span><div class="li-main"><div class="li-t">${A.docTypeName(d.type_code)} ${d.number ? h`<span class="num muted fs-sm">${d.number}</span>` : ''}</div><div class="li-d">${d.expiry_date ? h`ينتهي <span class="num">${fmt.date(d.expiry_date)}</span>` : 'بلا تاريخ انتهاء'}</div></div>${d.has_file ? h`<a class="btn btn-sm btn-ghost" href="${api.url('/documents/' + d.id + '/file')}" target="_blank" rel="noopener">${icon('eye', 14)} عرض</a>` : ''}${n != null && n <= 30 ? BT.pill(fmt.daysLabel(n), n < 0 ? 'r' : 'o') : ''}</div>`; })}</div>` : BT.empty('file-badge', 'لا توجد مستندات', '')}
+      ${api.can('documents.manage') ? h`<div class="mt-12"><button type="button" class="btn btn-sm btn-soft" data-doc-add>${icon('file-plus', 14)} إضافة أو تجديد مستند</button></div>` : ''}`;
+  }
+
+  A.whoDrove = function (x) {
+    var d = BT.modal.open({
+      title: 'من كان يقود؟', subtitle: x.plate_number, icon: 'search', size: 'sm', form: true,
+      body: h`<div class="form">${BT.f.input({ name: 'at', label: 'الوقت (بتوقيت الكويت)', type: 'datetime-local', required: true, value: fmt.kwInput() })}<div data-out></div><div class="hint">للمخالفات والحوادث والتلفيات: يُحدد السائق المسؤول من سجل العهد.</div></div>`,
+      buttons: [{ label: 'إغلاق', cls: 'btn-ghost' }, { label: 'بحث', cls: 'btn-primary', submit: true }],
+      onSubmit: function (v) {
+        var out = d.el.querySelector('[data-out]');
+        return api.get('/vehicles/' + x.id + '/custody-at', { at: fmt.kwIso(v.at) }).then(function (c) {
+          BT.render(out, h`<div class="banner success mt-8">${icon('user-round-check', 16)}<div>${A.person(c.driver)}<div class="fs-sm mt-4">العهدة من ${fmt.dt(c.started_at)} إلى ${c.ended_at ? fmt.dt(c.ended_at) : 'الآن'}</div></div></div>`);
+          return false;
+        }, function (err) { BT.render(out, h`<div class="banner warn mt-8">${icon('info', 16)}<div>${api.message(err)}</div></div>`); return false; });
+      }
+    });
+  };
+
+  /* ================= العُهد ================= */
+  BT.pages['custody'] = function (p, q) {
+    A.setTitle('العُهد والتسليم');
+    var v = A.view();
+    BT.render(v, h`${A.head('من يحمل كل سيارة الآن', 'التسليم والاستلام بقراءة العداد وصورته وصور الحالة، والعهد الطارئة تنتظر المراجعة', api.can('custody.assign') ? A.btn('تسليم سيارة لسائق', { icon: 'key-round', cls: 'btn-primary', action: 'handover-new' }) : '')}<div id="cus-claims"></div><div id="cus-changes"></div><div class="card"><div id="cus-table"></div></div><div id="cus-history"></div>`);
+    if (api.can('custody.assign')) A.pendingBox(document.getElementById('cus-claims'), {
+      key: 'vehicle-claims', url: '/vehicle-claims', title: 'طلبات استلام عربية من السائقين',
+      hint: 'السائق سجّل العربية من التطبيق بقراءة عدادها وصورته؛ العهدة تبدأ بالموافقة',
+      row: function (x) {
+        var photos = [{ src: api.url('/vehicle-claims/' + x.id + '/photo'), caption: 'صورة العداد · ' + fmt.dt(x.claimed_at) }].concat(x.photos.map(function (p) { return { src: api.url('/vehicle-claims/' + x.id + '/photos/' + p.sha256), caption: 'حالة العربية · ' + api.t('photo_position', p.position) }; }));
+        var warn = [
+          x.holder ? BT.pill('مع ' + api.name(x.holder.name), 'r') : x.vehicle_status && x.vehicle_status !== 'available' ? A.pill('vehicle_status', x.vehicle_status) : '',
+          x.vehicle_last_km != null && x.odometer_km < x.vehicle_last_km ? BT.pill('أقل من آخر قراءة (' + fmt.km(x.vehicle_last_km) + ')', 'o') : '',
+          // older than a custody may start back: it can only be refused
+          x.expired ? h`<span data-claim-expired title="الطلب قديم: ارفضه واطلب من السواق يسجّل من جديد">${BT.pill('قديم', 'r')}</span>` : ''
+        ];
+        return h`<div data-claim="${x.id}">${A.person(x.driver)} ${A.plate(x.plate, x.vehicle_id)} <span class="num" data-claim-km>${fmt.km(x.odometer_km)}</span> كم ${warn} <span class="muted fs-sm">${fmt.dt(x.claimed_at)}</span>${A.thumbs(photos)}</div>`;
+      },
+      actions: [
+        { label: 'موافقة', cls: 'btn-primary', title: 'الموافقة على استلام العربية', message: 'تبدأ عهدة السائق للعربية بقراءة العداد اللي سجّلها ووقت صورتها، ويُبلَّغ السائق في التطبيق.', done: 'تمت الموافقة وبدأت العهدة', run: function (x) { return api.post('/vehicle-claims/' + x.id + '/approve', {}); } },
+        { label: 'رفض', tone: 'danger', title: 'رفض طلب استلام العربية', message: 'يصل السبب للسائق في التطبيق، ويقدر يسجّل عربية تانية.', reason: { label: 'السبب' }, done: 'رُفض الطلب', run: function (x, reason) { return api.post('/vehicle-claims/' + x.id + '/reject', { note: reason }); } }
+      ],
+      after: function () { t.refresh(); }
+    });
+    if (api.can('custody.assign')) A.pendingBox(document.getElementById('cus-changes'), {
+      key: 'vehicle-changes', url: '/vehicle-change-requests', title: 'طلبات تغيير السيارة من السائقين',
+      hint: 'استلام السيارة من السائق يغلق طلبه تلقائياً؛ أو أغلقه هنا',
+      row: function (x) { return h`${A.person(x.driver)} ${A.plate(x.vehicle_plate, x.vehicle_id)}${x.requested_plate ? h` <span class="muted">←</span> ${A.requestedCar(x)}` : ''} <span class="muted fs-sm">${fmt.dt(x.created_at)}</span><div class="fs-sm">السبب: ${x.reason}</div>`; },
+      actions: [
+        { label: 'تم التغيير', cls: 'btn-primary', title: 'إغلاق الطلب', message: 'يُغلق الطلب على أنه نُفّذ، ويُبلَّغ السائق.', done: 'أُغلق الطلب', run: function (x) { return api.post('/vehicle-change-requests/' + x.id + '/done', {}); } },
+        { label: 'رفض', tone: 'danger', title: 'رفض طلب تغيير السيارة', message: 'يصل السبب للسائق في التطبيق.', reason: { label: 'السبب' }, done: 'رُفض الطلب', run: function (x, reason) { return api.post('/vehicle-change-requests/' + x.id + '/reject', { note: reason }); } }
+      ],
+      after: function () { t.refresh(); if (changes) changes.refresh(); }
+    });
+    var t = BT.table(document.getElementById('cus-table'), {
+      fetch: function (s) { return api.get('/custodies', { open: s.chip === 'open' || null, needs_review: s.chip === 'review' || null, limit: s.limit, offset: s.offset }); },
+      chips: { value: q.view || 'open', all: 'السجل كاملاً', options: [{ v: 'open', t: 'المفتوحة' }, { v: 'review', t: 'تحتاج مراجعة' }] },
+      columns: [
+        { key: 'vehicle', label: 'السيارة', render: function (c) { return A.plate(c.vehicle.plate_number, c.vehicle.id); } },
+        { key: 'driver', label: 'السائق', render: function (c) { return A.person(c.driver); } },
+        { key: 'started_at', label: 'من', render: function (c) { return fmt.dt(c.started_at); } },
+        { key: 'ended_at', label: 'إلى', render: function (c) { return c.ended_at ? fmt.dt(c.ended_at) : BT.pill('مستمرة', 'g'); } },
+        { key: 'kind', label: 'النوع', render: function (c) { return h`${A.pill('custody_kind', c.kind)}${c.needs_review ? h` ${BT.pill('تحتاج مراجعة', 'o')}` : ''}`; } }
+      ],
+      rowClick: function (c) { A.custody(c.id); },
+      empty: { icon: 'key-round', title: 'لا توجد عهد' }
+    });
+    A.refreshCustody = t.refresh;
+    var changes = A.changeRequestsTable(document.getElementById('cus-history'), {});
+    if (q['new'] && api.can('custody.assign')) A.handover({}, t.refresh);
+  };
+
+  /* طلبات تغيير السيارة: السيارة المطلوبة وحالتها الآن، وسجل كل الطلبات */
+  A.requestedCar = function (x) {
+    var car = x.requested_vehicle;
+    if (!x.requested_plate) return raw('<span class="muted">—</span>');
+    var pill = !car || !car.found ? '' : car.holder ? BT.pill('مع ' + api.name(car.holder.name), 'o') : car.status === 'available' ? BT.pill('متاحة', 'g') : A.pill('vehicle_status', car.status);
+    return h`<span class="nowrap" data-requested>${A.plate(x.requested_plate, car && car.id)} ${pill}</span>`;
+  };
+  A.changeStatusPill = function (status) { return BT.pill(api.t('change_status', status), { pending: 'o', done: 'g', rejected: 'r' }[status] || 'n'); };
+  A.changeRequestsTable = function (el, filter) { // filter: {driver_id} | {vehicle_id} | {}
+    if (!el) return null;
+    var chip = 'all', full = !filter.driver_id && !filter.vehicle_id;
+    var columns = [
+      { key: 'created_at', label: 'التاريخ', render: function (x) { return h`<span class="num nowrap">${fmt.dt(x.created_at)}</span>`; } },
+      filter.driver_id ? null : { key: 'driver', label: 'السائق', render: function (x) { return A.person(x.driver); } },
+      { key: 'vehicle', label: 'السيارة التي معه', render: function (x) { return A.plate(x.vehicle_plate, x.vehicle_id); } },
+      { key: 'requested', label: 'السيارة المطلوبة', render: function (x) { return A.requestedCar(x); } },
+      { key: 'reason', label: 'السبب', render: function (x) { return x.reason; } },
+      { key: 'status', label: 'الحالة', render: function (x) { return A.changeStatusPill(x.status); } },
+      { key: 'decided', label: 'أغلقه', render: function (x) { return x.decided_at ? h`${x.decided_by || '—'}<span class="sub num">${fmt.dt(x.decided_at)}</span>` : '—'; } },
+      { key: 'note', label: 'الملاحظة', render: function (x) { return x.note || '—'; } }
+    ].filter(Boolean);
+    BT.render(el, h`<div class="card mt-16" data-change-history><div class="card-h"><div class="card-t">${icon('repeat', 16)} سجل طلبات تغيير السيارة</div><span class="muted fs-sm">${full ? 'كل ما طلبه السائقون من التطبيق، وما تم فيه' : ''}</span></div><div data-change-table></div></div>`);
+    var t = BT.table(el.querySelector('[data-change-table]'), {
+      fetch: function (s) { chip = s.chip || 'all'; return api.get('/vehicle-change-requests', Object.assign({ status: chip, limit: s.limit, offset: s.offset }, filter)); },
+      pageSize: full ? 25 : 10,
+      chips: full ? { value: '', all: 'الكل', options: [{ v: 'pending', t: api.t('change_status', 'pending') }, { v: 'done', t: api.t('change_status', 'done') }, { v: 'rejected', t: api.t('change_status', 'rejected') }] } : null,
+      tools: full ? h`<button type="button" class="btn btn-sm btn-outline" data-change-export>${icon('sheet', 14)} Excel</button>` : null,
+      columns: columns,
+      compact: !full,
+      empty: { icon: 'repeat', title: 'لا توجد طلبات تغيير سيارة' }
+    });
+    BT.on(el, 'click', '[data-change-export]', function () { A.downloadFile('/vehicle-change-requests/export', Object.assign({ status: chip }, filter), 'vehicle-change-requests.xlsx'); });
+    return t;
+  };
+  BT.actions['handover-new'] = function () { A.handover({}, function () { if (A.refreshCustody) A.refreshCustody(); }); };
+
+  A.custody = function (id, after) {
+    var dlg = BT.drawer.open({ title: 'العهدة', icon: 'key-round', size: 'lg', body: A.spinner(), buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] });
+    api.get('/custodies/' + id).then(function (c) {
+      dlg.panel.querySelector('.modal-h h3').textContent = 'عهدة ' + (c.vehicle.plate_number || '');
+      var photo = function (ph) { return { src: api.url('/custodies/' + id + '/photos/' + ph.sha256), caption: (ph.stage === 'handover' ? 'التسليم · ' : 'الاستلام · ') + api.t('photo_position', ph.position) }; };
+      var stages = ['handover', 'return'].map(function (s) { return c.photos.filter(function (x) { return x.stage === s; }); });
+      dlg.setBody(h`${c.needs_review ? h`<div class="banner warn fs-sm mb-12">${icon('triangle-alert', 15)}<div>عهدة طارئة تنتظر المراجعة${c.reason ? ': ' + c.reason : ''}</div></div>` : ''}
+        ${BT.kv([['السيارة', A.plate(c.vehicle.plate_number, c.vehicle.id)], ['السائق', A.person(c.driver)], ['من', fmt.dt(c.started_at)], ['إلى', c.ended_at ? fmt.dt(c.ended_at) : BT.pill('مستمرة', 'g')], ['النوع', A.pill('custody_kind', c.kind)], c.reason ? ['السبب', c.reason] : null].filter(Boolean))}
+        <div class="section-t mt-16">قراءات العداد خلال العهدة</div>
+        ${c.readings.length ? h`<div class="list">${c.readings.map(function (rd) { return h`<button type="button" class="li" data-reading="${rd.id}" style="width:100%;text-align:start"><span class="li-ic ${rd.flags.length ? 'o' : ''}">${icon('gauge', 16)}</span><div class="li-main"><div class="li-t"><span class="num">${fmt.km(rd.effective_km)}</span> كم · ${api.t('reading_kind', rd.kind)}</div><div class="li-d">${fmt.dt(rd.recorded_at)}${rd.flags.length ? ' · ' + rd.flags.map(function (f) { return api.t('odometer_flags', f); }).join('، ') : ''}</div></div></button>`; })}</div>` : raw('<div class="muted fs-sm">لا توجد قراءات</div>')}
+        <div class="section-t mt-16">صور الحالة عند التسليم</div>${A.thumbs(stages[0].map(photo))}
+        ${c.ended_at ? h`<div class="section-t mt-16">صور الحالة عند الاستلام</div>${A.thumbs(stages[1].map(photo))}` : ''}`);
+      BT.on(dlg.body, 'click', '[data-reading]', function (e, b) { var rd = c.readings.find(function (x) { return x.id === b.getAttribute('data-reading'); }); A.reading(rd); });
+      var btns = [];
+      if (c.needs_review && api.can('custody.emergency')) btns.push(h`<button type="button" class="btn btn-outline" data-x="review">${icon('badge-check', 15)}تمت المراجعة</button>`);
+      if (!c.ended_at && api.can('custody.assign')) btns.push(h`<button type="button" class="btn btn-primary" data-x="return">${icon('log-in', 15)}استلام السيارة</button>`);
+      if (!btns.length) return;
+      var foot = dlg.panel.querySelector('.modal-f');
+      BT.render(foot, h`<span class="spacer"></span>${btns}<button type="button" class="btn btn-secondary" data-close>إغلاق</button>`);
+      var done = function () { dlg.close(); if (A.refreshCustody) A.refreshCustody(); if (A.router.current === 'vehicles/:id') A.router.refresh(); if (after) after(); };
+      BT.on(foot, 'click', '[data-x]', function (e, b) {
+        if (b.getAttribute('data-x') === 'return') A.returnVehicle(id, { plate_number: c.vehicle.plate_number }, done);
+        else A.confirmRun({ title: 'مراجعة العهدة الطارئة', message: 'اكتب ما تحققت منه (المستندات، حالة السيارة، سبب الطوارئ).', confirmText: 'تمت المراجعة', tone: 'success', reason: { label: 'ملاحظة المراجعة', required: true }, run: function (note) { return api.post('/custodies/' + id + '/review', { note: note }); }, done: 'تمت المراجعة', after: done });
+      });
+    }, function (err) { dlg.setBody(A.errorBox(err)); });
+  };
+
+  /* تسليم سيارة: صورة العداد إلزامية، وصور الحالة تحفظ وضع السيارة لحظة التسليم */
+  A.handover = function (pre, after) {
+    var wait = BT.modal.open({ title: 'تسليم سيارة لسائق', icon: 'key-round', size: 'sm', body: A.spinner() });
+    var jobs = [pre.vehicle ? Promise.resolve([pre.vehicle]) : A.all('/vehicles'), A.all('/employees', { is_driver: true, status_code: 'active' }), A.all('/custodies', { open: true })];
+    Promise.all(jobs).then(function (r) {
+      wait.close();
+      // the free cars, and those a driver holds: taken from him in the same step
+      var vehicles = r[0].filter(function (x) { return pre.vehicle || x.status === 'available' || x.status === 'assigned'; }), holding = {};
+      r[2].forEach(function (c) { if (c.driver) holding[c.driver.id] = c.vehicle.plate_number; });
+      // من معه سيارة يظهر آخر القائمة مع لوحتها: التسليم له يُرفض ما لم تُستلم الأولى
+      var drivers = r[1].slice().sort(function (a, b) { return (holding[a.id] ? 1 : 0) - (holding[b.id] ? 1 : 0); });
+      var emergency = api.can('custody.emergency');
+      A.formModal({
+        title: 'تسليم سيارة لسائق', icon: 'key-round', size: 'lg', submitText: 'تسليم', done: 'تم التسليم وبدأت العهدة',
+        body: h`<div class="form-grid">
+          ${A.picker({ name: 'vehicle', label: 'السيارة', required: true, items: vehicles.map(function (x) { return { id: x.id, plate: x.plate_number, label: A.vehicleLabel(x) + (x.custody && x.custody.driver ? ' · مع ' + api.name(x.custody.driver.name) : ''), km: x.last_odometer_km }; }), value: pre.vehicle && pre.vehicle.id, hint: pre.vehicle ? '' : 'المتاحة، والتي مع سائق (تُستلم منه في نفس الخطوة)' })}
+          ${A.picker({ name: 'driver', label: 'السائق', required: true, items: drivers.map(function (e) { return { id: e.id, label: api.name(e.name) + ' — ' + e.employee_number + (holding[e.id] ? ' · معه ' + holding[e.id] : '') }; }), hint: 'السائقون على رأس العمل؛ من معه سيارة يرجّعها أو تتبدّل في نفس الخطوة' })}
+          <div class="full" data-transfer></div>
+          <div class="full hidden" data-other><div class="section-t" data-other-title></div><div class="form-grid">
+            ${BT.f.input({ name: 'other_odometer_km', label: 'قراءة عدادها (كم)', num: true, min: 0 })}
+            <div class="full">${BT.f.camera({ name: 'other_odo_photo', label: 'صورة عدادها', cta: 'صورة العداد', sub: 'إلزامية' })}</div>
+            <div class="full"><div class="label mb-8">صور حالتها</div>${photoFields('oph_', POSITIONS)}</div>
+          </div></div>
+          ${BT.f.input({ name: 'odometer_km', label: 'قراءة العداد (كم)', required: true, num: true, min: 0, value: pre.vehicle ? pre.vehicle.last_odometer_km : '' })}
+          ${BT.f.input({ name: 'started_at', label: 'وقت التسليم', type: 'datetime-local', optional: true, hint: 'اتركه للتسليم الآن. يقبل حتى 7 أيام للخلف' })}
+          ${emergency ? h`<div class="full" data-kind>${BT.f.radios({ name: 'kind', label: 'نوع التسليم', value: 'normal', options: [{ v: 'normal', t: 'عادي' }, { v: 'emergency', t: 'طارئ', d: 'يتجاوز الفحوصات ويحتاج سبباً ومراجعة' }], full: true })}</div>` : ''}
+          <div class="full hidden" data-reason>${BT.f.textarea({ name: 'reason', label: 'سبب التسليم الطارئ', rows: 2 })}</div>
+          <div class="full">${BT.f.camera({ name: 'odo_photo', label: 'صورة العداد', required: true, cta: 'صورة العداد', sub: 'إلزامية' })}</div>
+          <div class="full"><div class="label mb-8">صور الحالة</div>${photoFields('ph_', POSITIONS)}</div>
+        </div>`,
+        onOpen: function (dd) {
+          var veh = dd.el.querySelector('[name=vehicle]'), drv = dd.el.querySelector('[name=driver]'), km = dd.el.querySelector('[name=odometer_km]');
+          veh.addEventListener('change', function () { var x = (A._pick.vehicle || []).find(function (i) { return i.label === veh.value; }); if (x && x.km != null && !km.value) km.value = x.km; });
+          BT.on(dd.el, 'change', '[name=kind]', function (e, r) { dd.el.querySelector('[data-reason]').classList.toggle('hidden', r.value !== 'emergency'); });
+          // the car held by another driver, or a driver who holds one: what the handover does, said before it is done
+          var seq = 0, checked = null;
+          function check() {
+            var v = A.picked('vehicle', veh.value), d = A.picked('driver', drv.value);
+            if (v + '|' + d === checked) return; // the same pair: its answer is on screen or on its way
+            checked = v + '|' + d;
+            var n = ++seq;
+            if (!v || !d) { transfer = null; drawTransfer(dd.el); return; }
+            api.get('/custodies/transfer-check', { vehicle_id: v, driver_id: d }).then(function (c) {
+              if (n !== seq) return;
+              var car = (A._pick.vehicle || []).find(function (i) { return i.id === v; }) || {};
+              transfer = c.modes_allowed.indexOf('handover') >= 0 ? null : { check: c, plate: car.plate, driver: drv.value.split(' — ')[0] };
+              drawTransfer(dd.el);
+            }, function () { if (n === seq) { checked = null; transfer = null; drawTransfer(dd.el); } }); // asked again on the next change
+          }
+          // on input as well: a choice from the list is complete before the field is left
+          [veh, drv].forEach(function (f) { f.addEventListener('change', check); f.addEventListener('input', check); });
+          BT.on(dd.el, 'change', '[name=mode]', function () { drawOutcome(dd.el); });
+          if (veh.value) check();
+        },
+        submit: function (v) {
+          if (transfer) return submitTransfer(v);
+          return Promise.all([api.upload(v.odo_photo[0]), uploadPhotos(v, 'ph_', POSITIONS)]).then(function (up) {
+            return api.post('/custodies', { vehicle_id: A.picked('vehicle', v.vehicle), driver_id: A.picked('driver', v.driver), odometer_km: v.odometer_km, photo_sha256: up[0].sha256, photos: up[1], started_at: fmt.kwIso(v.started_at), kind: v.kind || 'normal', reason: v.reason || null });
+          });
+        },
+        after: after
+      });
+
+      var transfer = null; // {check, plate, driver}: the car held by someone, or the driver holds one
+      function names() {
+        var c = transfer.check;
+        return { x: transfer.plate, a: transfer.driver, b: c.holder ? api.name(c.holder.driver.name) : null, y: c.driver_vehicle ? c.driver_vehicle.plate_number : null };
+      }
+      // who ends up with what, for the mode chosen
+      function outcome(mode) {
+        var n = names();
+        if (mode === 'swap') return [n.a + ' ياخد ' + n.x, n.b + ' ياخد ' + n.y];
+        return [n.a + ' ياخد ' + n.x].concat(n.b ? [n.b + ' يفضل من غير عربية'] : [], n.y ? [n.y + ' ترجع للمكتب متاحة'] : []);
+      }
+      function mode(el) { var r = el.querySelector('[name=mode]:checked'); return r ? r.value : transfer.check.modes_allowed[0]; }
+      function drawOutcome(el) {
+        var box = el.querySelector('[data-outcome]');
+        if (box && transfer) BT.render(box, h`<ul class="fs-sm mt-8">${outcome(mode(el)).map(function (x) { return h`<li>${x}</li>`; })}</ul>`);
+      }
+      function drawTransfer(el) {
+        var box = el.querySelector('[data-transfer]'), other = el.querySelector('[data-other]'), kind = el.querySelector('[data-kind]');
+        if (kind) kind.classList.toggle('hidden', !!transfer);
+        if (!transfer) { BT.render(box, ''); other.classList.add('hidden'); return; }
+        var c = transfer.check, n = names();
+        if (kind) { var normal = el.querySelector('[name=kind][value=normal]'); if (normal) normal.checked = true; el.querySelector('[data-reason]').classList.add('hidden'); }
+        other.classList.toggle('hidden', !c.driver_vehicle);
+        if (c.driver_vehicle) {
+          el.querySelector('[data-other-title]').textContent = 'العربية اللي هيرجّعها ' + n.a + ': ' + n.y;
+          var okm = el.querySelector('[name=other_odometer_km]');
+          if (!okm.value && c.driver_vehicle.last_odometer_km != null) okm.value = c.driver_vehicle.last_odometer_km;
+        }
+        if (!c.modes_allowed.length) { BT.render(box, h`<div class="banner warn fs-sm" data-transfer-same>${icon('triangle-alert', 15)}<div>${n.a} معاه العربية ${n.x} بالفعل.</div></div>`); return; }
+        var text = c.holder && !c.driver_vehicle ? 'العربية ' + n.x + ' مع ' + n.b + '. التسليم هيخرّج ' + n.b + ' منها.'
+          : c.holder ? 'العربية ' + n.x + ' مع ' + n.b + '، و' + n.a + ' معاه ' + n.y + '.'
+          : n.a + ' معاه ' + n.y + ': هيرجّعها ويستلم ' + n.x + '.';
+        var options = c.holder && !c.driver_vehicle ? [{ v: 'release', t: 'إخراج ' + n.b + ' وتسليمها لـ ' + n.a }]
+          : c.holder ? [{ v: 'swap', t: 'تبديل: ' + n.b + ' ياخد ' + n.y }, { v: 'release', t: 'إخراج ' + n.b + ' من غير عربية، و' + n.a + ' يرجّع ' + n.y }]
+          : [{ v: 'release', t: n.a + ' يرجّع ' + n.y + ' ويستلم ' + n.x }];
+        BT.render(box, h`<div class="banner warn fs-sm mb-8" data-transfer-text>${icon('repeat', 15)}<div>${text}</div></div>${BT.f.radios({ name: 'mode', label: 'التسليم يتم إزاي؟', value: options[0].v, options: options, full: true })}<div data-outcome></div>`);
+        drawOutcome(el);
+      }
+      function submitTransfer(v) {
+        var c = transfer.check, m = v.mode || c.modes_allowed[0], dv = c.driver_vehicle;
+        if (!c.modes_allowed.length) { // he holds this car already: nothing to hand over
+          BT.toast(names().a + ' معاه العربية ' + names().x + ' بالفعل: اختار عربية تانية أو سواق تاني', { type: 'error', timeout: 6000 });
+          return Promise.resolve(false);
+        }
+        return BT.confirm({ title: 'تأكيد التسليم', message: 'بعد التسليم:', details: h`<ul class="fs-sm" data-confirm-outcome>${(c.modes_allowed.length ? outcome(m) : []).map(function (x) { return h`<li>${x}</li>`; })}</ul>`, confirmText: 'تسليم', tone: 'warn' }).then(function (r) {
+          if (!r.ok) return false;
+          var otherPhoto = dv && v.other_odo_photo && v.other_odo_photo[0] ? api.upload(v.other_odo_photo[0]) : null;
+          return Promise.all([api.upload(v.odo_photo[0]), uploadPhotos(v, 'ph_', POSITIONS), otherPhoto, dv ? uploadPhotos(v, 'oph_', POSITIONS) : []]).then(function (up) {
+            return api.post('/custodies/transfer', {
+              vehicle_id: A.picked('vehicle', v.vehicle), driver_id: A.picked('driver', v.driver), mode: m,
+              odometer_km: v.odometer_km, photo_sha256: up[0].sha256, photos: up[1], started_at: fmt.kwIso(v.started_at),
+              other_odometer_km: dv && v.other_odometer_km !== '' ? v.other_odometer_km : null, other_photo_sha256: up[2] ? up[2].sha256 : null, other_photos: up[3]
+            });
+          });
+        });
+      }
+    }, function (err) { wait.setBody(A.errorBox(err)); });
+  };
+
+  A.returnVehicle = function (custodyId, x, after) {
+    A.formModal({
+      title: 'استلام السيارة', subtitle: x.plate_number, icon: 'log-in', size: 'lg', submitText: 'استلام', done: 'تم الاستلام وانتهت العهدة',
+      body: h`<div class="form-grid">${BT.f.input({ name: 'odometer_km', label: 'قراءة العداد (كم)', required: true, num: true, min: 0 })}${BT.f.input({ name: 'ended_at', label: 'وقت الاستلام', type: 'datetime-local', optional: true, hint: 'اتركه للاستلام الآن' })}
+        <div class="full">${BT.f.camera({ name: 'odo_photo', label: 'صورة العداد', required: true, cta: 'صورة العداد', sub: 'إلزامية' })}</div>
+        <div class="full"><div class="label mb-8">صور الحالة</div>${photoFields('ph_', POSITIONS)}</div></div>`,
+      submit: function (v) {
+        return Promise.all([api.upload(v.odo_photo[0]), uploadPhotos(v, 'ph_', POSITIONS)]).then(function (up) {
+          return api.post('/custodies/' + custodyId + '/return', { odometer_km: v.odometer_km, photo_sha256: up[0].sha256, photos: up[1], ended_at: fmt.kwIso(v.ended_at) });
+        });
+      },
+      after: after
+    });
+  };
+
+  /* ================= العداد ================= */
+  function readingColumns(withVehicle) {
+    return [
+      withVehicle ? { key: 'vehicle', label: 'السيارة', render: function (rd) { return rd.vehicle_plate ? BT.plate(rd.vehicle_plate) : '—'; } } : null,
+      { key: 'driver', label: 'السائق', render: function (rd) { return A.person(rd.driver); } },
+      { key: 'kind', label: 'النوع', render: function (rd) { return api.t('reading_kind', rd.kind); } },
+      { key: 'km', label: 'القراءة', num: true, render: function (rd) { return h`<span class="num">${fmt.km(rd.effective_km)}</span>${rd.corrected_km != null ? h`<span class="sub">مصححة من ${fmt.km(rd.value_km)}</span>` : ''}`; } },
+      { key: 'flags', label: 'الملاحظات', render: function (rd) { return rd.flags.length ? rd.flags.map(function (f) { return BT.pill(api.t('odometer_flags', f), f === 'photo_reused' ? 'r' : 'o'); }) : raw('<span class="muted">—</span>'); } },
+      { key: 'recorded_at', label: 'الوقت', render: function (rd) { return fmt.dt(rd.recorded_at); } },
+      { key: 'review', label: 'المراجعة', render: function (rd) { return rd.review_status === 'pending' ? BT.pill('بانتظار المراجعة', 'o') : rd.review_status === 'reviewed' ? BT.pill('روجعت', 'g') : raw('<span class="muted">سليمة</span>'); } }
+    ].filter(Boolean);
+  }
+  BT.pages['odometer'] = function (p, q) {
+    A.setTitle('العداد');
+    var v = A.view();
+    BT.render(v, h`${A.head('قراءات العداد', 'كل قراءة بصورة من الكاميرا وموقع. القراءات المخالفة (أقل من السابقة، فوق الحد اليومي، مسافة خارج العهدة، صورة مكررة) تنتظر قرار المراجع', '')}<div class="card"><div id="odo-table"></div></div>`);
+    var t = BT.table(document.getElementById('odo-table'), {
+      fetch: function (s) { return api.get('/odometer/readings', { review_status: s.chip, limit: s.limit, offset: s.offset }); },
+      chips: { value: q.status || 'pending', options: [{ v: 'pending', t: 'بانتظار المراجعة' }, { v: 'reviewed', t: 'روجعت' }, { v: 'ok', t: 'سليمة' }] },
+      columns: readingColumns(true),
+      rowClick: function (rd) { A.reading(rd, t.refresh); },
+      empty: { icon: 'circle-check', title: 'لا توجد قراءات هنا' }
+    });
+  };
+
+  A.reading = function (rd, after) {
+    var canReview = rd.review_status === 'pending' && api.can('odometer.review');
+    var mapLink = rd.lat != null ? h`<a href="https://www.openstreetmap.org/?mlat=${rd.lat}&mlon=${rd.lng}#map=17/${rd.lat}/${rd.lng}" target="_blank" rel="noopener">${icon('map', 14)} على الخريطة</a>` : '—';
+    var body = h`<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
+      <div>${A.thumbs([{ src: api.url('/odometer/readings/' + rd.id + '/photo'), caption: 'صورة العداد · ' + fmt.dt(rd.recorded_at) }])}</div>
+      <div>${BT.kv([['السيارة', rd.vehicle_plate ? BT.plate(rd.vehicle_plate) : '—'], ['السائق', A.person(rd.driver)], ['النوع', api.t('reading_kind', rd.kind)], ['المُدخل', h`<span class="num">${fmt.km(rd.value_km)}</span> كم`], rd.corrected_km != null ? ['المصحح', h`<span class="num">${fmt.km(rd.corrected_km)}</span> كم`] : null, ['يوم العمل', h`<span class="num">${fmt.date(rd.business_date)}</span>`], ['المصدر', rd.source === 'device' ? 'تطبيق السائق' : 'المكتب (تسليم أو استلام)'], ['الموقع', mapLink]].filter(Boolean))}</div></div>
+      ${rd.flags.length ? h`<div class="banner warn fs-sm mt-12">${icon('triangle-alert', 15)}<div>${rd.flags.map(function (f) { return api.t('odometer_flags', f); }).join(' · ')}</div></div>` : ''}
+      ${rd.review_status === 'reviewed' ? h`<div class="banner info fs-sm mt-12">${icon('badge-check', 15)}<div>روجعت ${rd.reviewed_at ? fmt.dt(rd.reviewed_at) : ''}${rd.review_reason ? ': ' + rd.review_reason : ''}</div></div>` : ''}
+      ${canReview ? h`<div class="form mt-16">${BT.f.input({ name: 'corrected_km', label: 'القراءة الصحيحة (اختياري)', num: true, min: 0, hint: 'اتركها فارغة إن كانت القراءة صحيحة رغم الملاحظة' })}${BT.f.textarea({ name: 'reason', label: 'سبب القرار', required: true, rows: 2, placeholder: 'مثال: الصورة توضح 45210 والسائق أخطأ في الإدخال' })}</div>` : ''}`;
+    if (!canReview) return BT.drawer.open({ title: 'قراءة عداد', icon: 'gauge', size: 'lg', body: body, buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] });
+    return BT.drawer.open({
+      title: 'مراجعة قراءة عداد', icon: 'gauge', size: 'lg', form: true, body: body,
+      buttons: [{ label: 'إلغاء', cls: 'btn-ghost' }, { label: 'حفظ القرار', cls: 'btn-primary', submit: true }],
+      onSubmit: function (v) {
+        return api.post('/odometer/readings/' + rd.id + '/review', { corrected_km: v.corrected_km === '' ? null : v.corrected_km, reason: v.reason }).then(function () {
+          BT.toast('تم حفظ المراجعة'); A.refreshCounts(); if (after) after();
+        }).catch(api.fail);
+      }
+    });
+  };
+})();
