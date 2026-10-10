@@ -50,6 +50,7 @@ STEP_KINDS = {
     "per_order": set(),
     "batch": {"batch_rate"},
     "tiered_target": {"tier_bonus", "marks_deduction", "marks_reduce"},
+    "blocks": set(),  # the rules designer's blocks, by version (scheme_blocks.py)
 }
 TERMS_BY_VERSION = (  # what a driver is paid on: a change is a new version from a month
     "per_order",
@@ -117,6 +118,8 @@ def _rules(s: Scheme, v: SchemeVersion) -> Rules:
     by_kind: dict[str, list[Step]] = {}
     for st in sorted((_step_out(x) for x in v.steps or []), key=lambda x: x["threshold"]):
         by_kind.setdefault(st["kind"], []).append(Step(st["threshold"], st["amount"]))
+    if v.blocks is not None:  # written as rule blocks: they are the whole of the scheme's pay
+        return Rules(calculator="blocks", floor_at_zero=v.floor_at_zero, blocks=v.blocks)
     return Rules(
         calculator=s.calculator,
         per_order=v.per_order,
@@ -191,6 +194,7 @@ def _version_out(v: SchemeVersion, users: dict[int, str]) -> dict:
         "version_no": v.version_no,
         "effective_month": v.effective_month,
         **_terms(v),
+        "blocks": v.blocks,
         "note": v.note,
         "created_at": v.created_at,
         "created_by": users.get(v.created_by),
@@ -223,6 +227,8 @@ def _out(
         "version": s.version,
         "version_no": v.version_no,
         "effective_month": v.effective_month,
+        "blocks": v.blocks,  # this month's rules as blocks (None: the calculator's terms above)
+        "designed": versions[-1].blocks is not None,  # its latest version is edited in the rules designer
         "next_version": {"version_no": later[0].version_no, "effective_month": later[0].effective_month}
         if later
         else None,
@@ -374,6 +380,10 @@ def update(db: Session, public_id, *, version: int, changes: dict, actor_user_id
         raise AppError(409, "scheme_in_use")  # another shape of rule is another scheme
     versions = _versions(db, [s.id])[s.id]
     new_terms = {k: v for k, v in changes.items() if k in (*TERMS_BY_VERSION, "steps")}
+    if versions[-1].blocks is not None and (
+        calc_change or not _same(_terms(versions[-1]) | new_terms, _terms(versions[-1]))
+    ):
+        raise AppError(409, "scheme_designed")  # its rules are blocks: changed in the rules designer
     if "name" in changes:
         changes["name"] = i18n.validate_localized(db, changes["name"])
     if changes.get("description"):
@@ -471,9 +481,10 @@ def assign(
     source: str,
     actor_user_id: int | None,
     request: SchemeChangeRequest | None = None,
+    personal_rate=None,
 ) -> None:
     """In the caller's transaction: the driver is on this scheme from the month on (what was set from it is
-    replaced)."""
+    replaced), with a price per order agreed with him when given."""
     if not employee.is_driver:
         raise AppError(422, "not_a_driver")
     if employee.platform_id != scheme.platform_id:
@@ -497,6 +508,7 @@ def assign(
             source=source,
             request_id=request.id if request else None,
             set_by=actor_user_id,
+            personal_rate=personal_rate,
         )
     )
     # the first version covers every month the scheme is used in: a driver put on it from a month before the first
@@ -524,7 +536,9 @@ def assign(
     )
 
 
-def assign_many(db: Session, scheme_public_id, employee_ids, month: date, *, actor_user_id: int, **scope) -> dict:
+def assign_many(
+    db: Session, scheme_public_id, employee_ids, month: date, *, actor_user_id: int, personal_rate=None, **scope
+) -> dict:
     """The office moves drivers to a scheme from a month (a first assignment, or everyone to a new price)."""
     scheme = _by_public_id(db, scheme_public_id)
     if not scheme.is_active:
@@ -534,7 +548,15 @@ def assign_many(db: Session, scheme_public_id, employee_ids, month: date, *, act
         employee = people.ref_by_public_id(db, public_id, **scope)
         try:
             with db.begin_nested():
-                assign(db, employee, scheme, month, source="office", actor_user_id=actor_user_id)
+                assign(
+                    db,
+                    employee,
+                    scheme,
+                    month,
+                    source="office",
+                    actor_user_id=actor_user_id,
+                    personal_rate=personal_rate,
+                )
             done += 1
         except AppError as exc:
             skipped.append({"employee": {"id": str(employee.public_id), "name": employee.name}, "code": exc.code})
@@ -555,6 +577,7 @@ def history(db: Session, employee_id: int) -> list[dict]:
             "valid_from": d.valid_from,
             "valid_to": d.valid_to,
             "source": d.source,
+            "personal_rate": d.personal_rate,
             "set_at": d.set_at,
         }
         for d, s in db.execute(q)

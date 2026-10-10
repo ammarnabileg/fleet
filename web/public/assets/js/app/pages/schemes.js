@@ -19,7 +19,11 @@
 
   /* ما يقرؤه المكتب والسائق: شروط النظام في سطور */
   A.schemeTerms = function (s) {
-    var steps = function (kind) { return s.steps.filter(function (x) { return x.kind === kind; }); };
+    if (s.blocks) { // built in the rules designer: its rules in their order
+      return [['القواعد بالترتيب', s.blocks.map(function (b, i) { return (i + 1) + '. ' + (b.label || api.t('rule_block', b.type)); }).join(' ← ')],
+        ['على الشركة', s.company_covers && s.company_covers.length ? s.company_covers.map(function (c) { return api.t('expense', c); }).join('، ') : 'لا شيء (على السائق)']];
+    }
+    var steps = function (kind) { return (s.steps || []).filter(function (x) { return x.kind === kind; }); };
     var out = [];
     if (s.calculator === 'per_order') out.push(['سعر الطلب', money(s.per_order)]);
     if (s.calculator === 'batch') out.push(['سعر الطلب حسب الباتش', steps('batch_rate').map(function (x) { return 'باتش ' + Number(x.threshold) + ': ' + fmt.money(x.amount); }).join(' · ')]);
@@ -44,15 +48,17 @@
     var canEdit = api.can('payroll.schemes');
     A.load(el, Promise.all([A.platforms(true), api.get('/payroll/schemes')]), function (r) {
       var plats = r[0], schemes = r[1];
-      A.delegate(el, 'click', '[data-new]', function (e, b) { var p = plats.find(function (x) { return String(x.id) === b.getAttribute('data-new'); }); schemeForm(p, null, function () { A.schemesPanel(el); }); });
-      A.delegate(el, 'click', '[data-scheme]', function (e, b) { var s = schemes.find(function (x) { return x.id === b.getAttribute('data-scheme'); }); var p = plats.find(function (x) { return x.id === s.platform_id; }); schemeForm(p, s, function () { A.schemesPanel(el); }); });
+      // a new scheme starts in the rules designer (from a template or a single price); a scheme built there opens
+      // there, one still on its old calculator in the old form (its versions to view, its terms by version)
+      A.delegate(el, 'click', '[data-new]', function (e, b) { var p = plats.find(function (x) { return String(x.id) === b.getAttribute('data-new'); }); A.newBlockScheme(p, function () { A.schemesPanel(el); }); });
+      A.delegate(el, 'click', '[data-scheme]', function (e, b) { var s = schemes.find(function (x) { return x.id === b.getAttribute('data-scheme'); }); if (s.designed) { A.go('payroll/scheme/' + s.id); return; } var p = plats.find(function (x) { return x.id === s.platform_id; }); schemeForm(p, s, function () { A.schemesPanel(el); }); });
       return h`<div class="hint mb-12">كل منصة تعرض أنظمتها، وكل سائق على نظام واحد في الشهر. تغيير شروط نظام نسخة جديدة «يسري من شهر»: كل شهر يُحسب على نسخة شهره، فلا يُعاد حساب شهر صُرف بسعر لم يكن له. طريقة الحساب لا تتغير لنظام مستخدم: نظام جديد تنقل السائقين إليه من شهر (قائمة الموظفين ← حدّدهم ← «نظام الدفع»). منصة بلا أنظمة تبقى على قاعدتها في تبويب المنصات.</div>
         ${plats.filter(function (p) { return p.is_active; }).map(function (p) {
           var mine = schemes.filter(function (s) { return s.platform_id === p.id; });
           return h`<div class="card mb-12"><div class="card-h"><div class="card-t">${api.name(p.name)}</div><span class="muted fs-sm">${mine.length ? mine.length + ' نظام' : 'بلا أنظمة: قاعدة المنصة'}</span>${canEdit ? h`<button type="button" class="btn btn-sm btn-primary ms-auto" data-new="${p.id}">${icon('plus', 14)} نظام جديد</button>` : ''}</div>
             ${mine.length ? h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;padding:12px">${mine.map(function (s) {
               return h`<button type="button" class="card" data-scheme="${s.id}" style="text-align:start;cursor:pointer"><div class="card-h"><div class="card-t">${api.name(s.name)}</div>${s.is_active ? '' : BT.pill('موقوف', 'n')}${s.driver_selectable ? BT.pill('يختاره السائق', 'b') : BT.pill('من المكتب فقط', 'n')}</div>
-                <div class="card-b">${BT.kv([['الحساب', api.t('scheme_calculator', s.calculator)], ['النسخة', 'النسخة ' + s.version_no + ' · من ' + monthLabel(s.effective_month)]].concat(A.schemeTerms(s)).concat([['السائقون هذا الشهر', fmt.int(s.drivers)]]).concat(s.next_version ? [['نسخة قادمة', h`<span data-next-version>النسخة ${s.next_version.version_no} من ${monthLabel(s.next_version.effective_month)}</span>`]] : []))}</div></button>`;
+                <div class="card-b">${BT.kv([['الحساب', api.t('scheme_calculator', s.designed ? 'blocks' : s.calculator)], ['النسخة', 'النسخة ' + s.version_no + ' · من ' + monthLabel(s.effective_month)]].concat(A.schemeTerms(s)).concat([['السائقون هذا الشهر', fmt.int(s.drivers)]]).concat(s.next_version ? [['نسخة قادمة', h`<span data-next-version>النسخة ${s.next_version.version_no} من ${monthLabel(s.next_version.effective_month)}</span>`]] : []))}</div></button>`;
             })}</div>` : ''}</div>`;
         })}`;
     }).catch(function () {});
@@ -170,14 +176,27 @@
         title: 'نظام الدفع', subtitle: drivers.length === 1 ? api.name(drivers[0].name) : drivers.length + ' سائق', icon: 'banknote', size: 'sm', done: false,
         body: h`<div class="form">${BT.f.select({ name: 'scheme', label: 'النظام', required: true, placeholder: 'اختر', options: active.map(function (s) { return { v: s.id, t: A.platformName(plats, s.platform_id) + ' — ' + api.name(s.name) }; }) })}
           ${BT.f.input({ name: 'month', label: 'من شهر', type: 'month', required: true, value: thisMonth() })}
+          ${BT.f.money({ name: 'personal_rate', label: 'سعر خاص للطلب (اختياري)', optional: true, hint: 'سعر متفق عليه مع السائق، يستخدمه نظام الباتش إن سمح به' })}
+          <div class="banner warn fs-sm" data-rate-warning hidden>${icon('triangle-alert', 15)}<div>هذا النظام لا يستخدم السعر الخاص (لا قاعدة «سعر حسب الباتش» تسمح به): يُحفظ ولا يغيّر الحساب.</div></div>
           <div class="hint">يبدأ من أول الشهر ويحل محل ما كان من هذا الشهر فصاعداً. شهر رواتبه معتمدة لا يتغير، والسائق على منصة أخرى يُتخطى.</div></div>`,
         submit: function (v) {
-          return api.post('/payroll/schemes/' + v.scheme + '/assign', { employee_ids: drivers.map(function (d) { return d.id; }), month: v.month + '-01' }).then(function (res) {
+          return api.post('/payroll/schemes/' + v.scheme + '/assign', { employee_ids: drivers.map(function (d) { return d.id; }), month: v.month + '-01', personal_rate: v.personal_rate === '' || v.personal_rate == null ? null : Number(v.personal_rate).toFixed(3) }).then(function (res) {
             BT.toast('نظام الدفع لـ ' + res.set + ' سائق من ' + monthLabel(res.from), { sub: res.skipped.length ? res.skipped.length + ' تُخطّي: ' + res.skipped.map(function (x) { return api.name(x.employee.name) + ' (' + api.t('errors', x.code) + ')'; }).join('، ') : '', timeout: 8000 });
             return res;
           });
         },
-        after: after
+        after: after,
+        onOpen: function (dlg) {
+          // a personal rate only counts for a scheme whose batch rule allows it: said before saving
+          function check() {
+            var s = active.find(function (x) { return x.id === dlg.panel.querySelector('[name=scheme]').value; });
+            var rate = dlg.panel.querySelector('[name=personal_rate]').value;
+            var used = s && (s.blocks || []).some(function (b) { return b.type === 'batch_rate' && b.params.personal_rate !== false; });
+            dlg.panel.querySelector('[data-rate-warning]').hidden = !(rate && s && !used);
+          }
+          BT.on(dlg.panel, 'change', '[name=scheme], [name=personal_rate]', check);
+          BT.on(dlg.panel, 'input', '[name=personal_rate]', check);
+        }
       });
     }, api.fail);
   };

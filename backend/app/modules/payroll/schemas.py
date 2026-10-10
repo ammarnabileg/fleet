@@ -272,6 +272,7 @@ class LineOut(BaseModel):
     flags: list[str]
     statement_id: str | None
     breakdown: list[dict] = []  # a pay scheme's items: orders, tier bonus, penalties, with why
+    trace: list[dict] = []  # a version's rule blocks: what each did not do, and why
     scheme_version: int | None = None  # the scheme's terms version the month was paid on
 
 
@@ -400,6 +401,8 @@ class SchemeOut(BaseModel):
     version_no: int  # the terms above: this month's version
     effective_month: date  # from when that version applies
     next_version: dict | None  # a later version already set: {version_no, effective_month}
+    blocks: list | None = None  # this month's rules as blocks (the rules designer); None: the terms above
+    designed: bool = False  # its latest version is edited in the rules designer
     used: bool  # a driver was put on it or a payroll used it: a change of terms needs its month
     change_from: date  # the earliest month a change of terms may take effect
     versions: list[dict]  # every version with its terms, the newest first
@@ -409,6 +412,7 @@ class AssignSchemeIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     employee_ids: list[uuid.UUID] = Field(min_length=1, max_length=1000)
+    personal_rate: Money | None = None  # a price per order agreed with these drivers (a batch scheme may use it)
     month: date  # from this month on
 
 
@@ -425,6 +429,7 @@ class SchemeHistoryOut(BaseModel):
     valid_from: date
     valid_to: date | None
     source: str
+    personal_rate: Decimal | None = None
     set_at: datetime
 
 

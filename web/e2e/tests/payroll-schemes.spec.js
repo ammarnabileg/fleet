@@ -35,33 +35,16 @@ test('pay schemes: built, assigned, asked for, approved, and the month explained
   const top = () => admin.locator('.overlay[data-open]').last();
   const submit = () => top().locator('button[type=submit]').click();
 
-  // ---- the Keeta scheme from the form, every step from the steps editor
+  // ---- the Keeta scheme on its old calculator (a new scheme is built in the rules designer: payroll-designer.spec)
+  await api.post('/payroll/schemes', {
+    platform_id: s.keeta.id, code: 'base', name: { ar: 'كيتا الأساسي', en: 'Keeta base' }, calculator: 'tiered_target',
+    per_order: '0.350', reduced_rate: '0.200', missing_order_rate: '0.350', company_covers: ['maintenance'],
+    steps: [['tier_bonus', 450, '50'], ['tier_bonus', 540, '90'], ['tier_bonus', 620, '130'], ['tier_bonus', 710, '200'],
+      ['marks_deduction', 3, '10'], ['marks_deduction', 4, '30'], ['marks_reduce', 5, null]]
+      .map(([kind, threshold, amount]) => ({ kind, threshold, amount })),
+  });
   await admin.goto('/admin.html#/payroll?tab=schemes');
   await settled(admin);
-  await admin.click(`[data-new="${s.keeta.id}"]`);
-  await expect(admin.locator('.overlay[data-open]')).toHaveCount(1); // one form, whatever happened before the click
-  const m = top();
-  await m.locator('[name=code]').fill('base');
-  await m.locator('[name=name_ar]').fill('كيتا الأساسي');
-  await m.locator('[name=name_en]').fill('Keeta base');
-  await m.locator('[name=calculator]').selectOption('tiered_target');
-  await m.locator('[name=per_order]').fill('0.350');
-  await m.locator('[name=reduced_rate]').fill('0.200');
-  await m.locator('[name=missing_order_rate]').fill('0.350');
-  const steps = [
-    ['tier_bonus', 450, '50'], ['tier_bonus', 540, '90'], ['tier_bonus', 620, '130'], ['tier_bonus', 710, '200'],
-    ['marks_deduction', 3, '10'], ['marks_deduction', 4, '30'], ['marks_reduce', 5, null],
-  ];
-  for (const [i, [kind, from, amount]] of steps.entries()) {
-    await m.locator('[data-step-add]').click();
-    await m.locator(`[data-step-k="${i}"]`).selectOption(kind);
-    await m.locator(`[data-step-t="${i}"]`).fill(String(from));
-    if (amount != null) await m.locator(`[data-step-a="${i}"]`).fill(amount);
-    else await expect(m.locator(`[data-step-a="${i}"]`)).toBeDisabled(); // the reduced price applies
-  }
-  await m.locator('[name=cover_maintenance]').check();
-  await submit();
-  await expect(top()).toBeHidden();
   const keeta = (await api.get('/payroll/schemes')).find((x) => x.platform_id === s.keeta.id);
   expect(keeta).toMatchObject({
     calculator: 'tiered_target', per_order: '0.350', reduced_rate: '0.200', missing_order_rate: '0.350',

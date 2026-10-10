@@ -2888,6 +2888,30 @@ abstract class AppLocalizations {
   /// **'العربية لسه في عهدتك، بس مفيش يوم شغل بيها لحد ما تستلمها من المركز وتأكد الاستلام هنا.'**
   String get mntInMaintenanceHint;
 
+  /// No description provided for @fieldYes.
+  ///
+  /// In ar, this message translates to:
+  /// **'نعم'**
+  String get fieldYes;
+
+  /// No description provided for @fieldNo.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا'**
+  String get fieldNo;
+
+  /// No description provided for @fieldInvalid.
+  ///
+  /// In ar, this message translates to:
+  /// **'قيمة غير صحيحة'**
+  String get fieldInvalid;
+
+  /// No description provided for @choose.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختر'**
+  String get choose;
+
   /// No description provided for @objectPayslip.
   ///
   /// In ar, this message translates to:

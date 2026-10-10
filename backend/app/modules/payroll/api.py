@@ -412,7 +412,13 @@ def assign_scheme(
 ):
     """Drivers on this scheme from a month on: a first assignment, or everyone moved to a new price."""
     return schemes.assign_many(
-        db, public_id, body.employee_ids, body.month, actor_user_id=principal.user_id, **principal.scope
+        db,
+        public_id,
+        body.employee_ids,
+        body.month,
+        actor_user_id=principal.user_id,
+        personal_rate=body.personal_rate,
+        **principal.scope,
     )
 
 

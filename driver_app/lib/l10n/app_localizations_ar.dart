@@ -1582,6 +1582,18 @@ class AppLocalizationsAr extends AppLocalizations {
       'العربية لسه في عهدتك، بس مفيش يوم شغل بيها لحد ما تستلمها من المركز وتأكد الاستلام هنا.';
 
   @override
+  String get fieldYes => 'نعم';
+
+  @override
+  String get fieldNo => 'لا';
+
+  @override
+  String get fieldInvalid => 'قيمة غير صحيحة';
+
+  @override
+  String get choose => 'اختر';
+
+  @override
   String get objectPayslip => 'اعتراض على الكشف';
 
   @override

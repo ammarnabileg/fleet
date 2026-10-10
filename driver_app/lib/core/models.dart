@@ -127,6 +127,7 @@ class Report {
     this.notes,
     this.changePending = false,
     this.session = 1,
+    this.extra = const {},
   });
 
   factory Report.fromJson(Map<String, dynamic> j) => Report(
@@ -141,6 +142,7 @@ class Report {
     reviewNote: j['review_note'] as String?,
     notes: j['notes'] as String?,
     changePending: j['change_pending'] as bool? ?? false,
+    extra: Map<String, dynamic>.from(j['extra'] as Map? ?? const {}),
   );
 
   final String id;
@@ -154,8 +156,49 @@ class Report {
   final String? notes;
   final bool changePending; // a change asked for after approval waits for the office
   final int session; // the day's work session it covers: a second one after he started again adds to the first
+  final Map<String, dynamic> extra; // what he sent in his platform's own daily fields, by key
 
   bool get editable => status == 'submitted' || status == 'returned';
+}
+
+/// One field of the daily form, in the platform's order: a built-in one (orders, cash, valid day: the report's own
+/// columns) or the platform's own (a whole number, an amount, yes/no, a choice from a list), set in the dashboard.
+class FormItem {
+  const FormItem({
+    required this.key,
+    required this.label,
+    required this.type,
+    this.builtin,
+    this.required = false,
+    this.help,
+    this.options = const [],
+  });
+
+  factory FormItem.fromJson(Map<String, dynamic> j) => FormItem(
+    key: j['key'] as String,
+    label: Map<String, String>.from(j['label'] as Map? ?? const {}),
+    type: j['type'] as String? ?? 'int',
+    builtin: j['builtin'] as String?,
+    required: j['required'] == true,
+    help: j['help'] == null ? null : Map<String, String>.from(j['help'] as Map),
+    options: [
+      for (final o in j['options'] as List? ?? const [])
+        (value: (o as Map)['value'] as String, label: Map<String, String>.from(o['label'] as Map? ?? const {})),
+    ],
+  );
+
+  final String key;
+  final Map<String, String> label;
+  final String type; // int | money | bool | choice
+  final String? builtin; // orders | cash | valid_day
+  final bool required;
+  final Map<String, String>? help;
+  final List<({String value, Map<String, String> label})> options;
+
+  static String pick(Map<String, String>? m, String lang) =>
+      m == null || m.isEmpty ? '' : (m[lang] ?? m['ar'] ?? m.values.first);
+
+  String labelOf(String lang) => pick(label, lang);
 }
 
 class DocType {
@@ -549,6 +592,8 @@ class Payslip {
           code: (b as Map)['code'] as String,
           amount: b['amount'] as String,
           why: Map<String, dynamic>.from(b['why'] as Map? ?? {}),
+          label: b['label'] == null ? null : Map<String, String>.from(b['label'] as Map),
+          formula: b['formula'] as String?,
         ),
     ],
   );
@@ -609,11 +654,13 @@ class Objection {
 
 /// One item of a scheme's month: what it is (a salary-sheet column), the amount (penalties negative), and its reason.
 class PayItem {
-  const PayItem({required this.code, required this.amount, required this.why});
+  const PayItem({required this.code, required this.amount, required this.why, this.label, this.formula});
 
-  final String code; // orders_pay | tier_bonus | missing_target | marks_deduction | uncovered_penalty
+  final String code; // orders_pay | tier_bonus | missing_target | marks_deduction | uncovered_penalty | any rule's line
   final String amount;
   final Map<String, dynamic> why;
+  final Map<String, String>? label; // the line's name, from the server (a rule designed in the dashboard)
+  final String? formula; // how it was computed: "603 × 0.350 = 211.050"
 }
 
 /// One row of a scheme's table: a batch level's price, a tier's bonus, a marks deduction, or the marks from which every

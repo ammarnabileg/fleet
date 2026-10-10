@@ -833,6 +833,32 @@ def payroll_profiles(db: Session, *, company_id: int, employee_ids: Iterable[int
     return [_profile(e, s) for e, s in db.execute(q)]
 
 
+def platform_profiles(
+    db: Session,
+    platform_id: int,
+    *,
+    all_companies: bool,
+    company_ids: Iterable[int],
+    employee_ids: Iterable[int] = (),
+    departed: bool = False,
+) -> list[dict]:
+    """A platform's drivers in scope (not departed, unless asked), plus the given ones, with what a salary line
+    needs."""
+    extra = list(employee_ids)
+    on = (Employee.platform_id == platform_id) & Employee.is_driver.is_(True)
+    if not departed:
+        on = on & EmploymentStatus.is_terminal.is_(False)
+    q = _scoped(
+        select(Employee, EmploymentStatus)
+        .join(EmploymentStatus, EmploymentStatus.code == Employee.status_code)
+        .where(or_(on, Employee.id.in_(extra)))
+        .order_by(Employee.employee_number),
+        all_companies,
+        company_ids,
+    )
+    return [_profile(e, s) for e, s in db.execute(q)]
+
+
 def payroll_profile(db: Session, employee_id: int) -> dict:
     row = db.execute(
         select(Employee, EmploymentStatus)

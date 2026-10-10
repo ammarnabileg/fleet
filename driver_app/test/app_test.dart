@@ -884,6 +884,168 @@ void main() {
     expect((body['orders_count'], body['valid_day'], body.containsKey('cash_amount')), (31, true, false));
   });
 
+  testWidgets('daily report with the platform\'s own fields: drawn from its list, required ones checked', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final img = await tester.runAsync(testImage);
+    Photos.gallery = () async => TakenPhoto(img!, DateTime.now());
+    Map<String, String> lab(String ar) => {'ar': ar, 'en': ar};
+    w.server.on(
+      'GET',
+      '/api/v1/driver/reports/form',
+      (r) => (
+        200,
+        {
+          'fields': ['orders'],
+          'items': [
+            {'key': 'orders', 'label': lab('عدد الطلبات'), 'type': 'int', 'builtin': 'orders', 'required': true},
+            {'key': 'grocery', 'label': lab('طلبات البقالة'), 'type': 'int', 'builtin': null, 'required': true},
+            {'key': 'tips_cash', 'label': lab('إكراميات'), 'type': 'money', 'builtin': null, 'required': false},
+            {
+              'key': 'uniform',
+              'label': lab('ارتدى الزي'),
+              'type': 'bool',
+              'builtin': null,
+              'required': true,
+              'help': lab('حسب صورة البداية'),
+            },
+            {
+              'key': 'zone',
+              'label': lab('المنطقة'),
+              'type': 'choice',
+              'builtin': null,
+              'required': false,
+              'options': [
+                {'value': 'north', 'label': lab('الشمال')},
+                {'value': 'south', 'label': lab('الجنوب')},
+              ],
+            },
+          ],
+          'screenshot': true,
+        },
+      ),
+    );
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'e' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('POST', '/api/v1/driver/reports', (r) => (201, {'id': 'x'}));
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('daily-report')));
+    await settle(tester);
+    expect(find.byKey(const Key('platform-fields')), findsOneWidget);
+    expect(find.text('طلبات البقالة *', findRichText: true), findsOneWidget);
+    expect(find.text('إكراميات', findRichText: true), findsOneWidget);
+    expect(find.text('حسب صورة البداية'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('orders')), '20');
+    await tester.tap(find.byKey(const Key('screenshot')));
+    await idle(tester);
+    await reveal(tester, find.byKey(const Key('send-report')));
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/reports', method: 'POST'), isEmpty, reason: 'grocery and uniform required');
+    await reveal(tester, find.byKey(const Key('extra-grocery')));
+    await tester.enterText(find.byKey(const Key('extra-grocery')), '4');
+    await tester.enterText(find.byKey(const Key('extra-tips_cash')), '1.5');
+    await reveal(tester, find.text('نعم'));
+    await tester.tap(find.text('نعم'));
+    await settle(tester);
+    await shot(tester, '25b-report-platform-fields');
+    await reveal(tester, find.byKey(const Key('send-report')));
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/reports', method: 'POST').single.body) as Map;
+    expect(body['orders_count'], 20);
+    expect(body['extra'], {'grocery': 4, 'tips_cash': '1.500', 'uniform': true});
+  });
+
+  testWidgets('a platform without its own fields: the report as before, with an empty extra', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final img = await tester.runAsync(testImage);
+    Photos.gallery = () async => TakenPhoto(img!, DateTime.now());
+    w.server.on(
+      'GET',
+      '/api/v1/driver/reports/form',
+      (r) => (
+        200,
+        {
+          'fields': ['orders'],
+          'screenshot': false,
+        },
+      ),
+    );
+    w.server.on('POST', '/api/v1/driver/reports', (r) => (201, {'id': 'y'}));
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('daily-report')));
+    await settle(tester);
+    expect(find.byKey(const Key('platform-fields')), findsNothing);
+    await tester.enterText(find.byKey(const Key('orders')), '9');
+    await reveal(tester, find.byKey(const Key('send-report')));
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/reports', method: 'POST').single.body) as Map;
+    expect(body['orders_count'], 9);
+    expect(body['extra'], <String, dynamic>{}); // it draws forms: the server may ask for a field
+  });
+
+  testWidgets('the platform asks a field this phone does not know yet: the form is read again and shows it', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    var asked = false; // the office added a required field after this phone read the form
+    w.server.on(
+      'GET',
+      '/api/v1/driver/reports/form',
+      (r) => (
+        200,
+        {
+          'fields': ['orders'],
+          'items': [
+            {
+              'key': 'orders',
+              'label': {'ar': 'عدد الطلبات'},
+              'type': 'int',
+              'builtin': 'orders',
+              'required': true,
+            },
+            if (asked)
+              {
+                'key': 'grocery',
+                'label': {'ar': 'طلبات البقالة'},
+                'type': 'int',
+                'builtin': null,
+                'required': true,
+              },
+          ],
+          'screenshot': false,
+        },
+      ),
+    );
+    w.server.on('POST', '/api/v1/driver/reports', (r) {
+      asked = true;
+      return (
+        422,
+        {
+          'code': 'field_required',
+          'status': 422,
+          'params': {'field': 'grocery'},
+        },
+      );
+    });
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('daily-report')));
+    await settle(tester);
+    expect(find.byKey(const Key('extra-grocery')), findsNothing);
+    await tester.enterText(find.byKey(const Key('orders')), '9');
+    await reveal(tester, find.byKey(const Key('send-report')));
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    await settle(tester);
+    expect(find.byKey(const Key('extra-grocery')), findsOneWidget);
+  });
+
   testWidgets('cash: balance and a receipt to confirm', (tester) async {
     final w = (await tester.runAsync(() => world()))!;
     w.server.on('POST', '/api/v1/driver/cash/receipts/r1/confirm', (r) => (200, {'id': 'r1'}));
@@ -2360,6 +2522,74 @@ void main() {
     expect(find.text('خصومات غير محصلة (للمراجعة)'), findsOneWidget);
     expect(find.byKey(const Key('object-payslip')), findsNothing); // an older server sends no run: nothing to name
     await shot(tester, '28-payslip-scheme');
+  });
+
+  testWidgets('payslip lines of rules designed in the dashboard: their name and formula from the server', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/payslips',
+      (r) => (
+        200,
+        [
+          {
+            'month': '2026-09-01',
+            'status': 'approved',
+            'platform': null,
+            'rows': [
+              {'code': 'net', 'header': 'صافي الراتب', 'value': '326.500'},
+            ],
+            'scheme': {
+              'name': {'ar': 'كما صُرف', 'en': 'As paid'},
+            },
+            'breakdown': [
+              {
+                'code': 'fixed_salary',
+                'amount': '200.000',
+                'why': {'mode': 'contract'},
+                'label': {'ar': 'الراتب الثابت', 'en': 'Fixed salary'},
+                'formula': '200.000',
+              },
+              {
+                'code': 'target_bonus',
+                'amount': '146.500',
+                'why': {'orders': 603, 'threshold': 310, 'rate': '0.500'},
+                'label': {'ar': 'مكافأة تجاوز التارجت', 'en': 'Target overage bonus'},
+                'formula': '(603 − 310) × 0.500 = 146.500',
+              },
+              {
+                'code': 'marks_deduction',
+                'amount': '-20.000',
+                'why': {'marks': 1},
+                'label': {'ar': 'خصم العلامات', 'en': 'Marks deduction'},
+                'formula': '1 × 20.000 = −20.000',
+              },
+            ],
+            'gross': '346.500',
+            'deductions': '20.000',
+            'net': '326.500',
+          },
+        ],
+      ),
+    );
+    await pumpApp(tester, w);
+    await tester.dragUntilVisible(
+      find.byKey(const Key('payslips')),
+      find.byType(ListView).first,
+      const Offset(0, -200),
+    );
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('payslips')));
+    await idle(tester);
+    expect(find.text('مكافأة تجاوز التارجت'), findsOneWidget);
+    expect(find.text('\u2066(603 − 310) × 0.500 = 146.500\u2069'), findsOneWidget);
+    expect(find.text('الراتب الثابت'), findsOneWidget);
+    final penalty = tester.widget<Text>(
+      find.descendant(of: find.byKey(const Key('pay-item-marks_deduction')), matching: find.textContaining('20.000')),
+    );
+    expect(penalty.style!.color, AppColors.danger);
   });
 
   Map<String, dynamic> objectionSlip() => {

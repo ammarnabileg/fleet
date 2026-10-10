@@ -232,6 +232,7 @@ class Line(Base):
     scheme_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.schemes.id"))
     scheme_version: Mapped[int | None] = mapped_column(Integer)  # the scheme's terms version the month was paid on
     breakdown: Mapped[list] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))  # how the scheme got the pay
+    trace: Mapped[list] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))  # what each rule block did, and why
 
 
 class LineDeduction(Base):
@@ -261,7 +262,9 @@ class Scheme(Base):
     __table_args__ = (
         UniqueConstraint("platform_id", "code", name="schemes_platform_id_key"),
         CheckConstraint("code ~ '^[a-z][a-z0-9_]{1,30}$'", name="code"),
-        CheckConstraint("calculator IN ('platform_rates', 'per_order', 'batch', 'tiered_target')", name="calculator"),
+        CheckConstraint(
+            "calculator IN ('platform_rates', 'per_order', 'batch', 'tiered_target', 'blocks')", name="calculator"
+        ),
         CheckConstraint("per_order >= 0", name="per_order"),
         CheckConstraint("target_orders >= 0", name="target_orders"),
         CheckConstraint("required_valid_days BETWEEN 0 AND 31", name="required_valid_days"),
@@ -336,6 +339,7 @@ class SchemeVersion(Base):
     floor_at_zero: Mapped[bool] = mapped_column(Boolean)
     company_covers: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
     steps: Mapped[list] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))  # [{kind, threshold, amount}]
+    blocks: Mapped[list | None] = mapped_column(JSONB)  # the rules as ordered blocks; None: the scheme's calculator
     note: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -410,6 +414,7 @@ class DriverScheme(Base):
             name="month",
         ),
         CheckConstraint("source IN ('office', 'registration', 'request', 'import')", name="source"),
+        CheckConstraint("personal_rate >= 0", name="personal_rate"),
         Index("driver_schemes_scheme_id_idx", "scheme_id"),
         SCHEMA,
     )
@@ -423,6 +428,7 @@ class DriverScheme(Base):
     request_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.scheme_change_requests.id"))
     set_by: Mapped[int | None] = mapped_column(BigInteger)
     set_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    personal_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))  # a price per order agreed with him
 
 
 class Uncollected(Base):

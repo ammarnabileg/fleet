@@ -118,6 +118,10 @@ def update(db: Session, platform_id: int, *, version: int, changes: dict, actor_
     for k, v in changes.items():
         setattr(p, k, v)
     p.version += 1
+    if "daily_fields" in changes:  # the platform's field list follows its built-in daily fields
+        from app.modules.payroll import forms
+
+        forms.sync_builtins(db, p)
     db.flush()
     audit.record(
         db,

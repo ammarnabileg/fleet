@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/state.dart';
+import '../../core/errors.dart';
 import '../../core/models.dart';
 import '../../core/outbox.dart';
 import '../photos.dart';
@@ -40,6 +41,32 @@ class _ReportScreenState extends State<ReportScreen> {
   final _km = TextEditingController();
   final _reason = TextEditingController();
 
+  /// The platform's own fields (set in the dashboard): numbers typed, yes/no and choices picked.
+  final Map<String, TextEditingController> _typed = {};
+  final Map<String, Object?> _picked = {};
+
+  TextEditingController _text(String key) => _typed.putIfAbsent(key, TextEditingController.new);
+
+  /// What the driver filled in his platform's own fields, always sent (empty when it has none): it tells the server
+  /// this app draws the platform's form, so a required field is never skipped (an older app sends none).
+  Map<String, dynamic> get _extra {
+    final custom = widget.state.reportForm.custom;
+    final out = <String, dynamic>{};
+    for (final f in custom) {
+      switch (f.type) {
+        case 'int':
+          final v = int.tryParse(_text(f.key).text.trim());
+          if (v != null) out[f.key] = v;
+        case 'money':
+          final v = double.tryParse(_text(f.key).text.trim());
+          if (v != null) out[f.key] = v.toStringAsFixed(3);
+        default:
+          if (_picked[f.key] != null) out[f.key] = _picked[f.key];
+      }
+    }
+    return out;
+  }
+
   Report? get _editing => widget.report;
   bool get _endDue => _editing == null && daysBack == 0 && widget.state.endReadingDue;
 
@@ -76,6 +103,15 @@ class _ReportScreenState extends State<ReportScreen> {
       _cash.text = r.status == 'approved' ? (r.approvedCash ?? r.cash) : r.cash;
       validDay = r.validDay;
       _notes.text = r.notes ?? '';
+      for (final f in widget.state.reportForm.custom) {
+        final v = r.extra[f.key];
+        if (v == null) continue;
+        if (f.type == 'int' || f.type == 'money') {
+          _text(f.key).text = '$v';
+        } else {
+          _picked[f.key] = v;
+        }
+      }
     }
   }
 
@@ -90,14 +126,33 @@ class _ReportScreenState extends State<ReportScreen> {
         screenshotPath: shot?.path,
         notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
         reason: r.editable ? null : _reason.text.trim(),
+        extra: _extra,
       );
       if (mounted) {
         Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ResultScreen(result: result)));
       }
     } catch (e) {
+      await _formChanged(e);
       if (mounted) showError(context, widget.state, e);
     }
   }
+
+  /// The platform asks a field this phone's form does not have yet (changed in the dashboard): the form is read
+  /// again, so the driver fills it and sends once more.
+  Future<void> _formChanged(Object e) async {
+    final known = widget.state.reportForm.custom.map((f) => f.key).toSet();
+    if (e is ApiError && e.code == 'field_required') {
+      final field = e.params['field'];
+      if (field is String && !known.contains(field) && !_builtin.contains(field)) {
+        try {
+          await widget.state.loadReports();
+        } catch (_) {}
+        if (mounted) setState(() {});
+      }
+    }
+  }
+
+  static const _builtin = {'orders_count', 'cash_amount', 'valid_day', 'screenshot_sha256'};
 
   /// Business days follow Kuwait time (UTC+3, no daylight saving), like the server.
   String _day(int back) {
@@ -148,11 +203,87 @@ class _ReportScreenState extends State<ReportScreen> {
         screenshotPath: shot?.path,
         notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
         session: _session,
+        extra: _extra,
       );
       if (mounted) Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ResultScreen(result: r)));
     } catch (e) {
+      await _formChanged(e);
       if (mounted) showError(context, widget.state, e);
     }
+  }
+
+  /// One of the platform's own fields, as its type says: a whole number, an amount, yes/no, or a choice.
+  Widget _field(BuildContext context, FormItem f) {
+    final l = context.l;
+    final lang = widget.state.lang;
+    final help = f.help == null ? null : FormItem.pick(f.help, lang);
+    if (f.type == 'int' || f.type == 'money') {
+      final money = f.type == 'money';
+      return TextFormField(
+        key: Key('extra-${f.key}'),
+        controller: _text(f.key),
+        keyboardType: money ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.number,
+        textDirection: TextDirection.ltr,
+        inputFormatters: [
+          if (money) FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')) else FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(money ? 10 : 6),
+        ],
+        decoration: InputDecoration(
+          hintText: money ? '0.000' : '0',
+          hintTextDirection: TextDirection.ltr,
+          suffixText: money ? '  ${l.kwd}' : null,
+          helperText: help,
+          helperMaxLines: 2,
+        ),
+        validator: (v) {
+          final t = (v ?? '').trim();
+          if (t.isEmpty) return f.required ? l.required : null;
+          return (money ? _amount.hasMatch(t) : int.tryParse(t) != null) ? null : l.fieldInvalid;
+        },
+      );
+    }
+    if (f.type == 'choice') {
+      return DropdownButtonFormField<String>(
+        key: Key('extra-${f.key}'),
+        initialValue: _picked[f.key] as String?,
+        decoration: InputDecoration(hintText: l.choose, helperText: help, helperMaxLines: 2),
+        items: [for (final o in f.options) DropdownMenuItem(value: o.value, child: Text(FormItem.pick(o.label, lang)))],
+        onChanged: (v) => setState(() => _picked[f.key] = v),
+        validator: (v) => f.required && v == null ? l.required : null,
+      );
+    }
+    return FormField<bool>(
+      key: Key('extra-${f.key}'),
+      validator: (_) => f.required && _picked[f.key] == null ? l.required : null,
+      builder: (field) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SegmentedButton<bool>(
+            emptySelectionAllowed: true,
+            showSelectedIcon: false,
+            segments: [
+              ButtonSegment(value: true, label: Text(l.fieldYes), icon: const Icon(Icons.check)),
+              ButtonSegment(value: false, label: Text(l.fieldNo), icon: const Icon(Icons.close)),
+            ],
+            selected: {if (_picked[f.key] is bool) _picked[f.key] as bool},
+            onSelectionChanged: (s) {
+              setState(() => _picked[f.key] = s.isEmpty ? null : s.first);
+              field.didChange(s.isEmpty ? null : s.first);
+            },
+          ),
+          if (help != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(help, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+            ),
+          if (field.hasError)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(field.errorText!, style: const TextStyle(color: AppColors.danger, fontSize: 12)),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -356,6 +487,22 @@ class _ReportScreenState extends State<ReportScreen> {
                           ),
                           validator: (v) => _amount.hasMatch((v ?? '').trim()) ? null : l.cashInvalid,
                         ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+              if (widget.state.reportForm.custom.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                DCard(
+                  key: const Key('platform-fields'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final (i, f) in widget.state.reportForm.custom.indexed) ...[
+                        if (i > 0) const SizedBox(height: 14),
+                        FieldLabel(f.labelOf(widget.state.lang), required: f.required),
+                        _field(context, f),
                       ],
                     ],
                   ),
