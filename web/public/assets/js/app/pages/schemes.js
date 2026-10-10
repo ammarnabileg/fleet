@@ -176,9 +176,10 @@
         title: 'نظام الدفع', subtitle: drivers.length === 1 ? api.name(drivers[0].name) : drivers.length + ' سائق', icon: 'banknote', size: 'sm', done: false,
         body: h`<div class="form">${BT.f.select({ name: 'scheme', label: 'النظام', required: true, placeholder: 'اختر', options: active.map(function (s) { return { v: s.id, t: A.platformName(plats, s.platform_id) + ' — ' + api.name(s.name) }; }) })}
           ${BT.f.input({ name: 'month', label: 'من شهر', type: 'month', required: true, value: thisMonth() })}
+          ${BT.f.money({ name: 'personal_rate', label: 'سعر خاص للطلب (اختياري)', optional: true, hint: 'سعر متفق عليه مع السائق، يستخدمه نظام الباتش إن سمح به' })}
           <div class="hint">يبدأ من أول الشهر ويحل محل ما كان من هذا الشهر فصاعداً. شهر رواتبه معتمدة لا يتغير، والسائق على منصة أخرى يُتخطى.</div></div>`,
         submit: function (v) {
-          return api.post('/payroll/schemes/' + v.scheme + '/assign', { employee_ids: drivers.map(function (d) { return d.id; }), month: v.month + '-01' }).then(function (res) {
+          return api.post('/payroll/schemes/' + v.scheme + '/assign', { employee_ids: drivers.map(function (d) { return d.id; }), month: v.month + '-01', personal_rate: v.personal_rate === '' || v.personal_rate == null ? null : Number(v.personal_rate).toFixed(3) }).then(function (res) {
             BT.toast('نظام الدفع لـ ' + res.set + ' سائق من ' + monthLabel(res.from), { sub: res.skipped.length ? res.skipped.length + ' تُخطّي: ' + res.skipped.map(function (x) { return api.name(x.employee.name) + ' (' + api.t('errors', x.code) + ')'; }).join('، ') : '', timeout: 8000 });
             return res;
           });
