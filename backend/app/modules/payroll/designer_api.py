@@ -128,6 +128,16 @@ def apply_import(
     )
 
 
+@router.get("/month-status")
+def month_status(
+    month: date, principal: Principal = Depends(require_permission("payroll.view")), db: Session = Depends(get_session)
+):
+    """The month's six stages with live counts (the payroll page's stepper)."""
+    from app.modules.payroll import designer
+
+    return designer.month_status(db, month=month, **principal.scope)
+
+
 @router.get("/month-imports/template")
 def import_template(
     platform_id: int, _: Principal = Depends(require_permission("payroll.view")), db: Session = Depends(get_session)
@@ -137,3 +147,27 @@ def import_template(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="month-template-{platform_id}.xlsx"'},
     )
+
+
+# ------------------------------------------------------------------ the rule catalog, templates, trying a list
+
+
+@router.get("/rules/catalog")
+def rules_catalog(_: Principal = Depends(require_permission("payroll.view"))):
+    """The block types by category with their parameters, the condition facts, and the templates."""
+    from app.modules.payroll import rules
+    from app.modules.payroll.rules.catalog import palette
+
+    return palette() | {"templates": rules.templates()}
+
+
+@router.post("/rules/preview")
+def rules_preview(
+    body: schemas.PreviewIn,
+    _: Principal = Depends(require_permission("payroll.view")),
+    db: Session = Depends(get_session),
+):
+    """«جرّب»: the blocks on sample month figures, each line with its formula, what did nothing and why, the net."""
+    from app.modules.payroll import designer
+
+    return designer.preview(db, body.model_dump(mode="json"))

@@ -160,6 +160,20 @@ def save(db: Session, platform_id: int, data: dict, *, version: int, actor_user_
     return get(db, platform_id)
 
 
+def sync_builtins(db: Session, p: Platform) -> None:
+    """The platform's daily_fields changed on its form: its field list follows (a built-in field added in front of
+    the platform's own, one taken off removed), in the caller's transaction."""
+    f = db.get(PlatformForm, p.id)
+    if f is None:
+        return
+    keep = [x for x in f.daily if not x.get("builtin") or x["builtin"] in (p.daily_fields or [])]
+    have = {x.get("builtin") for x in keep}
+    added = [builtin_item(db, k) for k in DAILY_BUILTINS if k in (p.daily_fields or []) and k not in have]
+    if added or len(keep) != len(f.daily):
+        f.daily = added + keep
+        f.version += 1
+
+
 # ------------------------------------------------------------------ what other parts read
 
 

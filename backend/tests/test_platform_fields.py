@@ -381,3 +381,11 @@ def test_the_simple_template(admin_client, company, keeta):
     assert row["batches"] == [{"batch": 3, "orders": 80}, {"batch": 5, "orders": 20}]
     assert row["values"] == {"attendance_marks": "1.000", "star_day_failed": "1.000", "rating": "4.250"}
     assert row["tasks"] == {"pharmacy": 2} and "values_missing" not in row["problems"]
+
+
+def test_the_platform_form_and_the_field_list_agree(admin_client, keeta):
+    plat = next(x for x in admin_client.get(f"{P}/platforms").json() if x["id"] == keeta["id"])
+    r = admin_client.patch(f"{P}/platforms/{keeta['id']}", json={"version": plat["version"], "daily_fields": ["cash"]})
+    assert r.status_code == 200, r.text
+    f = admin_client.get(f"{P}/platforms/{keeta['id']}/fields").json()
+    assert [x["key"] for x in f["daily"]] == ["cash", "grocery", "tips_cash", "uniform", "zone"] and f["version"] == 2

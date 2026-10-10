@@ -548,7 +548,8 @@
     "exception_not_found": "Exception not found.",
     "exception_cancelled": "The exception is already cancelled.",
     "month_import_headers": "The file's columns were not found: the partner report needs Rider ID, Batch No. and Total Completed Deliveries; the template needs the civil ID or the platform driver ID.",
-    "month_import_blocked": "The file cannot be applied: two different figures for the same driver and batch, a month already approved, or no known driver. See the check."
+    "month_import_blocked": "The file cannot be applied: two different figures for the same driver and batch, a month already approved, or no known driver. See the check.",
+    "rule_sample_invalid": "The sample figures are not valid."
   },
   "settings": {
     "branding": "Branding",
