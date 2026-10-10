@@ -82,7 +82,7 @@ uvicorn app.main:create_app --factory --reload      # التوثيق: http://loc
    - (الملف في جذر المستودع لأن Coolify يشغّل compose من جذر المستودع أياً كان الـ Base Directory، فتُحسب مسارات البناء `./backend` و`./web` و`./deploy/postgres` من هناك)
 2. **الدومين على خدمة `web` فقط:** `https://<الدومين>` (المنفذ 80 داخل الحاوية). لا دومين لـ `api` ولا لغيرها: الـ API يمر عبر nginx فقط.
 3. **متغيرات البيئة:** الخمسة المطلوبة في `deploy/.env.example` (`SECRET_KEY` و`POSTGRES_PASSWORD` و`FLEET_APP_DB_PASSWORD` و`REDIS_PASSWORD` و`PUBLIC_URL`)، وكلمات المرور حروف وأرقام فقط (`openssl rand -hex 24`) لأنها تدخل في عناوين الاتصال. احفظ `SECRET_KEY` في مكان آمن: يشفّر مفاتيح التكاملات، وتغييره يعني إدخالها من جديد. ناقص واحد منها يوقف النشر برسالة تسميه. أطفئ «Build time» لكلمات السر و`SECRET_KEY` (تكفيها «Runtime»): Coolify يمرر المتغيرات المفعّل فيها وقت البناء إلى أمر البناء.
-4. **Deploy.** أول مرة تُبنى ثلاث صور (دقائق). `migrate` يشغّل الترحيلات ثم يخرج بـ 0، وقد يعرضه Coolify «Exited»: هذا عمله.
+4. **Deploy.** أول مرة تُبنى ثلاث صور (دقائق). `migrate` يشغّل الترحيلات ثم يفضل شغّال خامل وحالته Healthy (لو خرج كان Coolify هيعرض التطبيق كله Unhealthy). لو ترحيل فشل يخرج بخطأ وما يبدأش أي حاجة بعده. وكل الخدمات ليها فحص صحة: web وapi وworker وbeat.
 5. **أول مدير:** من Terminal حاوية `api` في Coolify:
    `ADMIN_PASSWORD='<كلمة قوية>' python -m app.ops.bootstrap --username admin --full-name "<الاسم>"`
    ثم الدخول من `https://<الدومين>/login.html`. اسم العميل والألوان وباقي الإعدادات من صفحة الإعدادات في اللوحة.
