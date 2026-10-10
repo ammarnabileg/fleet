@@ -45,7 +45,7 @@ x-app: &app
 
 x-app-deps: &app-deps
   migrate:
-    condition: service_completed_successfully
+    condition: service_healthy
   redis-queue:
     condition: service_healthy
   redis-cache:
@@ -62,18 +62,36 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:              # a static page, so it says nginx serves, whatever the api is doing
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/login.html || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     deploy:
       resources:
         limits: { cpus: "0.5", memory: 256m }
 
-  # runs the migrations as the owner, then exits (a platform may show it as "exited": that is its job done)
+  # runs the migrations as the owner, then stays up idle and healthy: a container that exits is shown by the platform
+  # (Coolify) as an unhealthy, degraded application. A failed migration exits non-zero, never becomes healthy, and
+  # nothing that depends on it starts.
   migrate:
     <<: *app
     restart: "no"
+    init: true                # sleep does not stop on SIGTERM by itself: a redeploy would wait for the kill timeout
     environment:
       <<: *app-env
       DATABASE_URL: postgresql+psycopg://fleet_owner:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/fleet
-    command: ["alembic", "upgrade", "head"]
+    command: ["sh", "-c", "rm -f /tmp/migrated && alembic upgrade head && touch /tmp/migrated && exec sleep infinity"]
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/migrated"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 900s      # a long migration is not a failure; healthy as soon as it is done
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 512m }
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,6 +119,12 @@ services:
     <<: *app
     command: ["celery", "-A", "app.worker", "worker", "--concurrency", "4", "--loglevel", "INFO"]
     depends_on: *app-deps
+    healthcheck:              # the worker answers through the broker: alive and connected
+      test: ["CMD-SHELL", "celery -A app.worker inspect ping -d celery@$$HOSTNAME --timeout 10 > /dev/null"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
     deploy:
       resources:
         limits: { cpus: "2", memory: 3g }
@@ -110,6 +134,11 @@ services:
     command: ["celery", "-A", "app.worker", "beat", "--loglevel", "INFO",
               "--schedule", "/tmp/celerybeat-schedule"]
     depends_on: *app-deps
+    healthcheck:              # beat is the container's main process: running means it is up (it exits on a lost broker)
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
     deploy:
       resources:
         limits: { cpus: "0.25", memory: 256m }
