@@ -91,12 +91,12 @@ def _steps_json(steps) -> list[dict]:
     return sorted(rows, key=lambda x: (x["kind"], Decimal(x["threshold"])))
 
 
-def _versions(db: Session, scheme_ids) -> dict[int, list[SchemeVersion]]:
-    """Each scheme's versions, oldest month first."""
+def _versions(db: Session, scheme_ids, *, lock: bool = False) -> dict[int, list[SchemeVersion]]:
+    """Each scheme's versions, oldest month first (held FOR SHARE with lock)."""
     out: dict[int, list[SchemeVersion]] = {i: [] for i in scheme_ids}
     if out:
-        q = select(SchemeVersion).where(SchemeVersion.scheme_id.in_(list(out)))
-        for v in db.scalars(q.order_by(SchemeVersion.effective_month)):
+        q = select(SchemeVersion).where(SchemeVersion.scheme_id.in_(list(out))).order_by(SchemeVersion.effective_month)
+        for v in db.scalars(q.with_for_update(read=True) if lock else q):
             out[v.scheme_id].append(v)
     return out
 
@@ -130,9 +130,11 @@ def _rules(s: Scheme, v: SchemeVersion) -> Rules:
     )
 
 
-def rules_for(db: Session, schemes: dict[int, Scheme], month: date) -> dict[int, tuple[Rules, int]]:
+def rules_for(
+    db: Session, schemes: dict[int, Scheme], month: date, *, lock: bool = False
+) -> dict[int, tuple[Rules, int]]:
     """Each scheme's rules for the month, with the number of the version they come from."""
-    versions = _versions(db, schemes)
+    versions = _versions(db, schemes, lock=lock)
     out = {}
     for i, s in schemes.items():
         v = _effective(versions[i], month)
@@ -358,8 +360,8 @@ def update(db: Session, public_id, *, version: int, changes: dict, actor_user_id
     """The name, description and flags change in place. A change of terms is a new version from a month (the editor's
     «يسري من»): never a month an approved payroll paid on this scheme, never before its latest version (from that same
     month the latest version is replaced). A scheme nobody was ever on is simply redefined."""
-    s = _by_public_id(db, public_id, lock=True)
-    if s.version != version:
+    s = _by_public_id(db, public_id, lock=True)  # a run being approved holds it FOR SHARE: this waits for it, and
+    if s.version != version:  # what it paid is read below, after the lock
         raise AppError(409, "version_conflict")
     changes = dict(changes)
     month = changes.pop("effective_month", None)
@@ -431,8 +433,8 @@ def update(db: Session, public_id, *, version: int, changes: dict, actor_user_id
 # ------------------------------------------------------------------ who is on which scheme
 
 
-def for_month(db: Session, employee_ids, month: date) -> dict[int, Scheme]:
-    """Each driver's scheme in the month."""
+def for_month(db: Session, employee_ids, month: date, *, lock: bool = False) -> dict[int, Scheme]:
+    """Each driver's scheme in the month (the schemes held FOR SHARE with lock: a payroll run reading them)."""
     ids = list(employee_ids)
     if not ids:
         return {}
@@ -445,6 +447,8 @@ def for_month(db: Session, employee_ids, month: date) -> dict[int, Scheme]:
             or_(DriverScheme.valid_to.is_(None), DriverScheme.valid_to > month),
         )
     )
+    if lock:
+        q = q.with_for_update(read=True, of=Scheme)
     return {e: s for e, s in db.execute(q)}
 
 

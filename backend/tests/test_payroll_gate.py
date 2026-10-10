@@ -43,6 +43,15 @@ def test_runs_are_prepared_but_not_approved_until_the_owner_turns_the_gate_on(ad
     assert r.status_code == 200 and r.json()["value"]["live_approval_enabled"] is False
     assert editor.get("/api/v1/auth/me").json()["all_permissions"] is False
 
+    # a custom role with every permission ticked is not the owner: only the all-permissions flag is
+    from app.core import permissions
+
+    make_user(admin_client, "everything1", permissions=sorted(permissions.CATALOG))
+    ticked = new_client()
+    login(ticked, "everything1")
+    assert ticked.get("/api/v1/auth/me").json()["all_permissions"] is False
+    assert _put(ticked, live_approval_enabled=True).json()["code"] == "owner_only"
+
     # the owner (a role with all permissions) opens it after the test; then a run is approved
     make_user(admin_client, "owner1", role="system_admin")
     owner = new_client()

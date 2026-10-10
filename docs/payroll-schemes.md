@@ -444,6 +444,9 @@ month before it. The columns on `payroll.schemes` and its `scheme_steps` mirror 
   later version can never reach a month the driver was already on it.
 - The migration made every existing scheme's terms its version 1, from its creation month (Kuwait time) or the
   earliest month a driver was put on it or a run used it, whichever is earlier; existing lines are on version 1.
+- A run being prepared or approved holds the schemes and versions it reads (FOR SHARE) until it is saved; a change of
+  terms locks the scheme (FOR UPDATE) and reads what was paid after the lock, so a change for the month being approved
+  waits for that approval and is then refused.
 - The panel's scheme card shows this month's version and a version already set for a later month; the editor starts
   from the latest version, asks «يسري من شهر» (the earliest month offered) and a reason, and lists every version.
 - Who bears what (`company_covers`) follows the version of the month too: the fuel claims of a month read it.
@@ -466,9 +469,12 @@ Status «للمراجعة» (`review`) until an accountant with `payroll.approve
 | «تُرحّل للشهر التالي» (`carried`) | a manual deduction of the amount (source `other`, one installment) from the month after the run's, or this month for an old run, approved by this decision; the driver gets the usual deduction notice |
 | «إسقاط» (`dropped`) | nothing more is taken |
 
-Every line recorded and every decision is audited (`uncollected.recorded`, `.carried`, `.dropped`). The approved run
-never changes. Reopening a run removes its lines still under review (the next approval records them again); a decided
-line stays, and the next approval only records what was not decided yet, so nothing is carried twice.
+Every line recorded and every decision is audited (`uncollected.recorded`, `.carried`, `.dropped`, `.reset`). The
+approved run never changes. A decision locks the run's row first and is refused unless the run stands approved (409
+`run_not_approved`). Reopening a run (which locks the same row) takes all its lines back: a carried line's deduction is
+cancelled (nothing of it was taken, since a run is reopened only while no later month is approved; if anything was,
+the reopening is refused with 409 `uncollected_carried_taken`), and the next approval records the balance afresh on
+the corrected figures. So nothing is carried twice, nor on an amount the month no longer has.
 
 | Call | Permission |
 |---|---|
@@ -520,7 +526,8 @@ writes it into a stored payroll section):
   page or from the approvals inbox) is refused with 409 `payroll_not_reconciled`: «اعتماد المسيرات متوقف لحد ما يتعمل
   اختبار المطابقة مع كشف شهر سابق. فعّله من الإعدادات بعد المطابقة.» The flag is read from the database at each
   approval, so closing it holds at once.
-- Only the owner changes it: a user with all permissions (a role with `all_permissions`, or the superuser). Anyone else
+- Only the owner changes it: the superuser or a user with a role carrying the `all_permissions` flag (a custom role
+  with every permission ticked is not the owner). Anyone else
   with `settings.update` gets 403 `owner_only` when the value would change; leaving it out of a save keeps it as it is,
   so the rest of the payroll settings are saved as before. The change is audited with the settings.
 - The panel shows a banner on the payroll page and on a draft run while it is off (`GET /payroll/gate`, with

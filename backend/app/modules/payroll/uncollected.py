@@ -7,14 +7,16 @@ carried by itself. An accountant with payroll.approve decides each line with a w
   run), made through the deductions module and approved by this decision;
 - «إسقاط»: dropped, nothing more is taken.
 
-Reopening a run removes its lines still under review (the next approval records them again); a line already decided
-stays, and the next approval only records what was not decided yet.
+Reopening a run takes all its lines back: a carried line's deduction (nothing of it taken yet: a reopened run has no
+approved month after it) is cancelled, and the next approval records the balance afresh on the corrected figures, so
+nothing is carried twice nor on an amount the month no longer has. A decision and a reopening are serialised on the
+run's row: a decision waits for a reopening under way and is then refused (the run is a draft again).
 """
 
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.core.clock import today, utcnow
@@ -46,18 +48,11 @@ def _amount(cells: dict, code: str) -> Decimal:
 
 def record_for_run(db: Session, run: Run, *, actor_user_id: int) -> int:
     """In the approval's transaction: a line for review for every employee whose pay could not cover the month's
-    penalties, less what earlier approvals of the same run already had decided. Returns how many were recorded."""
+    penalties. Returns how many were recorded."""
     lines = db.scalars(select(Line).where(Line.run_id == run.id)).all()
-    decided = dict(
-        db.execute(
-            select(Uncollected.employee_id, func.sum(Uncollected.amount))
-            .where(Uncollected.run_id == run.id, Uncollected.status != "review")
-            .group_by(Uncollected.employee_id)
-        ).all()
-    )
     n = 0
     for line in lines:
-        amount = _amount(line.cells, "uncovered_penalty") - Decimal(decided.get(line.employee_id) or 0)
+        amount = _amount(line.cells, "uncovered_penalty")
         if amount <= 0:
             continue
         reason = {
@@ -89,10 +84,30 @@ def record_for_run(db: Session, run: Run, *, actor_user_id: int) -> int:
     return n
 
 
-def clear_for_reopen(db: Session, run: Run) -> None:
-    """In the reopening's transaction: the lines still under review go (the next approval records them again)."""
-    for u in db.scalars(select(Uncollected).where(Uncollected.run_id == run.id, Uncollected.status == "review")):
-        db.delete(u)
+def clear_for_reopen(db: Session, run: Run, *, actor_user_id: int) -> None:
+    """In the reopening's transaction, the run's row locked by the caller (so a decision under way has committed or
+    waits): every line of the run goes, a carried one's deduction cancelled first; the next approval records the
+    balance afresh. A carried deduction something already took of refuses the reopening."""
+    decided = list(db.scalars(select(Uncollected).where(Uncollected.run_id == run.id, Uncollected.status != "review")))
+    for u in decided:
+        if u.deduction_id and service.taken_by_payroll(db, u.deduction_id):
+            raise AppError(409, "uncollected_carried_taken", month=u.month.isoformat()[:7])
+    lang = i18n.default_language(db).code
+    for u in decided:
+        if u.deduction_id:
+            reason = i18n.t(db, lang, "uncollected.reopened", month=u.month.strftime("%m-%Y"))
+            service.cancel_untaken(db, u.deduction_id, reason=reason, actor_user_id=actor_user_id)
+        audit.record(
+            db,
+            action="uncollected.reset",
+            entity_type="uncollected",
+            entity_id=u.public_id,
+            actor_user_id=actor_user_id,
+            company_id=u.company_id,
+            before={"status": u.status, "amount": u.amount, "note": u.note},
+            after={"reason": "run_reopened"},
+        )
+    db.execute(delete(Uncollected).where(Uncollected.run_id == run.id))
 
 
 def _scoped(q, all_companies: bool, company_ids):
@@ -162,8 +177,16 @@ def counts(db: Session, **scope) -> dict:
 
 
 def _for_decision(db: Session, public_id, *, version: int | None, **scope) -> Uncollected:
-    u = db.scalar(_scoped(select(Uncollected).where(Uncollected.public_id == public_id), **scope).with_for_update())
-    if u is None:
+    """The line to decide, its run's row locked first (a reopening locks it too): decided only while the run stands
+    approved, and only once."""
+    run_id = db.scalar(_scoped(select(Uncollected.run_id).where(Uncollected.public_id == public_id), **scope))
+    if run_id is None:
+        raise AppError(404, "uncollected_not_found")
+    run = db.scalar(select(Run).where(Run.id == run_id).with_for_update())
+    if run.status not in ("approved", "paid"):
+        raise AppError(409, "run_not_approved")
+    u = db.scalar(select(Uncollected).where(Uncollected.public_id == public_id).with_for_update())
+    if u is None:  # the reopening that was under way took it back
         raise AppError(404, "uncollected_not_found")
     if u.status != "review":
         raise AppError(409, "uncollected_decided", status=u.status)

@@ -126,22 +126,121 @@ def test_carried_with_approval_or_dropped_with_a_note(admin_client, client, comp
 
 
 @pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
-def test_reopening_keeps_what_was_decided_and_reviews_the_rest_again(admin_client, company):
+def test_reopening_takes_the_balance_back_and_the_corrected_month_records_it_afresh(admin_client, company):
+    """70 carried, then the month reopened and corrected to 10: the 70 deduction is cancelled (nothing of it was
+    taken: no later month is approved) and only the 10 is reviewed and carried again."""
     k, t, _ = setup_month(admin_client, company)
     run, _ = run_lines(admin_client, company)
     admin_client.post(f"{P}/runs/{run['id']}/approve")
     rows = {x["employee"]["id"]: x for x in admin_client.get(U).json()}
+    carried = admin_client.post(f"{U}/{rows[t['id']]['id']}/carry", json={"note": "يُخصم الشهر القادم"}).json()
     admin_client.post(f"{U}/{rows[k['id']]['id']}/drop", json={"note": "يُسقط"})
 
-    assert admin_client.post(f"{P}/runs/{run['id']}/reopen", json={"reason": "تصحيح"}).status_code == 200
-    left = admin_client.get(U).json()
-    assert [(x["employee"]["id"], x["status"]) for x in left] == [(k["id"], "dropped")]  # the review line went
+    assert admin_client.post(f"{P}/runs/{run['id']}/reopen", json={"reason": "تصحيح خصم المنصة"}).status_code == 200
+    assert admin_client.get(U).json() == []  # every line taken back, decided or not
+    ded = admin_client.get("/api/v1/deductions", params={"employee_id": t["id"]}).json()
+    assert [(d["id"], d["status"]) for d in ded] == [(carried["deduction"]["id"], "cancelled")]
+    r = admin_client.post(f"{U}/{rows[k['id']]['id']}/drop", json={"note": "مرة أخرى"})
+    assert r.status_code == 404  # taken back with the reopening
+
+    st = next(
+        x
+        for x in admin_client.get(f"{P}/statements", params={"month": str(MONTH)}).json()
+        if x["employee"]["id"] == t["id"]
+    )
+    r = admin_client.post(
+        f"{P}/statements/{st['id']}/approve", json={"platform_deductions": "310.000", "late": "0.000"}
+    )
+    assert r.status_code == 200, r.text
     assert admin_client.post(f"{P}/runs/{run['id']}/approve").status_code == 200
-    again = admin_client.get(U).json()
-    assert sorted((x["employee"]["id"] == k["id"], x["status"], x["amount"]) for x in again) == [
-        (False, "review", "70.000"),
-        (True, "dropped", "92.000"),  # decided once: not reviewed again
+    again = {x["employee"]["id"]: x for x in admin_client.get(U).json()}
+    assert {e: (x["status"], x["amount"]) for e, x in again.items()} == {
+        t["id"]: ("review", "10.000"),
+        k["id"]: ("review", "92.000"),  # the drop is decided again, on the month as approved now
+    }
+    admin_client.post(f"{U}/{again[t['id']]['id']}/carry", json={"note": "بعد التصحيح"})
+    live = [
+        d
+        for d in admin_client.get("/api/v1/deductions", params={"employee_id": t["id"]}).json()
+        if d["status"] == "approved"
     ]
+    assert [d["total"] for d in live] == ["10.000"]  # never the 70 as well
+
+
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
+def test_a_decision_and_a_reopening_never_interleave(admin_client, company, db):
+    """Both lock the run's row: a carry under way finishes first and the reopening then cancels what it carried; a
+    carry that waited for a reopening is refused (the run is a draft again)."""
+    import threading
+
+    from sqlalchemy import text
+
+    from app.core.db import new_session
+    from app.modules.payroll import runs, uncollected
+
+    scope = {"all_companies": True, "company_ids": ()}
+    k, t, _ = setup_month(admin_client, company)
+    run, _ = run_lines(admin_client, company)
+    admin_client.post(f"{P}/runs/{run['id']}/approve")
+    rows = {x["employee"]["id"]: x for x in admin_client.get(U).json()}
+    done = {}
+
+    def call(key, fn):
+        with new_session() as s:
+            try:
+                fn(s)
+                done[key] = "ok"
+            except Exception as exc:  # noqa: BLE001
+                done[key] = getattr(exc, "code", repr(exc))
+
+    with new_session() as holder:  # something holds the run's row (an approval step, another decision)
+        holder.execute(text("SELECT id FROM payroll.runs WHERE public_id = :p FOR UPDATE"), {"p": run["id"]})
+        carry = threading.Thread(
+            target=call,
+            args=(
+                "carry",
+                lambda s: uncollected.carry(
+                    s, rows[t["id"]]["id"], note="ترحيل", version=None, actor_user_id=1, **scope
+                ),
+            ),
+        )
+        carry.start()
+        carry.join(1.0)
+        reopen = threading.Thread(
+            target=call,
+            args=("reopen", lambda s: runs.reopen(s, run["id"], reason="تصحيح بعد الترحيل", actor_user_id=1, **scope)),
+        )
+        reopen.start()
+        reopen.join(1.0)
+        assert carry.is_alive() and reopen.is_alive() and not done  # both wait for the run's row, in that order
+        holder.rollback()
+    carry.join(15)
+    reopen.join(15)
+    assert done == {"carry": "ok", "reopen": "ok"}
+    ded = admin_client.get("/api/v1/deductions", params={"employee_id": t["id"]}).json()
+    assert [d["status"] for d in ded] == ["cancelled"] and admin_client.get(U).json() == []
+
+    # the other way round: a carry that waited for the reopening finds a draft and is refused
+    admin_client.post(f"{P}/runs/{run['id']}/approve")
+    line = admin_client.get(U, params={"employee_id": t["id"]}).json()[0]
+    with new_session() as holder:
+        holder.execute(text("SELECT id FROM payroll.runs WHERE public_id = :p FOR UPDATE"), {"p": run["id"]})
+        late = threading.Thread(
+            target=call,
+            args=(
+                "late",
+                lambda s: uncollected.carry(s, line["id"], note="متأخر", version=None, actor_user_id=1, **scope),
+            ),
+        )
+        late.start()
+        late.join(1.0)
+        holder.execute(
+            text("UPDATE payroll.runs SET status = 'draft', approved_at = NULL WHERE public_id = :p"), {"p": run["id"]}
+        )
+        holder.commit()
+    late.join(15)
+    assert done["late"] == "run_not_approved"
+    assert db.execute(text("SELECT count(*) FROM payroll.deductions WHERE status = 'approved'")).scalar() == 0
 
 
 @pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed

@@ -76,6 +76,7 @@ class Principal:
     session_id: int
     csrf_token: str
     must_change_password: bool
+    owner: bool = False  # a role with the all-permissions flag (not a role with every permission ticked)
 
     @property
     def sees_all_companies(self) -> bool:
@@ -86,8 +87,9 @@ class Principal:
 
     @property
     def all_permissions(self) -> bool:
-        """The owner's access (a role with all permissions, or the superuser): settings only the owner may change."""
-        return self.is_superuser or self.permissions >= ALL_PERMISSIONS
+        """The owner: the superuser, or a role with the all-permissions flag. A custom role with every permission
+        ticked is not the owner. Settings only the owner may change check this."""
+        return self.is_superuser or self.owner
 
     def can_access_company(self, company_id: int) -> bool:
         return self.sees_all_companies or company_id in self.company_ids
@@ -130,6 +132,12 @@ def _roles_permissions(db: Session, role_ids: Iterable[int]) -> frozenset[str]:
     return frozenset(perms) & ALL_PERMISSIONS
 
 
+def is_owner(db: Session, user_id: int) -> bool:
+    """Whether one of the user's roles carries the all-permissions flag."""
+    q = select(func.count()).select_from(Role).join(UserRole, UserRole.role_id == Role.id)
+    return bool(db.scalar(q.where(UserRole.user_id == user_id, Role.all_permissions)))
+
+
 def user_permissions(db: Session, user_id: int) -> frozenset[str]:
     return _roles_permissions(db, db.scalars(select(UserRole.role_id).where(UserRole.user_id == user_id)))
 
@@ -163,6 +171,7 @@ def get_principal(request: Request, db: Session = Depends(get_session)) -> Princ
         session_id=sess.id,
         csrf_token=sess.csrf_token,
         must_change_password=user.must_change_password,
+        owner=user.is_superuser or is_owner(db, user.id),
     )
 
 

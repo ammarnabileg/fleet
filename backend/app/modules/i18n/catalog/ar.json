@@ -540,7 +540,9 @@
     "objection_status_invalid": "لا يمكن تغيير حالة الاعتراض من «{status}» إلى هذه الحالة",
     "objection_deduction_invalid": "الخصم ليس لنفس السائق",
     "payroll_not_reconciled": "اعتماد المسيرات متوقف لحد ما يتعمل اختبار المطابقة مع كشف شهر سابق. فعّله من الإعدادات بعد المطابقة.",
-    "owner_only": "هذا الإعداد يغيّره مالك النظام فقط"
+    "owner_only": "هذا الإعداد يغيّره مالك النظام فقط",
+    "uncollected_carried_taken": "لا يُعاد فتح الكشف: خصم مُرحّل من خصوماته غير المحصلة ({month}) أُخذ منه في كشف معتمد",
+    "deduction_partly_taken": "أُخذ من هذا الخصم في كشف معتمد"
   },
   "settings": {
     "branding": "الهوية",
@@ -1421,7 +1423,8 @@
     "review": "للمراجعة",
     "carried": "تُرحّل للشهر التالي",
     "dropped": "إسقاط",
-    "deduction_reason": "خصومات غير محصلة من رواتب {month}: {note}"
+    "deduction_reason": "خصومات غير محصلة من رواتب {month}: {note}",
+    "reopened": "أُعيد فتح كشف رواتب {month}: يُسجَّل الرصيد من جديد عند اعتماده"
   },
   "objection_status": {
     "open": "مفتوح",

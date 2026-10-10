@@ -264,3 +264,74 @@ def test_who_bears_what_follows_the_version_of_the_month(admin_client, company, 
     driver = people.ref_by_public_id(db, d["id"], all_companies=True, company_ids=())
     assert sorted(payroll.company_covers(db, driver.id, today())) == ["gas", "housing", "maintenance", "sim"]
     assert payroll.company_covers(db, driver.id, NEXT) == ["maintenance"]
+
+
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
+def test_a_change_of_terms_waits_for_a_run_being_approved_and_then_sees_it_paid(
+    admin_client, company, keeta_and_talabat
+):
+    """The run holds the schemes it pays on (FOR SHARE) until it is saved; a change of terms locks the scheme and reads
+    what was paid after it got the lock: a change for the month being approved waits, then is refused."""
+    import threading
+
+    from sqlalchemy import text
+
+    from app.core.db import new_session
+    from app.modules.payroll import runs, schemes
+
+    set_cap(admin_client)
+    s = keeta_and_talabat
+    fx = s["fixed_3"]
+    month_of(admin_client, company, s, "fixed_3", "talabat", month=PREV, orders=380)
+    prev, _ = run_lines(admin_client, company, PREV)
+    scope = {"all_companies": True, "company_ids": ()}
+    done = {}
+
+    def change(session_done_key, month):
+        with new_session() as session:
+            try:
+                schemes.update(
+                    session,
+                    fx["id"],
+                    version=1,
+                    changes={"per_order": "0.700", "effective_month": month},
+                    actor_user_id=1,
+                )
+                done[session_done_key] = "ok"
+            except Exception as exc:  # noqa: BLE001
+                done[session_done_key] = getattr(exc, "code", repr(exc))
+
+    # an approval under way: it read the scheme FOR SHARE and is about to save the month as paid
+    with new_session() as approving:
+        approving.execute(text("SELECT id FROM payroll.schemes WHERE public_id = :p FOR SHARE"), {"p": fx["id"]})
+        t = threading.Thread(target=change, args=("change", PREV))
+        t.start()
+        t.join(1.0)
+        assert t.is_alive() and not done  # the change waits for the approval
+        approving.execute(
+            text("UPDATE payroll.runs SET status = 'approved', approved_at = now() WHERE public_id = :p"),
+            {"p": prev["id"]},
+        )
+        approving.commit()
+    t.join(15)
+    assert done == {"change": "scheme_version_month"}  # it sees the month paid once it has the scheme
+
+    # and the run really takes that lock: an approval waits for a change of terms under way
+    with new_session() as changing:
+        changing.execute(
+            text("UPDATE payroll.runs SET status = 'draft', approved_at = NULL WHERE public_id = :p"), {"p": prev["id"]}
+        )
+        changing.commit()
+        changing.execute(text("SELECT id FROM payroll.schemes WHERE public_id = :p FOR UPDATE"), {"p": fx["id"]})
+
+        def approve():
+            with new_session() as session:
+                done["approve"] = runs.approve(session, prev["id"], actor_user_id=1, **scope)["status"]
+
+        a = threading.Thread(target=approve)
+        a.start()
+        a.join(1.0)
+        assert a.is_alive() and "approve" not in done
+        changing.rollback()
+    a.join(15)
+    assert done["approve"] == "approved"

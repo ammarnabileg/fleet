@@ -540,7 +540,9 @@
     "objection_status_invalid": "The objection cannot move from {status} to this status",
     "objection_deduction_invalid": "The deduction is not the same driver's",
     "payroll_not_reconciled": "Approving payroll runs is off until the reconciliation test against a previous month's sheet is done. Turn it on in the settings after the test.",
-    "owner_only": "Only the system owner changes this setting"
+    "owner_only": "Only the system owner changes this setting",
+    "uncollected_carried_taken": "The run cannot be reopened: a deduction carried from its uncollected balance ({month}) was already taken by an approved run",
+    "deduction_partly_taken": "An approved run already took part of this deduction"
   },
   "settings": {
     "branding": "Branding",
@@ -1421,7 +1423,8 @@
     "review": "For review",
     "carried": "Carried to next month",
     "dropped": "Dropped",
-    "deduction_reason": "Uncollected deductions from the {month} payroll: {note}"
+    "deduction_reason": "Uncollected deductions from the {month} payroll: {note}",
+    "reopened": "The {month} payroll was reopened: the balance is recorded again when it is approved"
   },
   "objection_status": {
     "open": "Open",
