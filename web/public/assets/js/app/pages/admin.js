@@ -152,7 +152,10 @@
   function issue(x) {
     var params = Object.assign({}, x.params || {});
     if (params.field) params.field = api.t('import_field', params.field, null, params.field);
-    return h`<tr><td>${x.sheet}</td><td class="num">${x.row || '—'}</td><td>${api.t('errors', x.code, params, x.code)}</td></tr>`;
+    var text = api.t('errors', x.code, params, x.code);
+    // a value the message does not quote (an unknown platform) follows it
+    if (params.value != null && String((api.cat.errors || {})[x.code] || '').indexOf('{value}') < 0) text += ': ' + params.value;
+    return h`<tr><td>${x.sheet}</td><td class="num">${x.row || '—'}</td><td>${text}</td></tr>`;
   }
   function result(r, template) {
     var c = function (o) { return fmt.int(o.created) + ' جديد · ' + fmt.int(o.updated) + ' تحديث'; };

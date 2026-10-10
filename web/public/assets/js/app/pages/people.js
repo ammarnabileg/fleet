@@ -105,10 +105,11 @@
         search: { placeholder: 'الاسم أو الرقم الوظيفي أو الجوال أو رقم المنصة…' },
         chips: { options: [{ v: 'true', t: 'السائقون' }, { v: 'false', t: 'الإداريون' }, { v: 'no_phone', t: 'سائقون بلا هاتف' }] },
         tools: tools,
-        selectable: api.can('devices.manage') || api.can('payroll.schemes'),
+        selectable: api.can('devices.manage') || api.can('payroll.schemes') || api.can('employees.update'),
         bulk: [
           api.can('devices.manage') ? { label: 'إرسال رابط التفعيل على واتساب', icon: 'send', cls: 'btn-primary', run: function (rows, clear) { A.bulkLinks(rows.filter(function (r) { return r.is_driver; }), clear); } } : null,
           api.can('devices.manage') ? { label: 'الدخول بالرقم المدني', icon: 'key-round', cls: 'btn-outline', run: function (rows, clear) { A.claimForm(rows.filter(function (r) { return r.is_driver; }), clear); } } : null,
+          api.can('employees.update') ? { label: 'تعيين منصة', icon: 'store', cls: 'btn-outline', run: function (rows, clear) { A.assignPlatform(rows, function () { clear(); t.refresh(); }); } } : null,
           api.can('payroll.schemes') ? { label: 'نظام الدفع', icon: 'banknote', cls: 'btn-outline', run: function (rows, clear) { A.assignScheme(rows, clear); } } : null
         ].filter(Boolean),
         columns: [
@@ -374,6 +375,28 @@
     });
   };
   BT.actions['links-bulk'] = function () { A.bulkLinks(null); };
+
+  /* تعيين منصة التوصيل لعدة سائقين من القائمة: منها يعرف التطبيق ما يرسله السائق في تقريره اليومي */
+  A.assignPlatform = function (rows, after) {
+    var drivers = rows.filter(function (r) { return r.is_driver; });
+    if (!drivers.length) { BT.toast('لا يوجد سائقون في التحديد', { type: 'info' }); return; }
+    A.platforms(true).then(function (plats) {
+      var active = plats.filter(function (x) { return x.is_active; });
+      if (!active.length) { BT.toast('لا توجد منصات بعد: أضفها من الرواتب ← المنصات', { type: 'info' }); return; }
+      A.formModal({
+        title: 'تعيين منصة', subtitle: drivers.length === 1 ? api.name(drivers[0].name) : drivers.length + ' سائق', icon: 'store', size: 'sm', done: false,
+        body: h`<div class="form">${BT.f.select({ name: 'platform_id', label: 'منصة التوصيل', required: true, placeholder: 'اختر', options: active.map(function (x) { return { v: x.id, t: api.name(x.name) }; }).concat([{ v: 'none', t: '— بدون منصة —' }]) })}
+          <div class="hint">التقرير اليومي في التطبيق يتبع المنصة. من يُنقل إلى منصة أخرى يُمسح رقمه في منصته السابقة، فأدخل رقمه الجديد من ملفه.</div></div>`,
+        submit: function (v) {
+          return api.post('/employees/platform', { employee_ids: drivers.map(function (d) { return d.id; }), platform_id: v.platform_id === 'none' ? null : +v.platform_id }).then(function (res) {
+            BT.toast('عُيّنت المنصة لـ ' + res.updated + ' سائق', { sub: res.unchanged ? res.unchanged + ' عليها من قبل' : '' });
+            return res;
+          });
+        },
+        after: after
+      });
+    }, api.fail);
+  };
 
   function queuePanel(el) {
     A.load(el, api.get('/activation-links/queue'), function (qd) {

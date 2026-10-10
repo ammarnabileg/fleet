@@ -23,6 +23,7 @@ from app.core.clock import business_date, today, utcnow
 from app.core.db import violated_constraint
 from app.core.errors import AppError
 from app.core.events import emit
+from app.core.text import norm
 from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
 from app.modules.i18n import service as i18n
@@ -40,6 +41,16 @@ def daily_fields(db: Session, platform_id: int | None) -> list[str] | None:
     """What a driver on this platform sends in his daily report (orders, cash, valid_day); None without a platform."""
     p = db.get(Platform, platform_id) if platform_id else None
     return list(p.daily_fields) if p else None
+
+
+def platform_by_label(db: Session, label: str) -> int | None:
+    """A platform as a spreadsheet names it: its code or one of its names, case and Arabic letter variants ignored
+    (an active one first when two match)."""
+    key = norm(label)
+    for p in db.scalars(select(Platform).order_by(Platform.is_active.desc(), Platform.id)):
+        if key == norm(p.code) or key in {norm(v) for v in (p.name or {}).values()}:
+            return p.id
+    return None
 
 
 def offered_schemes(db: Session, platform_id: int | None) -> list[dict]:
@@ -517,6 +528,11 @@ def deductions_for_posting(db: Session, first: date, last: date) -> list[dict]:
     from app.modules.payroll import runs
 
     return runs.deductions_for_posting(db, first, last)
+
+
+def platform_is_active(db: Session, platform_id: int) -> bool:
+    p = db.get(Platform, platform_id)
+    return bool(p and p.is_active)
 
 
 def platform_name(db: Session, platform_id: int | None) -> dict | None:

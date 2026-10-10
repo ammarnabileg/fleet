@@ -71,7 +71,7 @@ def assign(admin_client, s, *drivers, month=MONTH):
 
 @pytest.fixture
 def setup(admin_client, company):
-    keeta, talabat = platform(admin_client, "keeta"), platform(admin_client, "talabat")
+    keeta, talabat = platform(admin_client, "keeta_t"), platform(admin_client, "talabat_t")  # beside the seeded two
     s = {
         "keeta": scheme(admin_client, keeta["id"], KEETA),
         "batch": scheme(admin_client, talabat["id"], BATCH),

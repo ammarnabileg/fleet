@@ -170,3 +170,63 @@ def test_an_iban_copied_from_a_banking_app_is_cleaned(admin_client, company):
     copied = f"{lrm}kw81{nbsp}CBKU-0000 0000 0000 1234 5601 01{lrm}"
     e = make_employee(admin_client, company["id"], iban=copied)
     assert e["iban"] == "KW81CBKU0000000000001234560101"
+
+
+def test_drivers_put_on_a_platform_from_the_list(admin_client, new_client, companies, db):
+    """«تعيين منصة» on the drivers chosen in the list: all at once, staff skipped, a driver moved off his platform loses
+    his ID on it; each change audited; employees.update and the user's companies only."""
+    plats = {p["code"]: p for p in admin_client.get("/api/v1/payroll/platforms").json()}
+    keeta, talabat = plats["keeta"]["id"], plats["talabat"]["id"]
+    a, b = companies["a"]["id"], companies["b"]["id"]
+    moved = make_driver(admin_client, a, platform_id=talabat, platform_driver_id="T-1")
+    new = make_driver(admin_client, a)
+    staff = make_employee(admin_client, a)
+    there = make_driver(admin_client, a, platform_id=keeta, platform_driver_id="K-1")
+    ids = [moved["id"], new["id"], staff["id"], there["id"], new["id"]]
+
+    r = admin_client.post("/api/v1/employees/platform", json={"employee_ids": ids, "platform_id": keeta})
+    assert r.status_code == 200 and r.json() == {"updated": 2, "unchanged": 1, "skipped": 1}, r.text
+    on = {e: admin_client.get(f"/api/v1/employees/{e}").json() for e in (moved["id"], new["id"], there["id"])}
+    assert [(x["platform_id"], x["platform_driver_id"]) for x in on.values()] == [
+        (keeta, None),
+        (keeta, None),
+        (keeta, "K-1"),
+    ]
+    assert admin_client.get(f"/api/v1/employees/{staff['id']}").json()["platform_id"] is None
+    audited = db.execute(
+        text("SELECT entity_id::text, before, after FROM audit.events WHERE action = 'employee.updated'")
+    ).all()
+    assert {row[0]: (row[1]["platform_id"], row[2]["platform_id"]) for row in audited} == {
+        moved["id"]: (talabat, keeta),
+        new["id"]: (None, keeta),
+    }
+
+    r = admin_client.post("/api/v1/employees/platform", json={"employee_ids": [new["id"]], "platform_id": None})
+    assert r.json()["updated"] == 1 and admin_client.get(f"/api/v1/employees/{new['id']}").json()["platform_id"] is None
+    stopped = admin_client.patch(
+        f"/api/v1/payroll/platforms/{talabat}", json={"version": plats["talabat"]["version"], "is_active": False}
+    )
+    assert stopped.status_code == 200, stopped.text
+    for platform_id in (talabat, 999_999):  # a stopped platform takes no new drivers
+        r = admin_client.post("/api/v1/employees/platform", json={"employee_ids": ids, "platform_id": platform_id})
+        assert r.status_code == 422 and r.json()["code"] == "platform_not_found", r.text
+
+    other = make_driver(admin_client, b)
+    make_user(admin_client, "hr_b", permissions=["employees.view", "employees.update"], company_ids=[b])
+    c = new_client()
+    login(c, "hr_b")
+    r = c.post("/api/v1/employees/platform", json={"employee_ids": [other["id"], moved["id"]], "platform_id": talabat})
+    assert r.status_code == 422  # the platform first
+    r = c.post("/api/v1/employees/platform", json={"employee_ids": [other["id"], moved["id"]], "platform_id": keeta})
+    assert r.status_code == 404 and r.json()["code"] == "employee_not_found", r.text
+    assert admin_client.get(f"/api/v1/employees/{other['id']}").json()["platform_id"] is None  # all or nothing
+    assert c.post("/api/v1/employees/platform", json={"employee_ids": [other["id"]], "platform_id": keeta}).json() == {
+        "updated": 1,
+        "unchanged": 0,
+        "skipped": 0,
+    }
+    make_user(admin_client, "viewer", permissions=["employees.view"])
+    c = new_client()
+    login(c, "viewer")
+    r = c.post("/api/v1/employees/platform", json={"employee_ids": [other["id"]], "platform_id": None})
+    assert r.status_code == 403

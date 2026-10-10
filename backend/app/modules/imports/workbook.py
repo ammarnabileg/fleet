@@ -1,7 +1,7 @@
 """Reading the onboarding workbook (the data template annexed to the contract) exactly as it is laid out:
 same sheet names, same column headers in the same order, dates as day/month/year, phones without country code.
-After the people columns come optional driver columns (app, initial password, its days), found by their header, so a
-file made before them still imports."""
+After the people columns come optional driver columns (app, initial password, its days, his delivery platform and his
+ID on it), found by their header, so a file made before them still imports."""
 
 import io
 import re
@@ -43,8 +43,14 @@ PEOPLE_COLUMNS = [
     "تاريخ انتهاء الإقامة *",
     "موديل الهاتف (للسائقين)",
 ]
-# optional, after the people columns (N to P in the template), each found by its header wherever it is
-DRIVER_COLUMNS = ["تفعيل التطبيق (نعم/لا)", "كلمة المرور المبدئية", "صلاحية كلمة المرور (يوم)"]
+# optional, after the people columns (N to R in the template), each found by its header wherever it is
+DRIVER_COLUMNS = [
+    "تفعيل التطبيق (نعم/لا)",
+    "كلمة المرور المبدئية",
+    "صلاحية كلمة المرور (يوم)",
+    "المنصة",
+    "رقمه في المنصة",
+]
 # what a client's own sheet may call them too (compared through norm())
 PEOPLE_OPTIONAL = {
     "app_access": (
@@ -82,6 +88,19 @@ PEOPLE_OPTIONAL = {
         "valid days",
         "validity days",
         "password days",
+    ),
+    "platform": (DRIVER_COLUMNS[3], "المنصه", "منصه التوصيل", "platform", "delivery platform"),
+    "platform_driver_id": (
+        DRIVER_COLUMNS[4],
+        "رقمه في المنصه",
+        "رقم السائق في المنصه",
+        "رقمه في منصه التوصيل",
+        "معرف سائق التوصيل",
+        "معرف السائق",
+        "rider id",
+        "driver id",
+        "platform id",
+        "platform driver id",
     ),
 }
 OPENING = "الأرصدة الافتتاحية"
@@ -256,12 +275,15 @@ GUIDE = (
     "لا تغيّر أسماء الأوراق ولا عناوين الأعمدة ولا ترتيبها. الصف الرمادي (مثال) لا يُستورد، ولا الصفوف الفارغة.",
     "التواريخ يوم/شهر/سنة (31/12/2027)، والهاتف 8 أرقام دون مفتاح الدولة، والشركة والفرع والحالة الوظيفية "
     "بأسمائها في النظام، والدور «سائق» للسائقين.",
-    "أعمدة اختيارية للسائقين في ورقة «المستخدمون والسائقون» (N إلى P):",
+    "أعمدة اختيارية للسائقين في ورقة «المستخدمون والسائقون» (N إلى R):",
     "• تفعيل التطبيق: نعم أو لا. فارغ أو نعم: يُفعَّل التطبيق للسائق. لا: لا يُفعَّل، ولا يوقف الاستيراد تطبيق "
     "سائق مفعّل من قبل (ذلك من ملف السائق).",
     "• كلمة المرور المبدئية: يدخل بها السائق أول مرة مع رقمه المدني. من 8 إلى 64 حرفاً، وليست رقمه المدني. "
     "تحتاج صلاحية «إدارة أجهزة السائقين». إعادة الاستيراد لا تغيّرها لسائق له كلمة مفتوحة أو دخل بها من قبل.",
     "• صلاحية كلمة المرور (يوم): من 1 إلى 60، وإن تُركت فارغة فـ 14 يوماً من وقت الاستيراد.",
+    "• المنصة: منصة التوصيل التي يعمل عليها السائق، باسمها أو رمزها كما في صفحة الرواتب (تبويب المنصات). "
+    "منها يعرف التطبيق ما يرسله السائق في تقريره اليومي.",
+    "• رقمه في المنصة: رقم السائق (driver id) في تطبيق المنصة. يحتاج المنصة في الصف نفسه أو منصة مسجلة للسائق.",
     "الملف بعد كتابة كلمات المرور سري: احذفه بعد الاستيراد. النظام لا يحفظ الملف، ويحفظ كلمة المرور مشفّرة فقط.",
 )
 EXAMPLES = {
@@ -293,6 +315,8 @@ EXAMPLES = {
         "نعم",
         None,  # the password: left empty (a hint here would be a public password copied with the row)
         14,
+        "اسم المنصة",
+        "123456",
     ],
     OPENING: ["اسم السائق", "290010112345", "12.500", "01/10/2026", "اسم المحاسب"],
 }

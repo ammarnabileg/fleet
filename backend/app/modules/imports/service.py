@@ -25,6 +25,7 @@ from app.modules.imports import sheets
 from app.modules.imports import workbook as wb
 from app.modules.imports.workbook import OPENING, PEOPLE, VEHICLES, Issue, Row
 from app.modules.org import service as org
+from app.modules.payroll import service as payroll
 from app.modules.people import service as people
 
 PEOPLE_FIELDS = (
@@ -109,6 +110,31 @@ def _app_columns(cells: dict, civil_id: str | None) -> tuple[bool | None, str | 
         if days is None:
             raise _RowError("claim_days_out_of_range", value=wb.shown(cells["password_days"]))
     return app, password, days
+
+
+def _platform_columns(db: Session, cells: dict, is_driver: bool, existing) -> dict:
+    """The optional platform columns of a row: his delivery platform (by its code or a name) and his ID on it, as
+    employee changes; nothing for blank cells. An ID needs a platform, in the row or already his; a new platform
+    without an ID drops the one he had on the other."""
+    label, driver_id = wb._text(cells.get("platform")), wb._text(cells.get("platform_driver_id"))
+    if not (label or driver_id):
+        return {}
+    if not is_driver:
+        raise _RowError("not_a_driver")
+    current = existing.platform_id if existing else None
+    out: dict = {}
+    if label:
+        found = payroll.platform_by_label(db, label)
+        if found is None:
+            raise _RowError("platform_not_found", value=wb.shown(cells["platform"]))
+        out["platform_id"] = found
+        if found != current and not driver_id:
+            out["platform_driver_id"] = None
+    if driver_id:
+        if out.get("platform_id", current) is None:
+            raise _RowError("platform_required")
+        out["platform_driver_id"] = driver_id
+    return out
 
 
 @dataclass
@@ -304,6 +330,7 @@ def _person(
     if salary is not None:
         data["basic_salary"] = salary
     existing = people.find(db, civil_id=civil_id or None, phone=phone)
+    data |= _platform_columns(db, row.values, data["is_driver"], existing)
     if existing:
         people.update_employee(
             db,
@@ -566,6 +593,7 @@ def _mapped_person(db: Session, sheet: str, number: int, row: dict, ctx: dict) -
             ctx["warnings"].append(Issue(sheet, number, "salary_skipped"))
     actor, scope = ctx["actor_user_id"], ctx["scope"]
     existing = people.find(db, civil_id=civil_id, phone=phone)
+    data |= _platform_columns(db, row, data["is_driver"], existing)
     if existing:
         people.update_employee(
             db,

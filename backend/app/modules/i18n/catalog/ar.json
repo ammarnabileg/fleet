@@ -859,7 +859,9 @@
     "iban": "الآيبان",
     "app_access": "تفعيل التطبيق",
     "initial_password": "كلمة المرور المبدئية",
-    "password_days": "صلاحية كلمة المرور (يوم)"
+    "password_days": "صلاحية كلمة المرور (يوم)",
+    "platform": "المنصة",
+    "platform_driver_id": "رقمه في المنصة"
   },
   "payroll_column": {
     "platform_driver_id": "driver id",
