@@ -653,19 +653,30 @@ def mark_paid(db: Session, public_id, *, payment_ref: str | None, actor_user_id:
 # ------------------------------------------------------------------ the driver's payslips
 
 
+# shown even when the client's sheet has no column for them, just before the net, once any line has one: no line's
+# net may be lower than its sheet adds up to without saying why (an absence deduction), nor hide what it could not take
+EXTRA_COLUMNS = (
+    ("absence_deduction", ("absence_days", "absence_deduction")),
+    ("uncovered_penalty", ("uncovered_penalty",)),  # decision D: the uncollected balance, for review
+)
+
+
 def sheet_columns(platform: Platform | None, labels: dict, cells: Iterable[dict] = ()) -> list[dict]:
-    """The platform's sheet as the client set it, or every column. An absence deduction taken from any of the lines
-    (`cells`) is shown even when the client's sheet has no column for it, just before the net: no line's net may be
-    lower than its sheet adds up to without saying why."""
+    """The platform's sheet as the client set it, or every column; plus EXTRA_COLUMNS when any of the lines (`cells`)
+    has an amount there and the client's sheet has no column for it."""
     if not (platform and platform.columns):
         return [{"code": c, "header": labels.get(c, c)} for c in DEFAULT_COLUMNS]
     cols = list(platform.columns)
     codes = {c["code"] for c in cols}
-    if "absence_deduction" in codes or not any(Decimal(str(x.get("absence_deduction") or 0)) for x in cells):
-        return cols
-    extra = [{"code": k, "header": labels.get(k, k)} for k in ("absence_days", "absence_deduction") if k not in codes]
-    at = next((i for i, c in enumerate(cols) if c["code"] == "net"), len(cols))
-    return cols[:at] + extra + cols[at:]
+    cells = list(cells)
+    for trigger, adds in EXTRA_COLUMNS:
+        if trigger in codes or not any(Decimal(str(x.get(trigger) or 0)) for x in cells):
+            continue
+        extra = [{"code": k, "header": labels.get(k, k)} for k in adds if k not in codes]
+        at = next((i for i, c in enumerate(cols) if c["code"] == "net"), len(cols))
+        cols = cols[:at] + extra + cols[at:]
+        codes |= set(adds)
+    return cols
 
 
 def payslips(db: Session, employee_id: int) -> list[dict]:
@@ -685,18 +696,15 @@ def payslips(db: Session, employee_id: int) -> list[dict]:
     out = []
     for line, run in rows:
         platform = plats.get(line.platform_id)
+        explained = {b["code"] for b in line.breakdown or []}  # the scheme's items already say it
         cols = [
             c
             for c in sheet_columns(platform, labels, [line.cells])
-            if c["code"] not in IDENTITY and c["code"] in BY_CODE
+            if c["code"] not in IDENTITY
+            and c["code"] in BY_CODE
+            and not (c["code"] == "uncovered_penalty" and c["code"] in explained)
         ]
         uncollected_amount = money(line.cells.get("uncovered_penalty"))
-        said = {c["code"] for c in cols} | {b["code"] for b in line.breakdown or []}
-        if uncollected_amount and "uncovered_penalty" not in said:  # shown, not deducted: for the office's review
-            at = next((i for i, c in enumerate(cols) if c["code"] == "net"), len(cols))
-            cols.insert(
-                at, {"code": "uncovered_penalty", "header": labels.get("uncovered_penalty", "uncovered_penalty")}
-            )
         out.append(
             {
                 "run_id": str(run.public_id),

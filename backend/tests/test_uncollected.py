@@ -142,3 +142,29 @@ def test_reopening_keeps_what_was_decided_and_reviews_the_rest_again(admin_clien
         (False, "review", "70.000"),
         (True, "dropped", "92.000"),  # decided once: not reviewed again
     ]
+
+
+@pytest.mark.usefixtures("payroll_live")  # approves a run: the gate passed
+def test_the_payslip_and_the_excel_say_what_was_not_taken_even_without_a_column(admin_client, client, company):
+    import io
+
+    import openpyxl
+
+    _, t, _ = setup_month(admin_client, company)
+    plain = next(p for p in admin_client.get(f"{P}/platforms").json() if p["code"] == "plain")
+    columns = [
+        {"code": "name", "header": "الاسم"},
+        {"code": "gross", "header": "الإجمالي"},
+        {"code": "platform_deductions", "header": "خصومات المنصة"},
+        {"code": "net", "header": "الصافي"},
+    ]
+    r = admin_client.patch(f"{P}/platforms/{plain['id']}", json={"version": plain["version"], "columns": columns})
+    assert r.status_code == 200, r.text
+    run, _ = run_lines(admin_client, company)
+    assert admin_client.post(f"{P}/runs/{run['id']}/approve").status_code == 200
+    slip = client.get("/api/v1/driver/payslips", headers=bearer(bind_device(client, t["phone"]))).json()[0]
+    assert [x["code"] for x in slip["rows"]] == ["gross", "platform_deductions", "uncovered_penalty", "net"]
+    assert slip["rows"][2]["value"] == "70.000" and slip["uncollected"] == "70.000"
+    wb = openpyxl.load_workbook(io.BytesIO(admin_client.get(f"{P}/runs/{run['id']}/export").content))
+    headers = [[c.value for c in ws[1]] for ws in wb]
+    assert any(h == ["الاسم", "الإجمالي", "خصومات المنصة", "خصومات غير محصلة (للمراجعة)", "الصافي"] for h in headers)
