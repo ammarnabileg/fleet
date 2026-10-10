@@ -87,9 +87,10 @@ def month_status(db: Session, *, month, all_companies: bool, company_ids) -> dic
     engine run, review and approval, the month closed. Counts only, in the user's companies; the panel says them."""
     from sqlalchemy import func, select
 
+    from app.modules.org import service as org
     from app.modules.payroll import month as months
     from app.modules.payroll import platforms
-    from app.modules.payroll.models import Line, Run, Statement
+    from app.modules.payroll.models import Line, Objection, Run, Statement, Uncollected
     from app.modules.payroll.month_models import MonthImport
     from app.modules.payroll.service import month_start
 
@@ -125,6 +126,14 @@ def month_status(db: Session, *, month, all_companies: bool, company_ids) -> dic
             .where(Line.run_id.in_([r.id for r in drafts]), Line.flags.any("figures_missing"))
         )
     approved = [r for r in runs if r.status != "draft"]
+
+    def scoped_count(model, *where):
+        q = select(func.count()).select_from(model).where(model.month == month, *where)
+        return db.scalar(q if all_companies else q.where(model.company_id.in_(list(company_ids))))
+
+    objections = scoped_count(Objection, Objection.status.in_(("open", "in_review")))
+    to_review = scoped_count(Uncollected, Uncollected.status == "review")
+    gate_off = not org.get_section(db, "payroll").live_approval_enabled
     paid = [r for r in runs if r.status == "paid"]
     link_month = f"payroll?tab=month&month={month.isoformat()[:7]}"
     run_link = f"payroll/run/{runs[0].public_id}" if len(runs) == 1 else "payroll?tab=runs"
@@ -155,13 +164,18 @@ def month_status(db: Session, *, month, all_companies: bool, company_ids) -> dic
             "link": run_link,
         },
         "review": {
-            "state": _state(bool(blocking), bool(runs) and not drafts),
-            "counts": {"blocking": blocking, "approved": len(approved)},
+            "state": _state(bool(blocking or (drafts and gate_off)), bool(runs) and not drafts),
+            "counts": {
+                "blocking": blocking,
+                "approved": len(approved),
+                "objections_open": objections,
+                "gate_off": int(gate_off),
+            },
             "link": run_link,
         },
         "close": {
             "state": _state(False, bool(runs) and len(approved) == len(runs)),
-            "counts": {"approved": len(approved), "paid": len(paid)},
+            "counts": {"approved": len(approved), "paid": len(paid), "uncollected": to_review},
             "link": run_link,
         },
     }

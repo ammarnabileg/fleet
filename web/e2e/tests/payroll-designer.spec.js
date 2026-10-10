@@ -97,3 +97,77 @@ test('a platform\'s own fields, the month imported and checked, a driver\'s mont
     { attendance_marks: '2.000' }, [['exception_day', 2, 'يومان بعذر طبي']], [],
   ]);
 });
+
+test('a scheme from a template in the rules designer: reordered, a rule added, tried, saved, and the month computed', async ({ admin, api }) => {
+  const s = await setup(api);
+  const top = () => admin.locator('.overlay[data-open]').last();
+
+  // ---- from the Keeta as-paid template
+  await admin.goto('/admin.html#/payroll?tab=schemes');
+  await settled(admin);
+  await admin.click(`[data-new="${s.platform.id}"]`);
+  const m = top();
+  await expect(m.locator('[data-templates]')).toContainText('قيم أولية تحتاج تأكيد'); // the plan-document ones
+  await m.locator('[name=code]').fill('paid');
+  await m.locator('[name=name_ar]').fill('كما صُرف ' + s.n);
+  await m.locator('[name=name_en]').fill('As paid ' + s.n);
+  await m.locator('input[name=template][value=keeta_paid]').check({ force: true });
+  await clearToasts(admin);
+  await m.locator('button[type=submit]').click();
+  await expect(admin.locator('.toast').last()).toContainText('أُنشئ النظام');
+  const scheme = (await api.get('/payroll/schemes')).find((x) => x.platform_id === s.platform.id);
+  expect([scheme.calculator, scheme.designed, scheme.blocks.map((b) => b.type)]).toEqual(['blocks', true,
+    ['fixed_salary', 'target_overage', 'attendance_marks', 'star_day', 'special_day_violation']]);
+
+  // ---- the designer: blocks in their order, one moved, one added from the palette with a condition
+  await admin.locator(`[data-scheme="${scheme.id}"]`).click();
+  await settled(admin);
+  const blocks = admin.locator('[data-blocks] [data-block]');
+  await expect(blocks).toHaveCount(5);
+  await admin.click('[data-down="2"]'); // the marks after the star day
+  await expect(blocks.nth(3)).toContainText('مخالفات الحضور');
+  await admin.click('#ds-add');
+  await top().locator('[data-pick=monthly_bonus]').click();
+  const f = top();
+  await f.locator('[name=p_amount]').fill('25');
+  await f.locator('[data-c-add]').click();
+  await f.locator('[data-c-fact="0"]').selectOption('orders');
+  await f.locator('[data-c-op="0"]').selectOption('gte');
+  await f.locator('[data-c-value="0"]').fill('600');
+  await f.locator('button[type=submit]').click();
+  await expect(blocks).toHaveCount(6);
+  await expect(blocks.nth(5)).toContainText('الطلبات لا يقل عن 600');
+
+  // ---- «جرّب»: each line and its formula, the net
+  const tryBox = admin.locator('[data-try]');
+  await tryBox.locator('[name=s_orders]').fill('603');
+  await tryBox.locator('[name=s_attendance_marks]').fill('1');
+  await tryBox.locator('[name=s_star]').selectOption('false');
+  await tryBox.locator('[name=s_basic_salary]').fill('200');
+  await tryBox.locator('[data-try-run]').click();
+  await expect(tryBox.locator('[data-try-lines]')).toContainText('(603 − 310) × 0.500 = 146.500');
+  await expect(tryBox.locator('[data-try-net]')).toContainText('351.500'); // 200 + 146.5 - 20 + 25
+
+  // ---- saved (nobody paid on it yet: redefined)
+  await admin.click('#ds-save');
+  await clearToasts(admin);
+  await top().locator('button[type=submit]').click();
+  await expect(admin.locator('.toast').last()).toContainText('حُفظت النسخة');
+  const d = await api.get(`/payroll/schemes/${scheme.id}/designer`);
+  expect(d.versions[0].blocks.map((b) => b.type)).toEqual(['fixed_salary', 'target_overage', 'star_day', 'attendance_marks', 'special_day_violation', 'monthly_bonus']);
+
+  // ---- assigned, the month's figures, the run: the line explains itself
+  await api.post(`/payroll/schemes/${scheme.id}/assign`, { employee_ids: [s.a.id], month: MONTH + '-01' });
+  await api.post('/payroll/statements', { employee_id: s.a.id, month: MONTH + '-01', orders: 603 });
+  await api.put(`/payroll/month-review/${s.a.id}`, { month: MONTH + '-01', values: { attendance_marks: 1, star_day_failed: false } });
+  const version = (await api.get('/settings')).payroll.version;
+  await api.put('/settings/payroll', { version, value: { max_deduction_percent: '50.00', deduction_cap_base: 'gross' } });
+  const run = await api.post('/payroll/runs', { company_id: s.company.id, month: MONTH + '-01' });
+  const line = run.lines.find((x) => x.employee.id === s.a.id);
+  expect([line.gross, line.net, line.flags]).toEqual(['371.500', '351.500', []]);
+  await admin.goto('/admin.html#/payroll/run/' + run.id);
+  await settled(admin);
+  await admin.locator(`[data-line="${s.a.id}"]`).first().click();
+  await expect(top()).toContainText('مكافأة تجاوز التارجت');
+  await expect(top()).toContainText('(603 − 310) × 0.500 = 146.500');
+});

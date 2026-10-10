@@ -241,19 +241,25 @@
     }
     BT.drawer.open({
       title: api.name(line.employee.name), subtitle: (platform ? api.name(platform.name) + ' · ' : '') + monthLabel(run.month), icon: 'receipt-text',
-      body: h`${line.flags.length ? h`<div class="flex gap-8 wrap mb-12">${flagPills(line.flags)}</div>` : ''}${breakdown(line)}${BT.kv(cols.filter(function (c) { return c.code !== 'blank'; }).map(function (c) { return [c.header, val(c.code)]; }).concat([['مُرحَّل للشهر القادم', amt(line.cells.carried)]]).concat(Number(line.cells.uncovered_penalty || 0) && codes.indexOf('uncovered_penalty') < 0 ? [['خصومات غير محصلة (للمراجعة، لم تُخصم)', amt(line.cells.uncovered_penalty)]] : []).concat(line.scheme_version ? [['نسخة شروط النظام', 'النسخة ' + line.scheme_version]] : []))}`,
+      body: h`${line.flags.length ? h`<div class="flex gap-8 wrap mb-12">${flagPills(line.flags)}</div>` : ''}${breakdown(line)}${traceList(line)}${BT.kv(cols.filter(function (c) { return c.code !== 'blank'; }).map(function (c) { return [c.header, val(c.code)]; }).concat([['مُرحَّل للشهر القادم', amt(line.cells.carried)]]).concat(Number(line.cells.uncovered_penalty || 0) && codes.indexOf('uncovered_penalty') < 0 ? [['خصومات غير محصلة (للمراجعة، لم تُخصم)', amt(line.cells.uncovered_penalty)]] : []).concat(line.scheme_version ? [['نسخة شروط النظام', 'النسخة ' + line.scheme_version]] : []))}`,
       buttons: [{ label: 'إغلاق', cls: 'btn-ghost' }]
     });
   }
   /* كيف حسب نظام الدفع الشهر: ما يقرؤه المكتب ويشرحه للسائق */
   function why(b) {
     var w = b.why || {};
+    if (b.formula) return fmt.ltr(b.formula); // a rule designed in the dashboard: what it read and how
     if (b.code === 'orders_pay') return w.orders + ' طلب × ' + fmt.money(w.rate) + (w.batch_level != null ? ' · باتش ' + w.batch_level : '') + (w.reduced_by ? ' · السعر المخفض: ' + (w.reduced_by === 'star_day' ? 'فوّت Star Day' : 'علامات الحضور') : '');
     if (b.code === 'tier_bonus') return 'وصل ' + w.orders + ' طلب: شريحة ' + w.from;
     if (b.code === 'missing_target') return w.missing + ' طلب ناقص عن ' + w.target + ' × ' + fmt.money(w.rate);
     if (b.code === 'marks_deduction') return w.marks + ' علامات حضور';
     if (b.code === 'uncovered_penalty') return 'خصومات أكبر من المستحق: لم تُخصم، تظهر للمراجعة في «خصومات غير محصلة»';
     return '';
+  }
+  function traceList(line) {
+    var t = (line.trace || []).filter(function (x) { return x.skipped || x.info; });
+    if (!t.length) return '';
+    return h`<div class="section-t">ما لم يُطبق من القواعد، وما حدث للعلم</div><ul class="fs-sm muted mb-16" data-line-trace>${t.map(function (x) { return h`<li>${x.block ? '#' + x.block + ' ' + api.t('rule_block', x.type) + ': ' : ''}${api.t('rule_trace', x.skipped || x.info)}</li>`; })}</ul>`;
   }
   function breakdown(line) {
     if (!line.breakdown || !line.breakdown.length) return '';

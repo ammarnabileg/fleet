@@ -40,6 +40,7 @@ class Rules:
     marks_when_reduced: bool = False
     floor_at_zero: bool = True
     steps: dict[str, list[Step]] = field(default_factory=dict)  # by kind, sorted by threshold
+    blocks: list | None = None  # a version written as rule blocks (rules/engine.py): they replace the calculator
 
     def highest(self, kind: str, value) -> Step | None:
         """The highest step reached: tiers and marks are not cumulative."""

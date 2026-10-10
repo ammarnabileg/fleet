@@ -171,3 +171,43 @@ def rules_preview(
     from app.modules.payroll import designer
 
     return designer.preview(db, body.model_dump(mode="json"))
+
+
+# ------------------------------------------------------------------ a scheme's rules as blocks
+
+
+@router.post("/schemes/from-template", status_code=201)
+def scheme_from_template(
+    body: schemas.FromTemplateIn,
+    principal: Principal = Depends(require_permission("payroll.schemes")),
+    db: Session = Depends(get_session),
+):
+    """A new scheme of a platform from a template (its blocks copied, every value editable) or blank."""
+    from app.modules.payroll import scheme_blocks
+
+    return scheme_blocks.from_template(db, body.model_dump(mode="json"), actor_user_id=principal.user_id)
+
+
+@router.get("/schemes/{public_id}/designer")
+def scheme_designer(
+    public_id: uuid.UUID, _: Principal = Depends(require_permission("payroll.view")), db: Session = Depends(get_session)
+):
+    """The scheme in the rules designer: its versions «يسري من شهر» with their blocks, the platform's fields."""
+    from app.modules.payroll import scheme_blocks
+
+    return scheme_blocks.designer(db, public_id)
+
+
+@router.post("/schemes/{public_id}/blocks")
+def save_scheme_blocks(
+    public_id: uuid.UUID,
+    body: schemas.SchemeBlocksIn,
+    principal: Principal = Depends(require_permission("payroll.schemes")),
+    db: Session = Depends(get_session),
+):
+    """The scheme's rules as blocks: a new version from a month (never one already paid), or redefined if unused."""
+    from app.modules.payroll import scheme_blocks
+
+    data = body.model_dump()
+    version = data.pop("version")
+    return scheme_blocks.save(db, public_id, version=version, data=data, actor_user_id=principal.user_id)

@@ -26,6 +26,7 @@ from app.modules.payroll.service import month_start
 from app.modules.people import service as people
 
 SIMPLE_BUILTINS = ("attendance_marks", "star_day_failed", "late_count", "absent_days")
+MISSING_KEY = {"batches": "batch_orders", "tasks": "task_counts"}  # a figure the blocks read -> its monthly field
 CORRECTABLE = ("orders", "valid_days", "working_days", *SIMPLE_BUILTINS)
 
 
@@ -125,6 +126,25 @@ def facts(
         fields={**inputs.daily, **custom},
         exceptions=tuple(Excused(e.kind, e.days, dict(e.corrections or {})) for e in inputs.exceptions),
     )
+
+
+def personal_rates(db: Session, employee_ids, month: date) -> dict:
+    """The price per order agreed with each driver on his scheme of the month, when there is one."""
+    from sqlalchemy import or_
+
+    from app.modules.payroll.models import DriverScheme
+
+    ids = list(employee_ids)
+    if not ids:
+        return {}
+    month = month_start(month)
+    q = select(DriverScheme.employee_id, DriverScheme.personal_rate).where(
+        DriverScheme.employee_id.in_(ids),
+        DriverScheme.valid_from <= month,
+        or_(DriverScheme.valid_to.is_(None), DriverScheme.valid_to > month),
+        DriverScheme.personal_rate.is_not(None),
+    )
+    return dict(db.execute(q).all())
 
 
 # ------------------------------------------------------------------ the office enters a driver's month
@@ -374,12 +394,13 @@ def _ids_with_values(db: Session, platform_id: int, month: date) -> set[int]:
     return set(db.scalars(q.distinct()))
 
 
-def review(db: Session, *, platform_id: int, month: date, needs=None, all_companies: bool, company_ids) -> dict:
+def review(db: Session, *, platform_id: int, month: date, all_companies: bool, company_ids) -> dict:
     """The platform's drivers for the month: their figures, the monthly fields, the totals of the daily ones, their
-    exceptions, and the problems to settle before the run (a value missing, batch orders that do not add up to the
-    approved daily orders, a daily report waiting, no scheme, no platform driver ID). `needs`: per driver, the
-    figures his scheme reads that are missing (from the run engine)."""
+    exceptions, and the problems to settle before the run (a value missing, the platform's or what his scheme's rule
+    blocks read; batch orders that do not add up to the approved daily orders; a daily report waiting; no scheme; no
+    platform driver ID)."""
     from app.modules.payroll import schemes, statements
+    from app.modules.payroll.rules import engine
 
     month = month_start(month)
     form = forms.get(db, platform_id)
@@ -400,7 +421,8 @@ def review(db: Session, *, platform_id: int, month: date, needs=None, all_compan
     locked = statements.locked_months(db, {(p["company_id"], month) for p in profiles})
     users = identity.user_names(db, {x.approved_by for f in found.values() for x in f.exceptions})
     required = [x["key"] for x in form["monthly"] if x["required"]]
-    missing_of = needs or (lambda _p, _f: [])
+    terms = schemes.rules_for(db, {s.id: s for s in assigned.values()}, month)
+    personal = personal_rates(db, ids, month)
     rows, problems = [], defaultdict(int)
     for p in profiles:
         f, sy, st = found[p["id"]], system[p["id"]], sts.get(p["id"])
@@ -409,14 +431,29 @@ def review(db: Session, *, platform_id: int, month: date, needs=None, all_compan
         valid = approved.valid_days if approved and approved.valid_days is not None else sy["valid_days"]
         issues = []
         lacking = [k for k in required if not _has(f, k)]
-        lacking += [k for k in missing_of(p, f) if k not in lacking]
+        scheme = assigned.get(p["id"])
+        blocks = terms[scheme.id][0].blocks if scheme is not None and scheme.id in terms else None
+        if blocks is not None:  # what his scheme's blocks read and the month does not have
+            month_facts = facts(
+                f,
+                orders=orders,
+                valid_days=valid,
+                working_days=sy["working_days"],
+                hours=approved.hours if approved else None,
+                statement=approved,
+                system=sy,
+                basic_salary=p["basic_salary"],
+                personal_rate=personal.get(p["id"]),
+            )
+            for k in engine.needs(blocks, month_facts):
+                if MISSING_KEY.get(k, k) not in lacking:
+                    lacking.append(MISSING_KEY.get(k, k))
         if lacking:
             issues.append("values_missing")
         if f.batches and sum(n for _, n in f.batches) != orders and orders:
             issues.append("orders_conflict")  # the partner's batch rows and the approved daily orders differ
         if sy["pending_reports"]:
             issues.append("daily_pending")
-        scheme = assigned.get(p["id"])
         if has_schemes and scheme is None:
             issues.append("scheme_missing")
         if not p["platform_driver_id"]:

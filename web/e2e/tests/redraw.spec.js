@@ -15,7 +15,6 @@ test('after a save, the next click opens one form', async ({ admin, api }) => {
     await m.locator('[name=code]').fill(code);
     await m.locator('[name=name_ar]').fill('نظام ' + code);
     await m.locator('[name=name_en]').fill(code);
-    await m.locator('[name=per_order]').fill('0.300');
     await m.locator('button[type=submit]').click();
     await expect(open).toHaveCount(0);
   }

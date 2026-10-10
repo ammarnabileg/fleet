@@ -42,9 +42,11 @@ from app.modules.identity import service as identity
 from app.modules.notifications import service as notifications
 from app.modules.org import service as org
 from app.modules.payroll import calculators, platforms, schemes, statements, uncollected
+from app.modules.payroll import month as month_inputs
 from app.modules.payroll.calculators import Month, Rules
 from app.modules.payroll.columns import BY_CODE, COLUMNS, EARNING_COLUMNS, RULE_COLUMNS
 from app.modules.payroll.models import Deduction, Line, LineDeduction, Platform, Run, Scheme, Statement
+from app.modules.payroll.rules import convert, engine
 from app.modules.payroll.service import month_cap, schedule
 from app.modules.people import service as people
 
@@ -91,6 +93,7 @@ class Computed:
     flags: list[str] = field(default_factory=list)
     dues: list[Due] = field(default_factory=list)
     breakdown: list[dict] = field(default_factory=list)  # the scheme's items: what the payslip explains
+    trace: list[dict] = field(default_factory=list)  # what each rule block did or did not do, and why
 
 
 def compute(
@@ -107,10 +110,14 @@ def compute(
     rules: Rules | None = None,
     needs_scheme: bool = False,
     absence_rule: str = "none",
+    inputs: month_inputs.Inputs | None = None,
+    personal_rate: Decimal | None = None,
 ) -> Computed:
     """One salary line. Pure: everything it needs is passed in. With `rules` (the driver's scheme this month) the
-    scheme's calculator gives the earnings and the penalties; `needs_scheme`: his platform has schemes, so a driver
-    on none is flagged rather than paid on the platform's rates."""
+    scheme's calculator, or its version's rule blocks, gives the earnings and the penalties; `needs_scheme`: his
+    platform has schemes, so a driver on none is flagged rather than paid on the platform's rates. The platform's own
+    rates run as the same blocks (rules/convert.py). `inputs`: the month's values of the platform's fields, its
+    daily totals and the driver's approved exceptions; `personal_rate`: a price agreed with him on his scheme."""
     approved = statement if statement is not None and statement.status == "approved" else None
     basic = money(profile["basic_salary"])
     pay_basic = platform.pay_basic if platform else True
@@ -138,32 +145,53 @@ def compute(
     scheme_cells = dict.fromkeys(SCHEME_CELLS, ZERO)
     breakdown: list[dict] = []
     penalties = ZERO
-    lacking = calculators.missing(calculators.CALCULATORS[rules.calculator], month) if on_scheme else []
+    designed = on_scheme and rules.blocks is not None  # a version written as rule blocks (the rules designer)
+    facts = None
+    if designed or (platform and not on_scheme):
+        facts = month_inputs.facts(
+            inputs or month_inputs.Inputs(),
+            orders=orders or 0,
+            valid_days=valid_days,
+            working_days=working_days,
+            hours=hours,
+            statement=approved,
+            system=system,
+            basic_salary=basic,
+            personal_rate=personal_rate,
+        )
+    if designed:
+        lacking = engine.needs(rules.blocks, facts)
+    else:
+        lacking = calculators.missing(calculators.CALCULATORS[rules.calculator], month) if on_scheme else []
+    trace: list[dict] = []
 
     gross = basic if pay_basic and not on_scheme else ZERO  # a scheme is the whole of the platform's pay
     result = None
+    invalid = ZERO
     if on_scheme and not lacking:
-        result = calculators.run(rules, month)
+        if designed:
+            result = engine.run(rules.blocks, facts, floor_at_zero=rules.floor_at_zero)
+            trace = result.trace
+        else:
+            result = calculators.run(rules, month)
         gross += result.pay
         penalties = result.penalties
         for item in result.items:
-            scheme_cells[item.code] = scheme_cells.get(item.code, ZERO) + abs(item.amount)
-            breakdown.append({"code": item.code, "amount": str(item.amount), "why": item.why})
+            if item.code in BY_CODE and BY_CODE[item.code].kind == "money":
+                scheme_cells[item.code] = scheme_cells.get(item.code, ZERO) + abs(item.amount)
+            entry = {"code": item.code, "amount": str(item.amount), "why": item.why}
+            if designed:
+                entry |= {"formula": item.formula, "block": item.block, "type": item.type}
+            breakdown.append(entry)
     elif platform and not on_scheme:
-        gross += money(platform.per_order * (orders or 0))
-        gross += money(platform.per_hour * (hours or 0))
-        gross += money(platform.per_valid_day * (valid_days or 0))
+        # the platform's own rule (basic, rates per order, hour and valid day, invalid days) as its blocks; the floor
+        # and the absence rule stay the run's, as before
+        own_rule = [b for b in convert.from_platform(platform) if b["type"] != "fixed_salary"]  # basic: above
+        own = engine.run(own_rule, facts, floor_at_zero=False)
+        gross += own.pay
+        invalid = -sum((i.amount for i in own.items if i.code == "invalid_days_deduction"), ZERO)
     gross += items["bonus"] + items["tips"]
 
-    invalid = ZERO
-    if platform and not on_scheme and platform.invalid_days != "none" and valid_days is not None:
-        days = max(0, working_days - valid_days)
-        rate = (
-            money(basic / platform.day_divisor)
-            if platform.invalid_days == "daily_wage"
-            else money(platform.invalid_day_amount)
-        )
-        invalid = money(days * rate)
     # absence and unpaid leave: a day's wage each when the settings say so, for pay made of the basic salary
     absent = system.get("absence_days", 0) + system.get("unpaid_leave_days", 0)
     absence = ZERO
@@ -257,7 +285,7 @@ def compute(
     for code, value in cells.items():  # every amount with its three decimals, as the sheet shows it
         if value is not None and BY_CODE[code].kind == "money":
             cells[code] = money(value)
-    return Computed(cells, money(gross), money(deductions), money(net), flags, dues, breakdown)
+    return Computed(cells, money(gross), money(deductions), money(net), flags, dues, breakdown, trace)
 
 
 def _json(cells: dict) -> dict:
@@ -345,6 +373,8 @@ def _fill(db: Session, run: Run) -> None:
     assigned = schemes.for_month(db, ids, month)
     rules = schemes.rules_for(db, {s.id: s for s in assigned.values()}, month)  # each scheme's version of the month
     with_schemes = schemes.platforms_with_schemes(db)
+    inputs = month_inputs.load(db, {p["id"]: p["platform_id"] for p in profiles}, month)  # the platforms' fields
+    personal = month_inputs.personal_rates(db, ids, month)
     lang = i18n.default_language(db).code
     absence_rule = org.get_section(db, "payroll").absence_deduction
     totals = {"lines": 0, "gross": ZERO, "deductions": ZERO, "net": ZERO, "blocking": 0, "by_platform": {}}
@@ -368,6 +398,8 @@ def _fill(db: Session, run: Run) -> None:
             rules=terms[0] if terms else None,
             needs_scheme=bool(p["is_driver"] and p["platform_id"] in with_schemes),
             absence_rule=absence_rule,
+            inputs=inputs[p["id"]],
+            personal_rate=personal.get(p["id"]) if scheme else None,
         )
         line = Line(
             run_id=run.id,
@@ -382,6 +414,7 @@ def _fill(db: Session, run: Run) -> None:
             scheme_id=scheme.id if scheme else None,
             scheme_version=terms[1] if terms else None,
             breakdown=c.breakdown,
+            trace=c.trace,
         )
         db.add(line)
         db.flush()
@@ -442,6 +475,7 @@ def _out(db: Session, r: Run, *, lines: bool = False) -> dict:
                 "flags": list(line.flags),
                 "statement_id": sts.get(line.statement_id),
                 "breakdown": line.breakdown,
+                "trace": line.trace or [],  # what each rule block did not do, and why
                 "scheme_version": line.scheme_version,
             }
             for line in rows
@@ -688,8 +722,18 @@ def sheet_columns(platform: Platform | None, labels: dict, cells: Iterable[dict]
     return cols
 
 
+def _named(item: dict, names_ar: dict, names_en: dict) -> dict:
+    """A payslip item with its name in both languages: the app shows any line a rule designed in the dashboard writes,
+    with its formula, without knowing its code."""
+    code = item["code"]
+    return item | {"label": {"ar": names_ar.get(code, code), "en": names_en.get(code, code)}}
+
+
 def payslips(db: Session, employee_id: int) -> list[dict]:
     from app.modules.i18n import service as i18n
+
+    names_ar = i18n.base_catalog("ar").get("payroll_column", {})
+    names_en = i18n.base_catalog("en").get("payroll_column", {})
 
     labels = i18n.base_catalog(i18n.default_language(db).code).get("payroll_column", {})
     rows = db.execute(
@@ -723,7 +767,7 @@ def payslips(db: Session, employee_id: int) -> list[dict]:
                 "rows": [{"code": c["code"], "header": c["header"], "value": line.cells.get(c["code"])} for c in cols],
                 # how his scheme computed the month, item by item with its reason (none on the platform's own rule)
                 "scheme": {"name": names[line.scheme_id]} if line.scheme_id in names else None,
-                "breakdown": line.breakdown or [],
+                "breakdown": [_named(b, names_ar, names_en) for b in line.breakdown or []],
                 "gross": line.gross,
                 "deductions": line.deductions,
                 "net": line.net,

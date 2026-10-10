@@ -85,3 +85,19 @@ class BlocksIn(BaseModel):
 class PreviewIn(BlocksIn):
     platform_id: int | None = None
     month: dict = Field(default_factory=dict)  # sample figures: orders, valid_days, marks, batches, fields...
+
+
+class SchemeBlocksIn(BlocksIn):
+    version: int
+    effective_month: date | None = None  # «يسري من»; none: a scheme nobody was paid on is redefined
+    note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)] | None = None
+
+
+class FromTemplateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    platform_id: int
+    template: Key | None = None  # none: a single price per order to edit
+    code: Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{1,30}$")]
+    name: LocalizedText
+    driver_selectable: bool = True

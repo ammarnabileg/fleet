@@ -541,3 +541,64 @@ writes it into a stored payroll section):
 
 Steps 1 and 5 settle the money. Steps 2 to 4 settle who is on what. A to J are answered (section 6); nothing real is
 approved until one month is compared against the client's own sheet (section 10).
+
+## 12. The rules designer: pay rules as ordered blocks, built in the dashboard
+
+The client asked to build each platform's pay rules himself, without code, and to add platforms the same way. Built
+as `payroll/rules/` (catalog, engine, templates, the old calculators as blocks), `forms.py` (a platform's fields),
+`month.py` and `month_import.py` (the month's inputs), `scheme_blocks.py` (versions of blocks), and the panel's
+`designer.js`.
+
+**A scheme version is an ordered list of blocks.** The order is the priority the office approved, never inferred:
+each block runs once, top to bottom, and writes payslip lines that say what they read, the formula and the result.
+What a block did not do is in the line's trace with the reason. At the end, as decision D says, penalties never take
+the month below zero; the rest is the uncollected balance for review.
+
+| Category | Blocks |
+|---|---|
+| Pay | price per order (or per unit of any count field), fixed salary (an amount, or the driver's contract basic), price by tier (every order at the reached tier, or progressive), price by batch (orders split by batch within the month; a personal rate allowed), pay by task type |
+| Incentives | monthly bonus, target overage (optionally a deduction per order below the threshold: the real ±0.500 around 310), tier bonus (highest only or cumulative), commitment bonus |
+| Attendance | required days (a condition source, optional deduction, may make the month invalid), lateness, absence (an amount or a daily wage), invalid days, star day (missed: the month is invalid) |
+| Deductions | missing orders (rate × shortfall), attendance marks (per mark or a table, highest), special-day violation (fixed, when the month is invalid or the star day missed), price change (every order's price when its condition holds: replaces the base price, or the difference as its own line) |
+| Expenses | gas, maintenance, phone, housing, advances: who bears it (informational, decision G); deducted only with an explicit approved amount; advances stay in the deductions module |
+| Exceptions | approved exceptions of the month counted as valid days, or excusing attendance |
+| Priority | the order of the list; a priority group: within a group only the first block whose condition holds applies |
+
+The three operations the client named stay distinct: a fixed deduction (special-day violation), a deduction per
+missing order (missing orders), and a change of the price of all orders (price change).
+
+**Conditions** come from a fixed list, combined with AND: star day missed, month invalid, a price changed earlier,
+a deduction earlier, marks, valid days, orders, late count, absent days (compared with a number), an approved
+exception (of a kind, or any), a batch in the month, any field of the platform. **On an exception** a block may
+neutralize the attendance facts (an accepted excuse or an approved exception day: no star day missed, the month
+valid, marks/lateness/absence less the excused days) or count the exception days as valid; a company data error
+replaces the month's figures by the corrected ones.
+
+**Validation** refuses an unknown type, a missing or wrong parameter (money exact to the fils), a price change
+without a condition, an order that cannot work (a price change before anything priced the orders, a condition on a
+state no earlier block sets), an exception behaviour the type does not take, a list without a pay block.
+
+**Templates** (copied into a new scheme, every value editable): Talabat batch per the plan document and as actually
+paid, fixed 0.350/0.550/0.680 (who bears which expense), Keeta per the plan document (decisions A to J) and Keeta as
+actually paid (contract basic ± 0.500 around 310, −20 per mark, −100 for an invalid month). The plan-document ones
+are marked «قيم أولية تحتاج تأكيد».
+
+**Versions.** The blocks belong to the scheme versions «يسري من شهر» (section 7): each save is a version from a month
+no approved payroll paid on the scheme. Migration 0051 wrote every existing scheme's terms as blocks, giving the same
+money, as its next version; the four calculators stay for the older versions and the runs that used them. A
+platform's own pay rule (basic, rates per order, hour and valid day, invalid days) runs as the same blocks for a
+driver on no scheme; it is no longer edited on the platform form: the office designs a scheme instead.
+
+**A platform's fields.** Each platform lists, in the dashboard, what its drivers fill each day in the app (the
+built-in orders, cash and valid day, and any field of its own: a whole number, an amount, yes/no, a choice; required
+or not; help text; order; the screenshot per platform) and what the office enters or imports each month (batch rows,
+marks, star day, late count, absent days, tasks by type, any number). The app draws the daily form from that list;
+an app that knows only the built-in fields keeps sending them and is not refused for the others. A daily field's
+month total is the sum of its numbers or the days answered yes; blocks read any of these fields.
+
+**The month.** «بيانات الشهر» shows, per platform and month, each driver's figures, monthly values, daily totals,
+exceptions and problems, and the six stages: collect, check, policy, engine, review and approval (the reconciliation
+gate still applies), close. The partner's batch report (Rider ID, Batch No., Total Completed Deliveries; the rider by
+his platform driver ID) or a simple template imports a month after a check (unknown riders, rows twice, differing
+figures, conflicts with the approved daily orders, paid months); applying replaces each driver's rows for the month
+(platform, month, driver, batch), so the same file twice never adds up.

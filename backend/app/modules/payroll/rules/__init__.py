@@ -1,4 +1,4 @@
-"""Pay rules as ordered blocks, designed in the dashboard (docs/payroll-schemes.md, the rules designer): the catalog
+"""Pay rules as ordered blocks, designed in the dashboard (docs/payroll-schemes.md, section 12): the catalog
 of block types, the engine that runs a version's blocks on a driver's month, the templates a scheme can start from,
 and the four old calculators written as blocks."""
 

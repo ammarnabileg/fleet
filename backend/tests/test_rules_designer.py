@@ -55,4 +55,4 @@ def test_the_month_in_six_stages(admin_client, company):
     assert s["check"]["counts"]["driver_id_missing"] == 1
     assert s["engine"] == {"state": "todo", "counts": {"runs": 0, "drafts": 0, "figures_missing": 0},
                            "link": "payroll?tab=runs"}  # fmt: skip
-    assert s["close"]["state"] == "todo"
+    assert s["close"]["state"] == "todo" and s["review"]["counts"]["gate_off"] == 1  # not reconciled yet

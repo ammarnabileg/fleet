@@ -560,7 +560,9 @@
     "exception_cancelled": "The exception is already cancelled.",
     "month_import_headers": "The file's columns were not found: the partner report needs Rider ID, Batch No. and Total Completed Deliveries; the template needs the civil ID or the platform driver ID.",
     "month_import_blocked": "The file cannot be applied: two different figures for the same driver and batch, a month already approved, or no known driver. See the check.",
-    "rule_sample_invalid": "The sample figures are not valid."
+    "rule_sample_invalid": "The sample figures are not valid.",
+    "scheme_designed": "This scheme's rules are built in the rules designer: change them there, as a new version from a month.",
+    "rule_template_not_found": "Template not found."
   },
   "settings": {
     "branding": "Branding",
@@ -1012,7 +1014,8 @@
     "platform_rates": "The platform's rule (basic and rates)",
     "per_order": "A fixed price per order",
     "batch": "By batch level",
-    "tiered_target": "Base price, tiers and penalties"
+    "tiered_target": "Base price, tiers and penalties",
+    "blocks": "Rules from the designer"
   },
   "scheme_step": {
     "batch_rate": "Price per order at a batch level",
