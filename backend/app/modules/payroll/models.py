@@ -423,3 +423,40 @@ class DriverScheme(Base):
     request_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.scheme_change_requests.id"))
     set_by: Mapped[int | None] = mapped_column(BigInteger)
     set_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Uncollected(Base):
+    """Decision D: what a month's pay could not cover of its penalties (the net stops at zero), recorded when the run
+    is approved, for review. Carried to a later month (a manual deduction) or dropped, each with a note; never carried
+    by itself."""
+
+    __tablename__ = "uncollected"
+    __table_args__ = (
+        UniqueConstraint("run_id", "employee_id", "round", name="uncollected_run_id_key"),
+        CheckConstraint("extract(day FROM month) = 1", name="month"),
+        CheckConstraint("amount > 0", name="amount"),
+        CheckConstraint("status IN ('review', 'carried', 'dropped')", name="status"),
+        CheckConstraint("(status = 'review') = (decided_at IS NULL)", name="decided"),
+        CheckConstraint("status = 'review' OR note IS NOT NULL", name="note"),
+        CheckConstraint("(status = 'carried') = (deduction_id IS NOT NULL)", name="carried"),
+        Index("uncollected_month_idx", "month", "status"),
+        Index("uncollected_employee_id_idx", "employee_id"),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    run_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("payroll.runs.id"))
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    company_id: Mapped[int] = mapped_column(BigInteger)
+    month: Mapped[date] = mapped_column(Date)
+    round: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 3))
+    reason: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    status: Mapped[str] = mapped_column(Text, server_default=text("'review'"))
+    note: Mapped[str | None] = mapped_column(Text)
+    deduction_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.deductions.id"))
+    decided_by: Mapped[int | None] = mapped_column(BigInteger)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))

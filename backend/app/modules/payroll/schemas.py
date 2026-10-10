@@ -309,6 +309,7 @@ class PayslipOut(BaseModel):
     gross: Decimal
     deductions: Decimal
     net: Decimal
+    uncollected: Decimal = Decimal(0)  # penalties the pay could not cover: not deducted, for the office's review
 
 
 # ------------------------------------------------------------------ pay schemes
@@ -488,3 +489,30 @@ class RejectSchemeRequestIn(BaseModel):
 
     version: int | None = None
     note: Note  # the driver reads why
+
+
+# ------------------------------------------------------------------ the uncollected deductions balance (decision D)
+
+
+class UncollectedOut(BaseModel):
+    id: str
+    run: dict  # {id, month, status}
+    employee: dict | None
+    company_id: int
+    month: date
+    amount: Decimal
+    reason: dict  # {gross, items: [{code, amount}]}: the month's penalties
+    status: str  # review | carried | dropped
+    note: str | None
+    deduction: dict | None  # carried: the manual deduction made {id, start_month, status}
+    decided_by: str | None
+    decided_at: datetime | None
+    created_at: datetime
+    version: int
+
+
+class UncollectedDecisionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
+    version: int | None = None

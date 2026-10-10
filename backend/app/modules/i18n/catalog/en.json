@@ -530,7 +530,9 @@
     "received_before_custody": "The reception time is before the current custody started",
     "final_reading_required": "The car goes back to the company, not to a driver: enter the odometer after the repair with its photo",
     "step_not_in_this_flow": "This step is not in this request's flow: the reception, then ready with the invoice",
-    "scheme_version_month": "The change applies from {from} or later: the months before it were paid on this scheme or have a later version"
+    "scheme_version_month": "The change applies from {from} or later: the months before it were paid on this scheme or have a later version",
+    "uncollected_not_found": "Uncollected balance line not found",
+    "uncollected_decided": "This line was already decided ({status})"
   },
   "settings": {
     "branding": "Branding",
@@ -898,7 +900,7 @@
     "tier_bonus": "Tier bonus",
     "missing_target": "Missing target deduction",
     "marks_deduction": "Marks deduction",
-    "uncovered_penalty": "Penalties not taken",
+    "uncovered_penalty": "Uncollected deductions (for review)",
     "absence_days": "Absence days",
     "leave_days": "Leave days",
     "absence_deduction": "Absence deduction"
@@ -928,7 +930,8 @@
     "daily_pending": "Daily reports waiting for review this month",
     "scheme_missing": "The driver has no pay scheme this month",
     "figures_missing": "The month's figures his scheme needs are missing (batch level, marks or star day)",
-    "days_unclassified": "Days without a start of day not marked yet: an absence among them is not deducted until marked"
+    "days_unclassified": "Days without a start of day not marked yet: an absence among them is not deducted until marked",
+    "uncollected": "Penalties above the pay: the net is zero and the rest is an uncollected balance for review"
   },
   "driver_field": {
     "valid_days": "Valid days",
@@ -1143,7 +1146,8 @@
     "workflow": "Approval workflow",
     "delegation": "Delegation",
     "fuel_claim": "Fuel claim",
-    "period": "Month of the books"
+    "period": "Month of the books",
+    "uncollected": "Uncollected deductions"
   },
   "audit_actor": {
     "user": "User",
@@ -1398,5 +1402,11 @@
     "pending": "Under review",
     "done": "Changed",
     "rejected": "Refused"
+  },
+  "uncollected": {
+    "review": "For review",
+    "carried": "Carried to next month",
+    "dropped": "Dropped",
+    "deduction_reason": "Uncollected deductions from the {month} payroll: {note}"
   }
 }

@@ -2,14 +2,14 @@
 never reaches a month already paid. Every existing scheme gets its terms of today as version 1, from its creation month
 or the earliest month a driver was put on it or a run used it; a payroll line keeps the version it was paid on.
 
-Revision ID: 0045_scheme_versions
-Revises: 0044_vehicle_claims_superseded
+Revision ID: 0046_scheme_versions
+Revises: 0045_seed_platforms
 """
 
 from alembic import op
 
-revision = "0045_scheme_versions"
-down_revision = "0044_vehicle_claims_superseded"
+revision = "0046_scheme_versions"
+down_revision = "0045_seed_platforms"
 branch_labels = None
 depends_on = None
 

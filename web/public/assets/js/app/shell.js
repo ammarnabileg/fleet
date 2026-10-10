@@ -259,8 +259,9 @@
     // what the drivers ask about cars and wait for: a car registered from the app, a change of car
     if (api.can('custody.assign')) jobs.push(Promise.all([api.get('/vehicle-claims'), api.get('/vehicle-change-requests')]).then(function (r) { A.counts.custody = r[0].length + r[1].length; }, function () {}));
     if (api.can('payroll.view')) jobs.push(api.get('/payroll/scheme-requests/counts').then(function (r) { A.counts.scheme_requests = r.pending; }, function () {}));
+    if (api.can('payroll.view')) jobs.push(api.get('/payroll/uncollected/counts').then(function (r) { A.counts.uncollected = r.review; }, function () {}));
     return Promise.all(jobs).then(function () {
-      A.counts.payroll = (A.counts.statements || 0) + (A.counts.scheme_requests || 0);
+      A.counts.payroll = (A.counts.statements || 0) + (A.counts.scheme_requests || 0) + (A.counts.uncollected || 0);
       A.renderNav((A.router && A.router.current || '').split('/')[0]);
       A.updateBell();
     });

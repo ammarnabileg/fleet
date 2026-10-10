@@ -15,7 +15,7 @@ from app.modules.identity.service import (
     require_permission,
 )
 from app.modules.org import service as org
-from app.modules.payroll import columns, export, platforms, runs, schemas, schemes, service, statements
+from app.modules.payroll import columns, export, platforms, runs, schemas, schemes, service, statements, uncollected
 from app.modules.people import service as people
 
 router = APIRouter(prefix="/api/v1", tags=["payroll"])
@@ -286,6 +286,64 @@ def export_run(
         export.workbook(db, run, lines),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"},
+    )
+
+
+# ------------------------------------------------------------------ the uncollected deductions balance (decision D)
+
+
+@router.get("/payroll/uncollected", response_model=list[schemas.UncollectedOut])
+def list_uncollected(
+    month: date | None = None,
+    status: Literal["review", "carried", "dropped"] | None = None,
+    employee_id: uuid.UUID | None = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    principal: Principal = Depends(require_permission("payroll.view")),
+    db: Session = Depends(get_session),
+):
+    """What approved months' pay could not cover of their penalties, per month and per driver, for review."""
+    return uncollected.list_lines(
+        db,
+        month=month,
+        status=status,
+        employee_public_id=employee_id,
+        limit=limit,
+        offset=offset,
+        **principal.scope,
+    )
+
+
+@router.get("/payroll/uncollected/counts")
+def uncollected_counts(
+    principal: Principal = Depends(require_permission("payroll.view")), db: Session = Depends(get_session)
+):
+    return uncollected.counts(db, **principal.scope)
+
+
+@router.post("/payroll/uncollected/{public_id}/carry", response_model=schemas.UncollectedOut)
+def carry_uncollected(
+    public_id: uuid.UUID,
+    body: schemas.UncollectedDecisionIn,
+    principal: Principal = Depends(require_permission("payroll.approve")),
+    db: Session = Depends(get_session),
+):
+    """«تُرحّل للشهر التالي»: a manual deduction of the amount from the next month, with the approver's note."""
+    return uncollected.carry(
+        db, public_id, note=body.note, version=body.version, actor_user_id=principal.user_id, **principal.scope
+    )
+
+
+@router.post("/payroll/uncollected/{public_id}/drop", response_model=schemas.UncollectedOut)
+def drop_uncollected(
+    public_id: uuid.UUID,
+    body: schemas.UncollectedDecisionIn,
+    principal: Principal = Depends(require_permission("payroll.approve")),
+    db: Session = Depends(get_session),
+):
+    """«إسقاط»: nothing more is taken, with the note why."""
+    return uncollected.drop(
+        db, public_id, note=body.note, version=body.version, actor_user_id=principal.user_id, **principal.scope
     )
 
 

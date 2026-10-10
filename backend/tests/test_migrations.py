@@ -74,7 +74,7 @@ def test_a_chart_in_use_is_kept_and_the_drivers_salaries_start_on_its_salaries_a
 
 
 def test_existing_schemes_become_their_version_1(database_url, admin_engine):
-    """Migration 0045: a scheme set up before versions keeps its terms as version 1, from its creation month or the
+    """Migration 0046: a scheme set up before versions keeps its terms as version 1, from its creation month or the
     earliest month a driver was put on it."""
     import uuid
 

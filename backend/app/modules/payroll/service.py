@@ -427,6 +427,11 @@ def _tell_driver(db: Session, d: Deduction) -> None:
     )
 
 
+def tell_driver(db: Session, deduction_id: int) -> None:
+    """The driver's notice of a deduction approved by another act (an uncollected balance carried)."""
+    _tell_driver(db, db.get(Deduction, deduction_id))
+
+
 def _books_day_on_approval(db: Session, d: Deduction, employee: people.EmployeeRef) -> None:
     """It enters the books on the day it was made; when that day's month is closed (or, for an advance paid from the
     treasury, the treasury's day is closed by its count) it enters them, and leaves the treasury, on the day it is

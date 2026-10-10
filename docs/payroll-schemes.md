@@ -5,7 +5,7 @@ PostgreSQL schema `payroll`); it does not start a new system.
 
 **Status: built**, as migration `0018_pay_schemes`, and **the client's decisions A to J are final** (section 6, all
 DECIDED; each is pinned by a worked month in `tests/test_payroll_decisions.py`). Since then: terms by version from a
-month (section 7, `0045_scheme_versions`), the uncollected deductions balance (section 8), the driver's objection on a
+month (section 7, `0046_scheme_versions`), the uncollected deductions balance (section 8), the driver's objection on a
 payslip (section 9) and the reconciliation gate before any real approval (section 10).
 - `calculators.py` (the strategies) and `schemes.py` (schemes, assignment by month, requests);
 - the dashboard: Payroll → "أنظمة الدفع" and "طلبات تغيير النظام", the scheme in the employee's file and as a bulk
@@ -447,6 +447,36 @@ month before it. The columns on `payroll.schemes` and its `scheme_steps` mirror 
 - The panel's scheme card shows this month's version and a version already set for a later month; the editor starts
   from the latest version, asks «يسري من شهر» (the earliest month offered) and a reason, and lists every version.
 - Who bears what (`company_covers`) follows the version of the month too: the fuel claims of a month read it.
+
+## 8. The uncollected deductions balance (decision D)
+
+**The net never goes below zero.** In each line the month's penalties are taken in full while the pay covers them: a
+scheme's own penalties (the scheme's `floor_at_zero` keeps them within the scheme's pay), the invalid days, the absence
+deduction and the month items from the statement (cancelled orders, the platform's deductions, late, cash shortage).
+What the pay cannot cover is the line's uncollected balance: the `uncovered_penalty` cell, the flag `uncollected`
+(not blocking: such a month is approved like any other) and, on a scheme, the payslip's last item. Installments under
+the cap still move to the next month by themselves (FR-PAY-03); the uncollected balance never does.
+
+`payroll.uncollected` (migration `0047_uncollected`) gets one line per employee when the run is **approved** (a draft is
+recomputed at will): the run, the driver, the month, the amount, and why (the month's penalties and what it earned).
+Status «للمراجعة» (`review`) until an accountant with `payroll.approve` decides it, always with a written note:
+
+| Decision | What it does |
+|---|---|
+| «تُرحّل للشهر التالي» (`carried`) | a manual deduction of the amount (source `other`, one installment) from the month after the run's, or this month for an old run, approved by this decision; the driver gets the usual deduction notice |
+| «إسقاط» (`dropped`) | nothing more is taken |
+
+Every line recorded and every decision is audited (`uncollected.recorded`, `.carried`, `.dropped`). The approved run
+never changes. Reopening a run removes its lines still under review (the next approval records them again); a decided
+line stays, and the next approval only records what was not decided yet, so nothing is carried twice.
+
+| Call | Permission |
+|---|---|
+| `GET /payroll/uncollected?month=&status=&employee_id=` (per month, per driver) and `/payroll/uncollected/counts` | `payroll.view` |
+| `POST /payroll/uncollected/{id}/carry {note}`, `POST /payroll/uncollected/{id}/drop {note}` | `payroll.approve` |
+
+Panel: Payroll → «خصومات غير محصلة» (count badge): month filter, status chips, search by driver, the balance under
+review per driver, and the decision drawer. The run page says which lines have an uncollected balance.
 
 ## 11. Order of work
 
