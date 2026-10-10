@@ -152,6 +152,19 @@ def login(client: TestClient, username: str, password: str = PASSWORD) -> str:
 
 
 @pytest.fixture
+def payroll_live(database_url):
+    """The reconciliation gate passed (payroll.live_approval_enabled, off by default): for the tests that approve
+    payroll runs. The gate itself is tested in test_payroll_gate.py."""
+    from app.core.db import new_session
+    from app.modules.org import service as org
+
+    with new_session() as session:
+        version, value = org.all_sections(session)["payroll"]
+        live = value.model_dump(mode="json") | {"live_approval_enabled": True}
+        org.update_section(session, "payroll", live, expected_version=version, actor_user_id=None)
+
+
+@pytest.fixture
 def admin_client(client, superuser):
     login(client, superuser)
     return client

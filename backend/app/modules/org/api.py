@@ -66,8 +66,14 @@ def put_settings(
             service.get_section(db, "finance").books_start_date,
             date.fromisoformat(new) if isinstance(new, str) and new else None,
         )
+    value_in = body.value
+    if section == "payroll":  # approving real payroll is the owner's call, after the reconciliation test
+        current = service.section_now(db, "payroll").live_approval_enabled
+        value_in = {"live_approval_enabled": current} | dict(body.value or {})  # left out: unchanged
+        if value_in["live_approval_enabled"] != current and not principal.all_permissions:
+            raise AppError(403, "owner_only", setting="payroll.live_approval_enabled")
     version, value = service.update_section(
-        db, section, body.value, expected_version=body.version, actor_user_id=principal.user_id
+        db, section, value_in, expected_version=body.version, actor_user_id=principal.user_id
     )
     if section == "cash":  # a new limit or deposit days apply now, not at the next scan
         from app.modules.cash import service as cash

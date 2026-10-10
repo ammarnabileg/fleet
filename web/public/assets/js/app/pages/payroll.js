@@ -12,7 +12,8 @@
   var AMOUNTS = [['bonus', 'البونص'], ['tips', 'البقشيش'], ['cancelled_orders', 'خصومات الطلبات الملغاة'], ['platform_deductions', 'خصومات المنصة'], ['late', 'خصم التأخير'], ['cash_shortage', 'خصم الكاش']];
   var ST_TONE = { submitted: 'o', approved: 'g', rejected: 'r' };
   var RUN_TONE = { draft: 'o', approved: 'g', paid: 'b' };
-  var BLOCKING = ['statement_missing', 'statement_pending', 'net_negative', 'daily_pending', 'scheme_missing', 'figures_missing'];
+  var BLOCKING = ['statement_missing', 'statement_pending', 'daily_pending', 'scheme_missing', 'figures_missing'];
+  var UNC_TONE = { review: 'o', carried: 'b', dropped: 'n' };
   // أرقام يدخلها المراجع من تقرير المنصة للشركاء، حسب نظام دفع السائق
   var SCHEME_FIGS = [['batch_level', 'مستوى الباتش'], ['attendance_marks', 'علامات الحضور'], ['star_day_failed', 'فوّت Star Day']];
   var IDENTITY = ['platform_driver_id', 'name', 'job_title', 'civil_id', 'iban', 'bank_name', 'payment_method', 'blank'];
@@ -45,19 +46,32 @@
     var tabs = [];
     if (api.can('payroll.view')) tabs.push(['statements', 'كشوف المنصات'], ['runs', 'كشوف الرواتب']);
     if (api.can('payroll.view')) tabs.push(['schemes', 'أنظمة الدفع'], ['requests', 'طلبات تغيير النظام' + (A.counts.scheme_requests ? ' (' + A.counts.scheme_requests + ')' : '')]);
+    if (api.can('payroll.view')) tabs.push(['uncollected', 'خصومات غير محصلة' + (A.counts.uncollected ? ' (' + A.counts.uncollected + ')' : '')]);
+    if (api.can('payroll.view')) tabs.push(['objections', 'الاعتراضات' + (A.counts.objections ? ' (' + A.counts.objections + ')' : '')]);
     if (api.can('payroll.view') || api.can('settings.update')) tabs.push(['platforms', 'المنصات']);
     if (!tabs.length) { BT.render(v, A.forbidden()); return; }
     var tab = tabs.some(function (t) { return t[0] === q.tab; }) ? q.tab : tabs[0][0];
     BT.render(v, h`${A.head('الرواتب', 'كشف المنصة الشهري لكل سائق، ثم كشف الرواتب لكل شركة وشهر بأعمدة نموذجكم، والحد الأقصى للخصم وترحيل الباقي')}
+      <div data-gate></div>
       ${BT.tabs('pay', tabs.map(function (t) { return [t[0], t[1]]; }), tab, 'tabs-line')}
       ${tabs.map(function (t) { return h`<div data-panel="${t[0]}" data-group="pay" class="${t[0] === tab ? 'active' : ''}"><div data-p="${t[0]}"></div></div>`; })}`);
+    if (api.can('payroll.view')) A.gateBanner(v.querySelector('[data-gate]'));
     var drawn = {};
     function show(t) {
       if (drawn[t]) return; drawn[t] = true;
-      ({ statements: statementsPanel, runs: runsPanel, schemes: A.schemesPanel, requests: A.schemeRequestsPanel, platforms: platformsPanel })[t](v.querySelector('[data-p="' + t + '"]'), q);
+      ({ statements: statementsPanel, runs: runsPanel, schemes: A.schemesPanel, requests: A.schemeRequestsPanel, uncollected: uncollectedPanel, objections: objectionsPanel, platforms: platformsPanel })[t](v.querySelector('[data-p="' + t + '"]'), q);
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/payroll?tab=' + e.detail); });
     show(tab);
+  };
+
+  /* بوابة المطابقة: لا يُعتمد كشف رواتب حقيقي قبل مقارنة شهر بكشف العميل */
+  A.gateBanner = function (box) {
+    if (!box) return;
+    api.get('/payroll/gate').then(function (g) {
+      if (!document.contains(box) || g.live_approval_enabled) return;
+      BT.render(box, h`<div class="banner warn mb-12" data-gate-banner>${icon('triangle-alert', 16)}<div><b>اعتماد المسيرات متوقف لحد ما يتعمل اختبار المطابقة مع كشف شهر سابق.</b> الكشوف تُحضَّر وتُراجع وتُصدَّر عادي، لكن الاعتماد مرفوض. يفعّله مالك النظام من الإعدادات ← الرواتب بعد المطابقة.</div></div>`);
+    }, function () {});
   };
 
   /* ================= كشوف المنصات ================= */
@@ -196,7 +210,9 @@
     if (run.status === 'approved' && api.can('payroll.approve')) acts.push(A.btn('تسجيل الدفع', { icon: 'banknote', cls: 'btn-success', id: 'run-paid' }));
     if (run.status === 'draft' && api.can('payroll.approve')) acts.push(A.btn('اعتماد الكشف', { icon: 'check', cls: 'btn-primary', id: 'run-approve' }));
     return h`${A.head('رواتب ' + monthLabel(run.month) + ' — ' + api.company(run.company_id), h`${BT.pill(api.t('run_status', run.status), RUN_TONE[run.status], true)} حد الخصم ${Number(run.cap_percent)}% من ${run.cap_base === 'basic' ? 'الراتب الأساسي' : 'الراتب المستحق في الشهر'}${run.reopened ? ' · أُعيد فتحه ' + run.reopened + ' مرة' : ''}`, h`${acts}`)}
-      ${run.status === 'draft' && run.blocking ? h`<div class="banner danger mb-12">${icon('circle-x', 16)}<div><b>${run.blocking} سطر غير جاهز للاعتماد</b>: كشف منصة ناقص أو بانتظار المراجعة، أو خصومات الشهر أكبر من المستحق. أكمل الكشوف ثم أعد الحساب.</div></div>` : ''}
+      ${run.status === 'draft' ? h`<div data-gate></div>` : ''}
+      ${run.status === 'draft' && run.blocking ? h`<div class="banner danger mb-12">${icon('circle-x', 16)}<div><b>${run.blocking} سطر غير جاهز للاعتماد</b>: كشف منصة ناقص أو بانتظار المراجعة، أو أرقام يحتاجها نظام الدفع ناقصة. أكمل الكشوف ثم أعد الحساب.</div></div>` : ''}
+      ${run.lines.some(function (l) { return Number(l.cells.uncovered_penalty || 0) > 0; }) ? h`<div class="banner note mb-12" data-uncollected-note>${icon('info', 16)}<div>خصومات أكبر من المستحق في ${run.lines.filter(function (l) { return Number(l.cells.uncovered_penalty || 0) > 0; }).length} سطر: الصافي صفر والباقي «خصومات غير محصلة» تظهر للمراجعة بعد الاعتماد (تبويب «خصومات غير محصلة»)، ولا تُرحّل تلقائياً.</div></div>` : ''}
       <div class="kpis mb-16">${BT.kpi({ label: 'الموظفون', value: fmt.int(T.lines || 0), dot: 'b' })}${BT.kpi({ label: 'إجمالي المستحق', value: fmt.money(T.gross), dot: 'g' })}${BT.kpi({ label: 'إجمالي الخصومات', value: fmt.money(T.deductions), dot: 'o' })}${BT.kpi({ label: 'صافي الرواتب', value: fmt.money(T.net), dot: 'p' })}</div>
       ${Object.keys(byPlat).sort(function (a, b) { return (+a === 0) - (+b === 0) || +a - +b; }).map(function (k) {
         var lines = byPlat[k];
@@ -225,7 +241,7 @@
     }
     BT.drawer.open({
       title: api.name(line.employee.name), subtitle: (platform ? api.name(platform.name) + ' · ' : '') + monthLabel(run.month), icon: 'receipt-text',
-      body: h`${line.flags.length ? h`<div class="flex gap-8 wrap mb-12">${flagPills(line.flags)}</div>` : ''}${breakdown(line)}${BT.kv(cols.filter(function (c) { return c.code !== 'blank'; }).map(function (c) { return [c.header, val(c.code)]; }).concat([['مُرحَّل للشهر القادم', amt(line.cells.carried)]]))}`,
+      body: h`${line.flags.length ? h`<div class="flex gap-8 wrap mb-12">${flagPills(line.flags)}</div>` : ''}${breakdown(line)}${BT.kv(cols.filter(function (c) { return c.code !== 'blank'; }).map(function (c) { return [c.header, val(c.code)]; }).concat([['مُرحَّل للشهر القادم', amt(line.cells.carried)]]).concat(Number(line.cells.uncovered_penalty || 0) && codes.indexOf('uncovered_penalty') < 0 ? [['خصومات غير محصلة (للمراجعة، لم تُخصم)', amt(line.cells.uncovered_penalty)]] : []).concat(line.scheme_version ? [['نسخة شروط النظام', 'النسخة ' + line.scheme_version]] : []))}`,
       buttons: [{ label: 'إغلاق', cls: 'btn-ghost' }]
     });
   }
@@ -236,7 +252,7 @@
     if (b.code === 'tier_bonus') return 'وصل ' + w.orders + ' طلب: شريحة ' + w.from;
     if (b.code === 'missing_target') return w.missing + ' طلب ناقص عن ' + w.target + ' × ' + fmt.money(w.rate);
     if (b.code === 'marks_deduction') return w.marks + ' علامات حضور';
-    if (b.code === 'uncovered_penalty') return 'عقوبات أكبر من المستحق: لم تُخصم';
+    if (b.code === 'uncovered_penalty') return 'خصومات أكبر من المستحق: لم تُخصم، تظهر للمراجعة في «خصومات غير محصلة»';
     return '';
   }
   function breakdown(line) {
@@ -249,6 +265,7 @@
   }
   function wireRun(v, run, list) {
     var reload = function () { A.refreshIfAt('payroll/run/' + run.id); };
+    A.gateBanner(v.querySelector('[data-gate]'));
     var trail = document.getElementById('run-approvals');
     if (A.approvalHistory) A.approvalHistory(trail, 'payroll_run', run.id);
     BT.on(v, 'click', '[data-line]', function (e, tr) { var l = run.lines.find(function (x) { return x.employee.id === tr.getAttribute('data-line'); }); if (l) lineView(run, l, list); });
@@ -269,6 +286,149 @@
       A.formModal({ title: 'تسجيل دفع الرواتب', icon: 'banknote', size: 'sm', done: 'سُجّل الدفع', body: h`<div class="form">${BT.f.input({ name: 'payment_ref', label: 'مرجع التحويل البنكي', optional: true })}</div>`, submit: function (x) { return api.post('/payroll/runs/' + run.id + '/paid', { payment_ref: x.payment_ref || null }); }, after: reload });
     });
   }
+
+  /* ================= خصومات غير محصلة (قرار العميل د) ================= */
+  function uncollectedWhy(r) {
+    var items = (r.reason && r.reason.items) || [];
+    return items.map(function (x) { return api.t('payroll_column', x.code) + ' ' + fmt.money(x.amount); }).join(' · ') + (r.reason && r.reason.gross != null ? ' — المستحق ' + fmt.money(r.reason.gross) : '');
+  }
+  function uncollectedPanel(el, q) {
+    var month = q.month || '';
+    BT.render(el, h`<div class="card"><div class="banner note fs-sm mb-12">${icon('info', 15)}<div>قرار العميل: الصافي لا ينزل تحت الصفر أبداً. ما لم يغطه المستحق من خصومات الشهر يظهر هنا بعد اعتماد الكشف «للمراجعة»، ولا يُرحّل تلقائياً. «تُرحّل للشهر التالي» تنشئ خصماً يدوياً بالمبلغ من الشهر التالي، و«إسقاط» لا يُخصم بعده شيء؛ كلاهما بملاحظة مكتوبة ولمن له صلاحية اعتماد الرواتب، ويُسجَّل في سجل التدقيق.</div></div>
+        <div class="flex gap-8 items-end wrap mb-12"><div class="field" style="max-width:200px"><label for="f-unc-month">شهر الرواتب</label><input class="input" type="month" id="f-unc-month" value="${month}"></div><span class="muted fs-sm" data-unc-total></span></div>
+        <div data-t></div><div data-by-driver class="mt-16"></div></div>`);
+    var box = el.querySelector('[data-t]');
+    function load() {
+      api.get('/payroll/uncollected', { month: month ? month + '-01' : null, limit: 500 }).then(function (rows) {
+        var review = rows.filter(function (r) { return r.status === 'review'; });
+        BT.render(el.querySelector('[data-unc-total]'), h`للمراجعة: <b class="num">${review.length}</b> سطر · <b>${fmt.money(review.reduce(function (a, r) { return a + Number(r.amount); }, 0))}</b>`);
+        BT.table(box, {
+          rows: rows,
+          search: { placeholder: 'اسم السائق…', text: function (r) { return api.name((r.employee || {}).name || {}); } },
+          chips: { key: 'status', value: 'review', options: ['review', 'carried', 'dropped'].map(function (k) { return { v: k, t: api.t('uncollected', k) }; }) },
+          empty: { icon: 'receipt-text', title: 'لا توجد خصومات غير محصلة هنا', text: 'تظهر بعد اعتماد كشف رواتب فيه خصومات أكبر من المستحق' },
+          columns: [
+            { key: 'month', label: 'الشهر', render: function (r) { return h`<a href="#/payroll/run/${r.run.id}">${monthLabel(r.month)}</a>`; } },
+            { key: 'employee', label: 'السائق', render: function (r) { return A.person(r.employee); } },
+            { key: 'amount', label: 'المبلغ', num: true, render: function (r) { return amt(r.amount); } },
+            { key: 'reason', label: 'السبب', render: function (r) { return h`<span class="fs-sm">${uncollectedWhy(r)}</span>`; } },
+            { key: 'status', label: 'الحالة', render: function (r) { return BT.pill(api.t('uncollected', r.status), UNC_TONE[r.status]); } },
+            { key: 'note', label: 'القرار', render: function (r) { return r.note ? h`${r.note}${r.deduction ? h`<span class="sub">خصم من ${monthLabel(r.deduction.start_month)}</span>` : ''}${r.decided_by ? h`<span class="sub">${r.decided_by}</span>` : ''}` : '—'; } }
+          ],
+          rowClick: function (r) { uncollectedView(r, function () { load(); if (A.refreshCounts) A.refreshCounts(); }); }
+        });
+        var by = {};
+        review.forEach(function (r) { var k = r.employee ? r.employee.id : '?'; (by[k] = by[k] || { e: r.employee, n: 0, total: 0 }); by[k].n += 1; by[k].total += Number(r.amount); });
+        var keys = Object.keys(by);
+        BT.render(el.querySelector('[data-by-driver]'), keys.length ? h`<div class="section-t">للمراجعة حسب السائق</div><div class="table-wrap"><table class="t compact"><thead><tr><th>السائق</th><th class="num">الأسطر</th><th class="num">المبلغ</th></tr></thead><tbody>${keys.map(function (k) { return h`<tr><td>${A.person(by[k].e)}</td><td class="num">${by[k].n}</td><td class="num">${fmt.money(by[k].total)}</td></tr>`; })}</tbody></table></div>` : '');
+      }, api.fail);
+    }
+    el.querySelector('#f-unc-month').addEventListener('change', function (e) { month = e.target.value || ''; load(); });
+    load();
+  }
+  function uncollectedView(r, done) {
+    var can = r.status === 'review' && api.can('payroll.approve');
+    var btns = [{ label: 'إغلاق', cls: 'btn-ghost' }];
+    if (can) {
+      btns.push({ label: 'إسقاط', cls: 'btn-outline', icon: 'ban', close: false, onClick: function (dlg) {
+        A.confirmRun({ title: 'إسقاط ' + fmt.money(r.amount), message: 'لا يُخصم من السائق شيء بعد الآن. يُسجَّل القرار وملاحظتك في سجل التدقيق.', tone: 'danger', confirmText: 'إسقاط', reason: { label: 'الملاحظة (إلزامية)', required: true }, run: function (note) { return api.post('/payroll/uncollected/' + r.id + '/drop', { note: note, version: r.version }); }, done: 'أُسقط', after: function () { dlg.close(); done(); } });
+      } });
+      btns.push({ label: 'تُرحّل للشهر التالي', cls: 'btn-primary', icon: 'arrow-left', close: false, onClick: function (dlg) {
+        A.confirmRun({ title: 'ترحيل ' + fmt.money(r.amount) + ' للشهر التالي', message: 'يُنشأ خصم يدوي بالمبلغ على السائق من الشهر التالي لشهر الكشف (أو هذا الشهر لكشف قديم)، معتمداً بقرارك. كشف الرواتب المعتمد لا يتغير.', confirmText: 'ترحيل', reason: { label: 'الملاحظة (إلزامية)', required: true }, run: function (note) { return api.post('/payroll/uncollected/' + r.id + '/carry', { note: note, version: r.version }); }, done: 'رُحّل: أُنشئ خصم للشهر التالي', after: function () { dlg.close(); done(); } });
+      } });
+    }
+    BT.drawer.open({
+      title: 'خصومات غير محصلة ' + fmt.money(r.amount), subtitle: api.name((r.employee || {}).name || {}) + ' · ' + monthLabel(r.month), icon: 'receipt-text', buttons: btns,
+      body: h`${BT.kv([
+        ['الحالة', BT.pill(api.t('uncollected', r.status), UNC_TONE[r.status])],
+        ['كشف الرواتب', h`<a href="#/payroll/run/${r.run.id}">${monthLabel(r.month)}</a> ${BT.pill(api.t('run_status', r.run.status), RUN_TONE[r.run.status])}`],
+        ['المبلغ', amt(r.amount)],
+        ['خصومات الشهر', uncollectedWhy(r) || '—'],
+        r.note ? ['الملاحظة', r.note] : null,
+        r.deduction ? ['الخصم المنشأ', 'من ' + monthLabel(r.deduction.start_month) + ' · ' + api.t('deduction_status', r.deduction.status)] : null,
+        r.decided_by ? ['القرار', r.decided_by + ' · ' + fmt.dt(r.decided_at)] : null
+      ].filter(Boolean))}${can ? '' : r.status === 'review' ? h`<div class="hint mt-12">القرار لمن له صلاحية اعتماد الرواتب.</div>` : ''}`
+    });
+  }
+
+  /* ================= اعتراضات السائقين على كشوف الرواتب ================= */
+  var OBJ_TONE = { open: 'o', in_review: 'b', accepted: 'g', rejected: 'r', closed: 'n' };
+  var OBJ_NEXT = { open: ['in_review', 'accepted', 'rejected', 'closed'], in_review: ['in_review', 'accepted', 'rejected', 'closed'], accepted: ['accepted', 'closed'], rejected: ['rejected', 'closed'], closed: [] };
+  function objectionItem(o) {
+    if (!o.item_code) return 'الكشف كله';
+    if (o.item_code.indexOf('deduction:') === 0) return 'قسط خصم';
+    return api.t('payroll_column', o.item_code);
+  }
+  function objectionsPanel(el, q) {
+    var month = q.month || '';
+    BT.render(el, h`<div class="card"><div class="hint mb-12">يعترض السائق من التطبيق على كشف راتبه المعتمد أو على بند منه، بسبب ومرفق إن وُجد. الرد يصله بإشعار. الاعتراض لا يغيّر كشف الرواتب المعتمد: التسوية خصم يدوي لشهر قادم يُربط بالاعتراض.</div>
+      <div class="flex gap-8 items-end wrap mb-12"><div class="field" style="max-width:200px"><label for="f-obj-month">شهر الكشف</label><input class="input" type="month" id="f-obj-month" value="${month}"></div></div><div data-t></div></div>`);
+    var t = BT.table(el.querySelector('[data-t]'), {
+      chips: { value: q.status || 'open,in_review', all: false, options: [{ v: 'open,in_review', t: 'بانتظار الرد' }].concat(['accepted', 'rejected', 'closed'].map(function (k) { return { v: k, t: api.t('objection_status', k) }; })).concat([{ v: 'all', t: 'الكل' }]) },
+      fetch: function (s) { return api.get('/payroll/objections', { status: s.chip === 'all' ? null : s.chip, month: month ? month + '-01' : null, limit: s.limit, offset: s.offset }); },
+      empty: { icon: 'message-square', title: 'لا توجد اعتراضات هنا', text: 'يعترض السائق من شاشة كشف الراتب في التطبيق' },
+      columns: [
+        { key: 'employee', label: 'السائق', render: function (o) { return A.person(o.employee); } },
+        { key: 'month', label: 'الكشف', render: function (o) { return h`<a href="#/payroll/run/${o.run_id}">${monthLabel(o.month)}</a>`; } },
+        { key: 'item', label: 'البند', render: function (o) { return h`${objectionItem(o)}${o.item_amount != null ? h`<span class="sub num">${amt(o.item_amount)}</span>` : ''}`; } },
+        { key: 'reason', label: 'السبب', render: function (o) { return h`<span class="fs-sm">${o.reason}</span>${o.has_attachment ? h` ${icon('paperclip', 13)}` : ''}`; } },
+        { key: 'status', label: 'الحالة', render: function (o) { return BT.pill(api.t('objection_status', o.status), OBJ_TONE[o.status]); } },
+        { key: 'created_at', label: 'الإرسال', render: function (o) { return h`<span class="num">${fmt.dt(o.created_at)}</span>`; } }
+      ],
+      rowClick: function (o) { A.objectionView(o.id, function () { t.refresh(); if (A.refreshCounts) A.refreshCounts(); }); }
+    });
+    el.querySelector('#f-obj-month').addEventListener('change', function (e) { month = e.target.value || ''; t.refresh(); });
+  }
+  A.objectionView = function (id, done) {
+    api.get('/payroll/objections/' + id).then(function (o) {
+      var can = (api.can('payroll.prepare') || api.can('payroll.approve')) && o.status !== 'closed';
+      var slip = o.payslip;
+      var btns = [{ label: 'إغلاق', cls: 'btn-ghost' }];
+      function answer(dlg, extra) {
+        var form = dlg.panel.querySelector('form[data-answer]');
+        var v = BT.form.values(form);
+        var body = Object.assign({ status: v.status, response: v.response || null, action_taken: v.action_taken || null, version: o.version }, extra || {});
+        return api.post('/payroll/objections/' + o.id + '/respond', body);
+      }
+      if (can) {
+        if (api.can('deductions.manage')) btns.push({ label: 'إنشاء تسوية', cls: 'btn-outline', icon: 'minus-circle', close: false, onClick: function (dlg) {
+          var next = new Date(+o.month.slice(0, 4), +o.month.slice(5, 7), 1); // the month after the payslip's
+          var start = next.getFullYear() + '-' + String(next.getMonth() + 1).padStart(2, '0');
+          if (start < thisMonth()) start = thisMonth();
+          A.manualDeduction(function (d) {
+            if (!d || !d.id) return;
+            answer(dlg, { deduction_id: d.id }).then(function () { BT.toast('رُبطت التسوية بالاعتراض'); dlg.close(); done(); }, api.fail);
+          }, { employee_id: o.employee.id, reason: 'تسوية اعتراض على كشف ' + monthLabel(o.month), start: start, source_type: 'other' });
+        } });
+        btns.push({ label: 'حفظ الرد', cls: 'btn-primary', icon: 'check', close: false, onClick: function (dlg) {
+          var form = dlg.panel.querySelector('form[data-answer]');
+          if (!BT.form.validate(form)) return;
+          answer(dlg).then(function () { BT.toast('حُفظ الرد ووصل السائق إشعار'); dlg.close(); done(); }, api.fail);
+        } });
+      }
+      BT.drawer.open({
+        title: 'اعتراض على كشف ' + monthLabel(o.month), subtitle: api.name((o.employee || {}).name || {}), icon: 'message-square', size: 'lg', buttons: btns,
+        body: h`<div class="flex gap-8 wrap mb-12">${BT.pill(api.t('objection_status', o.status), OBJ_TONE[o.status], true)}${BT.pill('الكشف ' + api.t('run_status', o.run_status), 'n')}</div>
+          ${BT.kv([
+            ['البند', h`${objectionItem(o)}${o.item_amount != null ? h` · <span class="num">${amt(o.item_amount)}</span>` : ''}`],
+            ['سبب السائق', o.reason],
+            ['المرفق', o.has_attachment ? h`<a href="${api.url('/payroll/objections/' + o.id + '/attachment')}" target="_blank" rel="noopener" data-attachment>${icon('paperclip', 13)} فتح المرفق</a>` : '—'],
+            ['كشف الرواتب', h`<a href="#/payroll/run/${o.run_id}">${monthLabel(o.month)}</a>`],
+            slip ? ['الكشف كما اعتُمد', h`المستحق ${amt(slip.gross)} · الخصومات ${amt(slip.deductions)} · الصافي <b>${amt(slip.net)}</b>`] : null,
+            o.response ? ['رد المكتب', o.response] : null,
+            o.action_taken ? ['الإجراء المتخذ', o.action_taken] : null,
+            o.deduction ? ['التسوية', fmt.money(o.deduction.total) + ' من ' + monthLabel(o.deduction.start_month) + ' · ' + api.t('deduction_status', o.deduction.status)] : null,
+            o.handled_by ? ['آخر رد', o.handled_by + ' · ' + fmt.dt(o.handled_at)] : null
+          ].filter(Boolean))}
+          ${slip && slip.breakdown.length ? breakdown({ breakdown: slip.breakdown, cells: slip.cells }) : ''}
+          ${can ? h`<form data-answer class="form mt-16" novalidate><div class="section-t">الرد</div>
+            ${BT.f.select({ name: 'status', label: 'الحالة', value: OBJ_NEXT[o.status][0], placeholder: false, options: OBJ_NEXT[o.status].map(function (k) { return { v: k, t: api.t('objection_status', k) }; }) })}
+            ${BT.f.textarea({ name: 'response', label: 'الرد الذي يقرؤه السائق (إلزامي للقبول أو الرفض)', value: o.response || '' })}
+            ${BT.f.input({ name: 'action_taken', label: 'الإجراء المتخذ', optional: true, value: o.action_taken || '' })}
+            <div class="hint">كشف الرواتب المعتمد لا يتغير: «إنشاء تسوية» يفتح خصماً يدوياً للشهر القادم ويربطه بالاعتراض.</div></form>` : ''}`
+      });
+    }, api.fail);
+  };
 
   /* ================= المنصات ================= */
   var RULE_HINT = 'الصافي = الأساسي (إن كانت المنصة تدفعه) + الطلبات × السعر + الساعات × السعر + الأيام الصالحة × السعر + البونص والبقشيش − الأيام غير الصالحة − خصومات الشهر − الأقساط (بحد الخصم)';
@@ -368,17 +528,18 @@
   }
 
   /* ================= خصم يدوي: سلفة أو شريحة هاتف ================= */
-  A.manualDeduction = function (done) {
+  A.manualDeduction = function (done, preset) { // preset: {employee_id, reason, start, source_type} (a settlement)
+    preset = preset || {};
     allEmployees({}).then(function (rows) {
       A.formModal({
         title: 'خصم جديد', subtitle: 'سلفة أو شريحة هاتف أو غيرها، بأقساط شهرية', icon: 'minus-circle',
         done: function (d) { return d && d.status === 'pending' ? 'أُرسل الخصم للاعتماد' : 'سُجّل الخصم'; },
-        body: h`<div class="form-grid"><div class="full">${A.picker({ name: 'employee', label: 'الموظف', required: true, items: rows.map(function (e) { return { id: e.id, label: api.name(e.name) + ' — ' + e.employee_number }; }) })}</div>
-          ${BT.f.select({ name: 'source_type', label: 'النوع', required: true, placeholder: false, options: ['advance', 'sim', 'other'].map(function (k) { return { v: k, t: api.t('deduction_source', k) }; }) })}
-          ${BT.f.input({ name: 'reason', label: 'السبب (يظهر في كشف الراتب)', required: true })}
+        body: h`<div class="form-grid"><div class="full">${A.picker({ name: 'employee', label: 'الموظف', required: true, value: preset.employee_id, items: rows.map(function (e) { return { id: e.id, label: api.name(e.name) + ' — ' + e.employee_number }; }) })}</div>
+          ${BT.f.select({ name: 'source_type', label: 'النوع', required: true, placeholder: false, value: preset.source_type, options: ['advance', 'sim', 'other'].map(function (k) { return { v: k, t: api.t('deduction_source', k) }; }) })}
+          ${BT.f.input({ name: 'reason', label: 'السبب (يظهر في كشف الراتب)', required: true, value: preset.reason || '' })}
           ${BT.f.money({ name: 'total', label: 'الإجمالي', required: true })}
           ${BT.f.input({ name: 'installments', label: 'عدد الأقساط', value: 1, num: true, required: true })}
-          ${BT.f.input({ name: 'start', label: 'أول شهر', type: 'month', value: thisMonth(), required: true })}</div>`,
+          ${BT.f.input({ name: 'start', label: 'أول شهر', type: 'month', value: preset.start || thisMonth(), required: true })}</div>`,
         submit: function (v) { return api.post('/deductions', { employee_id: A.picked('employee', v.employee), source_type: v.source_type, reason: v.reason, total: Number(v.total).toFixed(3), installments: Math.round(Number(v.installments)), start_month: v.start + '-01' }); },
         after: done
       });

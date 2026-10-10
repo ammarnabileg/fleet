@@ -403,7 +403,7 @@
     "screen_off": "This screen is turned off in your company's app",
     "scheme_not_found": "Scheme not found",
     "scheme_code_taken": "This code is another scheme's on the same platform",
-    "scheme_in_use": "Drivers are on this scheme: its prices do not change. Create a new scheme and move the drivers from a month",
+    "scheme_in_use": "This scheme is in use: its way of computing does not change. Create a new scheme and move the drivers from a month",
     "scheme_step_invalid": "Invalid scheme step: {kind}",
     "scheme_platform_mismatch": "The scheme is not on the driver's platform",
     "scheme_not_available": "This scheme is not available",
@@ -529,7 +529,20 @@
     "pickup_by_driver": "The car is in its driver's custody: he confirms the pickup from the center in his app",
     "received_before_custody": "The reception time is before the current custody started",
     "final_reading_required": "The car goes back to the company, not to a driver: enter the odometer after the repair with its photo",
-    "step_not_in_this_flow": "This step is not in this request's flow: the reception, then ready with the invoice"
+    "step_not_in_this_flow": "This step is not in this request's flow: the reception, then ready with the invoice",
+    "scheme_version_month": "The change applies from {from} or later: the months before it were paid on this scheme or have a later version",
+    "uncollected_not_found": "Uncollected balance line not found",
+    "uncollected_decided": "This line was already decided ({status})",
+    "payslip_not_found": "Payslip not found",
+    "objection_item_invalid": "This line is not on the payslip",
+    "objection_exists": "This objection already arrived",
+    "objection_not_found": "Objection not found",
+    "objection_status_invalid": "The objection cannot move from {status} to this status",
+    "objection_deduction_invalid": "The deduction is not the same driver's",
+    "payroll_not_reconciled": "Approving payroll runs is off until the reconciliation test against a previous month's sheet is done. Turn it on in the settings after the test.",
+    "owner_only": "Only the system owner changes this setting",
+    "uncollected_carried_taken": "The run cannot be reopened: a deduction carried from its uncollected balance ({month}) was already taken by an approved run",
+    "deduction_partly_taken": "An approved run already took part of this deduction"
   },
   "settings": {
     "branding": "Branding",
@@ -590,7 +603,8 @@
     "finance.fiscal_year_start_month": "Fiscal year starts in month",
     "finance.books_start_date": "Books start date in the system",
     "cash.treasury_deposit_limit": "Treasury deposit limit (KWD, 0 = no alert)",
-    "cash.treasury_deposit_weekdays": "Treasury bank deposit days"
+    "cash.treasury_deposit_weekdays": "Treasury bank deposit days",
+    "payroll.live_approval_enabled": "Approve real payroll runs (after the reconciliation test against a previous month's sheet; owner only)"
   },
   "common": {
     "active": "Active",
@@ -664,7 +678,8 @@
     "fuel_claim": "Fuel claim from {name} for {amount} KWD awaits review",
     "treasury_deposit_due": "The {branch} treasury holds {balance} KWD (limit {limit}): deposit it at the bank",
     "treasury_deposit_day": "Today is the bank deposit day for the {branch} treasury: it holds {balance} KWD",
-    "treasury_not_closed": "{branch} treasury: {day} had movements and is not counted and closed"
+    "treasury_not_closed": "{branch} treasury: {day} had movements and is not counted and closed",
+    "payroll_objection": "New objection from {driver} to the {month} payslip"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -899,7 +914,7 @@
     "tier_bonus": "Tier bonus",
     "missing_target": "Missing target deduction",
     "marks_deduction": "Marks deduction",
-    "uncovered_penalty": "Penalties not taken",
+    "uncovered_penalty": "Uncollected deductions (for review)",
     "absence_days": "Absence days",
     "leave_days": "Leave days",
     "absence_deduction": "Absence deduction"
@@ -929,7 +944,8 @@
     "daily_pending": "Daily reports waiting for review this month",
     "scheme_missing": "The driver has no pay scheme this month",
     "figures_missing": "The month's figures his scheme needs are missing (batch level, marks or star day)",
-    "days_unclassified": "Days without a start of day not marked yet: an absence among them is not deducted until marked"
+    "days_unclassified": "Days without a start of day not marked yet: an absence among them is not deducted until marked",
+    "uncollected": "Penalties above the pay: the net is zero and the rest is an uncollected balance for review"
   },
   "driver_field": {
     "valid_days": "Valid days",
@@ -1144,7 +1160,9 @@
     "workflow": "Approval workflow",
     "delegation": "Delegation",
     "fuel_claim": "Fuel claim",
-    "period": "Month of the books"
+    "period": "Month of the books",
+    "uncollected": "Uncollected deductions",
+    "payroll_objection": "Payslip objection"
   },
   "audit_actor": {
     "user": "User",
@@ -1339,7 +1357,8 @@
     "scheme_request_rejected": "Your request to change to pay scheme {scheme} was refused: {reason}",
     "report_missing": "You started your day {date} but have not sent your report yet. Send it now from the app.",
     "fuel_approved": "Your fuel claim was approved for {amount} KWD and taken off the cash you hold",
-    "fuel_rejected": "Your fuel claim was rejected: {reason}"
+    "fuel_rejected": "Your fuel claim was rejected: {reason}",
+    "objection_updated": "Your objection to the {month} payslip: {status}. The office says: {response}"
   },
   "cash_account": {
     "driver": "Driver's cash",
@@ -1399,5 +1418,19 @@
     "pending": "Under review",
     "done": "Changed",
     "rejected": "Refused"
+  },
+  "uncollected": {
+    "review": "For review",
+    "carried": "Carried to next month",
+    "dropped": "Dropped",
+    "deduction_reason": "Uncollected deductions from the {month} payroll: {note}",
+    "reopened": "The {month} payroll was reopened: the balance is recorded again when it is approved"
+  },
+  "objection_status": {
+    "open": "Open",
+    "in_review": "In review",
+    "accepted": "Accepted",
+    "rejected": "Rejected",
+    "closed": "Closed"
   }
 }

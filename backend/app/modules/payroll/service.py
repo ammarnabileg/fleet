@@ -88,7 +88,7 @@ def company_covers(db: Session, employee_id: int, day: date) -> list[str]:
     driver = people.ref(db, employee_id)
     if scheme is None or driver is None or scheme.platform_id != driver.platform_id:
         return []
-    return list(scheme.company_covers or [])
+    return schemes.covers_of(db, scheme, month_start(day))  # informational: who bears what, never deducted
 
 
 def month_locked(db: Session, company_id: int, month: date) -> bool:
@@ -355,6 +355,31 @@ def _taken(db: Session, deduction_id: int) -> Decimal:
     )
 
 
+def taken_by_payroll(db: Session, deduction_id: int) -> Decimal:
+    return _taken(db, deduction_id)
+
+
+def cancel_untaken(db: Session, deduction_id: int, *, reason: str, actor_user_id: int) -> None:
+    """In the caller's transaction: a deduction no approved payroll took anything of, cancelled (the uncollected
+    balance of a run that is reopened, carried to the next month: the next approval records it afresh)."""
+    d = db.scalar(select(Deduction).where(Deduction.id == deduction_id).with_for_update())
+    if d is None or d.status in ("cancelled", "rejected"):
+        return
+    if _taken(db, d.id):
+        raise AppError(409, "deduction_partly_taken")
+    d.status, d.cancel_reason, d.cancelled_by, d.cancelled_at = "cancelled", reason, actor_user_id, utcnow()
+    audit.record(
+        db,
+        action="deduction.cancelled",
+        entity_type="deduction",
+        entity_id=d.public_id,
+        actor_user_id=actor_user_id,
+        company_id=d.company_id,
+        after={"reason": reason},
+    )
+    emit(db, "payroll.deduction.cancelled", d.public_id, {"deduction_id": str(d.public_id), "reason": reason})
+
+
 def cancel(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) -> dict:
     """Cancelled with a reason (the row locked: a payroll run approving at the same moment locks its advances too).
     An approved advance cancelled before any approved payroll took of it gives all of it back to its treasury (its
@@ -436,6 +461,11 @@ def _tell_driver(db: Session, d: Deduction) -> None:
         params={"reason": d.reason, "amount": f"{d.total:.3f}", "installments": d.installments},
         entity_type="deduction",
     )
+
+
+def tell_driver(db: Session, deduction_id: int) -> None:
+    """The driver's notice of a deduction approved by another act (an uncollected balance carried)."""
+    _tell_driver(db, db.get(Deduction, deduction_id))
 
 
 def _books_day_on_approval(db: Session, d: Deduction, employee: people.EmployeeRef) -> None:

@@ -403,7 +403,7 @@
     "screen_off": "هذه الشاشة غير متاحة في تطبيق شركتك",
     "scheme_not_found": "النظام غير موجود",
     "scheme_code_taken": "هذا الرمز مستخدم لنظام آخر في نفس المنصة",
-    "scheme_in_use": "على هذا النظام سائقون: لا تتغير أسعاره. أنشئ نظاماً جديداً وانقل السائقين إليه من شهر",
+    "scheme_in_use": "هذا النظام مستخدم: طريقة حسابه لا تتغير. أنشئ نظاماً جديداً وانقل السائقين إليه من شهر",
     "scheme_step_invalid": "بند غير صحيح في النظام: {kind}",
     "scheme_platform_mismatch": "النظام من منصة غير منصة السائق",
     "scheme_not_available": "هذا النظام غير متاح",
@@ -529,7 +529,20 @@
     "pickup_by_driver": "العربية في عهدة سائقها: هو يؤكد استلامها من المركز من تطبيقه",
     "received_before_custody": "وقت الاستلام قبل بداية عهدة السائق الحالية",
     "final_reading_required": "السيارة ستعود للشركة لا للسائق: أدخل قراءة العداد بعد الإصلاح وصورتها",
-    "step_not_in_this_flow": "هذه الخطوة ليست في مسار هذا الطلب: الاستلام ثم «جاهزة للاستلام» بالفاتورة"
+    "step_not_in_this_flow": "هذه الخطوة ليست في مسار هذا الطلب: الاستلام ثم «جاهزة للاستلام» بالفاتورة",
+    "scheme_version_month": "يسري التغيير من {from} أو بعده: الأشهر قبله صُرفت رواتبها على هذا النظام أو لها نسخة أحدث",
+    "uncollected_not_found": "سطر الخصومات غير المحصلة غير موجود",
+    "uncollected_decided": "قُرر هذا السطر من قبل ({status})",
+    "payslip_not_found": "كشف الراتب غير موجود",
+    "objection_item_invalid": "هذا البند ليس في كشف الراتب",
+    "objection_exists": "وصل هذا الاعتراض من قبل",
+    "objection_not_found": "الاعتراض غير موجود",
+    "objection_status_invalid": "لا يمكن تغيير حالة الاعتراض من «{status}» إلى هذه الحالة",
+    "objection_deduction_invalid": "الخصم ليس لنفس السائق",
+    "payroll_not_reconciled": "اعتماد المسيرات متوقف لحد ما يتعمل اختبار المطابقة مع كشف شهر سابق. فعّله من الإعدادات بعد المطابقة.",
+    "owner_only": "هذا الإعداد يغيّره مالك النظام فقط",
+    "uncollected_carried_taken": "لا يُعاد فتح الكشف: خصم مُرحّل من خصوماته غير المحصلة ({month}) أُخذ منه في كشف معتمد",
+    "deduction_partly_taken": "أُخذ من هذا الخصم في كشف معتمد"
   },
   "settings": {
     "branding": "الهوية",
@@ -590,7 +603,8 @@
     "finance.fiscal_year_start_month": "شهر بداية السنة المالية",
     "finance.books_start_date": "تاريخ بداية الدفاتر في النظام",
     "cash.treasury_deposit_limit": "حد إيداع الخزينة في البنك (د.ك، 0 = بلا تنبيه)",
-    "cash.treasury_deposit_weekdays": "أيام إيداع الخزينة في البنك"
+    "cash.treasury_deposit_weekdays": "أيام إيداع الخزينة في البنك",
+    "payroll.live_approval_enabled": "اعتماد المسيرات الحقيقية (بعد اختبار المطابقة مع كشف شهر سابق؛ للمالك فقط)"
   },
   "common": {
     "active": "نشط",
@@ -664,7 +678,8 @@
     "fuel_claim": "طلب بنزين من {name} بمبلغ {amount} د.ك بانتظار المراجعة",
     "treasury_deposit_due": "خزينة {branch} بلغت {balance} د.ك (الحد {limit}): أودعها في البنك",
     "treasury_deposit_day": "اليوم يوم إيداع خزينة {branch} في البنك: فيها {balance} د.ك",
-    "treasury_not_closed": "خزينة {branch}: يوم {day} عليه حركات ولم يُجرد ويُقفل"
+    "treasury_not_closed": "خزينة {branch}: يوم {day} عليه حركات ولم يُجرد ويُقفل",
+    "payroll_objection": "اعتراض جديد من {driver} على كشف راتب {month}"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
@@ -899,7 +914,7 @@
     "tier_bonus": "بونص الشريحة",
     "missing_target": "خصم نقص التارجت",
     "marks_deduction": "خصم العلامات",
-    "uncovered_penalty": "عقوبات لم تُخصم",
+    "uncovered_penalty": "خصومات غير محصلة (للمراجعة)",
     "absence_days": "أيام الغياب",
     "leave_days": "أيام الإجازة",
     "absence_deduction": "خصم الغياب"
@@ -929,7 +944,8 @@
     "daily_pending": "تقارير يومية بانتظار المراجعة في الشهر",
     "scheme_missing": "السائق بلا نظام دفع هذا الشهر",
     "figures_missing": "أرقام الشهر التي يحتاجها نظامه ناقصة (الباتش أو العلامات أو الـ Star Day)",
-    "days_unclassified": "أيام بلا بداية يوم لم تُصنَّف بعد: الغياب فيها لا يُخصم حتى تُصنَّف"
+    "days_unclassified": "أيام بلا بداية يوم لم تُصنَّف بعد: الغياب فيها لا يُخصم حتى تُصنَّف",
+    "uncollected": "خصومات أكبر من المستحق: الصافي صفر والباقي «خصومات غير محصلة» للمراجعة"
   },
   "driver_field": {
     "valid_days": "الأيام الصالحة",
@@ -1144,7 +1160,9 @@
     "workflow": "مسار اعتماد",
     "delegation": "تفويض",
     "fuel_claim": "طلب بنزين",
-    "period": "شهر محاسبي"
+    "period": "شهر محاسبي",
+    "uncollected": "خصومات غير محصلة",
+    "payroll_objection": "اعتراض على كشف راتب"
   },
   "audit_actor": {
     "user": "مستخدم",
@@ -1339,7 +1357,8 @@
     "scheme_request_rejected": "رُفض طلب تغيير نظام الدفع إلى {scheme}: {reason}",
     "report_missing": "بدأت يومك {date} ولم ترسل تقريرك بعد. أرسله الآن من التطبيق.",
     "fuel_approved": "قُبلت فاتورة البنزين بمبلغ {amount} د.ك وخُصمت من رصيد الكاش لديك",
-    "fuel_rejected": "رُفضت فاتورة البنزين: {reason}"
+    "fuel_rejected": "رُفضت فاتورة البنزين: {reason}",
+    "objection_updated": "اعتراضك على كشف راتب {month}: {status}. رد المكتب: {response}"
   },
   "cash_account": {
     "driver": "كاش السائق",
@@ -1399,5 +1418,19 @@
     "pending": "قيد المراجعة",
     "done": "تم التغيير",
     "rejected": "مرفوض"
+  },
+  "uncollected": {
+    "review": "للمراجعة",
+    "carried": "تُرحّل للشهر التالي",
+    "dropped": "إسقاط",
+    "deduction_reason": "خصومات غير محصلة من رواتب {month}: {note}",
+    "reopened": "أُعيد فتح كشف رواتب {month}: يُسجَّل الرصيد من جديد عند اعتماده"
+  },
+  "objection_status": {
+    "open": "مفتوح",
+    "in_review": "قيد المراجعة",
+    "accepted": "مقبول",
+    "rejected": "مرفوض",
+    "closed": "مغلق"
   }
 }

@@ -70,6 +70,7 @@ KINDS: dict[str, Kind] = {
     "accident_awaiting_police_report": Kind("warning", "accidents.view", ("plate", "number", "days")),
     "fine_no_driver": Kind("warning", "fines.manage", ("plate", "number", "at")),
     "approval_escalated": Kind("warning", "approvals.view", ("ref", "hours")),
+    "payroll_objection": Kind("info", "payroll.view", ("driver", "month")),
 }
 
 
@@ -248,6 +249,7 @@ DRIVER_KINDS: dict[str, tuple[str, ...]] = {  # kind: the params its text uses
     "scheme_request_rejected": ("scheme", "reason"),
     "fuel_approved": ("amount",),
     "fuel_rejected": ("reason",),
+    "objection_updated": ("month", "status", "response"),
 }
 
 

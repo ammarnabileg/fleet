@@ -61,6 +61,7 @@ class MeOut(BaseModel):
     full_name: str
     locale: str | None
     is_superuser: bool
+    all_permissions: bool = False  # the owner's access: settings only the owner may change
     all_companies: bool
     permissions: list[str]
     company_ids: list[int]

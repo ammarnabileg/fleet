@@ -1,9 +1,10 @@
 """Pay schemes as data (docs/payroll-schemes.md): what each platform offers, who is on which scheme month by month,
 and the drivers' requests from the app to change it, decided in the dashboard.
 
-- A scheme names its calculator (calculators.py) and holds its numbers; its prices never change once a driver is on
-  it (a new price is a new scheme, and the drivers move to it from a month), so a month is never recomputed on a
-  price it did not have.
+- A scheme names its calculator (calculators.py) and holds its numbers by version, each from a month: a change of
+  terms is a new version from a month no approved payroll has paid on the scheme, and a run reads the version of its
+  own month, so a month is never recomputed on a price it did not have. The calculator itself does not change once
+  the scheme is used (another shape of rule is another scheme).
 - A driver's scheme runs from the first of a month; assigning from a month replaces what was set from it on. A month
   whose payroll is approved (or any later one) is never reassigned.
 - A request from the app is for the next month, one open request per driver; approving it moves the driver from the
@@ -12,8 +13,10 @@ and the drivers' requests from the app to change it, decided in the dashboard.
 
 import logging
 from datetime import date
+from decimal import Decimal
 
 from sqlalchemy import delete, func, or_, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -23,10 +26,20 @@ from app.core.db import violated_constraint
 from app.core.errors import AppError
 from app.modules.audit import service as audit
 from app.modules.i18n import service as i18n
+from app.modules.identity import service as identity
 from app.modules.integrations import service as integrations
 from app.modules.notifications import service as notifications
 from app.modules.payroll.calculators import Rules, Step
-from app.modules.payroll.models import DriverScheme, Platform, Run, Scheme, SchemeChangeRequest, SchemeStep
+from app.modules.payroll.models import (
+    DriverScheme,
+    Line,
+    Platform,
+    Run,
+    Scheme,
+    SchemeChangeRequest,
+    SchemeStep,
+    SchemeVersion,
+)
 from app.modules.payroll.service import add_months, month_start
 from app.modules.people import service as people
 
@@ -38,8 +51,7 @@ STEP_KINDS = {
     "batch": {"batch_rate"},
     "tiered_target": {"tier_bonus", "marks_deduction", "marks_reduce"},
 }
-PRICES = (  # what a driver is paid on: fixed once a driver is on the scheme
-    "calculator",
+TERMS_BY_VERSION = (  # what a driver is paid on: a change is a new version from a month
     "per_order",
     "target_orders",
     "required_valid_days",
@@ -50,41 +62,89 @@ PRICES = (  # what a driver is paid on: fixed once a driver is on the scheme
     "floor_at_zero",
     "company_covers",
 )
+PRICES = ("calculator", *TERMS_BY_VERSION)
 TERMS = ("name", "description", "is_active", "driver_selectable")
 
 
-# ------------------------------------------------------------------ schemes
+# ------------------------------------------------------------------ schemes and their versions
 
 
-def _steps(db: Session, scheme_ids) -> dict[int, list[SchemeStep]]:
-    out: dict[int, list[SchemeStep]] = {i: [] for i in scheme_ids}
+def _step_out(st: dict) -> dict:
+    amount = st.get("amount")
+    return {
+        "kind": st["kind"],
+        "threshold": Decimal(str(st["threshold"])),
+        "amount": None if amount is None else Decimal(str(amount)),
+    }
+
+
+def _steps_json(steps) -> list[dict]:
+    """A version's steps as stored: exact decimals as text, in a stable order."""
+    rows = [
+        {
+            "kind": st["kind"],
+            "threshold": str(Decimal(str(st["threshold"])).quantize(Decimal("0.001"))),
+            "amount": None if st.get("amount") is None else str(Decimal(str(st["amount"])).quantize(Decimal("0.001"))),
+        }
+        for st in steps or []
+    ]
+    return sorted(rows, key=lambda x: (x["kind"], Decimal(x["threshold"])))
+
+
+def _versions(db: Session, scheme_ids, *, lock: bool = False) -> dict[int, list[SchemeVersion]]:
+    """Each scheme's versions, oldest month first (held FOR SHARE with lock)."""
+    out: dict[int, list[SchemeVersion]] = {i: [] for i in scheme_ids}
     if out:
-        q = select(SchemeStep).where(SchemeStep.scheme_id.in_(list(out)))
-        for s in db.scalars(q.order_by(SchemeStep.kind, SchemeStep.threshold)):
-            out[s.scheme_id].append(s)
+        q = select(SchemeVersion).where(SchemeVersion.scheme_id.in_(list(out))).order_by(SchemeVersion.effective_month)
+        for v in db.scalars(q.with_for_update(read=True) if lock else q):
+            out[v.scheme_id].append(v)
     return out
 
 
-def _rules(s: Scheme, steps: list[SchemeStep]) -> Rules:
+def _effective(versions: list[SchemeVersion], month: date) -> SchemeVersion:
+    """The version a month is paid on: the latest from that month or before it; the first one covers any month
+    before it (a scheme set up after the drivers were already on it)."""
+    month = month_start(month)
+    found = [v for v in versions if v.effective_month <= month]
+    return found[-1] if found else versions[0]
+
+
+def _terms(v: SchemeVersion) -> dict:
+    return {k: getattr(v, k) for k in TERMS_BY_VERSION} | {"steps": [_step_out(x) for x in v.steps or []]}
+
+
+def _rules(s: Scheme, v: SchemeVersion) -> Rules:
     by_kind: dict[str, list[Step]] = {}
-    for st in sorted(steps, key=lambda x: x.threshold):
-        by_kind.setdefault(st.kind, []).append(Step(st.threshold, st.amount))
+    for st in sorted((_step_out(x) for x in v.steps or []), key=lambda x: x["threshold"]):
+        by_kind.setdefault(st["kind"], []).append(Step(st["threshold"], st["amount"]))
     return Rules(
         calculator=s.calculator,
-        per_order=s.per_order,
-        target_orders=s.target_orders,
-        missing_order_rate=s.missing_order_rate,
-        reduced_rate=s.reduced_rate,
-        bonus_when_reduced=s.bonus_when_reduced,
-        marks_when_reduced=s.marks_when_reduced,
-        floor_at_zero=s.floor_at_zero,
+        per_order=v.per_order,
+        target_orders=v.target_orders,
+        missing_order_rate=v.missing_order_rate,
+        reduced_rate=v.reduced_rate,
+        bonus_when_reduced=v.bonus_when_reduced,
+        marks_when_reduced=v.marks_when_reduced,
+        floor_at_zero=v.floor_at_zero,
         steps=by_kind,
     )
 
 
-def rules_for(db: Session, schemes: dict[int, Scheme]) -> dict[int, Rules]:
-    steps = _steps(db, schemes)
-    return {i: _rules(s, steps[i]) for i, s in schemes.items()}
+def rules_for(
+    db: Session, schemes: dict[int, Scheme], month: date, *, lock: bool = False
+) -> dict[int, tuple[Rules, int]]:
+    """Each scheme's rules for the month, with the number of the version they come from."""
+    versions = _versions(db, schemes, lock=lock)
+    out = {}
+    for i, s in schemes.items():
+        v = _effective(versions[i], month)
+        out[i] = (_rules(s, v), v.version_no)
+    return out
+
+
+def covers_of(db: Session, scheme: Scheme, month: date) -> list[str]:
+    """What the scheme puts on the company in that month (its version of that month)."""
+    return list(_effective(_versions(db, [scheme.id])[scheme.id], month).company_covers or [])
 
 
 def _counts(db: Session, month: date) -> dict[int, int]:
@@ -96,7 +156,59 @@ def _counts(db: Session, month: date) -> dict[int, int]:
     return dict(db.execute(q).all())
 
 
-def _out(s: Scheme, steps: list[SchemeStep], counts: dict[int, int]) -> dict:
+def _last_paid(db: Session, scheme_ids) -> dict[int, date]:
+    """The latest month an approved (or paid) payroll paid each scheme on."""
+    ids = list(scheme_ids)
+    if not ids:
+        return {}
+    q = (
+        select(Line.scheme_id, func.max(Run.month))
+        .join(Run, Run.id == Line.run_id)
+        .where(Line.scheme_id.in_(ids), Run.status != "draft")
+        .group_by(Line.scheme_id)
+    )
+    return dict(db.execute(q).all())
+
+
+def _used_ids(db: Session, scheme_ids) -> set[int]:
+    """Schemes a driver was ever put on, or a payroll line used."""
+    ids = list(scheme_ids)
+    if not ids:
+        return set()
+    on = set(db.scalars(select(DriverScheme.scheme_id).where(DriverScheme.scheme_id.in_(ids)).distinct()))
+    return on | set(db.scalars(select(Line.scheme_id).where(Line.scheme_id.in_(ids)).distinct()))
+
+
+def _change_from(versions: list[SchemeVersion], last_paid: date | None) -> date:
+    """The earliest month a change of terms may take effect: after the last month paid on the scheme, and not before
+    its latest version (from that same month the latest version is replaced)."""
+    earliest = versions[-1].effective_month
+    return max(earliest, add_months(last_paid, 1)) if last_paid else earliest
+
+
+def _version_out(v: SchemeVersion, users: dict[int, str]) -> dict:
+    return {
+        "version_no": v.version_no,
+        "effective_month": v.effective_month,
+        **_terms(v),
+        "note": v.note,
+        "created_at": v.created_at,
+        "created_by": users.get(v.created_by),
+    }
+
+
+def _out(
+    s: Scheme,
+    versions: list[SchemeVersion],
+    counts: dict[int, int],
+    month: date,
+    *,
+    used: bool,
+    last_paid: date | None,
+    users: dict[int, str],
+) -> dict:
+    v = _effective(versions, month)
+    later = [x for x in versions if x.effective_month > month_start(month)]
     return {
         "id": str(s.public_id),
         "platform_id": s.platform_id,
@@ -104,27 +216,32 @@ def _out(s: Scheme, steps: list[SchemeStep], counts: dict[int, int]) -> dict:
         "name": s.name,
         "description": s.description,
         "calculator": s.calculator,
-        "per_order": s.per_order,
-        "target_orders": s.target_orders,
-        "required_valid_days": s.required_valid_days,
-        "missing_order_rate": s.missing_order_rate,
-        "reduced_rate": s.reduced_rate,
-        "bonus_when_reduced": s.bonus_when_reduced,
-        "marks_when_reduced": s.marks_when_reduced,
-        "floor_at_zero": s.floor_at_zero,
-        "company_covers": list(s.company_covers),
+        **_terms(v),  # this month's terms
         "driver_selectable": s.driver_selectable,
         "is_active": s.is_active,
-        "steps": [{"kind": x.kind, "threshold": x.threshold, "amount": x.amount} for x in steps],
         "drivers": counts.get(s.id, 0),  # on it this month
         "version": s.version,
+        "version_no": v.version_no,
+        "effective_month": v.effective_month,
+        "next_version": {"version_no": later[0].version_no, "effective_month": later[0].effective_month}
+        if later
+        else None,
+        "used": used,
+        "change_from": _change_from(versions, last_paid),
+        "versions": [_version_out(x, users) for x in reversed(versions)],  # the newest first
     }
 
 
 def _many(db: Session, rows: list[Scheme]) -> list[dict]:
-    steps = _steps(db, [s.id for s in rows])
-    counts = _counts(db, month_start(today()))
-    return [_out(s, steps[s.id], counts) for s in rows]
+    ids = [s.id for s in rows]
+    versions = _versions(db, ids)
+    month = month_start(today())
+    counts = _counts(db, month)
+    used, paid = _used_ids(db, ids), _last_paid(db, ids)
+    users = identity.user_names(db, {v.created_by for vs in versions.values() for v in vs if v.created_by})
+    return [
+        _out(s, versions[s.id], counts, month, used=s.id in used, last_paid=paid.get(s.id), users=users) for s in rows
+    ]
 
 
 def list_schemes(db: Session, *, platform_id: int | None = None, offered_only: bool = False) -> list[dict]:
@@ -161,7 +278,7 @@ def _check(data: dict) -> None:
             raise AppError(422, "scheme_step_invalid", kind=st["kind"])
         if (st["kind"] == "marks_reduce") != (st.get("amount") is None):
             raise AppError(422, "scheme_step_invalid", kind=st["kind"])
-        key = (st["kind"], st["threshold"])
+        key = (st["kind"], Decimal(str(st["threshold"])))
         if key in seen:
             raise AppError(422, "scheme_step_invalid", kind=st["kind"])
         seen.add(key)
@@ -169,8 +286,37 @@ def _check(data: dict) -> None:
         raise AppError(422, "field_required", field="steps")
 
 
-def _used(db: Session, scheme_id: int) -> bool:
-    return db.scalar(select(DriverScheme.id).where(DriverScheme.scheme_id == scheme_id).limit(1)) is not None
+def _same(a: dict, b: dict) -> bool:
+    for k in TERMS_BY_VERSION:
+        x, y = a.get(k), b.get(k)
+        if k == "company_covers":
+            x, y = sorted(x or []), sorted(y or [])
+        if x != y:
+            return False
+    return _steps_json(a["steps"]) == _steps_json(b["steps"])
+
+
+def _mirror(db: Session, s: Scheme, terms: dict) -> None:
+    """The scheme's own columns and steps hold its latest version."""
+    for k in TERMS_BY_VERSION:
+        setattr(s, k, terms[k])
+    db.execute(delete(SchemeStep).where(SchemeStep.scheme_id == s.id))
+    for st in terms["steps"]:
+        db.add(SchemeStep(scheme_id=s.id, kind=st["kind"], threshold=st["threshold"], amount=st.get("amount")))
+
+
+def _new_version(db: Session, s: Scheme, no: int, month: date, terms: dict, *, note, actor_user_id) -> SchemeVersion:
+    v = SchemeVersion(
+        scheme_id=s.id,
+        version_no=no,
+        effective_month=month,
+        **{k: terms[k] for k in TERMS_BY_VERSION},
+        steps=_steps_json(terms["steps"]),
+        note=note,
+        created_by=actor_user_id,
+    )
+    db.add(v)
+    return v
 
 
 def create(db: Session, data: dict, *, actor_user_id: int) -> dict:
@@ -195,6 +341,9 @@ def create(db: Session, data: dict, *, actor_user_id: int) -> dict:
         db.add(SchemeStep(scheme_id=s.id, kind=st["kind"], threshold=st["threshold"], amount=st.get("amount")))
     db.flush()
     db.refresh(s)
+    terms = {k: getattr(s, k) for k in TERMS_BY_VERSION} | {"steps": steps}
+    _new_version(db, s, 1, month_start(today()), terms, note=None, actor_user_id=actor_user_id)
+    db.flush()
     audit.record(
         db,
         action="scheme.created",
@@ -208,28 +357,63 @@ def create(db: Session, data: dict, *, actor_user_id: int) -> dict:
 
 
 def update(db: Session, public_id, *, version: int, changes: dict, actor_user_id: int) -> dict:
-    s = _by_public_id(db, public_id, lock=True)
-    if s.version != version:
+    """The name, description and flags change in place. A change of terms is a new version from a month (the editor's
+    «يسري من»): never a month an approved payroll paid on this scheme, never before its latest version (from that same
+    month the latest version is replaced). A scheme nobody was ever on is simply redefined."""
+    s = _by_public_id(db, public_id, lock=True)  # a run being approved holds it FOR SHARE: this waits for it, and
+    if s.version != version:  # what it paid is read below, after the lock
         raise AppError(409, "version_conflict")
-    prices = {k: v for k, v in changes.items() if k in (*PRICES, "steps")}
-    if prices and _used(db, s.id):
-        raise AppError(409, "scheme_in_use")  # a new price is a new scheme: the months paid on this one stay as paid
-    current = {k: getattr(s, k) for k in PRICES} | {
-        "steps": [{"kind": x.kind, "threshold": x.threshold, "amount": x.amount} for x in _steps(db, [s.id])[s.id]]
-    }
-    _check(current | prices)
+    changes = dict(changes)
+    month = changes.pop("effective_month", None)
+    note = changes.pop("version_note", None)
+    used = bool(_used_ids(db, [s.id]))
+    calc_change = changes.get("calculator", s.calculator) != s.calculator
+    if not calc_change:
+        changes.pop("calculator", None)
+    if calc_change and used:
+        raise AppError(409, "scheme_in_use")  # another shape of rule is another scheme
+    versions = _versions(db, [s.id])[s.id]
+    new_terms = {k: v for k, v in changes.items() if k in (*TERMS_BY_VERSION, "steps")}
     if "name" in changes:
         changes["name"] = i18n.validate_localized(db, changes["name"])
     if changes.get("description"):
         changes["description"] = i18n.validate_localized(db, changes["description"])
-    before = {k: current.get(k, getattr(s, k, None)) for k in changes}
-    for k, v in changes.items():
-        if k != "steps":
-            setattr(s, k, v)
-    if "steps" in changes:
-        db.execute(delete(SchemeStep).where(SchemeStep.scheme_id == s.id))
-        for st in changes["steps"]:
-            db.add(SchemeStep(scheme_id=s.id, kind=st["kind"], threshold=st["threshold"], amount=st.get("amount")))
+    before = {k: getattr(s, k) for k in changes if k not in (*TERMS_BY_VERSION, "steps")}
+    for k in ("name", "description", "is_active", "driver_selectable"):
+        if k in changes:
+            setattr(s, k, changes[k])
+    after_terms = None
+    terms = _terms(versions[-1]) | new_terms
+    if calc_change or not _same(terms, _terms(versions[-1])):
+        if calc_change or (month is None and not used):  # redefined: one version, from its first month
+            calc = changes["calculator"] if calc_change else s.calculator
+            _check(terms | {"calculator": calc})
+            target = versions[0].effective_month
+            before["terms"] = _terms(versions[-1])
+            for v in versions:
+                db.delete(v)
+            db.flush()
+            s.calculator = calc
+            _new_version(db, s, 1, target, terms, note=note, actor_user_id=actor_user_id)
+        else:
+            if month is None:
+                raise AppError(422, "field_required", field="effective_month")
+            target = month_start(month)
+            earliest = _change_from(versions, _last_paid(db, [s.id]).get(s.id))
+            if target < earliest:
+                raise AppError(409, "scheme_version_month", **{"from": earliest.isoformat()[:7]})
+            _check(terms | {"calculator": s.calculator})
+            before["terms"] = _terms(_effective(versions, target))
+            latest = versions[-1]
+            no = latest.version_no + 1
+            if target == latest.effective_month:  # the latest version, not paid on yet, is replaced
+                no = latest.version_no
+                db.delete(latest)
+                db.flush()
+            _new_version(db, s, no, target, terms, note=note, actor_user_id=actor_user_id)
+        db.flush()
+        _mirror(db, s, _terms(_versions(db, [s.id])[s.id][-1]))
+        after_terms = {"from": target.isoformat(), **terms}
     s.version += 1
     db.flush()
     audit.record(
@@ -239,7 +423,8 @@ def update(db: Session, public_id, *, version: int, changes: dict, actor_user_id
         entity_id=s.public_id,
         actor_user_id=actor_user_id,
         before=before,
-        after=changes,
+        after={k: v for k, v in changes.items() if k not in (*TERMS_BY_VERSION, "steps")}
+        | ({"terms": after_terms, "note": note} if after_terms else {}),
     )
     db.commit()
     return get(db, s.public_id)
@@ -248,8 +433,8 @@ def update(db: Session, public_id, *, version: int, changes: dict, actor_user_id
 # ------------------------------------------------------------------ who is on which scheme
 
 
-def for_month(db: Session, employee_ids, month: date) -> dict[int, Scheme]:
-    """Each driver's scheme in the month."""
+def for_month(db: Session, employee_ids, month: date, *, lock: bool = False) -> dict[int, Scheme]:
+    """Each driver's scheme in the month (the schemes held FOR SHARE with lock: a payroll run reading them)."""
     ids = list(employee_ids)
     if not ids:
         return {}
@@ -262,6 +447,8 @@ def for_month(db: Session, employee_ids, month: date) -> dict[int, Scheme]:
             or_(DriverScheme.valid_to.is_(None), DriverScheme.valid_to > month),
         )
     )
+    if lock:
+        q = q.with_for_update(read=True, of=Scheme)
     return {e: s for e, s in db.execute(q)}
 
 
@@ -311,6 +498,17 @@ def assign(
             request_id=request.id if request else None,
             set_by=actor_user_id,
         )
+    )
+    # the first version covers every month the scheme is used in: a driver put on it from a month before the first
+    # version takes that version back to his month (so a later version from the first one's month cannot reach his)
+    db.execute(
+        sql_update(SchemeVersion)
+        .where(
+            SchemeVersion.scheme_id == scheme.id,
+            SchemeVersion.version_no == 1,
+            SchemeVersion.effective_month > month,
+        )
+        .values(effective_month=month)
     )
     db.flush()
     audit.record(

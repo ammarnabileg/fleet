@@ -1193,7 +1193,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get payItem_marks_deduction => 'خصم علامات الحضور';
 
   @override
-  String get payItem_uncovered_penalty => 'عقوبات لم تُخصم';
+  String get payItem_uncovered_penalty => 'خصومات غير محصلة (للمراجعة)';
 
   @override
   String payWhyOrders(String orders, String rate) {
@@ -1227,7 +1227,8 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get payWhyUncovered => 'العقوبات أكبر من المستحق، والشهر لا ينزل تحت الصفر: هذا الباقي لم يُخصم';
+  String get payWhyUncovered =>
+      'الخصومات أكبر من المستحق، والصافي لا ينزل تحت الصفر: هذا الباقي لم يُخصم، ويراجعه المكتب';
 
   @override
   String get noticesTitle => 'الإشعارات';
@@ -1579,4 +1580,73 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get mntInMaintenanceHint =>
       'العربية لسه في عهدتك، بس مفيش يوم شغل بيها لحد ما تستلمها من المركز وتأكد الاستلام هنا.';
+
+  @override
+  String get objectPayslip => 'اعتراض على الكشف';
+
+  @override
+  String get objectLine => 'اعتراض على هذا البند';
+
+  @override
+  String get objectionTitle => 'اعتراض على كشف الراتب';
+
+  @override
+  String objectionOn(String what) {
+    return 'على: $what';
+  }
+
+  @override
+  String get objectionWhole => 'الكشف كله';
+
+  @override
+  String get objectionReason => 'سبب الاعتراض';
+
+  @override
+  String get objectionReasonShort => 'اكتب السبب (3 أحرف على الأقل)';
+
+  @override
+  String get objectionFile => 'صورة تثبت اعتراضك (اختياري)';
+
+  @override
+  String get objectionCamera => 'الكاميرا';
+
+  @override
+  String get objectionGallery => 'المعرض';
+
+  @override
+  String get objectionSent => 'أُرسل اعتراضك للمكتب، وسيصلك الرد';
+
+  @override
+  String get objectionQueued => 'سيُرسل اعتراضك عند عودة الاتصال';
+
+  @override
+  String get myObjections => 'اعتراضاتي';
+
+  @override
+  String objectionResponse(String text) {
+    return 'رد المكتب: $text';
+  }
+
+  @override
+  String objectionAction(String text) {
+    return 'الإجراء: $text';
+  }
+
+  @override
+  String get objectionStatus_open => 'مفتوح';
+
+  @override
+  String get objectionStatus_in_review => 'قيد المراجعة';
+
+  @override
+  String get objectionStatus_accepted => 'مقبول';
+
+  @override
+  String get objectionStatus_rejected => 'مرفوض';
+
+  @override
+  String get objectionStatus_closed => 'مغلق';
+
+  @override
+  String get objectionInstallment => 'قسط خصم';
 }

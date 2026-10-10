@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Path, Query, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.db import get_session
+from app.core.errors import AppError
 from app.modules.files import service as files
 from app.modules.identity.service import (
     DevicePrincipal,
@@ -15,7 +16,18 @@ from app.modules.identity.service import (
     require_permission,
 )
 from app.modules.org import service as org
-from app.modules.payroll import columns, export, platforms, runs, schemas, schemes, service, statements
+from app.modules.payroll import (
+    columns,
+    export,
+    objections,
+    platforms,
+    runs,
+    schemas,
+    schemes,
+    service,
+    statements,
+    uncollected,
+)
 from app.modules.people import service as people
 
 router = APIRouter(prefix="/api/v1", tags=["payroll"])
@@ -204,6 +216,12 @@ def send_statement(
 # ------------------------------------------------------------------ payroll runs
 
 
+@router.get("/payroll/gate")
+def payroll_gate(_: Principal = Depends(require_permission("payroll.view")), db: Session = Depends(get_session)):
+    """Whether runs may be approved yet (the reconciliation gate in the payroll settings)."""
+    return {"live_approval_enabled": runs.live_approval(db)}
+
+
 @router.get("/payroll/runs", response_model=list[schemas.RunOut])
 def list_runs(
     company_id: int | None = None,
@@ -286,6 +304,64 @@ def export_run(
         export.workbook(db, run, lines),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"},
+    )
+
+
+# ------------------------------------------------------------------ the uncollected deductions balance (decision D)
+
+
+@router.get("/payroll/uncollected", response_model=list[schemas.UncollectedOut])
+def list_uncollected(
+    month: date | None = None,
+    status: Literal["review", "carried", "dropped"] | None = None,
+    employee_id: uuid.UUID | None = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    principal: Principal = Depends(require_permission("payroll.view")),
+    db: Session = Depends(get_session),
+):
+    """What approved months' pay could not cover of their penalties, per month and per driver, for review."""
+    return uncollected.list_lines(
+        db,
+        month=month,
+        status=status,
+        employee_public_id=employee_id,
+        limit=limit,
+        offset=offset,
+        **principal.scope,
+    )
+
+
+@router.get("/payroll/uncollected/counts")
+def uncollected_counts(
+    principal: Principal = Depends(require_permission("payroll.view")), db: Session = Depends(get_session)
+):
+    return uncollected.counts(db, **principal.scope)
+
+
+@router.post("/payroll/uncollected/{public_id}/carry", response_model=schemas.UncollectedOut)
+def carry_uncollected(
+    public_id: uuid.UUID,
+    body: schemas.UncollectedDecisionIn,
+    principal: Principal = Depends(require_permission("payroll.approve")),
+    db: Session = Depends(get_session),
+):
+    """«تُرحّل للشهر التالي»: a manual deduction of the amount from the next month, with the approver's note."""
+    return uncollected.carry(
+        db, public_id, note=body.note, version=body.version, actor_user_id=principal.user_id, **principal.scope
+    )
+
+
+@router.post("/payroll/uncollected/{public_id}/drop", response_model=schemas.UncollectedOut)
+def drop_uncollected(
+    public_id: uuid.UUID,
+    body: schemas.UncollectedDecisionIn,
+    principal: Principal = Depends(require_permission("payroll.approve")),
+    db: Session = Depends(get_session),
+):
+    """«إسقاط»: nothing more is taken, with the note why."""
+    return uncollected.drop(
+        db, public_id, note=body.note, version=body.version, actor_user_id=principal.user_id, **principal.scope
     )
 
 
@@ -430,3 +506,100 @@ def cancel_scheme_request(
     public_id: uuid.UUID, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
 ):
     return schemes.cancel(db, device.employee_id, public_id)
+
+
+# ------------------------------------------------------------------ objections to a payslip
+
+_ONE = "(open|in_review|accepted|rejected|closed)"
+OBJECTION_STATUSES = rf"^{_ONE}(,{_ONE})*$"  # one or more, comma-separated
+
+
+def _answers_objections(principal: Principal = Depends(get_principal)) -> Principal:
+    """Who prepares or approves payroll answers the drivers' objections."""
+    if not (principal.has("payroll.prepare") or principal.has("payroll.approve")):
+        raise AppError(403, "permission_denied", permission="payroll.prepare | payroll.approve")
+    return principal
+
+
+@router.get(
+    "/driver/objections", response_model=list[schemas.ObjectionOut], dependencies=[Depends(org.screen("payslips"))]
+)
+def my_objections(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
+    """His objections, newest first, with their status and the office's answer."""
+    return objections.driver_list(db, device.employee_id)
+
+
+@router.post(
+    "/driver/payslips/{run_id}/objections",
+    response_model=schemas.ObjectionOut,
+    status_code=201,
+    dependencies=[Depends(org.screen("payslips"))],
+)
+def object_to_payslip(
+    run_id: uuid.UUID,
+    body: schemas.ObjectionIn,
+    device: DevicePrincipal = Depends(require_device),
+    db: Session = Depends(get_session),
+):
+    """An objection to his payslip of that run: all of it, or one line (item_code), with a photo or PDF if any."""
+    return objections.driver_create(
+        db, device.employee_id, device_id=device.device_id, run_public_id=run_id, data=body.model_dump()
+    )
+
+
+@router.get("/driver/objections/{public_id}/attachment", dependencies=[Depends(org.screen("payslips"))])
+def my_objection_file(
+    public_id: uuid.UUID, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
+):
+    return files.response(db, objections.driver_attachment(db, device.employee_id, public_id))
+
+
+@router.get("/payroll/objections", response_model=list[schemas.OfficeObjectionOut])
+def list_objections(
+    status: str | None = Query(
+        None, pattern=r"^(open|in_review|accepted|rejected|closed)(,(open|in_review|accepted|rejected|closed))*$"
+    ),
+    month: date | None = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    principal: Principal = Depends(require_permission("payroll.view")),
+    db: Session = Depends(get_session),
+):
+    return objections.list_objections(db, status=status, month=month, limit=limit, offset=offset, **principal.scope)
+
+
+@router.get("/payroll/objections/counts")
+def objection_counts(
+    principal: Principal = Depends(require_permission("payroll.view")), db: Session = Depends(get_session)
+):
+    return objections.counts(db, **principal.scope)
+
+
+@router.get("/payroll/objections/{public_id}", response_model=schemas.OfficeObjectionOut)
+def objection_detail(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("payroll.view")),
+    db: Session = Depends(get_session),
+):
+    return objections.detail(db, public_id, **principal.scope)
+
+
+@router.get("/payroll/objections/{public_id}/attachment")
+def objection_file(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("payroll.view")),
+    db: Session = Depends(get_session),
+):
+    return files.response(db, objections.attachment(db, public_id, **principal.scope))
+
+
+@router.post("/payroll/objections/{public_id}/respond", response_model=schemas.OfficeObjectionOut)
+def answer_objection(
+    public_id: uuid.UUID,
+    body: schemas.ObjectionAnswerIn,
+    principal: Principal = Depends(_answers_objections),
+    db: Session = Depends(get_session),
+):
+    """In review, accepted or rejected with the answer the driver reads, or closed; a settlement deduction linked. The
+    approved run never changes."""
+    return objections.respond(db, public_id, body.model_dump(), actor_user_id=principal.user_id, **principal.scope)
