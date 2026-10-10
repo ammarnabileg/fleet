@@ -370,8 +370,10 @@ def _fill(db: Session, run: Run) -> None:
     )
     dues = dues_for(db, ids, month)
     plats = platforms.all_by_id(db)
-    assigned = schemes.for_month(db, ids, month)
-    rules = schemes.rules_for(db, {s.id: s for s in assigned.values()}, month)  # each scheme's version of the month
+    # the schemes and their versions held (FOR SHARE) until the run is saved: a change of terms waits, then sees the
+    # month paid if this approval is what paid it
+    assigned = schemes.for_month(db, ids, month, lock=True)
+    rules = schemes.rules_for(db, {s.id: s for s in assigned.values()}, month, lock=True)
     with_schemes = schemes.platforms_with_schemes(db)
     inputs = month_inputs.load(db, {p["id"]: p["platform_id"] for p in profiles}, month)  # the platforms' fields
     personal = month_inputs.personal_rates(db, ids, month)
@@ -647,7 +649,7 @@ def reopen(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
     if db.scalar(select(Run.id).where(Run.company_id == run.company_id, Run.month > run.month, Run.status != "draft")):
         raise AppError(409, "later_run_approved")
     run.status, run.approved_by, run.approved_at = "draft", None, None
-    uncollected.clear_for_reopen(db, run)
+    uncollected.clear_for_reopen(db, run, actor_user_id=actor_user_id)  # its run's row is locked above
     run.reopened += 1
     run.version += 1
     approvals.submitted(db, "payroll_run", **_approval(run), actor_user_id=actor_user_id)  # to be approved again

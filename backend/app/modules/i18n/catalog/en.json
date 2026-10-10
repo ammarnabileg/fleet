@@ -562,7 +562,9 @@
     "month_import_blocked": "The file cannot be applied: two different figures for the same driver and batch, a month already approved, or no known driver. See the check.",
     "rule_sample_invalid": "The sample figures are not valid.",
     "scheme_designed": "This scheme's rules are built in the rules designer: change them there, as a new version from a month.",
-    "rule_template_not_found": "Template not found."
+    "rule_template_not_found": "Template not found.",
+    "uncollected_carried_taken": "The run cannot be reopened: a deduction carried from its uncollected balance ({month}) was already taken by an approved run",
+    "deduction_partly_taken": "An approved run already took part of this deduction"
   },
   "settings": {
     "branding": "Branding",
@@ -1629,7 +1631,8 @@
     "review": "For review",
     "carried": "Carried to next month",
     "dropped": "Dropped",
-    "deduction_reason": "Uncollected deductions from the {month} payroll: {note}"
+    "deduction_reason": "Uncollected deductions from the {month} payroll: {note}",
+    "reopened": "The {month} payroll was reopened: the balance is recorded again when it is approved"
   },
   "objection_status": {
     "open": "Open",
