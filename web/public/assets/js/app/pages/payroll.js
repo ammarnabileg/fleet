@@ -278,8 +278,9 @@
       A.delegate(el, 'click', '[data-edit]', function (e, x) { var p = list.find(function (y) { return y.id === +x.getAttribute('data-edit'); }); platformForm(p, null, function () { platformsPanel(el); }); });
       setTimeout(function () {
         var b = el.querySelector('#plat-template'); if (b) b.onclick = function () { fromTemplate(function () { platformsPanel(el); }); };
+        var n = el.querySelector('#plat-new'); if (n) n.onclick = function () { platformForm(null, null, function () { platformsPanel(el); }); };
       });
-      return h`<div class="flex gap-8 items-center mb-12"><div class="muted fs-sm">${RULE_HINT}</div><span class="spacer"></span>${canEdit ? A.btn('منصة جديدة من نموذج Excel', { icon: 'file-spreadsheet', cls: 'btn-primary', id: 'plat-template' }) : ''}</div>
+      return h`<div class="flex gap-8 items-center mb-12"><div class="muted fs-sm">${RULE_HINT}</div><span class="spacer"></span>${canEdit ? h`${A.btn('من نموذج Excel', { icon: 'file-spreadsheet', cls: 'btn-outline', id: 'plat-template' })}${A.btn('منصة جديدة', { icon: 'plus', cls: 'btn-primary', id: 'plat-new' })}` : ''}</div>
         ${list.length ? h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(360px,1fr))">${list.map(function (p) {
           return h`<div class="card"><div class="card-h"><div class="card-t">${api.name(p.name)}</div><span class="muted fs-sm ltr">${p.code}</span>${p.is_active ? '' : BT.pill('موقوفة', 'n')}${canEdit ? h`<button type="button" class="btn btn-sm btn-ghost ms-auto" data-edit="${p.id}">${icon('pencil', 14)} تعديل</button>` : ''}</div>
             <div class="card-b">${BT.kv([
@@ -291,7 +292,7 @@
               ['الأيام غير الصالحة', api.t('invalid_days_rule', p.invalid_days) + (p.invalid_days === 'daily_wage' ? ' (÷ ' + p.day_divisor + ')' : p.invalid_days === 'fixed' ? ' ' + fmt.money(p.invalid_day_amount) : '')],
               ['أعمدة الكشف', p.columns.length ? p.columns.length + ' عموداً: ' + p.columns.slice(0, 4).map(function (c) { return c.header; }).join('، ') + '…' : 'كل الأعمدة (لا نموذج)']
             ])}</div></div>`;
-        })}</div>` : h`<div class="card"><div class="card-b">${BT.empty('banknote', 'لا توجد منصات بعد', 'ارفع نموذج كشف الرواتب الذي تستخدمونه (Excel): كل ورقة فيه تصبح منصة بأعمدتها وترتيبها.')}</div></div>`}`;
+        })}</div>` : h`<div class="card"><div class="card-b">${BT.empty('banknote', 'لا توجد منصات بعد', 'أضف منصة جديدة واختر ما يرسله السائق في تقريره اليومي، أو ارفع نموذج كشف الرواتب الذي تستخدمونه (Excel): كل ورقة فيه تصبح منصة بأعمدتها وترتيبها.')}</div></div>`}`;
     }).catch(function () {});
   }
   function fromTemplate(done) {
@@ -309,9 +310,16 @@
     var codes = Object.keys(api.cat.payroll_column || {}).length ? Object.keys(api.cat.payroll_column) : ['platform_driver_id', 'name', 'job_title', 'civil_id', 'iban', 'bank_name', 'payment_method', 'basic', 'hours', 'orders', 'working_days', 'valid_days', 'bonus', 'tips', 'gross', 'invalid_days_deduction', 'car_repair', 'traffic_fines', 'cancelled_orders', 'platform_deductions', 'sim', 'advance', 'cash_shortage', 'late', 'other_deductions', 'carried', 'net', 'blank'];
     return h`${cols.map(function (c, i) { return h`<tr><td class="num">${i + 1}</td><td><input class="input" data-col-h="${i}" value="${c.header}" maxlength="80"></td><td><select class="select" data-col-c="${i}">${codes.map(function (k) { return h`<option value="${k}"${k === c.code ? raw(' selected') : ''}>${api.t('payroll_column', k)}</option>`; })}</select></td></tr>`; })}`;
   }
+  // ما يرسله السائق كل يوم: منصة تحتسب اليوم صالحاً أو لا، وأخرى بالطلبات والكاش
+  var DAILY = [
+    ['valid_day', 'اليوم صالح', 'هل احتسبت المنصة يومه صالحاً (نعم أو لا)'],
+    ['orders', 'عدد الطلبات', 'طلبات اليوم كما في تطبيق المنصة'],
+    ['cash', 'الكاش', 'المبلغ الذي حصّله نقداً'],
+  ];
   function platformForm(p, sheet, done) {
     var editing = !!p;
-    p = p || { code: '', name: { ar: sheet.suggested_name, en: '' }, driver_fields: sheet.driver_fields, daily_fields: ['orders', 'cash'], pay_basic: false, per_order: '0.000', per_hour: '0.000', per_valid_day: '0.000', invalid_days: sheet.invalid_days, invalid_day_amount: null, day_divisor: 30, columns: sheet.columns };
+    // بلا نموذج Excel: منصة فارغة، وكشف الراتب بكل الأعمدة
+    p = p || { code: '', name: { ar: sheet ? sheet.suggested_name : '', en: '' }, driver_fields: sheet ? sheet.driver_fields : [], daily_fields: ['orders', 'cash'], pay_basic: false, per_order: '0.000', per_hour: '0.000', per_valid_day: '0.000', invalid_days: sheet ? sheet.invalid_days : 'none', invalid_day_amount: null, day_divisor: 30, columns: sheet ? sheet.columns : [] };
     var cols = p.columns.map(function (c) { return { code: c.code, header: c.header }; });
     var unknown = cols.filter(function (c) { return c.code === 'blank'; }).length;
     A.formModal({
@@ -322,9 +330,9 @@
           ${BT.f.input({ name: 'name_en', label: 'الاسم بالإنجليزية', required: true, value: p.name.en || '' })}
           ${editing ? BT.f.switch({ name: 'is_active', label: 'نشطة', checked: p.is_active }) : ''}
         </div>
-        <div class="section-t mt-12">ما يرسله السائق في تقريره اليومي مع لقطة شاشة يومه من تطبيق المنصة</div>
-        <div class="flex gap-12 wrap">${['orders', 'cash', 'valid_day'].map(function (f) { return BT.f.check({ name: 'dy_' + f, label: api.t('daily_field', f), checked: (p.daily_fields || []).indexOf(f) >= 0 }); })}</div>
-        <div class="hint">الطلبات والأيام الصالحة في الشهر تُجمع من التقارير اليومية المعتمدة؛ وتقرير لم يُراجع يوقف رواتب صاحبه حتى يُراجع.</div>
+        <div class="section-t mt-12">التقرير اليومي في تطبيق السائق: ما يُسأل عنه مع لقطة شاشة يومه من تطبيق المنصة</div>
+        <div class="flex gap-12 wrap" data-daily>${DAILY.map(function (f) { return BT.f.check({ name: 'dy_' + f[0], label: h`<b>${f[1]}</b> <span class="muted fs-sm">${f[2]}</span>`, checked: (p.daily_fields || []).indexOf(f[0]) >= 0 }); })}</div>
+        <div class="hint">مثلاً: منصة تحتسب اليوم صالحاً أو لا ← «اليوم صالح» وحده؛ منصة بالطلبات والدفع نقداً ← «عدد الطلبات» و«الكاش». لا شيء محدداً: لقطة الشاشة فقط. الطلبات والأيام الصالحة في الشهر تُجمع من التقارير اليومية المعتمدة؛ وتقرير لم يُراجع يوقف رواتب صاحبه حتى يُراجع.</div>
         <div class="section-t mt-12">ما يرسله السائق كل شهر مع لقطات الشاشة (اتركه فارغاً إن كان الشهر من التقارير اليومية)</div>
         <div class="flex gap-12 wrap">${['valid_days', 'orders', 'hours'].map(function (f) { return BT.f.check({ name: 'df_' + f, label: api.t('driver_field', f), checked: p.driver_fields.indexOf(f) >= 0 }); })}</div>
         <div class="section-t mt-12">قاعدة الدفع</div>
@@ -340,7 +348,7 @@
         </div>
         <div class="section-t mt-12">أعمدة كشف الراتب (بترتيب نموذجكم)</div>
         ${unknown ? h`<div class="banner warn fs-sm mb-8">${icon('triangle-alert', 15)}<div>${unknown} عمود لم يُعرف معناه: اختر له المعنى أو اتركه «عمود فارغ».</div></div>` : ''}
-        <div class="table-wrap"><table class="t compact"><thead><tr><th class="num">#</th><th>العنوان في الكشف</th><th>ما يحتويه</th></tr></thead><tbody data-cols>${columnRows(cols)}</tbody></table></div>`,
+        ${cols.length ? h`<div class="table-wrap"><table class="t compact"><thead><tr><th class="num">#</th><th>العنوان في الكشف</th><th>ما يحتويه</th></tr></thead><tbody data-cols>${columnRows(cols)}</tbody></table></div>` : h`<div class="hint">بلا نموذج: كشف الراتب بكل الأعمدة. لترتيب أعمدة نموذجكم أنشئ المنصة «من نموذج Excel».</div>`}`,
       submit: function (v, dlg) {
         var panel = dlg && dlg.panel ? dlg.panel : document;
         var columns = cols.map(function (c, i) { return { header: (panel.querySelector('[data-col-h="' + i + '"]') || {}).value || c.header, code: (panel.querySelector('[data-col-c="' + i + '"]') || {}).value || c.code }; });

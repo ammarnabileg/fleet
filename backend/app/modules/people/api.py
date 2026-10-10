@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session
 
 from app.core.db import get_session
+from app.core.errors import AppError
 from app.modules.cash import service as cash
 from app.modules.fleet import service as fleet
 from app.modules.identity import service as identity
@@ -134,6 +135,20 @@ def update_employee(
         can_set_salary=principal.has(SALARY),
         actor_user_id=principal.user_id,
         **principal.scope,
+    )
+
+
+@router.post("/employees/platform", response_model=schemas.PlatformAssignOut)
+def assign_platform(
+    body: schemas.PlatformAssignIn,
+    principal: Principal = Depends(require_permission("employees.update")),
+    db: Session = Depends(get_session),
+):
+    """The drivers chosen in the list onto one delivery platform (an active one), or onto none."""
+    if body.platform_id is not None and not payroll.platform_is_active(db, body.platform_id):
+        raise AppError(422, "platform_not_found")
+    return service.assign_platform(
+        db, body.employee_ids, platform_id=body.platform_id, actor_user_id=principal.user_id, **principal.scope
     )
 
 

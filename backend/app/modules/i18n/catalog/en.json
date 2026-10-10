@@ -859,7 +859,9 @@
     "iban": "IBAN",
     "app_access": "App access",
     "initial_password": "Initial password",
-    "password_days": "Password validity (days)"
+    "password_days": "Password validity (days)",
+    "platform": "Platform",
+    "platform_driver_id": "Platform driver ID"
   },
   "payroll_column": {
     "platform_driver_id": "Driver ID",
