@@ -101,10 +101,11 @@ class AppState extends ChangeNotifier {
 
   /// What the daily report asks, from the driver's platform: orders and cash for one, orders and whether the
   /// platform counted the day for another. Kept for offline; until the server answers, orders and cash.
-  ({List<String> fields, bool screenshot, bool endReading}) reportForm = (
+  ({List<String> fields, bool screenshot, bool endReading, List<FormItem> custom}) reportForm = (
     fields: const ['orders', 'cash'],
     screenshot: true,
     endReading: false,
+    custom: const [],
   );
 
   /// The maintenance request form: the centers he may take the car to. Kept for offline.
@@ -598,6 +599,11 @@ class AppState extends ChangeNotifier {
       fields: [for (final x in f['fields'] as List) x as String],
       screenshot: f['screenshot'] != false,
       endReading: f['end_reading'] == true,
+      // the platform's own fields, after the built-in ones (an older server sends none)
+      custom: [
+        for (final x in f['items'] as List? ?? const [])
+          if ((x as Map)['builtin'] == null) FormItem.fromJson(Map<String, dynamic>.from(x)),
+      ],
     );
   }
 
@@ -806,6 +812,7 @@ class AppState extends ChangeNotifier {
     String? notes,
     bool queueOnly = false,
     int? session,
+    Map<String, dynamic>? extra,
   }) async {
     final id = await outbox.add(
       'report',
@@ -814,6 +821,7 @@ class AppState extends ChangeNotifier {
         'orders_count': ?orders,
         'cash_amount': ?cash,
         'valid_day': ?validDay,
+        'extra': ?extra, // only when the platform has its own fields (an older server knows none)
         'notes': notes,
         // the session it is written for, fixed now: a retry or a late delivery stays in it (an older server: none)
         if (session != null && session > 0 && (today?.canStartAgain ?? false)) 'session': session,
@@ -843,6 +851,7 @@ class AppState extends ChangeNotifier {
     String? screenshotPath,
     String? notes,
     String? reason,
+    Map<String, dynamic>? extra,
   }) async {
     final id = await outbox.add(
       report.editable ? 'report_edit' : 'report_change',
@@ -851,6 +860,7 @@ class AppState extends ChangeNotifier {
         'orders_count': ?orders,
         'cash_amount': ?cash,
         'valid_day': ?validDay,
+        'extra': ?extra,
         'notes': notes,
         'reason': ?reason,
       },

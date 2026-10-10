@@ -19,5 +19,6 @@ from app.modules.notifications import models as notifications  # noqa: F401
 from app.modules.onboarding import models as onboarding  # noqa: F401
 from app.modules.org import models as org  # noqa: F401
 from app.modules.payroll import models as payroll  # noqa: F401
+from app.modules.payroll import month_models as payroll_month  # noqa: F401
 from app.modules.people import models as people  # noqa: F401
 from app.modules.tracking import models as tracking  # noqa: F401

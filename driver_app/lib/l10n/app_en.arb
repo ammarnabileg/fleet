@@ -507,5 +507,9 @@
   "mntNoCenter": "No maintenance center is available: call the office",
   "mntInMaintenance": "Your car is at the maintenance center: {center}",
   "mntInMaintenanceAny": "Your car is at the maintenance center",
-  "mntInMaintenanceHint": "The car is still in your custody, but no work day starts with it until you collect it from the center and confirm it here."
+  "mntInMaintenanceHint": "The car is still in your custody, but no work day starts with it until you collect it from the center and confirm it here.",
+  "fieldYes": "Yes",
+  "fieldNo": "No",
+  "fieldInvalid": "Invalid value",
+  "choose": "Choose"
 }

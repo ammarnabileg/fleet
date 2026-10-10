@@ -538,7 +538,17 @@
     "rule_condition_invalid": "Rule {position}: the condition is not valid.",
     "rule_block_order": "Rule {position}: its place cannot work; it depends on a rule that must come before it (a price for the orders before a price change, a star day or required days before a «month invalid» condition).",
     "rule_block_exception": "Rule {position}: this exception behaviour does not fit its type.",
-    "rule_pay_missing": "Add at least one pay rule (price per order, fixed salary, tier, batch or task type)."
+    "rule_pay_missing": "Add at least one pay rule (price per order, fixed salary, tier, batch or task type).",
+    "platform_field_invalid": "Field «{key}» is not valid: a key of small English letters and digits, a known type, options for a list, and not a reserved name.",
+    "platform_field_duplicate": "Field «{key}» is listed twice.",
+    "field_unknown": "Not a field of this platform: {field}",
+    "field_invalid": "Invalid value: {field}",
+    "driver_no_platform": "The driver is on no platform: set it on his file first.",
+    "batch_duplicate": "Batch {batch} is listed twice.",
+    "exception_not_found": "Exception not found.",
+    "exception_cancelled": "The exception is already cancelled.",
+    "month_import_headers": "The file's columns were not found: the partner report needs Rider ID, Batch No. and Total Completed Deliveries; the template needs the civil ID or the platform driver ID.",
+    "month_import_blocked": "The file cannot be applied: two different figures for the same driver and batch, a month already approved, or no known driver. See the check."
   },
   "settings": {
     "branding": "Branding",

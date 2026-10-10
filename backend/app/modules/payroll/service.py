@@ -42,6 +42,33 @@ def daily_fields(db: Session, platform_id: int | None) -> list[str] | None:
     return list(p.daily_fields) if p else None
 
 
+def daily_form(db: Session, platform_id: int | None) -> list[dict] | None:
+    """The whole daily form of the platform in order (its built-in fields and its own); None without a platform."""
+    from app.modules.payroll import forms
+
+    return forms.daily_items(db, platform_id)
+
+
+def builtin_daily_item(db: Session, key: str) -> dict:
+    from app.modules.payroll import forms
+
+    return forms.builtin_item(db, key)
+
+
+def daily_screenshot(db: Session, platform_id: int | None) -> bool | None:
+    """Whether the platform wants the daily screenshot; None: the global setting decides."""
+    from app.modules.payroll import forms
+
+    return forms.daily_screenshot(db, platform_id)
+
+
+def check_daily_extra(db: Session, platform_id: int | None, extra: dict | None, *, partial: bool = False) -> dict:
+    """The platform's own daily fields of a report, checked (422 field_required / field_invalid / field_unknown)."""
+    from app.modules.payroll import forms
+
+    return forms.check_daily_extra(db, platform_id, extra, partial=partial)
+
+
 def offered_schemes(db: Session, platform_id: int | None) -> list[dict]:
     """The pay schemes a driver on this platform may choose (active, offered to drivers), with their terms."""
     from app.modules.payroll import schemas, schemes

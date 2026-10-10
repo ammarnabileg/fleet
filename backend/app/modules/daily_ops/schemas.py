@@ -15,6 +15,8 @@ class ReportIn(BaseModel):
     orders_count: int | None = Field(None, ge=0, le=500)
     cash_amount: Amount | None = None
     valid_day: bool | None = None  # when the driver's platform asks: did the platform count the day
+    # the platform's own daily fields by key (an older app sends none, and is not refused for them)
+    extra: dict[str, bool | int | Decimal | str] | None = Field(None, max_length=30)
     screenshot_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")] | None = None
     notes: str | None = Field(None, max_length=500)
     # the day's work session it is written for, fixed when the driver filled it: a retry, or a report that arrives
@@ -22,8 +24,19 @@ class ReportIn(BaseModel):
     session: int | None = Field(None, ge=1, le=50)
 
 
+class FormItem(BaseModel):
+    key: str
+    label: dict[str, str]
+    type: str  # int | money | bool | choice
+    builtin: str | None  # orders | cash | valid_day: the report's own columns
+    required: bool
+    help: dict[str, str] | None = None
+    options: list[dict] = []
+
+
 class ReportFormOut(BaseModel):
-    fields: list[str]  # orders, cash, valid_day: what this driver's platform asks for
+    fields: list[str]  # orders, cash, valid_day: the built-in fields this driver's platform asks for
+    items: list[FormItem] = []  # the whole form in order, with the platform's own fields
     screenshot: bool
     end_reading: bool  # today's report, after a started day, needs the end-of-day reading first
 
@@ -47,6 +60,7 @@ class ReportOut(BaseModel):
     cash_amount: Decimal
     approved_cash: Decimal | None
     valid_day: bool | None
+    extra: dict = {}  # the platform's own daily fields
     has_screenshot: bool
     notes: str | None
     status: str
@@ -102,6 +116,7 @@ class ReportEditIn(BaseModel):
     orders_count: int | None = Field(None, ge=0, le=500)
     cash_amount: Amount | None = None
     valid_day: bool | None = None
+    extra: dict[str, bool | int | Decimal | str] | None = Field(None, max_length=30)
     screenshot_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")] | None = None
     notes: str | None = Field(None, max_length=500)
 

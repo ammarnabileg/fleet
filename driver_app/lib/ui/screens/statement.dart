@@ -365,18 +365,19 @@ class PayItemRow extends StatelessWidget {
       'missing_target' => l.payWhyMissing(_n(w['missing']), _n(w['target']), _n(w['rate'])),
       'marks_deduction' => l.payWhyMarks(_n(w['marks'])),
       'uncovered_penalty' => l.payWhyUncovered,
-      _ => '',
+      _ => b.formula == null ? '' : _n(b.formula), // a rule designed in the dashboard: its formula
     };
   }
 
-  static String label(AppLocalizations l, String code) => switch (code) {
-    'orders_pay' => l.payItem_orders_pay,
-    'tier_bonus' => l.payItem_tier_bonus,
-    'missing_target' => l.payItem_missing_target,
-    'marks_deduction' => l.payItem_marks_deduction,
-    'uncovered_penalty' => l.payItem_uncovered_penalty,
-    _ => code,
-  };
+  static String label(AppLocalizations l, String code, [Map<String, String>? named, String lang = 'ar']) =>
+      switch (code) {
+        'orders_pay' => l.payItem_orders_pay,
+        'tier_bonus' => l.payItem_tier_bonus,
+        'missing_target' => l.payItem_missing_target,
+        'marks_deduction' => l.payItem_marks_deduction,
+        'uncovered_penalty' => l.payItem_uncovered_penalty,
+        _ => named == null || named.isEmpty ? code : (named[lang] ?? named['ar'] ?? named.values.first),
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -393,7 +394,7 @@ class PayItemRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label(l, item.code)),
+                Text(label(l, item.code, item.label, Localizations.localeOf(context).languageCode)),
                 Text(why(l, item), style: const TextStyle(color: AppColors.muted, fontSize: 13)),
               ],
             ),

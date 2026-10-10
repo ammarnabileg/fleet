@@ -47,6 +47,7 @@ def _out(r: Report, names: dict | None = None, plates: dict | None = None) -> di
         "cash_amount": r.cash_amount,
         "approved_cash": r.approved_cash,
         "valid_day": r.valid_day,
+        "extra": r.extra or {},
         "has_screenshot": r.screenshot_sha256 is not None,
         "notes": r.notes,
         "status": r.status,
@@ -77,9 +78,18 @@ def form(db: Session, driver: people.EmployeeRef) -> dict:
     counted the day for another), or without a platform the settings; and whether the screenshot is required."""
     rules = org.get_section(db, "daily_report")
     fields = payroll.daily_fields(db, driver.platform_id)
+    items = payroll.daily_form(db, driver.platform_id)
     if fields is None:
         fields = [f for f, on in (("orders", rules.require_orders_count), ("cash", rules.require_cash)) if on]
-    return {"fields": fields, "screenshot": rules.require_screenshot, "end_reading": rules.require_end_reading}
+    if items is None:  # no platform: the settings' fields, as built-in items
+        items = [payroll.builtin_daily_item(db, f) for f in fields]
+    shot = payroll.daily_screenshot(db, driver.platform_id)  # the platform's own choice, else the setting
+    return {
+        "fields": fields,  # the built-in ones, what every app version knows
+        "items": items,  # the whole form in order, the platform's own fields too (newer apps draw it)
+        "screenshot": rules.require_screenshot if shot is None else shot,
+        "end_reading": rules.require_end_reading,
+    }
 
 
 def _validate(db: Session, driver: people.EmployeeRef, device_id: int, data: dict, new_shot: bool = True) -> dict:
@@ -101,6 +111,7 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
     if not today() - timedelta(days=MAX_DAYS_BACK) <= day <= today():
         raise AppError(422, "invalid_business_date")
     asked = _validate(db, driver, device_id, data)
+    extra = payroll.check_daily_extra(db, driver.platform_id, data.get("extra"))  # none from an older app
     started = fleet.driver_days(db, employee_id, day, day).get(day)
     if started is None and (
         day in fleet.days_at_center(db, [employee_id], day, day)[employee_id]
@@ -131,6 +142,7 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
         orders_count=data.get("orders_count"),
         cash_amount=amount,
         valid_day=data.get("valid_day") if "valid_day" in asked["fields"] else None,
+        extra=extra,
         screenshot_sha256=data.get("screenshot_sha256"),
         notes=data.get("notes"),
         submitted_by_device=device_id,
@@ -538,6 +550,21 @@ def scan_overdue(db: Session) -> int:
     return raised
 
 
+def month_extras(db: Session, employee_ids: Iterable[int], first, last) -> dict[int, list[tuple]]:
+    """For payroll, per driver: (day, the platform's own fields) of each approved report, first to last inclusive."""
+    ids = list(employee_ids)
+    out: dict[int, list[tuple]] = {i: [] for i in ids}
+    if not ids:
+        return out
+    q = select(Report.employee_id, Report.business_date, Report.extra).where(
+        Report.employee_id.in_(ids), Report.business_date.between(first, last), Report.status == "approved"
+    )
+    for employee_id, day, extra in db.execute(q):
+        if extra:
+            out[employee_id].append((day, extra))
+    return out
+
+
 def month_activity(db: Session, employee_ids: Iterable[int], first, last) -> dict[int, dict]:
     """For payroll, per driver, first to last inclusive: the days he sent a daily report (not rejected), and in his
     approved reports the orders and the days the platform counted (valid_day); and how many still wait for review
@@ -566,7 +593,7 @@ def month_activity(db: Session, employee_ids: Iterable[int], first, last) -> dic
 
 # ------------------------------------------------------------------ changes (BRD FR-DWR-04, FR-DWR-06, BR-06, UAT-04)
 
-EDITABLE = ("orders_count", "cash_amount", "valid_day", "screenshot_sha256", "notes")
+EDITABLE = ("orders_count", "cash_amount", "valid_day", "extra", "screenshot_sha256", "notes")
 
 
 def _values(r: Report, approved: bool = False) -> dict:
@@ -575,9 +602,22 @@ def _values(r: Report, approved: bool = False) -> dict:
         "orders_count": r.orders_count,
         "cash_amount": f"{amount:.3f}",
         "valid_day": r.valid_day,
+        "extra": dict(r.extra or {}),
         "screenshot_sha256": r.screenshot_sha256,
         "notes": r.notes,
     }
+
+
+def _with_extra(db: Session, report: Report, driver: people.EmployeeRef, data: dict) -> dict:
+    """The platform's own fields the driver sends with a change, over what the report had."""
+    data = dict(data)
+    if data.get("extra") is None:
+        data.pop("extra", None)
+    else:
+        data["extra"] = dict(report.extra or {}) | payroll.check_daily_extra(
+            db, driver.platform_id, data["extra"], partial=True
+        )
+    return data
 
 
 def _wanted(report: Report, data: dict, approved: bool = False) -> tuple[dict, dict, dict]:
@@ -612,7 +652,7 @@ def edit(db: Session, *, employee_id: int, device_id: int, public_id, data: dict
     if report.status not in ("submitted", "returned"):
         raise AppError(409, "report_not_editable", status=report.status)
     driver = people.ref(db, employee_id)
-    merged, before, after = _wanted(report, data)
+    merged, before, after = _wanted(report, _with_extra(db, report, driver, data))
     _validate(db, driver, device_id, merged, new_shot="screenshot_sha256" in after)
     returned = report.status == "returned"
     if not after and not returned:
@@ -687,7 +727,7 @@ def request_change(db: Session, *, employee_id: int, device_id: int, public_id, 
     if payroll.month_locked(db, report.company_id, report.business_date):
         raise AppError(409, "payroll_locked")
     driver = people.ref(db, employee_id)
-    merged, before, after = _wanted(report, data, approved=True)
+    merged, before, after = _wanted(report, _with_extra(db, report, driver, data), approved=True)
     if not after:
         raise AppError(422, "nothing_changed")
     _validate(db, driver, device_id, merged, new_shot="screenshot_sha256" in after)

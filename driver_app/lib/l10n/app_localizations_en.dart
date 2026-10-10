@@ -1587,4 +1587,16 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mntInMaintenanceHint =>
       'The car is still in your custody, but no work day starts with it until you collect it from the center and confirm it here.';
+
+  @override
+  String get fieldYes => 'Yes';
+
+  @override
+  String get fieldNo => 'No';
+
+  @override
+  String get fieldInvalid => 'Invalid value';
+
+  @override
+  String get choose => 'Choose';
 }

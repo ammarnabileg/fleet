@@ -368,6 +368,7 @@ class DriverScheme(Base):
             name="month",
         ),
         CheckConstraint("source IN ('office', 'registration', 'request', 'import')", name="source"),
+        CheckConstraint("personal_rate >= 0", name="personal_rate"),
         Index("driver_schemes_scheme_id_idx", "scheme_id"),
         SCHEMA,
     )
@@ -381,3 +382,4 @@ class DriverScheme(Base):
     request_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.scheme_change_requests.id"))
     set_by: Mapped[int | None] = mapped_column(BigInteger)
     set_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    personal_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))  # a price per order agreed with him

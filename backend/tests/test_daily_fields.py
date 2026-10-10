@@ -50,7 +50,13 @@ def test_each_platform_asks_its_own_daily_fields(admin_client, client, company, 
     _, hk = driver_on(admin_client, client, company, by_day)
     _, ht = driver_on(admin_client, client, company, by_cash)
     form = client.get("/api/v1/driver/reports/form", headers=hk).json()
-    assert form == {"fields": ["orders", "valid_day"], "screenshot": True, "end_reading": True}
+    assert form | {"items": None} == {"fields": ["orders", "valid_day"], "screenshot": True, "end_reading": True} | {
+        "items": None
+    }
+    assert [(i["key"], i["builtin"], i["type"]) for i in form["items"]] == [  # the whole form, for newer apps
+        ("orders", "orders", "int"),
+        ("valid_day", "valid_day", "bool"),
+    ]
     assert client.get("/api/v1/driver/reports/form", headers=ht).json()["fields"] == ["orders", "cash"]
 
     r = send(client, hk, today(), orders_count=22)

@@ -911,5 +911,9 @@
   "mntInMaintenance": "عربيتك في الصيانة عند {center}",
   "@mntInMaintenance": {"placeholders": {"center": {"type": "String"}}},
   "mntInMaintenanceAny": "عربيتك في الصيانة",
-  "mntInMaintenanceHint": "العربية لسه في عهدتك، بس مفيش يوم شغل بيها لحد ما تستلمها من المركز وتأكد الاستلام هنا."
+  "mntInMaintenanceHint": "العربية لسه في عهدتك، بس مفيش يوم شغل بيها لحد ما تستلمها من المركز وتأكد الاستلام هنا.",
+  "fieldYes": "نعم",
+  "fieldNo": "لا",
+  "fieldInvalid": "قيمة غير صحيحة",
+  "choose": "اختر"
 }

@@ -55,6 +55,7 @@ class Report(Base):
     orders_count: Mapped[int | None] = mapped_column(Integer)
     cash_amount: Mapped[Decimal] = mapped_column(Numeric(12, 3), server_default=text("0"))
     valid_day: Mapped[bool | None] = mapped_column(Boolean)  # the platform counted the day (its daily summary)
+    extra: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))  # the platform's own fields
     screenshot_sha256: Mapped[str | None] = mapped_column(Text, ForeignKey("files.files.sha256"))
     notes: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, server_default=text("'submitted'"))
