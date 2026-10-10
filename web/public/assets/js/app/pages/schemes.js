@@ -177,6 +177,7 @@
         body: h`<div class="form">${BT.f.select({ name: 'scheme', label: 'النظام', required: true, placeholder: 'اختر', options: active.map(function (s) { return { v: s.id, t: A.platformName(plats, s.platform_id) + ' — ' + api.name(s.name) }; }) })}
           ${BT.f.input({ name: 'month', label: 'من شهر', type: 'month', required: true, value: thisMonth() })}
           ${BT.f.money({ name: 'personal_rate', label: 'سعر خاص للطلب (اختياري)', optional: true, hint: 'سعر متفق عليه مع السائق، يستخدمه نظام الباتش إن سمح به' })}
+          <div class="banner warn fs-sm" data-rate-warning hidden>${icon('triangle-alert', 15)}<div>هذا النظام لا يستخدم السعر الخاص (لا قاعدة «سعر حسب الباتش» تسمح به): يُحفظ ولا يغيّر الحساب.</div></div>
           <div class="hint">يبدأ من أول الشهر ويحل محل ما كان من هذا الشهر فصاعداً. شهر رواتبه معتمدة لا يتغير، والسائق على منصة أخرى يُتخطى.</div></div>`,
         submit: function (v) {
           return api.post('/payroll/schemes/' + v.scheme + '/assign', { employee_ids: drivers.map(function (d) { return d.id; }), month: v.month + '-01', personal_rate: v.personal_rate === '' || v.personal_rate == null ? null : Number(v.personal_rate).toFixed(3) }).then(function (res) {
@@ -184,7 +185,18 @@
             return res;
           });
         },
-        after: after
+        after: after,
+        onOpen: function (dlg) {
+          // a personal rate only counts for a scheme whose batch rule allows it: said before saving
+          function check() {
+            var s = active.find(function (x) { return x.id === dlg.panel.querySelector('[name=scheme]').value; });
+            var rate = dlg.panel.querySelector('[name=personal_rate]').value;
+            var used = s && (s.blocks || []).some(function (b) { return b.type === 'batch_rate' && b.params.personal_rate !== false; });
+            dlg.panel.querySelector('[data-rate-warning]').hidden = !(rate && s && !used);
+          }
+          BT.on(dlg.panel, 'change', '[name=scheme], [name=personal_rate]', check);
+          BT.on(dlg.panel, 'input', '[name=personal_rate]', check);
+        }
       });
     }, api.fail);
   };

@@ -108,8 +108,17 @@ def test_keeta_as_actually_paid_through_the_run(admin_client, client, company, p
     # an approved exception day excuses the star day (the template's star-day block neutralizes it)
     r = admin_client.post(
         f"{P}/month-exceptions",
-        json={"employee_id": drv["d"]["id"], "month": str(MONTH), "kind": "exception_day", "note": "يوم معتمد"},
-    )
+        json={"employee_id": drv["d"]["id"], "month": str(MONTH), "kind": "accepted_excuse", "excuses": ["marks"],
+              "note": "عذر عن العلامات"},
+    )  # fmt: skip
+    assert r.status_code == 201, r.text
+    again = admin_client.post(f"{P}/runs/{run['id']}/recompute").json()
+    assert next(x for x in again["lines"] if x["employee"]["id"] == drv["d"]["id"])["net"] == "195.000"  # not the star
+    r = admin_client.post(
+        f"{P}/month-exceptions",
+        json={"employee_id": drv["d"]["id"], "month": str(MONTH), "kind": "accepted_excuse", "excuses": ["star_day"],
+              "note": "يوم النجمة معتمد"},
+    )  # fmt: skip
     assert r.status_code == 201, r.text
     again = admin_client.post(f"{P}/runs/{run['id']}/recompute").json()
     assert next(x for x in again["lines"] if x["employee"]["id"] == drv["d"]["id"])["net"] == "295.000"
@@ -369,3 +378,99 @@ def test_the_migration_writes_every_scheme_as_blocks_with_the_same_money(databas
     finally:
         with admin_engine.connect() as c:
             c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+
+
+def test_what_a_block_cannot_read_or_price_flags_the_line_never_the_run(admin_client, company, owner_db):
+    set_cap(admin_client)
+    k = platform(admin_client, "kflags")
+    paid = from_template(admin_client, k, "keeta_paid", "as_paid")
+    nobasic = make_driver(admin_client, company["id"], iban=IBAN, platform_id=k["id"])  # no basic salary on his file
+    owner_db.execute(text("UPDATE people.employees SET basic_salary = NULL WHERE public_id = :p"), {"p": nobasic["id"]})
+    owner_db.commit()
+    statement(admin_client, nobasic, orders=400)
+    values(admin_client, nobasic, values={"attendance_marks": 0, "star_day_failed": False})
+    assign(admin_client, paid, nobasic)
+
+    t = platform(admin_client, "tflags")
+    batch = from_template(admin_client, t, "talabat_batch_paid", "as_paid")  # batches 1 to 6
+    seventh = make_driver(admin_client, company["id"], iban=IBAN, platform_id=t["id"])
+    values(admin_client, seventh, batches=[{"batch": 7, "orders": 10}])
+    assign(admin_client, batch, seventh)
+
+    broken = from_template(admin_client, t, None, "broken")
+    owner_db.execute(  # a stored block the checks would refuse today (a day's wage over 0 days)
+        text(
+            "UPDATE payroll.scheme_versions SET blocks = CAST(:b AS jsonb) WHERE scheme_id ="
+            " (SELECT id FROM payroll.schemes WHERE public_id = :s)"
+        ),
+        {
+            "s": broken["id"],
+            "b": '[{"type": "fixed_salary", "params": {"mode": "amount", "amount": "300.000"}, "condition": [],'
+            ' "on_exception": "none", "group": null, "label": null}, {"type": "absence", "params": {"mode":'
+            ' "daily_wage", "divisor": 0}, "condition": [], "on_exception": "none", "group": null, "label": null}]',
+        },
+    )
+    owner_db.commit()
+    victim = make_driver(admin_client, company["id"], iban=IBAN, platform_id=t["id"])
+    values(admin_client, victim, values={"absent_days": 2})
+    assign(admin_client, broken, victim)
+
+    run, lines = run_lines(admin_client, company)  # the run is made: each problem stays on its own line
+    assert "figures_missing" in lines[nobasic["id"]]["flags"]
+    review = admin_client.get(f"{P}/month-review", params={"platform_id": k["id"], "month": str(MONTH)}).json()
+    assert review["rows"][0]["missing"] == ["basic_salary"]
+    assert "rules_incomplete" in lines[seventh["id"]]["flags"]
+    assert any(x.get("info") == "batch_rate_missing" for x in lines[seventh["id"]]["trace"])
+    assert lines[victim["id"]]["flags"] == ["rules_error"] and lines[victim["id"]]["gross"] == "0.000"
+    assert run["blocking"] == 3
+
+
+def test_the_sheet_shows_a_rule_deduction_and_a_higher_price_as_earned(admin_client, company):
+    set_cap(admin_client)
+    p = platform(admin_client, "cells")
+    s = from_template(admin_client, p, None, "cells")
+    d = admin_client.get(f"{P}/schemes/{s['id']}/designer").json()
+    blocks = [
+        {"type": "fixed_salary", "params": {"mode": "contract"}},
+        {"type": "per_order", "params": {"rate": "0.300"}},
+        {"type": "invalid_days", "params": {"mode": "fixed", "amount": "5"}},
+        {"type": "price_change", "params": {"rate": "0.400", "mode": "separate"},
+         "condition": [{"fact": "orders", "op": "gte", "value": 100}]},
+    ]  # fmt: skip
+    r = admin_client.post(f"{P}/schemes/{s['id']}/blocks", json={"version": d["scheme"]["version"], "blocks": blocks})
+    assert r.status_code == 200, r.text
+    drv = make_driver(admin_client, company["id"], basic_salary="200.000", iban=IBAN, platform_id=p["id"])
+    statement(admin_client, drv, orders=100, working_days=26, valid_days=24)
+    assign(admin_client, s, drv)
+    _, lines = run_lines(admin_client, company)
+    cells = lines[drv["id"]]["cells"]
+    assert cells["invalid_days_deduction"] == "10.000"  # 2 days x 5: the block's, on the sheet
+    assert cells["orders_pay"] == "40.000" and not cells.get("price_change")  # 30 + 10 more: earned, no deduction
+    assert lines[drv["id"]]["net"] == "230.000"
+
+
+def test_a_migrated_scheme_saved_in_the_designer_keeps_what_the_company_covers(admin_client):
+    import importlib.util
+
+    from tests.conftest import BACKEND
+
+    spec = importlib.util.spec_from_file_location("m51", BACKEND / "migrations" / "versions" / "0051_scheme_blocks.py")
+    m51 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m51)
+    version = {"per_order": "0.550", "missing_order_rate": None, "target_orders": 420, "steps": [],
+               "company_covers": ["gas", "sim"]}  # fmt: skip
+    migrated = m51.blocks_of("per_order", version) + m51.covers_of(version)
+    p = platform(admin_client, "covmig")
+    s = from_template(admin_client, p, None, "migrated")
+    d = admin_client.get(f"{P}/schemes/{s['id']}/designer").json()
+    r = admin_client.post(f"{P}/schemes/{s['id']}/blocks", json={"version": d["scheme"]["version"], "blocks": migrated})
+    assert r.status_code == 200, r.text
+    saved = next(x for x in admin_client.get(f"{P}/schemes").json() if x["id"] == s["id"])
+    assert saved["company_covers"] == ["gas", "sim"]  # the fuel claims still see the company paying for gas
+    from app.modules.payroll.calculators import Rules
+    from app.modules.payroll.rules import convert
+
+    same = convert.from_rules(Rules(calculator="per_order", per_order=D("0.550")), ["gas", "sim"])
+    assert [b["params"] for b in same if b["type"] == "expense"] == [
+        b["params"] for b in migrated if b["type"] == "expense"
+    ]

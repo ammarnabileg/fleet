@@ -37,7 +37,12 @@ def test_try_shows_each_line_its_formula_and_the_net(admin_client):
     assert out["net"] == "326.500" and out["needs"] == []
     assert [x.get("skipped") for x in out["trace"] if x.get("skipped")] == ["star_day_kept", "month_valid"]
     r = admin_client.post(f"{P}/rules/preview", json={"blocks": keeta["blocks"], "month": {"orders": 300}})
-    assert r.json()["needs"] == ["attendance_marks", "star_day_failed"]
+    assert r.json()["needs"] == ["basic_salary", "attendance_marks", "star_day_failed"]  # none taken as zero
+    for wrong in ({"orders": "Infinity"}, {"orders": 1e300}, {"basic_salary": "NaN"}, {"fields": {"x": "1e999"}}):
+        r = admin_client.post(f"{P}/rules/preview", json={"blocks": keeta["blocks"], "month": wrong})
+        assert r.status_code == 422 and r.json()["code"] == "rule_sample_invalid", wrong
+    r = admin_client.post(f"{P}/rules/preview", json={"blocks": [{"type": ["per_order"]}], "month": {}})
+    assert r.status_code == 422 and r.json()["code"] == "rule_block_unknown"
     bad = admin_client.post(f"{P}/rules/preview", json={"blocks": [{"type": "per_order", "params": {}}], "month": {}})
     assert bad.status_code == 422 and bad.json()["code"] == "rule_block_param"
     assert bad.json()["params"] == {"position": 1, "param": "rate"}
@@ -56,3 +61,31 @@ def test_the_month_in_six_stages(admin_client, company):
     assert s["engine"] == {"state": "todo", "counts": {"runs": 0, "drafts": 0, "figures_missing": 0},
                            "link": "payroll?tab=runs"}  # fmt: skip
     assert s["close"]["state"] == "todo" and s["review"]["counts"]["gate_off"] == 1  # not reconciled yet
+
+
+def test_the_stages_count_only_the_users_companies(admin_client, companies, new_client):
+    import io
+
+    import openpyxl
+
+    p = admin_client.post(f"{P}/platforms", json={"code": "stq", "name": {"ar": "س", "en": "s"}}).json()
+    make_driver(admin_client, companies["a"]["id"], platform_id=p["id"], platform_driver_id="Q-1")
+    wb = openpyxl.Workbook()
+    for row in (["Rider ID", "Batch No.", "Total Completed Deliveries"], ["Q-1", 1, 10]):
+        wb.active.append(row)
+    buf = io.BytesIO()
+    wb.save(buf)
+    r = admin_client.post(
+        f"{P}/month-imports",
+        data={"platform_id": str(p["id"]), "month": str(MONTH), "format": "partner_batches"},
+        files={"file": ("p.xlsx", buf.getvalue(), "application/octet-stream")},
+    )
+    assert r.status_code == 201, r.text
+    assert (
+        admin_client.get(f"{P}/month-status", params={"month": str(MONTH)}).json()["collect"]["counts"]["imports"] == 1
+    )
+    make_user(admin_client, "b_only", permissions=["payroll.view"], company_ids=[companies["b"]["id"]])
+    c = new_client()
+    login(c, "b_only")
+    s = c.get(f"{P}/month-status", params={"month": str(MONTH)}).json()
+    assert s["collect"]["counts"]["imports"] == 0 and s["collect"]["counts"]["drivers"] == 0

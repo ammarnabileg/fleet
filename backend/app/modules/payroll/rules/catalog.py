@@ -21,6 +21,9 @@ BUILTIN_SOURCES = (
 )
 KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 EXCEPTION_KINDS = ("accepted_excuse", "company_error", "exception_day")
+# what an approved exception excuses, each on its own: an excuse for the star day never clears the marks, a number of
+# days never clears a missed star day
+EXCUSES = ("star_day", "marks", "lateness", "absence", "valid_days")
 EXPENSE_KINDS = ("gas", "maintenance", "phone", "housing", "advance")
 ON_EXCEPTION = ("none", "neutralize", "count_valid")
 
@@ -34,6 +37,8 @@ class Param:
     options: tuple[str, ...] = ()
     rows: tuple["Param", ...] = ()
     when: tuple[str, str] | None = None  # required (and shown) only when another param has this value
+    low: int | None = None  # whole numbers: the smallest and largest accepted
+    high: int | None = None
 
     def out(self) -> dict:
         return {
@@ -44,6 +49,8 @@ class Param:
             "options": list(self.options),
             "rows": [r.out() for r in self.rows],
             "when": list(self.when) if self.when else None,
+            "min": self.low,
+            "max": self.high,
         }
 
 
@@ -103,7 +110,7 @@ TYPES: dict[str, BlockType] = {
             "batch_rate",
             "pay",
             (
-                Param("rates", "rows", rows=(Param("batch", "int"), Param("rate", "money"))),
+                Param("rates", "rows", rows=(Param("batch", "int", low=1, high=20), Param("rate", "money"))),
                 Param("personal_rate", "bool", required=False, default=True),
             ),
             ("orders_pay",),
@@ -155,7 +162,7 @@ TYPES: dict[str, BlockType] = {
             "required_days",
             "attendance",
             (
-                Param("days", "int"),
+                Param("days", "int", low=1, high=31),
                 Param("invalidates", "bool", required=False, default=False),
                 Param("deduction", "choice", default="none", options=("none", "fixed", "per_day")),
                 Param("amount", "money", when=("deduction", "fixed|per_day")),
@@ -178,7 +185,7 @@ TYPES: dict[str, BlockType] = {
             (
                 Param("mode", "choice", default="amount", options=("amount", "daily_wage")),
                 Param("amount", "money", when=("mode", "amount")),
-                Param("divisor", "int", required=False, default=30),
+                Param("divisor", "int", required=False, default=30, low=1, high=31),
             ),
             ("absence_days_deduction",),
             exceptions=ATTENDANCE_EXC,
@@ -190,7 +197,7 @@ TYPES: dict[str, BlockType] = {
             (
                 Param("mode", "choice", default="daily_wage", options=("daily_wage", "fixed")),
                 Param("amount", "money", when=("mode", "fixed")),
-                Param("divisor", "int", required=False, default=30),
+                Param("divisor", "int", required=False, default=30, low=1, high=31),
             ),
             ("invalid_days_deduction",),
             exceptions=ATTENDANCE_EXC,
@@ -293,5 +300,6 @@ def palette() -> dict:
         "facts": [{"fact": f, "ops": list(ops)} for f, ops in FACTS.items()],
         "sources": list(BUILTIN_SOURCES),
         "exception_kinds": list(EXCEPTION_KINDS),
+        "excuses": list(EXCUSES),
         "on_exception": list(ON_EXCEPTION),
     }

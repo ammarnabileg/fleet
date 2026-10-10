@@ -1,7 +1,7 @@
 // The payroll rules designer and the month around it: a platform's own fields set in the panel, the month's data
 // imported from the partner's batch report (checked before it is applied, never counted twice), a driver's month
 // corrected with an approved exception, and the six stages of the month.
-const { test, expect, uid, phone, settled, clearToasts } = require('./fixtures');
+const { test, expect, uid, phone, settled, search, clearToasts } = require('./fixtures');
 const { xlsx } = require('./xlsx');
 
 const MONTH = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 7); // Kuwait time
@@ -68,15 +68,36 @@ test('a platform\'s own fields, the month imported and checked, a driver\'s mont
     await expect(admin.locator('.toast').last()).toContainText('طُبق الملف على 2 سائق');
     await settled(admin);
   }
+  // a corrected report: refused until «استبدال الشهر كله» is chosen, then the month's batch rows are the file's
+  const corrected = xlsx({ Riders: [['Rider ID', 'Batch No.', 'Total Completed Deliveries'], ['R' + s.n + '1', 4, 120], ['R' + s.n + '1', 2, 39], ['R' + s.n + '2', 1, 200]] });
+  await admin.click('#mi-import');
+  const d2 = top();
+  await d2.locator('input[type=file]').setInputFiles({ name: 'corrected.xlsx', mimeType: XLSX, buffer: corrected });
+  await d2.locator('button[type=submit]').click();
+  await expect(d2.locator('[data-reason=month_has_batches]')).toBeVisible();
+  await expect(d2.locator('[data-btn="2"]')).toBeDisabled();
+  await d2.locator('[name=replace_month]').check();
+  await d2.locator('button[type=submit]').click();
+  await expect(d2.locator('[data-reasons]')).toHaveCount(0);
+  await clearToasts(admin);
+  await d2.locator('[data-btn="2"]').click();
+  await expect(admin.locator('.toast').last()).toContainText('طُبق الملف على 2 سائق');
+  await settled(admin);
   const review = await api.get(`/payroll/month-review?platform_id=${s.platform.id}&month=${MONTH}-01`);
   const a = review.rows.find((r) => r.employee.id === s.a.id);
-  expect(a.batches).toEqual([{ batch: 2, orders: 39 }, { batch: 4, orders: 118 }]);
+  expect(a.batches).toEqual([{ batch: 2, orders: 39 }, { batch: 4, orders: 120 }]);
   expect(a.missing).toEqual(['attendance_marks']);
   await expect(admin.locator(`[data-mrow="${s.a.id}"]`)).toContainText('2:39');
 
   // ---- his month corrected in review, and an approved exception with its note
   await admin.click(`[data-mrow="${s.a.id}"]`);
   const dr = top();
+  await expect(dr.locator('[data-missing]')).toContainText('علامات الحضور');
+  await dr.locator('[name=batches]').fill('2:39, 4-120'); // a malformed entry is said, never dropped
+  await clearToasts(admin);
+  await dr.getByRole('button', { name: 'حفظ' }).click();
+  await expect(admin.locator('.toast').last()).toContainText('باتش:طلبات');
+  await dr.locator('[name=batches]').fill('2:39, 4:120');
   await dr.locator('[name=v_attendance_marks]').fill('2');
   await clearToasts(admin);
   await dr.getByRole('button', { name: 'حفظ' }).click();
@@ -86,6 +107,7 @@ test('a platform\'s own fields, the month imported and checked, a driver\'s mont
   await top().getByRole('button', { name: 'استثناء' }).click();
   const x = top();
   await x.locator('input[name=kind][value=exception_day]').check({ force: true });
+  await x.locator('[name=ex_valid_days]').check();
   await x.locator('[name=days]').fill('2');
   await x.locator('[name=note]').fill('يومان بعذر طبي');
   await clearToasts(admin);
@@ -93,8 +115,8 @@ test('a platform\'s own fields, the month imported and checked, a driver\'s mont
   await expect(admin.locator('.toast').last()).toContainText('اعتُمد الاستثناء');
   await settled(admin);
   const after = (await api.get(`/payroll/month-review?platform_id=${s.platform.id}&month=${MONTH}-01`)).rows.find((r) => r.employee.id === s.a.id);
-  expect([after.values, after.exceptions.map((e) => [e.kind, e.days, e.note]), after.missing]).toEqual([
-    { attendance_marks: '2.000' }, [['exception_day', 2, 'يومان بعذر طبي']], [],
+  expect([after.values, after.exceptions.map((e) => [e.kind, e.days, e.excuses, e.note]), after.missing]).toEqual([
+    { attendance_marks: '2.000' }, [['exception_day', 2, ['valid_days'], 'يومان بعذر طبي']], [],
   ]);
 });
 
@@ -170,4 +192,18 @@ test('a scheme from a template in the rules designer: reordered, a rule added, t
   await admin.locator(`[data-line="${s.a.id}"]`).first().click();
   await expect(top()).toContainText('مكافأة تجاوز التارجت');
   await expect(top()).toContainText('(603 − 310) × 0.500 = 146.500');
+  await admin.keyboard.press('Escape');
+
+  // ---- a personal rate on a scheme that does not use one: said in the dialog before saving
+  await admin.goto('/admin.html#/employees');
+  await settled(admin);
+  await search(admin, s.b.employee_number);
+  await admin.locator('#view tbody tr', { hasText: s.b.employee_number }).click();
+  await top().locator('[data-scheme-box] [data-scheme-set]').click();
+  const as = top();
+  await as.locator('[name=scheme]').selectOption(scheme.id);
+  await as.locator('[name=personal_rate]').fill('0.800');
+  await expect(as.locator('[data-rate-warning]')).toBeVisible();
+  await as.locator('[name=personal_rate]').fill('');
+  await expect(as.locator('[data-rate-warning]')).toBeHidden();
 });

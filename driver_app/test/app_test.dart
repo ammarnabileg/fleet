@@ -961,7 +961,7 @@ void main() {
     expect(body['extra'], {'grocery': 4, 'tips_cash': '1.500', 'uniform': true});
   });
 
-  testWidgets('a platform without its own fields sends the report as before (nothing extra)', (tester) async {
+  testWidgets('a platform without its own fields: the report as before, with an empty extra', (tester) async {
     final w = (await tester.runAsync(() => world()))!;
     final img = await tester.runAsync(testImage);
     Photos.gallery = () async => TakenPhoto(img!, DateTime.now());
@@ -986,7 +986,64 @@ void main() {
     await tester.tap(find.byKey(const Key('send-report')));
     await idle(tester);
     final body = jsonDecode(w.server.calls('/api/v1/driver/reports', method: 'POST').single.body) as Map;
-    expect((body['orders_count'], body.containsKey('extra')), (9, false));
+    expect(body['orders_count'], 9);
+    expect(body['extra'], <String, dynamic>{}); // it draws forms: the server may ask for a field
+  });
+
+  testWidgets('the platform asks a field this phone does not know yet: the form is read again and shows it', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    var asked = false; // the office added a required field after this phone read the form
+    w.server.on(
+      'GET',
+      '/api/v1/driver/reports/form',
+      (r) => (
+        200,
+        {
+          'fields': ['orders'],
+          'items': [
+            {
+              'key': 'orders',
+              'label': {'ar': 'عدد الطلبات'},
+              'type': 'int',
+              'builtin': 'orders',
+              'required': true,
+            },
+            if (asked)
+              {
+                'key': 'grocery',
+                'label': {'ar': 'طلبات البقالة'},
+                'type': 'int',
+                'builtin': null,
+                'required': true,
+              },
+          ],
+          'screenshot': false,
+        },
+      ),
+    );
+    w.server.on('POST', '/api/v1/driver/reports', (r) {
+      asked = true;
+      return (
+        422,
+        {
+          'code': 'field_required',
+          'status': 422,
+          'params': {'field': 'grocery'},
+        },
+      );
+    });
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('daily-report')));
+    await settle(tester);
+    expect(find.byKey(const Key('extra-grocery')), findsNothing);
+    await tester.enterText(find.byKey(const Key('orders')), '9');
+    await reveal(tester, find.byKey(const Key('send-report')));
+    await tester.tap(find.byKey(const Key('send-report')));
+    await idle(tester);
+    await settle(tester);
+    expect(find.byKey(const Key('extra-grocery')), findsOneWidget);
   });
 
   testWidgets('cash: balance and a receipt to confirm', (tester) async {

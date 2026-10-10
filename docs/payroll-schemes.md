@@ -574,12 +574,20 @@ the month below zero; the rest is the uncollected balance for review.
 The three operations the client named stay distinct: a fixed deduction (special-day violation), a deduction per
 missing order (missing orders), and a change of the price of all orders (price change).
 
+Two price changes outside one priority group are refused (each would take from the same base price); exceptions
+counted by an «approved exceptions» block are never counted again by a later block. A figure a block reads and the
+month does not have (the contract basic of a fixed salary from the contract, the valid days of invalid days, the star
+day of a special-day violation, the marks, lateness and absence of a commitment bonus) flags the line; a batch the
+scheme has no price for is priced as the highest batch below it and flags the line; a block that fails on one driver
+flags that line, the run goes on.
+
 **Conditions** come from a fixed list, combined with AND: star day missed, month invalid, a price changed earlier,
 a deduction earlier, marks, valid days, orders, late count, absent days (compared with a number), an approved
-exception (of a kind, or any), a batch in the month, any field of the platform. **On an exception** a block may
-neutralize the attendance facts (an accepted excuse or an approved exception day: no star day missed, the month
-valid, marks/lateness/absence less the excused days) or count the exception days as valid; a company data error
-replaces the month's figures by the corrected ones.
+exception (of a kind, or any), a batch in the month, any field of the platform. **An approved exception names what
+it excuses**, each on its own: the missed star day, marks, lateness, absence (less its number, or all of them), or
+days counted as valid (its number of days). **On an exception** a block applies those excuses (neutralize) or counts
+the valid days; an excuse never clears what it does not name, and a number of days never clears a missed star day. A
+company data error replaces the month's figures by the corrected ones.
 
 **Validation** refuses an unknown type, a missing or wrong parameter (money exact to the fils), a price change
 without a condition, an order that cannot work (a price change before anything priced the orders, a condition on a
@@ -607,5 +615,8 @@ month total is the sum of its numbers or the days answered yes; blocks read any 
 exceptions and problems, and the six stages: collect, check, policy, engine, review and approval (the reconciliation
 gate still applies), close. The partner's batch report (Rider ID, Batch No., Total Completed Deliveries; the rider by
 his platform driver ID) or a simple template imports a month after a check (unknown riders, rows twice, differing
-figures, conflicts with the approved daily orders, paid months); applying replaces each driver's rows for the month
-(platform, month, driver, batch), so the same file twice never adds up.
+figures, conflicts with the approved daily orders, paid months, rows it cannot read: none is applied in part, the
+file is corrected first). A month that already has batch rows takes another file only when «استبدال الشهر كله» is
+chosen: its batch rows are then replaced as a whole by the file's; the same file again changes nothing, so a month is
+never counted twice. The simple template may carry an approved exception (what it excuses, its days, its note), for
+a user who may approve payroll.

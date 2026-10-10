@@ -7,29 +7,48 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.modules.payroll import forms
+from app.modules.payroll.rules.catalog import EXCUSES
 from app.modules.payroll.rules.engine import Facts, MonthException, needs, run, validate
 
 SAMPLE_INTS = ("orders", "valid_days", "working_days", "attendance_marks", "late_count", "absent_days", "batch_level")
 
 
+LIMIT = Decimal(100000)
+
+
+def _num(v) -> Decimal:
+    """A sample figure: a finite number from 0 to 100000 (anything else is refused, never computed)."""
+    if isinstance(v, bool) or not isinstance(v, int | float | str | Decimal):
+        raise ValueError
+    d = Decimal(str(v))
+    if not d.is_finite() or d < 0 or d > LIMIT:
+        raise ValueError
+    return d
+
+
 def _sample(month: dict) -> Facts:
     try:
-        ints = {k: int(month[k]) for k in SAMPLE_INTS if month.get(k) not in (None, "")}
-        if any(v < 0 for v in ints.values()):
-            raise ValueError
+        ints = {k: int(_num(month[k])) for k in SAMPLE_INTS if month.get(k) not in (None, "")}
         star = month.get("star_day_failed")
-        batches = tuple((int(b["batch"]), int(b["orders"])) for b in month.get("batches") or [] if b.get("batch"))
-        tasks = {str(k): int(v) for k, v in (month.get("tasks") or {}).items()} or None
+        batches = tuple(
+            (int(_num(b["batch"])), int(_num(b["orders"]))) for b in month.get("batches") or [] if b.get("batch")
+        )
+        tasks = {str(k): int(_num(v)) for k, v in (month.get("tasks") or {}).items()} or None
         fields = {}
         for k, v in (month.get("fields") or {}).items():
-            fields[str(k)] = v if isinstance(v, bool) else Decimal(str(v))
+            fields[str(k)] = v if isinstance(v, bool) else _num(v)
         exceptions = tuple(
-            MonthException(e["kind"], int(e.get("days") or 0), dict(e.get("corrections") or {}))
+            MonthException(
+                e["kind"],
+                int(_num(e.get("days") or 0)),
+                dict(e.get("corrections") or {}),
+                tuple(x for x in e.get("excuses") or () if x in EXCUSES),
+            )
             for e in month.get("exceptions") or []
         )
 
         def money(k):
-            return Decimal(str(month[k])) if month.get(k) not in (None, "") else None
+            return _num(month[k]) if month.get(k) not in (None, "") else None
 
         return Facts(
             **{k: v for k, v in ints.items() if k != "batch_level"},
@@ -43,7 +62,7 @@ def _sample(month: dict) -> Facts:
             fields=fields,
             exceptions=exceptions,
         )
-    except (ValueError, TypeError, KeyError, InvalidOperation):
+    except (ValueError, TypeError, KeyError, InvalidOperation, OverflowError, AttributeError):
         raise AppError(422, "rule_sample_invalid") from None
 
 
@@ -91,7 +110,7 @@ def month_status(db: Session, *, month, all_companies: bool, company_ids) -> dic
     from app.modules.payroll import month as months
     from app.modules.payroll import platforms
     from app.modules.payroll.models import Line, Objection, Run, Statement, Uncollected
-    from app.modules.payroll.month_models import MonthImport
+    from app.modules.payroll.month_models import MonthValue
     from app.modules.payroll.service import month_start
 
     month = month_start(month)
@@ -111,7 +130,10 @@ def month_status(db: Session, *, month, all_companies: bool, company_ids) -> dic
     if not all_companies:
         q = q.where(Statement.company_id.in_(list(company_ids)))
     pending_statements = db.scalar(q)
-    imports = db.scalar(select(func.count()).select_from(MonthImport).where(MonthImport.month == month))
+    iq = select(func.count(func.distinct(MonthValue.import_id))).where(
+        MonthValue.month == month, MonthValue.import_id.is_not(None)
+    )  # the imports that touched the user's companies
+    imports = db.scalar(iq if all_companies else iq.where(MonthValue.company_id.in_(list(company_ids))))
     rq = select(Run).where(Run.month == month)
     if not all_companies:
         rq = rq.where(Run.company_id.in_(list(company_ids)))

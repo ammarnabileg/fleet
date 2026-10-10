@@ -32,8 +32,26 @@ def _missing(rules: Rules) -> list[dict]:
     ]
 
 
-def from_rules(rules: Rules) -> list[dict]:
-    """A scheme's calculator and numbers as blocks (floor_at_zero stays the version's own setting)."""
+COVER_KINDS = {"maintenance": "maintenance", "housing": "housing", "gas": "gas", "sim": "phone"}
+
+
+def covers(company_covers) -> list[dict]:
+    """What the scheme puts on the company, as expense blocks (informational, decision G): the parts that ask what
+    the company bears (fuel claims, maintenance) keep reading it from the blocks."""
+    return [
+        _block("expense", {"kind": COVER_KINDS[c], "responsibility": "company"})
+        for c in ("maintenance", "housing", "gas", "sim")
+        if c in (company_covers or [])
+    ]
+
+
+def from_rules(rules: Rules, company_covers=()) -> list[dict]:
+    """A scheme's calculator and numbers as blocks, with what it puts on the company (floor_at_zero stays the
+    version's own setting)."""
+    return _from_rules(rules) + covers(company_covers)
+
+
+def _from_rules(rules: Rules) -> list[dict]:
     calc, steps = rules.calculator, rules.steps
     if calc == "per_order":
         return [_block("per_order", {"rate": _m(rules.per_order), "source": "orders"}), *_missing(rules)]

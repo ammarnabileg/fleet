@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/state.dart';
+import '../../core/errors.dart';
 import '../../core/models.dart';
 import '../../core/outbox.dart';
 import '../photos.dart';
@@ -46,11 +47,10 @@ class _ReportScreenState extends State<ReportScreen> {
 
   TextEditingController _text(String key) => _typed.putIfAbsent(key, TextEditingController.new);
 
-  /// What the driver filled in his platform's own fields; null when the platform has none (nothing is sent, so an
-  /// older server is not asked about a field it does not know).
-  Map<String, dynamic>? get _extra {
+  /// What the driver filled in his platform's own fields, always sent (empty when it has none): it tells the server
+  /// this app draws the platform's form, so a required field is never skipped (an older app sends none).
+  Map<String, dynamic> get _extra {
     final custom = widget.state.reportForm.custom;
-    if (custom.isEmpty) return null;
     final out = <String, dynamic>{};
     for (final f in custom) {
       switch (f.type) {
@@ -132,9 +132,27 @@ class _ReportScreenState extends State<ReportScreen> {
         Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ResultScreen(result: result)));
       }
     } catch (e) {
+      await _formChanged(e);
       if (mounted) showError(context, widget.state, e);
     }
   }
+
+  /// The platform asks a field this phone's form does not have yet (changed in the dashboard): the form is read
+  /// again, so the driver fills it and sends once more.
+  Future<void> _formChanged(Object e) async {
+    final known = widget.state.reportForm.custom.map((f) => f.key).toSet();
+    if (e is ApiError && e.code == 'field_required') {
+      final field = e.params['field'];
+      if (field is String && !known.contains(field) && !_builtin.contains(field)) {
+        try {
+          await widget.state.loadReports();
+        } catch (_) {}
+        if (mounted) setState(() {});
+      }
+    }
+  }
+
+  static const _builtin = {'orders_count', 'cash_amount', 'valid_day', 'screenshot_sha256'};
 
   /// Business days follow Kuwait time (UTC+3, no daylight saving), like the server.
   String _day(int back) {
@@ -189,6 +207,7 @@ class _ReportScreenState extends State<ReportScreen> {
       );
       if (mounted) Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ResultScreen(result: r)));
     } catch (e) {
+      await _formChanged(e);
       if (mounted) showError(context, widget.state, e);
     }
   }

@@ -140,9 +140,8 @@ def test_the_app_draws_the_platforms_daily_form_and_older_apps_keep_working(admi
     assert r.status_code == 422 and r.json()["params"]["field"] == "grocery"  # a newer app: required is required
     r = send(client, h, today(), orders_count=10, valid_day=True, extra={"grocery": 2, "zone": "east"})
     assert r.status_code == 422 and r.json()["code"] == "field_invalid"
-    r = send(client, h, today(), orders_count=10, valid_day=True, extra={"grocery": 2, "speed": 1})
-    assert r.status_code == 422 and r.json()["code"] == "field_unknown"
-    extra = {"grocery": 4, "tips_cash": "1.250", "uniform": True, "zone": "north"}
+    # a field the platform no longer asks (an app with an older form) is dropped, never a refusal
+    extra = {"grocery": 4, "tips_cash": "1.250", "uniform": True, "zone": "north", "speed": 1}
     r = send(client, h, today(), orders_count=10, valid_day=True, extra=extra)
     assert r.status_code == 201, r.text
     assert r.json()["extra"] == {"grocery": 4, "tips_cash": "1.250", "uniform": True, "zone": "north"}
@@ -234,7 +233,13 @@ def test_exceptions_are_approved_with_a_note_and_cancelled_never_deleted(admin_c
     d = make_driver(admin_client, company["id"], platform_id=keeta["id"])
     base = {"employee_id": d["id"], "month": str(MONTH)}
     r = admin_client.post(f"{P}/month-exceptions", json=base | {"kind": "exception_day", "days": 2, "note": "مرض"})
+    assert r.status_code == 422 and r.json()["params"]["field"] == "excuses"  # what it excuses is said
+    no_days = {"kind": "exception_day", "excuses": ["valid_days"], "note": "مرض"}
+    assert admin_client.post(f"{P}/month-exceptions", json=base | no_days).json()["params"]["field"] == "days"
+    day = {"kind": "exception_day", "days": 2, "excuses": ["valid_days"], "note": "مرض"}
+    r = admin_client.post(f"{P}/month-exceptions", json=base | day)
     assert r.status_code == 201 and r.json()["approved_by"] and r.json()["days"] == 2, r.text
+    assert r.json()["excuses"] == ["valid_days"]
     first = r.json()["id"]
     r = admin_client.post(f"{P}/month-exceptions", json=base | {"kind": "company_error", "note": "خطأ في التقرير"})
     assert r.status_code == 422 and r.json()["params"]["field"] == "corrections"
@@ -242,6 +247,8 @@ def test_exceptions_are_approved_with_a_note_and_cancelled_never_deleted(admin_c
         f"{P}/month-exceptions", json=base | {"kind": "accepted_excuse", "note": "عذر", "corrections": {"orders": 1}}
     )
     assert r.status_code == 422
+    wrong = {"kind": "company_error", "note": "خطأ", "corrections": {"orders": 1}, "excuses": ["marks"]}
+    assert admin_client.post(f"{P}/month-exceptions", json=base | wrong).json()["params"]["field"] == "excuses"
     fix = {
         "kind": "company_error",
         "note": "صححت المنصة الرقم",
@@ -266,7 +273,8 @@ def test_exceptions_are_approved_with_a_note_and_cancelled_never_deleted(admin_c
     make_user(admin_client, "preparer", permissions=["payroll.view", "payroll.prepare"])
     c = new_client()
     login(c, "preparer")  # approving an exception is an approval
-    assert c.post(f"{P}/month-exceptions", json=base | {"kind": "accepted_excuse", "note": "عذر"}).status_code == 403
+    excuse = {"kind": "accepted_excuse", "excuses": ["star_day"], "note": "عذر"}
+    assert c.post(f"{P}/month-exceptions", json=base | excuse).status_code == 403
 
 
 # ------------------------------------------------------------------ the month from Excel
@@ -281,10 +289,10 @@ def xlsx(rows) -> bytes:
     return buf.getvalue()
 
 
-def post_file(admin_client, path, data, p, fmt="partner_batches", month=MONTH):
+def post_file(admin_client, path, data, p, fmt="partner_batches", month=MONTH, replace=False):
     return admin_client.post(
         f"{P}/{path}",
-        data={"platform_id": str(p["id"]), "month": str(month), "format": fmt},
+        data={"platform_id": str(p["id"]), "month": str(month), "format": fmt, "replace_month": str(replace).lower()},
         files={"file": ("month.xlsx", data, "application/octet-stream")},
     )
 
@@ -339,8 +347,13 @@ def test_the_partners_batch_report_is_checked_then_applied_once(admin_client, cl
     row = next(x for x in review["rows"] if x["employee"]["id"] == a["id"])
     assert "orders_conflict" in row["problems"]
 
-    # a corrected report next week: the driver's rows are the file's (batch 2 gone)
-    post_file(admin_client, "month-imports", xlsx([PARTNER, ["R-1", 4, 150]]), keeta)
+    # a corrected report next week: refused as long as «استبدال الشهر كله» is not chosen; then the month's batch rows
+    # are the file's, all of them (batch 2 gone)
+    corrected = xlsx([PARTNER, ["R-1", 4, 150], ["R-2", 1, 200]])
+    c = post_file(admin_client, "month-imports/check", corrected, keeta).json()
+    assert c["blocking"] and c["reasons"] == ["month_has_batches"] and c["existing_batches"] == 3
+    assert post_file(admin_client, "month-imports", corrected, keeta).json()["code"] == "month_import_blocked"
+    assert post_file(admin_client, "month-imports", corrected, keeta, replace=True).status_code == 201
     review = admin_client.get(f"{P}/month-review", params={"platform_id": keeta["id"], "month": str(MONTH)}).json()
     row = next(x for x in review["rows"] if x["employee"]["id"] == a["id"])
     assert row["batches"] == [{"batch": 4, "orders": 150}] and "orders_conflict" not in row["problems"]
@@ -362,7 +375,7 @@ def test_the_simple_template(admin_client, company, keeta):
     headers = [c.value for c in openpyxl.load_workbook(io.BytesIO(r.content)).active[1]]
     assert headers == [
         "platform_driver_id", "civil_id", "month", "batch", "batch_orders", "attendance_marks", "star_day_failed",
-        "rating", "pharmacy", "parcel",
+        "rating", "pharmacy", "parcel", "exception_kind", "exception_days", "exception_excuses", "exception_note",
     ]  # fmt: skip
     other = MONTH.replace(year=MONTH.year - 1)
     data = xlsx(
@@ -389,3 +402,43 @@ def test_the_platform_form_and_the_field_list_agree(admin_client, keeta):
     assert r.status_code == 200, r.text
     f = admin_client.get(f"{P}/platforms/{keeta['id']}/fields").json()
     assert [x["key"] for x in f["daily"]] == ["cash", "grocery", "tips_cash", "uniform", "zone"] and f["version"] == 2
+
+
+def test_a_file_with_a_row_it_cannot_read_is_never_applied_in_part(admin_client, company, keeta, owner_db, new_client):
+    d = make_driver(admin_client, company["id"], platform_id=keeta["id"], civil_id="290010100021")
+    headers = admin_client.get(f"{P}/month-imports/template", params={"platform_id": keeta["id"]})
+    headers = [c.value for c in openpyxl.load_workbook(io.BytesIO(headers.content)).active[1]]
+    blank = dict.fromkeys(headers)
+
+    def row(**v):
+        return [(blank | {"civil_id": "290010100021", "month": MONTH.strftime("%Y-%m")} | v)[h] for h in headers]
+
+    # the batch is fine, the marks are not a number: nothing of the row (nor of the file) is applied
+    half = xlsx([headers, row(batch=3, batch_orders=80, attendance_marks="three")])
+    c = post_file(admin_client, "month-imports/check", half, keeta, fmt="generic").json()
+    assert c["blocking"] and "invalid_rows" in c["reasons"] and c["invalid"][0]["row"] == 2 and not c["drivers"]
+    assert post_file(admin_client, "month-imports", half, keeta, fmt="generic").status_code == 409
+    batch0 = xlsx([PARTNER, ["R-0", 0, 10]])
+    assert post_file(admin_client, "month-imports/check", batch0, keeta).json()["reasons"][0] == "invalid_rows"
+    assert not owner_db.execute(text("SELECT count(*) FROM payroll.month_values")).scalar()
+
+    # an approved exception from the file, with what it excuses and its note: once, whatever the imports
+    excused = xlsx([headers, row(exception_kind="accepted_excuse", exception_excuses="star_day, marks",
+                                 exception_days=1, exception_note="ورقة طبية")])  # fmt: skip
+    make_user(admin_client, "preparer2", permissions=["payroll.view", "payroll.prepare"])
+    c = new_client()
+    login(c, "preparer2")
+    check = post_file(c, "month-imports/check", excused, keeta, fmt="generic").json()
+    assert check["reasons"] == ["exceptions_need_approval"]  # an exception is an approval
+    for _ in range(2):
+        assert post_file(admin_client, "month-imports", excused, keeta, fmt="generic").status_code == 201
+    review = admin_client.get(f"{P}/month-review", params={"platform_id": keeta["id"], "month": str(MONTH)}).json()
+    found = next(x for x in review["rows"] if x["employee"]["id"] == d["id"])["exceptions"]
+    assert [(x["kind"], x["excuses"], x["days"], x["note"]) for x in found] == [
+        ("accepted_excuse", ["marks", "star_day"], 1, "ورقة طبية")
+    ]
+    no_excuse = xlsx([headers, row(exception_kind="accepted_excuse", exception_note="بلا شيء")])
+    assert (
+        "invalid_rows"
+        in post_file(admin_client, "month-imports/check", no_excuse, keeta, fmt="generic").json()["reasons"]
+    )

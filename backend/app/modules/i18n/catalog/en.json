@@ -564,7 +564,9 @@
     "scheme_designed": "This scheme's rules are built in the rules designer: change them there, as a new version from a month.",
     "rule_template_not_found": "Template not found.",
     "uncollected_carried_taken": "The run cannot be reopened: a deduction carried from its uncollected balance ({month}) was already taken by an approved run",
-    "deduction_partly_taken": "An approved run already took part of this deduction"
+    "deduction_partly_taken": "An approved run already took part of this deduction",
+    "rule_price_change_twice": "Rule {position}: a second price change would take from the same base price twice; put the price changes in one priority group (the first that holds applies).",
+    "rule_exception_twice": "Rule {position}: the exceptions were already counted by «approved exceptions» above it; they are never counted twice."
   },
   "settings": {
     "branding": "Branding",
@@ -980,7 +982,9 @@
     "scheme_missing": "The driver has no pay scheme this month",
     "figures_missing": "The month's figures his scheme needs are missing (batch level, marks or star day)",
     "days_unclassified": "Days without a start of day not marked yet: an absence among them is not deducted until marked",
-    "uncollected": "Penalties above the pay: the net is zero and the rest is an uncollected balance for review"
+    "uncollected": "Penalties above the pay: the net is zero and the rest is an uncollected balance for review",
+    "rules_error": "The scheme's rules failed for this driver",
+    "rules_incomplete": "The scheme's rules do not price everything (a batch without a price)"
   },
   "driver_field": {
     "valid_days": "Valid days",
@@ -1024,6 +1028,13 @@
     "tier_bonus": "Bonus from a number of orders",
     "marks_deduction": "Deduction from a number of marks",
     "marks_reduce": "Reduced price from a number of marks"
+  },
+  "rule_excuse": {
+    "star_day": "The missed star day",
+    "marks": "Attendance marks",
+    "lateness": "Lateness",
+    "absence": "Absence",
+    "valid_days": "Counted as valid days"
   },
   "rule_category": {
     "pay": "Pay",
@@ -1172,7 +1183,11 @@
     "hours": "Hours",
     "attendance_marks": "Attendance marks",
     "late_count": "Late count",
-    "absent_days": "Absent days"
+    "absent_days": "Absent days",
+    "basic_salary": "Contract basic salary",
+    "star_day_failed": "Star day",
+    "batches": "Orders by batch",
+    "tasks": "Tasks by type"
   },
   "rule_trace": {
     "condition_not_met": "Condition not met",
@@ -1195,7 +1210,8 @@
     "at_threshold": "Exactly at the threshold",
     "below_tiers": "Below the first tier",
     "no_batches": "No orders by batch",
-    "applied": "Applied"
+    "applied": "Applied",
+    "batch_rate_missing": "A batch the scheme has no price for: priced as the highest batch below it, the line held for review"
   },
   "expense": {
     "maintenance": "Maintenance",

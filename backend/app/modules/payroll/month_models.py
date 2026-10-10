@@ -21,7 +21,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -104,6 +104,9 @@ class MonthException(Base):
         CheckConstraint("days BETWEEN 0 AND 31", name="days"),
         CheckConstraint("length(btrim(note)) >= 3", name="note"),
         CheckConstraint("(cancelled_at IS NULL) = (cancelled_by IS NULL)", name="cancelled"),
+        CheckConstraint(
+            "excuses <@ ARRAY['star_day', 'marks', 'lateness', 'absence', 'valid_days']::text[]", name="excuses"
+        ),
         Index("month_exceptions_month_idx", "month", "employee_id"),
         SCHEMA,
     )
@@ -116,6 +119,7 @@ class MonthException(Base):
     kind: Mapped[str] = mapped_column(Text)
     days: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
     corrections: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    excuses: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))  # what it excuses
     note: Mapped[str] = mapped_column(Text)
     approved_by: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

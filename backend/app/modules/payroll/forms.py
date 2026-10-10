@@ -5,6 +5,7 @@ an app that knows only those keeps working; any other field is the platform's ow
 The rule blocks read these fields: a count field as a block's source (price per unit, tiers, overage), a yes/no field
 in a condition. A daily field's month total is the sum of its numbers, or the days answered yes."""
 
+import logging
 import re
 from decimal import Decimal, InvalidOperation
 
@@ -17,6 +18,7 @@ from app.modules.i18n import service as i18n
 from app.modules.payroll.models import Platform
 from app.modules.payroll.month_models import PlatformForm
 
+log = logging.getLogger("fleet.payroll")
 DAILY_BUILTINS = {"orders": "int", "cash": "money", "valid_day": "bool"}
 MONTHLY_BUILTINS = {
     "attendance_marks": "int",
@@ -217,8 +219,8 @@ def check_daily_extra(db: Session, platform_id: int | None, extra: dict | None, 
         return {}
     known = {x["key"]: x for x in items}
     unknown = sorted(set(extra) - set(known))
-    if unknown:
-        raise AppError(422, "field_unknown", field=unknown[0])
+    if unknown:  # a field the platform no longer asks (an app with an older form): dropped, never a refusal
+        log.warning("daily report: fields no longer asked dropped: %s", ", ".join(unknown))
     out = {}
     for key, it in known.items():
         raw = extra.get(key)

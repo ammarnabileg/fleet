@@ -124,7 +124,9 @@ def facts(
         basic_salary=basic_salary,
         personal_rate=personal_rate,
         fields={**inputs.daily, **custom},
-        exceptions=tuple(Excused(e.kind, e.days, dict(e.corrections or {})) for e in inputs.exceptions),
+        exceptions=tuple(
+            Excused(e.kind, e.days, dict(e.corrections or {}), tuple(e.excuses or ())) for e in inputs.exceptions
+        ),
     )
 
 
@@ -310,6 +312,7 @@ def _exception_out(x: MonthException, users: dict) -> dict:
         "id": str(x.public_id),
         "kind": x.kind,
         "days": x.days,
+        "excuses": list(x.excuses or []),
         "corrections": x.corrections,
         "note": x.note,
         "approved_by": users.get(x.approved_by),
@@ -339,6 +342,13 @@ def add_exception(db: Session, public_id, *, month: date, data: dict, actor_user
             corrections[k] = bool(value) if kind == "bool" else (int(value) if kind == "int" else str(value))
     elif corrections:
         raise AppError(422, "field_invalid", field="corrections")
+    excuses = list(dict.fromkeys(data.get("excuses") or []))
+    if data["kind"] == "company_error" and excuses:
+        raise AppError(422, "field_invalid", field="excuses")  # a data error corrects figures, it excuses nothing
+    if data["kind"] != "company_error" and not excuses:
+        raise AppError(422, "field_required", field="excuses")  # what it excuses is said, never assumed
+    if "valid_days" in excuses and not data.get("days"):
+        raise AppError(422, "field_required", field="days")  # how many days count as valid
     x = MonthException(
         employee_id=e.id,
         company_id=e.company_id,
@@ -346,6 +356,7 @@ def add_exception(db: Session, public_id, *, month: date, data: dict, actor_user
         kind=data["kind"],
         days=data.get("days") or 0,
         corrections=corrections,
+        excuses=excuses,
         note=data["note"],
         approved_by=actor_user_id,
     )
@@ -359,7 +370,14 @@ def add_exception(db: Session, public_id, *, month: date, data: dict, actor_user
         entity_id=e.public_id,
         actor_user_id=actor_user_id,
         company_id=e.company_id,
-        after={"month": month.isoformat(), "kind": x.kind, "days": x.days, "corrections": corrections, "note": x.note},
+        after={
+            "month": month.isoformat(),
+            "kind": x.kind,
+            "days": x.days,
+            "excuses": excuses,
+            "corrections": corrections,
+            "note": x.note,
+        },
     )
     db.commit()
     return _exception_out(x, identity.user_names(db, {actor_user_id}))

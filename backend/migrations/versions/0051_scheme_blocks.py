@@ -83,6 +83,18 @@ def blocks_of(calc: str, v: dict) -> list[dict]:
     return []  # platform_rates: the platform's own rule, as before
 
 
+COVER_KINDS = {"maintenance": "maintenance", "housing": "housing", "gas": "gas", "sim": "phone"}
+
+
+def covers_of(v: dict) -> list[dict]:
+    """What the version puts on the company, as informational expense blocks (the fuel claims read them)."""
+    return [
+        _block("expense", {"kind": COVER_KINDS[c], "responsibility": "company"})
+        for c in ("maintenance", "housing", "gas", "sim")
+        if c in (v["company_covers"] or [])
+    ]
+
+
 def upgrade() -> None:
     op.execute(SQL)
     bind = op.get_bind()
@@ -105,6 +117,7 @@ def upgrade() -> None:
         blocks = blocks_of(calc, dict(latest))
         if not blocks:
             continue
+        blocks += covers_of(dict(latest))
         paid = bind.execute(
             sa.text(
                 "SELECT max(r.month) FROM payroll.lines l JOIN payroll.runs r ON r.id = l.run_id "

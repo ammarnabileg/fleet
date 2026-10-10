@@ -73,6 +73,9 @@ CREATE TABLE payroll.month_exceptions (
                      CHECK (kind IN ('accepted_excuse', 'company_error', 'exception_day')),
     days         smallint NOT NULL DEFAULT 0 CONSTRAINT month_exceptions_days_check CHECK (days BETWEEN 0 AND 31),
     corrections  jsonb NOT NULL DEFAULT '{}'::jsonb,  -- company_error: {field: corrected value}
+    -- what it excuses, each on its own (an excuse never clears what it does not name)
+    excuses      text[] NOT NULL DEFAULT '{}' CONSTRAINT month_exceptions_excuses_check
+                     CHECK (excuses <@ ARRAY['star_day', 'marks', 'lateness', 'absence', 'valid_days']::text[]),
     note         text NOT NULL CONSTRAINT month_exceptions_note_check CHECK (length(btrim(note)) >= 3),
     approved_by  bigint NOT NULL,
     created_at   timestamptz NOT NULL DEFAULT now(),

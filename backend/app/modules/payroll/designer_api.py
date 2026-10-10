@@ -98,12 +98,22 @@ def check_import(
     platform_id: int = Form(...),
     month_: date = Form(..., alias="month"),
     format: Format = Form("partner_batches"),
+    replace_month: bool = Form(False),
     principal: Principal = Depends(require_permission("payroll.prepare")),
     db: Session = Depends(get_session),
 ):
-    """What the file would change, before anything is applied."""
+    """What the file would change, and what stops it, before anything is applied."""
     data = files.read_upload(file)
-    return month_import.check(db, platform_id=platform_id, month_=month_, fmt=format, data=data, **principal.scope)
+    return month_import.check(
+        db,
+        platform_id=platform_id,
+        month_=month_,
+        fmt=format,
+        data=data,
+        replace_month=replace_month,
+        approver=principal.has("payroll.approve"),  # the exceptions a file carries are approvals
+        **principal.scope,
+    )
 
 
 @router.post("/month-imports", status_code=201)
@@ -112,6 +122,7 @@ def apply_import(
     platform_id: int = Form(...),
     month_: date = Form(..., alias="month"),
     format: Format = Form("partner_batches"),
+    replace_month: bool = Form(False),  # «استبدال الشهر كله»: the month's batch rows replaced by the file's
     principal: Principal = Depends(require_permission("payroll.prepare")),
     db: Session = Depends(get_session),
 ):
@@ -124,6 +135,8 @@ def apply_import(
         data=data,
         file_name=file.filename,
         actor_user_id=principal.user_id,
+        replace_month=replace_month,
+        approver=principal.has("payroll.approve"),
         **principal.scope,
     )
 

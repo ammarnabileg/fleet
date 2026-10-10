@@ -217,25 +217,41 @@ def test_within_a_priority_group_the_first_rule_that_holds_applies():
     assert lines(out)[1:] == [("monthly_bonus", D("40.000"))] and out.trace[-1]["skipped"] == "group_done"
 
 
-def test_exceptions_neutralize_count_as_valid_or_correct_the_figures():
-    excuse = (MonthException("accepted_excuse", days=1),)
+def test_exceptions_excuse_only_what_they_name():
+    star_excuse = (MonthException("accepted_excuse", excuses=("star_day",)),)
     star = blk("star_day", on_exception="neutralize")
     special = blk("special_day_violation", amount="100")
     assert go([PAY, star, special], orders=0, star_day_failed=True).uncovered == D("100.000")
-    out = go([PAY, star, special], orders=0, star_day_failed=True, exceptions=excuse)
-    assert lines(out) == [("orders_pay", D("0.000"))]  # the excuse: the star day does not make the month invalid
+    out = go([PAY, star, special], orders=0, star_day_failed=True, exceptions=star_excuse)
+    assert lines(out) == [("orders_pay", D("0.000"))]  # the excuse names the star day: the month stays valid
     plain = blk("star_day")  # without the behaviour, the excuse changes nothing
-    assert lines(go([PAY, plain, special], orders=1000, star_day_failed=True, exceptions=excuse))[1][1] == D("-100.000")
+    assert lines(go([PAY, plain, special], orders=1000, star_day_failed=True, exceptions=star_excuse))[1][1] == D(
+        "-100.000"
+    )
+    # an exception that excuses other things, or counts days, never clears a missed star day
+    for other in (
+        MonthException("accepted_excuse", days=2, excuses=("marks",)),
+        MonthException("exception_day", days=3, excuses=("valid_days",)),
+    ):
+        out = go([PAY, star, special], orders=1000, star_day_failed=True, exceptions=(other,))
+        assert lines(out)[1] == ("special_day_deduction", D("-100.000")), other
 
     marks = blk("attendance_marks", on_exception="neutralize", mode="per_mark", amount="20")
-    assert lines(go([PAY, marks], orders=1000, attendance_marks=3, exceptions=excuse))[1][1] == D("-40.000")  # 3 - 1
-    whole = (MonthException("exception_day"),)  # no number of days: the whole month
-    assert len(go([PAY, marks], orders=0, attendance_marks=3, exceptions=whole).items) == 1
+    one_mark = (MonthException("accepted_excuse", days=1, excuses=("marks",)),)
+    assert lines(go([PAY, marks], orders=1000, attendance_marks=3, exceptions=one_mark))[1][1] == D("-40.000")  # 3-1
+    all_marks = (MonthException("accepted_excuse", excuses=("marks",)),)  # no number: all of them
+    assert len(go([PAY, marks], orders=0, attendance_marks=3, exceptions=all_marks).items) == 1
+    assert lines(go([PAY, marks], orders=1000, attendance_marks=3, exceptions=star_excuse))[1][1] == D("-60.000")
+    late = blk("lateness", on_exception="neutralize", amount="2")
+    lateness = (MonthException("accepted_excuse", days=2, excuses=("lateness",)),)
+    assert lines(go([PAY, late], orders=1000, late_count=5, exceptions=lateness))[1][1] == D("-6.000")  # 5 - 2
 
     req = blk("required_days", on_exception="count_valid", days=28, deduction="fixed", amount="10")
-    days = (MonthException("exception_day", days=2),)
+    days = (MonthException("exception_day", days=2, excuses=("valid_days",)),)
     assert len(go([PAY, req], orders=0, valid_days=26, exceptions=days).items) == 1  # 26 + 2 approved days
     assert len(go([PAY, req], orders=100, valid_days=25, exceptions=days).items) == 2
+    excused_marks = (MonthException("accepted_excuse", days=2, excuses=("marks",)),)
+    assert len(go([PAY, req], orders=100, valid_days=26, exceptions=excused_marks).items) == 2  # not valid days
     counted = [
         blk("exception_days", effect="count_valid"),
         PAY,
@@ -248,6 +264,29 @@ def test_exceptions_neutralize_count_as_valid_or_correct_the_figures():
     assert lines(out) == [("orders_pay", D("157.500"))] and out.trace[0]["info"] == "corrected"
     flagged = blk("monthly_bonus", [{"fact": "has_exception", "op": "has", "value": "company_error"}], amount="1")
     assert len(go([PAY, flagged], orders=1, exceptions=error).items) == 2
+
+
+def test_exceptions_are_never_counted_twice_and_price_changes_never_stack():
+    counted = blk("exception_days", effect="count_valid")
+    req = blk("required_days", on_exception="count_valid", days=28, deduction="fixed", amount="10")
+    with pytest.raises(AppError) as e:
+        validate([counted, PAY, req])
+    assert e.value.code == "rule_exception_twice" and e.value.params["position"] == 3
+    excuse = blk("exception_days", effect="excuse_attendance")
+    with pytest.raises(AppError) as e:
+        validate([excuse, PAY, blk("star_day", on_exception="neutralize")])
+    assert e.value.code == "rule_exception_twice"
+    assert validate([counted, PAY, blk("star_day", on_exception="neutralize")])  # another effect: fine
+    assert validate([PAY, req, counted])  # after the block: it read the figures before the exceptions
+
+    a = blk("price_change", COND_STAR, rate="0.200", mode="separate")
+    b = blk("price_change", [{"fact": "marks", "op": "gt", "value": 4}], rate="0.100", mode="separate")
+    with pytest.raises(AppError) as e:
+        validate([PAY, a, b])
+    assert e.value.code == "rule_price_change_twice" and e.value.params["position"] == 3
+    grouped = validate([PAY, a | {"group": "reduced"}, b | {"group": "reduced"}])
+    out = run(grouped, Facts(orders=100, star_day_failed=True, attendance_marks=6))
+    assert net(out) == D("20.000")  # the first that holds, once: 100 x 0.200
 
 
 def test_the_floor_at_the_end_shows_what_could_not_be_taken():
@@ -272,7 +311,7 @@ def test_keeta_as_actually_paid():
     assert lines(out)[1:3] == [("marks_deduction", D("-40.000")), ("special_day_deduction", D("-100.000"))]
     assert (out.pay, out.penalties, out.uncovered) == (D("120.000"), D("120.000"), D("20.000"))
     excused = run(blocks, Facts(orders=310, attendance_marks=0, star_day_failed=True, basic_salary=D("120"),
-                                exceptions=(MonthException("accepted_excuse"),)))  # fmt: skip
+                                exceptions=(MonthException("accepted_excuse", excuses=("star_day",)),)))  # fmt: skip
     assert net(excused) == D("120.000")
 
 
@@ -305,7 +344,7 @@ def test_plan_document_templates_with_decisions_a_to_j():
     assert (r.pay, r.penalties, r.uncovered) == (D("20.000"), D("20.000"), D("92.000"))
     assert lines(keeta(710))[1] == ("tier_bonus", D("200.000")) and lines(keeta(709))[1][1] == D("130.000")  # H
     assert net(keeta(450, valid_days=20)) == net(keeta(450))  # E: fewer valid days, nothing extra
-    excused = keeta(480, star=True, exceptions=(MonthException("exception_day"),))
+    excused = keeta(480, star=True, exceptions=(MonthException("accepted_excuse", excuses=("star_day",)),))
     assert net(excused) == D("218.000")  # the star day excused: 480 x 0.350 + tier 50
 
     assert run(tpl("talabat_fixed_550"), Facts(orders=400)).pay == D("220.000")  # F: no missing-target deduction
@@ -468,12 +507,58 @@ def test_validation_names_the_block_and_stores_the_params_exactly():
 
 def test_missing_figures_are_named_never_guessed():
     blocks = tpl("keeta_plan")
-    assert needs(blocks, Facts(orders=10)) == ["star_day_failed", "attendance_marks", "valid_days"]
+    assert needs(blocks, Facts(orders=10)) == ["star_day_failed", "attendance_marks"]  # 28 days: for information
     assert needs(blocks, Facts(orders=10, attendance_marks=0, star_day_failed=False, valid_days=3)) == []
     assert needs(tpl("talabat_batch_paid"), Facts(orders=10)) == ["batches"]
     assert needs(tpl("talabat_batch_paid"), Facts(orders=10, personal_rate=D("1"))) == []
     custom = validate([blk("per_order", rate="1", source="trips")], sources={"trips"})
     assert needs(custom, Facts(orders=1)) == ["trips"] and needs(custom, Facts(fields={"trips": 3})) == []
+
+
+def test_a_figure_a_block_reads_is_needed_never_taken_as_zero():
+    contract = validate([blk("fixed_salary", mode="contract")])
+    assert needs(contract, Facts()) == ["basic_salary"] and needs(contract, Facts(basic_salary=D("0"))) == []
+    daily = validate([PAY, blk("absence", mode="daily_wage")])
+    assert needs(daily, Facts(orders=1, absent_days=1)) == ["basic_salary"]
+    own = validate([blk("fixed_salary", mode="amount", amount="300"), blk("absence", mode="daily_wage")])
+    assert needs(own, Facts(absent_days=1)) == []  # the daily wage of the fixed salary above
+    invalid = validate([PAY, blk("invalid_days", mode="daily_wage")])
+    assert needs(invalid, Facts(orders=1, working_days=26)) == ["valid_days", "basic_salary"]
+    fixed = validate([PAY, blk("invalid_days", mode="fixed", amount="5")])
+    assert needs(fixed, Facts(orders=1, working_days=26)) == ["valid_days"]
+    special = validate([PAY, blk("special_day_violation", amount="100", when="star_day_failed")])
+    assert needs(special, Facts(orders=1)) == ["star_day_failed"]
+    commit = validate([PAY, blk("commitment_bonus", amount="5")])
+    assert needs(commit, Facts(orders=1, attendance_marks=0)) == ["late_count", "absent_days"]
+    assert needs(validate([PAY, blk("commitment_bonus", amount="5", require_clean=False)]), Facts(orders=1)) == []
+
+
+def test_a_batch_without_a_price_is_flagged():
+    rates = blk("batch_rate", rates=[{"batch": 1, "rate": "0.700"}, {"batch": 3, "rate": "0.600"}])
+    out = run(validate([rates]), Facts(batches=((2, 10), (3, 10))))
+    assert out.pay == D("13.000") and out.problems == ["batch_rate_missing"]  # 2 priced as 1, and said
+    assert any(t.get("info") == "batch_rate_missing" and t["batch"] == 2 for t in out.trace)
+    assert run(validate([rates]), Facts(batches=((1, 10),))).problems == []
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        [blk("fixed_salary", mode="amount", amount="300"), blk("absence", mode="daily_wage", divisor=0)],
+        [PAY, blk("invalid_days", mode="daily_wage", divisor=32)],
+        [blk("batch_rate", rates=[{"batch": 0, "rate": "0.5"}])],
+        [PAY, blk("required_days", days=0)],
+        [{"type": ["per_order"], "params": {"rate": "1"}}],
+        [PAY, blk("monthly_bonus", [{"fact": ["orders"], "op": "gt", "value": 1}], amount="1")],
+        [PAY, blk("monthly_bonus", [{"fact": "orders", "op": "gt", "value": "Infinity"}], amount="1")],
+        [blk("per_order", rate="NaN")],
+        [blk("per_order", rate={"x": 1})],
+    ],
+)
+def test_wrong_values_are_refused_never_a_server_error(bad):
+    with pytest.raises(AppError) as e:
+        validate(bad)
+    assert e.value.status == 422
 
 
 def test_every_block_param_choice_fact_and_line_has_its_labels():

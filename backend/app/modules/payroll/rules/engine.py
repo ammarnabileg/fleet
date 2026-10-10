@@ -35,8 +35,9 @@ class MonthException:
     figures, or a day approved as an exception. Entered in month review (or imported), with a note and who approved."""
 
     kind: str
-    days: int = 0  # how many days (or marks) it covers; 0: the whole month
+    days: int = 0  # how many days (or marks, late counts) it covers; 0: all of them
     corrections: dict = field(default_factory=dict)  # company_error: {fact: corrected value}
+    excuses: tuple = ()  # what it excuses, each on its own: star_day | marks | lateness | absence | valid_days
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,7 @@ class Outcome:
     penalties: Decimal
     uncovered: Decimal
     trace: list[dict]
+    problems: list[str] = field(default_factory=list)  # what the blocks could not price (the line is flagged)
 
 
 # ------------------------------------------------------------------ validation
@@ -96,11 +98,13 @@ def _money(v) -> str:
     return str(d.quantize(Decimal("0.001")))
 
 
-def _int(v) -> int:
-    if isinstance(v, bool):
+def _int(v, low: int | None = None, high: int | None = None) -> int:
+    if isinstance(v, bool) or not isinstance(v, int | float | str | Decimal):
         raise ValueError
     d = Decimal(str(v))
-    if d != d.to_integral_value() or d < 0 or d > 1000000:
+    if not d.is_finite() or d != d.to_integral_value() or d < 0 or d > 1000000:
+        raise ValueError
+    if (low is not None and d < low) or (high is not None and d > high):
         raise ValueError
     return int(d)
 
@@ -109,7 +113,7 @@ def _param(p: Param, raw, *, sources: set[str] | None):
     if p.kind == "money":
         return _money(raw)
     if p.kind == "int":
-        return _int(raw)
+        return _int(raw, p.low, p.high)
     if p.kind == "bool":
         if not isinstance(raw, bool):
             raise ValueError
@@ -162,7 +166,7 @@ def _condition(raw, position: int, *, sources: set[str] | None) -> list[dict]:
         if not isinstance(c, dict) or set(c) - {"fact", "op", "value", "key"}:
             raise _bad("rule_condition_invalid", position)
         fact, op = c.get("fact"), c.get("op")
-        if fact not in FACTS or op not in FACTS[fact]:
+        if not isinstance(fact, str) or not isinstance(op, str) or fact not in FACTS or op not in FACTS[fact]:
             raise _bad("rule_condition_invalid", position)
         clause = {"fact": fact, "op": op}
         try:
@@ -172,7 +176,7 @@ def _condition(raw, position: int, *, sources: set[str] | None) -> list[dict]:
                     raise ValueError
                 clause["key"] = key
             if fact == "has_exception":
-                if c.get("value") not in (*EXCEPTION_KINDS, "any"):
+                if not isinstance(c.get("value"), str) or c["value"] not in (*EXCEPTION_KINDS, "any"):
                     raise ValueError
                 clause["value"] = c["value"]
             elif op not in ("is_true", "is_false"):
@@ -195,10 +199,12 @@ def validate(blocks, *, sources: set[str] | None = None) -> list[dict]:
     known = None if sources is None else set(sources)
     out: list[dict] = []
     priced = sets_invalid = changes_price = False
+    price_groups: list = []  # the priority group of each price change so far
+    excused_by_block: set = set()  # the exception effects an exception-days block already applied
     for position, b in enumerate(blocks, start=1):
         if not isinstance(b, dict) or set(b) - {"type", "params", "condition", "on_exception", "group", "label"}:
             raise _bad("rule_block_unknown", position, type="?")
-        t = TYPES.get(b.get("type"))
+        t = TYPES.get(b.get("type")) if isinstance(b.get("type"), str) else None
         if t is None:
             raise _bad("rule_block_unknown", position, type=str(b.get("type"))[:40])
         raw = b.get("params") or {}
@@ -245,6 +251,19 @@ def validate(blocks, *, sources: set[str] | None = None) -> list[dict]:
         label = b.get("label") or None
         if label is not None and (not isinstance(label, str) or len(label) > 80):
             raise _bad("rule_block_param", position, param="label")
+        if t.code == "price_change":
+            # two price changes would both take from the price the orders had: only one of a priority group applies
+            if price_groups and (group is None or any(g != group for g in price_groups)):
+                raise _bad("rule_price_change_twice", position)
+            price_groups.append(group)
+        effect = {"count_valid": "count_valid", "neutralize": "excuse_attendance"}.get(on_exc)
+        if t.code == "exception_days":
+            effect = params["effect"]
+            if effect in excused_by_block:
+                raise _bad("rule_exception_twice", position)
+            excused_by_block.add(effect)
+        elif effect in excused_by_block:
+            raise _bad("rule_exception_twice", position)  # an exception-days block above already counted them
         priced = priced or (t.prices_orders and params.get("source", "orders") == "orders")
         sets_invalid = sets_invalid or t.code in SETS_INVALID
         changes_price = changes_price or t.code == "price_change"
@@ -270,13 +289,29 @@ def needs(blocks: list[dict], facts: Facts) -> list[str]:
     """The month's figures the blocks read that are missing: the line is flagged and blocks approval, nothing is
     guessed."""
     wanted: list[str] = []
+    fixed_amount = False  # a fixed salary of an amount above: the daily wage of an absence is taken from it
     for b in blocks:
         t, p = TYPES[b["type"]], b["params"]
         names = list(t.needs)
         if "source" in {x.name for x in t.params}:
             names.append(p.get("source", "orders"))
         if b["type"] == "commitment_bonus" and p.get("require_clean", True):
-            names.append("attendance_marks")
+            names += ["attendance_marks", "late_count", "absent_days"]
+        if b["type"] == "fixed_salary":
+            if p.get("mode") == "contract":
+                names.append("basic_salary")
+            else:
+                fixed_amount = True
+        if b["type"] == "absence" and p.get("mode") == "daily_wage" and not fixed_amount:
+            names.append("basic_salary")
+        if b["type"] == "invalid_days":
+            names.append("valid_days")
+            if p.get("mode") == "daily_wage":
+                names.append("basic_salary")
+        if b["type"] == "special_day_violation" and p.get("when") == "star_day_failed":
+            names.append("star_day_failed")
+        if b["type"] == "required_days" and not p.get("invalidates") and p.get("deduction", "none") == "none":
+            names = [n for n in names if n != "valid_days"]  # for information only: nothing waits for it
         if b["type"] == "batch_rate" and facts.personal_rate is not None and p.get("personal_rate", True):
             names = ["orders"]
         for c in b["condition"]:
@@ -295,7 +330,7 @@ def _raw(facts: Facts, name: str):
         return facts.batches if facts.batches else (None if facts.batch_level is None else facts.batch_level)
     if name == "tasks":
         return facts.tasks
-    if name in BUILTIN_SOURCES or name in ("star_day_failed",):
+    if name in BUILTIN_SOURCES or name in ("star_day_failed", "basic_salary"):
         return getattr(facts, name)
     return facts.fields.get(name)
 
@@ -310,8 +345,9 @@ class _State:
     lines: list[Line] = field(default_factory=list)
     trace: list[dict] = field(default_factory=list)
     orders_lines: list[int] = field(default_factory=list)  # the lines that priced the month's orders
-    month_invalid: bool = False
+    invalid_by: set = field(default_factory=set)  # what made the month invalid: star_day, required_days
     price_changed: bool = False
+    problems: list = field(default_factory=list)
     penalized: bool = False
     fixed_salary: Decimal | None = None
     groups: dict = field(default_factory=dict)
@@ -327,29 +363,44 @@ def _n(v) -> str:
     return str(d.quantize(Decimal("0.001"))) if d != d.to_integral_value() else str(int(d))
 
 
-def _accepted_days(facts: Facts) -> tuple[bool, int]:
-    accepted = [e for e in facts.exceptions if e.kind in ACCEPTED]
-    return bool(accepted), sum(max(0, int(e.days or 0)) for e in accepted)
+def _excusing(facts: Facts, what: str) -> list[MonthException]:
+    return [e for e in facts.exceptions if e.kind in ACCEPTED and what in (e.excuses or ())]
 
 
-def _excused(value, days: int):
-    if value is None:
-        return None
-    return 0 if days == 0 else max(0, value - days)
+def _excused(value, exceptions: list[MonthException]):
+    """A count less what the exceptions excuse (one of them for no number of days: all of it)."""
+    if value is None or not exceptions:
+        return value
+    if any(not e.days for e in exceptions):
+        return 0
+    return max(0, value - sum(int(e.days) for e in exceptions))
+
+
+def _valid_extra(facts: Facts) -> int:
+    """The days approved exceptions count as valid (only those that excuse valid days, by their number of days)."""
+    return sum(max(0, int(e.days or 0)) for e in _excusing(facts, "valid_days"))
+
+
+def _excuse(values: dict, facts: Facts) -> bool:
+    """The attendance facts as the approved exceptions excuse them, each by what it names; True when the star day is
+    excused (a number of days never excuses a missed star day)."""
+    star = bool(_excusing(facts, "star_day"))
+    if star and values.get("star_day_failed") is not None:
+        values["star_day_failed"] = False
+    for what, key in (("marks", "attendance_marks"), ("lateness", "late_count"), ("absence", "absent_days")):
+        values[key] = _excused(values.get(key), _excusing(facts, what))
+    return star
 
 
 def _view(st: _State, facts: Facts, b: dict) -> dict:
     """What this block sees: the month's values, with its exception behaviour applied."""
     v = dict(st.values)
-    v["month_invalid"] = st.month_invalid
-    has, days = _accepted_days(facts)
-    if has and b["on_exception"] == "neutralize":
-        v["star_day_failed"] = False if v.get("star_day_failed") is not None else None
-        v["month_invalid"] = False
-        for k in ("attendance_marks", "late_count", "absent_days"):
-            v[k] = _excused(v.get(k), days)
-    if has and b["on_exception"] == "count_valid" and v.get("valid_days") is not None:
-        v["valid_days"] = v["valid_days"] + days
+    invalid_by = set(st.invalid_by)
+    if b["on_exception"] == "neutralize" and _excuse(v, facts):
+        invalid_by.discard("star_day")
+    if b["on_exception"] == "count_valid" and v.get("valid_days") is not None:
+        v["valid_days"] = v["valid_days"] + _valid_extra(facts)
+    v["month_invalid"] = bool(invalid_by)
     return v
 
 
@@ -472,6 +523,9 @@ def _apply(st: _State, facts: Facts, b: dict, pos: int, v: dict) -> str | None:
             st.orders_lines.append(len(st.lines) - 1)
             return None
         for batch, n in st.batches:
+            if not any(r["batch"] == batch for r in p["rates"]):  # priced as the highest batch below it, flagged
+                st.problems.append("batch_rate_missing")
+                st.trace.append({"block": pos, "type": t, "info": "batch_rate_missing", "batch": batch})
             rate = _rate_for(p["rates"], "batch", batch) or ZERO
             amount = money(n * rate)
             why = {"orders": n, "rate": str(rate), "batch_level": batch}
@@ -536,7 +590,7 @@ def _apply(st: _State, facts: Facts, b: dict, pos: int, v: dict) -> str | None:
         if valid >= days:
             return "enough_days"
         if p.get("invalidates"):
-            st.month_invalid = True
+            st.invalid_by.add("required_days")
         why = {"valid_days": valid, "required": days}
         if p["deduction"] == "fixed":
             amount = money(p["amount"])
@@ -591,7 +645,7 @@ def _apply(st: _State, facts: Facts, b: dict, pos: int, v: dict) -> str | None:
     if t == "star_day":
         if not v.get("star_day_failed"):
             return "star_day_kept"
-        st.month_invalid = True
+        st.invalid_by.add("star_day")
         st.trace.append({"block": pos, "type": t, "info": "month_invalid"})
         return None
     if t == "missing_orders":
@@ -655,18 +709,19 @@ def _apply(st: _State, facts: Facts, b: dict, pos: int, v: dict) -> str | None:
         st.trace.append({"block": pos, "type": t, "info": "informational", **info})
         return None
     if t == "exception_days":
-        has, days = _accepted_days(facts)
-        if not has:
-            return "no_exception"
         if p["effect"] == "count_valid":
+            days = _valid_extra(facts)
+            if not days:
+                return "no_exception"
             if st.values.get("valid_days") is not None:
                 st.values["valid_days"] += days
-        else:
-            if st.values.get("star_day_failed") is not None:
-                st.values["star_day_failed"] = False
-            for k in ("attendance_marks", "late_count", "absent_days"):
-                st.values[k] = _excused(st.values.get(k), days)
-        st.trace.append({"block": pos, "type": t, "info": p["effect"], "days": days})
+            st.trace.append({"block": pos, "type": t, "info": "count_valid", "days": days})
+            return None
+        if not any(_excusing(facts, w) for w in ("star_day", "marks", "lateness", "absence")):
+            return "no_exception"
+        if _excuse(st.values, facts):
+            st.invalid_by.discard("star_day")
+        st.trace.append({"block": pos, "type": t, "info": "excuse_attendance"})
         return None
     raise AppError(422, "rule_block_unknown", position=pos, type=t)
 
@@ -718,4 +773,4 @@ def run(blocks: list[dict], facts: Facts, *, floor_at_zero: bool = True) -> Outc
     if floor_at_zero and penalties > pay:
         uncovered, penalties = penalties - pay, pay
         items.append(Line("uncovered_penalty", money(uncovered), {"uncovered": str(money(uncovered))}, ""))
-    return Outcome(items, money(pay), money(penalties), money(uncovered), st.trace)
+    return Outcome(items, money(pay), money(penalties), money(uncovered), st.trace, st.problems)

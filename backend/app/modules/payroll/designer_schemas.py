@@ -63,6 +63,9 @@ class ExceptionIn(BaseModel):
     month: date
     kind: Literal["accepted_excuse", "company_error", "exception_day"]
     days: int = Field(0, ge=0, le=31)
+    excuses: list[Literal["star_day", "marks", "lateness", "absence", "valid_days"]] = Field(
+        default_factory=list, max_length=5
+    )
     corrections: dict[Key, bool | int | Decimal] = Field(default_factory=dict, max_length=20)
     note: Note
 

@@ -24,6 +24,7 @@ missing or waiting for review) and locks the run and the month's statements. Wha
 took in approved months is what the next months build on. Reopening is for the latest approved month only.
 """
 
+import logging
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -50,9 +51,12 @@ from app.modules.payroll.rules import convert, engine
 from app.modules.payroll.service import month_cap, schedule
 from app.modules.people import service as people
 
+log = logging.getLogger("fleet.payroll")
 FILS = Decimal("0.001")
 ZERO = Decimal(0)
 BLOCKING = (
+    "rules_error",
+    "rules_incomplete",
     "statement_missing",
     "statement_pending",
     "daily_pending",
@@ -156,11 +160,16 @@ def compute(
             hours=hours,
             statement=approved,
             system=system,
-            basic_salary=basic,
+            basic_salary=profile["basic_salary"],  # none on his file: a block that reads it flags the line
             personal_rate=personal_rate,
         )
+    rule_flags: list[str] = []
     if designed:
-        lacking = engine.needs(rules.blocks, facts)
+        try:
+            lacking = engine.needs(rules.blocks, facts)
+        except Exception:  # a block that cannot read this month flags this line; the run goes on
+            log.exception("rule blocks failed on employee %s", profile["id"])
+            lacking, rule_flags = [], ["rules_error"]
     else:
         lacking = calculators.missing(calculators.CALCULATORS[rules.calculator], month) if on_scheme else []
     trace: list[dict] = []
@@ -168,16 +177,24 @@ def compute(
     gross = basic if pay_basic and not on_scheme else ZERO  # a scheme is the whole of the platform's pay
     result = None
     invalid = ZERO
-    if on_scheme and not lacking:
-        if designed:
+    if designed and not lacking and not rule_flags:
+        try:
             result = engine.run(rules.blocks, facts, floor_at_zero=rules.floor_at_zero)
             trace = result.trace
-        else:
-            result = calculators.run(rules, month)
+            if result.problems:
+                rule_flags.append("rules_incomplete")  # e.g. a batch the scheme has no price for (in the trace)
+        except Exception:
+            log.exception("rule blocks failed on employee %s", profile["id"])
+            result, rule_flags = None, ["rules_error"]
+    elif on_scheme and not lacking:
+        result = calculators.run(rules, month)
+    if result is not None:
         gross += result.pay
         penalties = result.penalties
         for item in result.items:
-            if item.code in BY_CODE and BY_CODE[item.code].kind == "money":
+            if item.code == "price_change" and item.amount > 0:  # a higher price: earned, with the orders' pay
+                scheme_cells["orders_pay"] = scheme_cells.get("orders_pay", ZERO) + item.amount
+            elif item.code in BY_CODE and BY_CODE[item.code].kind == "money":
                 scheme_cells[item.code] = scheme_cells.get(item.code, ZERO) + abs(item.amount)
             entry = {"code": item.code, "amount": str(item.amount), "why": item.why}
             if designed:
@@ -238,6 +255,7 @@ def compute(
         flags.append("scheme_missing")
     if lacking:
         flags.append("figures_missing")  # the reviewer enters them from the platform's report
+    flags += rule_flags
     if uncollected:
         flags.append("uncollected")  # not blocking: listed for review once the run is approved
     if pay_basic and not basic and not on_scheme:
@@ -274,7 +292,7 @@ def compute(
         "bonus": items["bonus"],
         "tips": items["tips"],
         "gross": gross,
-        "invalid_days_deduction": invalid,
+        "invalid_days_deduction": invalid + scheme_cells.pop("invalid_days_deduction", ZERO),  # a block's, too
         "absence_deduction": absence,
         **{k: items[k] for k in MONTH_ITEMS},
         **by_column,
