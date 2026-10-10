@@ -41,7 +41,7 @@ from app.modules.notifications import service as notifications
 from app.modules.org import service as org
 from app.modules.payroll import calculators, platforms, schemes, statements
 from app.modules.payroll.calculators import Month, Rules
-from app.modules.payroll.columns import BY_CODE, COLUMNS
+from app.modules.payroll.columns import BY_CODE, COLUMNS, EARNING_COLUMNS, RULE_COLUMNS
 from app.modules.payroll.models import Deduction, Line, LineDeduction, Platform, Run, Scheme, Statement
 from app.modules.payroll.service import month_cap, schedule
 from app.modules.people import service as people
@@ -67,7 +67,7 @@ SOURCE_COLUMN = {
 }
 MONTH_ITEMS = ("cancelled_orders", "platform_deductions", "late", "cash_shortage")
 IDENTITY = ("platform_driver_id", "name", "job_title", "civil_id", "iban", "bank_name", "payment_method", "blank")
-DEFAULT_COLUMNS = [c.code for c in COLUMNS if c.code != "blank"]
+DEFAULT_COLUMNS = [c.code for c in COLUMNS if c.code != "blank" and c.code not in RULE_COLUMNS]
 
 
 def money(v) -> Decimal:
@@ -624,16 +624,27 @@ def mark_paid(db: Session, public_id, *, payment_ref: str | None, actor_user_id:
 
 
 def sheet_columns(platform: Platform | None, labels: dict, cells: Iterable[dict] = ()) -> list[dict]:
-    """The platform's sheet as the client set it, or every column. An absence deduction taken from any of the lines
-    (`cells`) is shown even when the client's sheet has no column for it, just before the net: no line's net may be
-    lower than its sheet adds up to without saying why."""
+    """The platform's sheet as the client set it, or every column. An absence deduction, or a rule block's line, with
+    an amount in any of the lines (`cells`) is shown even when the client's sheet has no column for it, just before
+    the net: no line's net may be lower than its sheet adds up to without saying why."""
+    cells = list(cells)
+
+    def used(code: str) -> bool:
+        return any(Decimal(str(x.get(code) or 0)) for x in cells)
+
+    rule = [k for k in RULE_COLUMNS if used(k)]
     if not (platform and platform.columns):
-        return [{"code": c, "header": labels.get(c, c)} for c in DEFAULT_COLUMNS]
+        at = DEFAULT_COLUMNS.index("gross")
+        earned = [k for k in rule if k in EARNING_COLUMNS]
+        taken = [k for k in rule if k not in EARNING_COLUMNS]
+        codes = DEFAULT_COLUMNS[:at] + earned + DEFAULT_COLUMNS[at : at + 1] + taken + DEFAULT_COLUMNS[at + 1 :]
+        return [{"code": c, "header": labels.get(c, c)} for c in codes]
     cols = list(platform.columns)
     codes = {c["code"] for c in cols}
-    if "absence_deduction" in codes or not any(Decimal(str(x.get("absence_deduction") or 0)) for x in cells):
+    wanted = [k for k in ("absence_days", "absence_deduction") if used("absence_deduction")] + rule
+    extra = [{"code": k, "header": labels.get(k, k)} for k in wanted if k not in codes]
+    if not extra:
         return cols
-    extra = [{"code": k, "header": labels.get(k, k)} for k in ("absence_days", "absence_deduction") if k not in codes]
     at = next((i for i, c in enumerate(cols) if c["code"] == "net"), len(cols))
     return cols[:at] + extra + cols[at:]
 

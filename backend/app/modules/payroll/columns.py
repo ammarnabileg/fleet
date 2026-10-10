@@ -49,6 +49,20 @@ COLUMNS: tuple[Column, ...] = (
     Column("missing_target", "money", ("خصم نقص التارجت", "خصم التارجت", "missing target")),
     Column("marks_deduction", "money", ("خصم العلامات", "خصم علامات الحضور", "marks deduction")),
     Column("uncovered_penalty", "money", ("عقوبات لم تخصم", "uncovered penalty")),
+    # the lines a scheme's rule blocks write (rules/catalog.py)
+    Column("fixed_salary", "money", ("الراتب الثابت", "fixed salary")),
+    Column("count_pay", "money", ("اجر حسب العدد", "pay by count")),
+    Column("tasks_pay", "money", ("اجر المهام", "tasks pay")),
+    Column("monthly_bonus", "money", ("المكافاه الشهريه", "monthly bonus")),
+    Column("target_bonus", "money", ("مكافاه تجاوز التارجت", "target overage bonus")),
+    Column("target_shortfall", "money", ("خصم تحت حد التارجت", "below threshold deduction")),
+    Column("commitment_bonus", "money", ("مكافاه الالتزام", "commitment bonus")),
+    Column("required_days_deduction", "money", ("خصم نقص الايام المطلوبه", "required days deduction")),
+    Column("late_deduction", "money", ("خصم التاخير حسب القاعده", "lateness deduction")),
+    Column("absence_days_deduction", "money", ("خصم ايام الغياب حسب القاعده",)),
+    Column("special_day_deduction", "money", ("خصم مخالفه اليوم الخاص", "special day deduction")),
+    Column("price_change", "money", ("فرق تغيير السعر", "price change")),
+    Column("expense_deduction", "money", ("خصم مصروف", "expense deduction")),
     Column("car_repair", "money", ("خصم تصليح السياره", "خصم تصليح المركبه", "خصم الحوادث")),
     Column("traffic_fines", "money", ("خصم مخالفات المرور", "خصم المخالفات المروريه", "خصم المخالفات")),
     Column("cancelled_orders", "money", ("خصومات الطلبات الملغاه", "خصم الطلبات الملغاه")),
@@ -63,6 +77,23 @@ COLUMNS: tuple[Column, ...] = (
     Column("blank", "text"),  # a column of the client's sheet the system leaves empty
 )
 BY_CODE = {c.code: c for c in COLUMNS}
+# shown on a sheet without the client's own columns only when a line has an amount in them
+RULE_COLUMNS = (
+    "fixed_salary",
+    "count_pay",
+    "tasks_pay",
+    "monthly_bonus",
+    "target_bonus",
+    "target_shortfall",
+    "commitment_bonus",
+    "required_days_deduction",
+    "late_deduction",
+    "absence_days_deduction",
+    "special_day_deduction",
+    "price_change",
+    "expense_deduction",
+)
+EARNING_COLUMNS = ("fixed_salary", "count_pay", "tasks_pay", "monthly_bonus", "target_bonus", "commitment_bonus")
 # "خصومات من <platform name>": the platform's own deductions, whatever the platform is called
 PREFIXES = {"platform_deductions": (norm("خصومات من"), norm("خصم من"))}
 TITLE_WORDS = ("نموذج", "رواتب", "راتب", "كشف", "template", "salaries", "salary", "payroll")
