@@ -388,6 +388,34 @@ def update_employee(
     return _out(employee, db.get(EmploymentStatus, employee.status_code), can_set_salary)
 
 
+def assign_platform(
+    db: Session, employee_ids: Iterable, *, platform_id: int | None, actor_user_id: int, **scope
+) -> dict:
+    """Puts the chosen drivers on one delivery platform (or none), all or nothing, each change audited as an edit of
+    the employee. A driver moved off his platform loses his ID on it; staff are skipped."""
+    counts = {"updated": 0, "unchanged": 0, "skipped": 0}
+    for public_id in dict.fromkeys(employee_ids):
+        employee = _get(db, public_id, **scope)
+        if not employee.is_driver:
+            counts["skipped"] += 1
+        elif employee.platform_id == platform_id:
+            counts["unchanged"] += 1
+        else:
+            update_employee(
+                db,
+                public_id,
+                version=employee.version,
+                changes={"platform_id": platform_id, "platform_driver_id": None},
+                can_set_salary=False,
+                actor_user_id=actor_user_id,
+                commit=False,
+                **scope,
+            )
+            counts["updated"] += 1
+    db.commit()
+    return counts
+
+
 def change_status(
     db: Session, public_id, *, status_code: str, note: str | None, actor_user_id: int, commit: bool = True, **scope
 ) -> tuple[EmployeeRef, bool]:

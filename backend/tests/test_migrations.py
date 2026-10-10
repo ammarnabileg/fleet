@@ -71,3 +71,42 @@ def test_a_chart_in_use_is_kept_and_the_drivers_salaries_start_on_its_salaries_a
     finally:
         with admin_engine.connect() as c:
             c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+
+
+def test_the_platforms_are_seeded_only_on_an_install_without_any(database_url, admin_engine, db):
+    """Migration 0045: a fresh install gets the two platforms, once; an install that already set its own platforms
+    keeps them and gets nothing added."""
+    import uuid
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    from tests.conftest import BACKEND, _url
+
+    seeded = db.execute(text("SELECT code, daily_fields, driver_fields FROM payroll.platforms ORDER BY id")).all()
+    assert [tuple(r) for r in seeded] == [
+        ("keeta", ["valid_day"], ["valid_days", "orders", "hours"]),
+        ("talabat", ["orders", "cash"], ["orders"]),
+    ]
+
+    name = f"fleet_mig_{uuid.uuid4().hex[:8]}"
+    with admin_engine.connect() as c:
+        c.execute(text(f'CREATE DATABASE "{name}"'))
+    try:
+        cfg = Config(str(BACKEND / "alembic.ini"))
+        cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+        cfg.set_main_option("sqlalchemy.url", _url(name).replace("%", "%%"))
+        command.upgrade(cfg, "0044_vehicle_claims_superseded")
+        engine = create_engine(_url(name))
+        with engine.begin() as c:
+            assert c.scalar(text("SELECT count(*) FROM payroll.platforms")) == 0
+            c.execute(text("""INSERT INTO payroll.platforms (code, name) VALUES ('own', '{"ar": "س", "en": "x"}')"""))
+        command.upgrade(cfg, "head")
+        with engine.connect() as c:
+            codes = list(c.scalars(text("SELECT code FROM payroll.platforms")))
+        engine.dispose()
+        assert codes == ["own"]
+    finally:
+        with admin_engine.connect() as c:
+            c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))

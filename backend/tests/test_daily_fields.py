@@ -139,3 +139,28 @@ def test_the_month_comes_from_the_approved_daily_reports(admin_client, client, c
     line = next(x for x in run["lines"] if x["employee"]["id"] == d["id"])
     cells = line["cells"]
     assert (cells["working_days"], cells["valid_days"], cells["orders"], line["flags"]) == (4, 3, 63, [])
+
+
+def test_the_seeded_platforms_ask_what_each_counts(admin_client, client, company):
+    """A fresh install has the two platforms: the daily report of a driver on the first asks only whether the platform
+    counted his day valid, on the second his orders and cash; the screenshot as the settings say (required)."""
+    plats = {p["code"]: p for p in admin_client.get(f"{P}/platforms").json()}
+    keeta, talabat = plats["keeta"], plats["talabat"]
+    assert (keeta["name"], keeta["is_active"]) == ({"ar": "كيتا", "en": "Keeta"}, True)
+    assert (talabat["name"], talabat["is_active"]) == ({"ar": "طلبات", "en": "Talabat"}, True)
+    assert (keeta["daily_fields"], keeta["driver_fields"]) == (["valid_day"], ["valid_days", "orders", "hours"])
+    assert (talabat["daily_fields"], talabat["driver_fields"]) == (["orders", "cash"], ["orders"])
+    _, hk = driver_on(admin_client, client, company, keeta)
+    _, ht = driver_on(admin_client, client, company, talabat)
+    form = client.get("/api/v1/driver/reports/form", headers=hk).json()
+    assert (form["fields"], form["screenshot"]) == (["valid_day"], True)
+    form = client.get("/api/v1/driver/reports/form", headers=ht).json()
+    assert (form["fields"], form["screenshot"]) == (["orders", "cash"], True)
+
+    r = send(client, hk, today())
+    assert r.status_code == 422 and r.json()["params"]["field"] == "valid_day", r.text
+    r = send(client, hk, today(), valid_day=True)  # neither orders nor cash asked
+    assert r.status_code == 201 and r.json()["valid_day"] is True, r.text
+    r = send(client, ht, today(), orders_count=18)
+    assert r.status_code == 422 and r.json()["params"]["field"] == "cash_amount", r.text
+    assert send(client, ht, today(), orders_count=18, cash_amount="4.250").status_code == 201

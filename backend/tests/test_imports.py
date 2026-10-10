@@ -477,3 +477,20 @@ def test_the_template_hint_is_never_a_password(admin_client, companies, main_bra
     )
     out = post(admin_client, data).json()
     assert [(e["row"], e["code"]) for e in out["errors"]] == [(3, "invalid_initial_password")], out  # after the example
+
+
+def test_the_platform_columns_of_the_template(admin_client, companies, main_branch):
+    """«المنصة» and «رقمه في المنصة» after the app columns: the platform by a name or its code, his ID on it."""
+    talabat = next(p for p in admin_client.get("/api/v1/payroll/platforms").json() if p["code"] == "talabat")
+    row = person(branch=main_branch) + [None, None, None, "Talabat", "T-77"]
+    unknown = person("سالم", civil="290010112346", phone="98765433", branch=main_branch) + [None] * 3 + ["X", None]
+    alone = person("سعد", civil="290010112347", phone="98765434", branch=main_branch) + [None] * 4 + ["9"]
+    out = post(admin_client, workbook(people=[row, unknown, alone], driver_columns=True)).json()
+    assert [(e["row"], e["code"], e["params"]) for e in out["errors"]] == [
+        (4, "platform_not_found", {"value": "X"}),
+        (5, "platform_required", {}),
+    ]
+    out = post(admin_client, workbook(people=[row], driver_columns=True), apply=True).json()
+    assert out["applied"] and out["warnings"] == [], out
+    driver = admin_client.get("/api/v1/employees", params={"is_driver": True}).json()[0]
+    assert (driver["platform_id"], driver["platform_driver_id"]) == (talabat["id"], "T-77")
