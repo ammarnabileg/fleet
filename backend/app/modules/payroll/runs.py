@@ -326,7 +326,7 @@ def _fill(db: Session, run: Run) -> None:
     dues = dues_for(db, ids, month)
     plats = platforms.all_by_id(db)
     assigned = schemes.for_month(db, ids, month)
-    rules = schemes.rules_for(db, {s.id: s for s in assigned.values()})
+    rules = schemes.rules_for(db, {s.id: s for s in assigned.values()}, month)  # each scheme's version of the month
     with_schemes = schemes.platforms_with_schemes(db)
     lang = i18n.default_language(db).code
     absence_rule = org.get_section(db, "payroll").absence_deduction
@@ -337,6 +337,7 @@ def _fill(db: Session, run: Run) -> None:
         scheme = assigned.get(p["id"])
         if scheme is not None and scheme.platform_id != p["platform_id"]:
             scheme = None  # he moved platform: his old platform's scheme does not apply
+        terms = rules.get(scheme.id) if scheme else None
         c = compute(
             p,
             platform,
@@ -347,7 +348,7 @@ def _fill(db: Session, run: Run) -> None:
             cap_base=run.cap_base,
             name_lang=lang,
             scheme_name=scheme.name if scheme else None,
-            rules=rules.get(scheme.id) if scheme else None,
+            rules=terms[0] if terms else None,
             needs_scheme=bool(p["is_driver"] and p["platform_id"] in with_schemes),
             absence_rule=absence_rule,
         )
@@ -362,6 +363,7 @@ def _fill(db: Session, run: Run) -> None:
             net=c.net,
             flags=c.flags,
             scheme_id=scheme.id if scheme else None,
+            scheme_version=terms[1] if terms else None,
             breakdown=c.breakdown,
         )
         db.add(line)
@@ -423,6 +425,7 @@ def _out(db: Session, r: Run, *, lines: bool = False) -> dict:
                 "flags": list(line.flags),
                 "statement_id": sts.get(line.statement_id),
                 "breakdown": line.breakdown,
+                "scheme_version": line.scheme_version,
             }
             for line in rows
         ]

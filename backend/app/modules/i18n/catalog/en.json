@@ -403,7 +403,7 @@
     "screen_off": "This screen is turned off in your company's app",
     "scheme_not_found": "Scheme not found",
     "scheme_code_taken": "This code is another scheme's on the same platform",
-    "scheme_in_use": "Drivers are on this scheme: its prices do not change. Create a new scheme and move the drivers from a month",
+    "scheme_in_use": "This scheme is in use: its way of computing does not change. Create a new scheme and move the drivers from a month",
     "scheme_step_invalid": "Invalid scheme step: {kind}",
     "scheme_platform_mismatch": "The scheme is not on the driver's platform",
     "scheme_not_available": "This scheme is not available",
@@ -529,7 +529,8 @@
     "pickup_by_driver": "The car is in its driver's custody: he confirms the pickup from the center in his app",
     "received_before_custody": "The reception time is before the current custody started",
     "final_reading_required": "The car goes back to the company, not to a driver: enter the odometer after the repair with its photo",
-    "step_not_in_this_flow": "This step is not in this request's flow: the reception, then ready with the invoice"
+    "step_not_in_this_flow": "This step is not in this request's flow: the reception, then ready with the invoice",
+    "scheme_version_month": "The change applies from {from} or later: the months before it were paid on this scheme or have a later version"
   },
   "settings": {
     "branding": "Branding",

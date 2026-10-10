@@ -77,7 +77,7 @@ def company_covers(db: Session, employee_id: int, day: date) -> list[str]:
     driver = people.ref(db, employee_id)
     if scheme is None or driver is None or scheme.platform_id != driver.platform_id:
         return []
-    return list(scheme.company_covers or [])
+    return schemes.covers_of(db, scheme, month_start(day))  # informational: who bears what, never deducted
 
 
 def month_locked(db: Session, company_id: int, month: date) -> bool:

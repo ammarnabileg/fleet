@@ -3,7 +3,10 @@
 Design for the next payroll step. It extends the payroll module that already exists (`backend/app/modules/payroll`,
 PostgreSQL schema `payroll`); it does not start a new system.
 
-**Status: built**, with the defaults of section 6 (A to J), as migration `0018_pay_schemes`:
+**Status: built**, as migration `0018_pay_schemes`, and **the client's decisions A to J are final** (section 6, all
+DECIDED; each is pinned by a worked month in `tests/test_payroll_decisions.py`). Since then: terms by version from a
+month (section 7, `0045_scheme_versions`), the uncollected deductions balance (section 8), the driver's objection on a
+payslip (section 9) and the reconciliation gate before any real approval (section 10).
 - `calculators.py` (the strategies) and `schemes.py` (schemes, assignment by month, requests);
 - the dashboard: Payroll → "أنظمة الدفع" and "طلبات تغيير النظام", the scheme in the employee's file and as a bulk
   action on the employees list, the scheme's figures in the platform statement, and how the scheme computed each line;
@@ -115,9 +118,10 @@ CREATE TABLE payroll.scheme_steps (
 );
 ```
 
-**A scheme is never edited once a driver has been paid on it.** A change of price is a new scheme. The office moves
-the drivers to it from a month, in one bulk action. A draft run that is recomputed later must not pick up a price
-the month did not have; approved runs are already locked in their cells.
+**A scheme's terms change by version, each from a month (section 7).** A run pays each month on the version of its own
+month, so a draft recomputed later never picks up a price the month did not have, and approved runs are locked in
+their cells anyway. Only the calculator (the shape of rule) never changes once the scheme is used: another shape is a
+new scheme, and the office moves the drivers to it from a month, in one bulk action.
 
 **Assignment and requests** (who is on what, and when):
 
@@ -393,28 +397,58 @@ Talabat:
 |---|---|---|
 | Keeta | 560 orders, 2 marks | 560×0.350 = 196.000, + tier 3 (540) 90 = **286.000** |
 | Keeta | 400 orders, 3 marks | 140.000 − 20 short×0.350 = 7.000 − marks 10 = **123.000** |
-| Keeta | 480 orders, 5 marks | reduced: 480×0.200 = **96.000** (no tier bonus, no −30: defaults in section 6) |
+| Keeta | 480 orders, 5 marks | reduced: 480×0.200 = **96.000** (no tier bonus, no −30: decisions A and C) |
+| Keeta | 800 orders, 5 marks | reduced: 800×0.200 = **160.000** (no tier bonus, no −30, no shortfall) |
+| Keeta | 400 orders, 5 marks | reduced: 400×0.200 = 80.000 − 20 short×0.350 = 7.000 = **73.000** (B, C) |
 | Keeta | 300 orders, star day missed | 60.000 − 120×0.350 = 42.000 → **18.000** |
-| Keeta | 100 orders, star day missed | 20.000 − 320×0.350 = 112.000 → **−92.000 → 0 (floor), 92.000 shown as uncovered** |
+| Keeta | 100 orders, star day missed | 20.000 − 320×0.350 = 112.000 → **−92.000 → 0 (D), 92.000 an uncollected line for review** |
 | Talabat batch | level 2, 450 orders | 450×0.675 = **303.750** |
-| Talabat fixed 2 | 380 orders | 380×0.550 = **209.000** − the missing-target rule (undefined for Talabat: section 6) |
+| Talabat fixed 2 | 380 orders | 380×0.550 = **209.000**, no missing-target deduction (F) |
+| Talabat fixed 3 | 400 orders | 400×0.680 = **272.000**, nothing for the 20 short of 420 (F) |
 
-## 6. Decisions the client must make (each is already a setting with a default)
+## 6. The client's decisions (DECIDED)
 
-| # | Question | Default here |
-|---|---|---|
-| A | Keeta: when the month is reduced (more than 4 marks, or a star day missed), is the tier bonus still paid? | no (`bonus_when_reduced = false`) |
-| B | Keeta: is the missing-target deduction 0.350 per order even when the price fell to 0.200? | yes, 0.350 (`missing_order_rate`) |
-| C | Keeta: with more than 4 marks, is the −30 deducted on top of the reduced price? | no (`marks_when_reduced = false`) |
-| D | Penalties larger than the month's pay: does the driver end at zero, or is the remainder carried to next month like an installment? | zero, remainder shown (`floor_at_zero`) |
-| E | Fewer than 28 valid days: what happens? Nothing (the target already covers it), a pro-rata deduction (today's invalid-days rule), or no tier bonus? Applying both the target and the invalid days charges the same missing days twice. | nothing extra |
-| F | Talabat: the "generic missing-target deductions" are not defined. Same as Keeta (0.350 per missing order), or none? | none (`missing_order_rate = NULL`) |
-| G | "Driver covers gas, SIM, maintenance": is this informational, or do those costs become payroll deductions? For example, do maintenance invoices on his car turn into his installments under fixed price 3? This touches the maintenance module. | informational; SIM and advances stay manual deductions |
-| H | Keeta tiers: the highest tier reached only, or cumulative? | highest only |
-| I | Can a batch driver's level change within a month? If it can, orders must be split by level. | one level per month |
-| J | Does Keeta have more than one scheme, or is the only choice at registration Talabat batch versus fixed price? | one Keeta scheme |
+Each was a setting with a default; the client's final answers are below, and the code and the defaults match them.
+`tests/test_payroll_decisions.py` pins each one with a worked month through the whole run, on schemes set up with the
+panel's defaults.
 
-## 7. Order of work
+| # | Question | Decision | Where it lives |
+|---|---|---|---|
+| A | Keeta, reduced month (price → 0.200): is the tier bonus still paid? | **DECIDED: no tier bonus.** | `bonus_when_reduced = false` (column default and panel default) |
+| B | Keeta: missing-target deduction when the price fell to 0.200? | **DECIDED: 0.350 per missing order, even on a reduced month.** | the scheme's `missing_order_rate` (0.350 on the Keeta scheme), never `reduced_rate` |
+| C | Keeta, more than 4 marks: −30 on top of the reduced price? | **DECIDED: only the reduced price, no −30;** the missing-target deduction still applies. | `marks_when_reduced = false` |
+| D | Penalties larger than the month's pay? | **DECIDED: the net never goes below zero; the remainder is an "uncollected deductions balance" line for review, never carried automatically.** The accountant carries a line to next month (a manual deduction, with `payroll.approve` and a note) or drops it with a note (section 8). | the run (every line), and `floor_at_zero` for the scheme's own penalties |
+| E | Fewer than 28 valid days? | **DECIDED: no extra automatic deduction;** the target and the star-day rules still apply. | a scheme ignores the platform's invalid-days rule and the absence rule; `required_valid_days` is informational |
+| F | Talabat missing-target deductions? | **DECIDED: none.** | Talabat's schemes have no `missing_order_rate` (the column's default is none) |
+| G | Driver-borne gas, SIM, maintenance, housing? | **DECIDED: informational only (who is responsible); never deducted automatically.** | `company_covers` only decides whether a fuel claim is accepted; payroll never reads it |
+| H | Keeta tiers: highest or cumulative? | **DECIDED: the highest reached only.** | `Rules.highest` |
+| I | Can a batch level change within a month? | **DECIDED: one level for the whole payroll month;** a change starts from an approved effective month. | one `batch_level` per statement; a driver's scheme moves from a month (request approved, or the office), the batch prices by version (section 7) |
+| J | More than one Keeta scheme? | **DECIDED: one scheme now;** another can be added later from the panel (Payroll → Pay schemes → New scheme), no code. | `UNIQUE (platform_id, code)` only |
+
+## 7. Terms by version, from a month
+
+`payroll.scheme_versions` holds every version of a scheme's terms: the prices, the target, the missing-order rate,
+the reduced price, the decisions' flags, who bears what, and the steps (tiers, batch prices, marks) as one JSON list.
+Each version applies from its `effective_month` until the next version's month; the first version also covers any
+month before it. The columns on `payroll.schemes` and its `scheme_steps` mirror the latest version.
+
+- **A run reads the version of its own month** (`schemes.rules_for(…, month)`), and the line keeps the version number
+  (`lines.scheme_version`). A draft of an older open month recomputed after a change keeps that month's terms.
+- **A change of terms is a new version** from the month the office picks in the editor («يسري من شهر»). The month is
+  never before the first month no approved (or paid) payroll paid on the scheme, and never before the latest version;
+  from the latest version's own month, that version (not paid on yet) is replaced. The same terms again make no
+  version. Refused months answer 409 `scheme_version_month` with the earliest allowed month.
+- **The calculator never changes once the scheme is used** (409 `scheme_in_use`): another shape of rule is another
+  scheme. A scheme nobody was ever on is simply redefined (one version).
+- A driver put on a scheme from a month before its first version takes the first version back to that month, so a
+  later version can never reach a month the driver was already on it.
+- The migration made every existing scheme's terms its version 1, from its creation month (Kuwait time) or the
+  earliest month a driver was put on it or a run used it, whichever is earlier; existing lines are on version 1.
+- The panel's scheme card shows this month's version and a version already set for a later month; the editor starts
+  from the latest version, asks «يسري من شهر» (the earliest month offered) and a reason, and lists every version.
+- Who bears what (`company_covers`) follows the version of the month too: the fuel claims of a month read it.
+
+## 11. Order of work
 
 | Step | What | Size |
 |---|---|---|
@@ -424,5 +458,5 @@ Talabat:
 | 4 | Requests: app screen (schemes, request, status), dashboard queue with approve and reject, notifications | app + panel |
 | 5 | Month review: batch level, marks, star day entered by the reviewer (orders and valid days already come from the daily reports); the export columns and the payslip lines | panel + app |
 
-Steps 1 and 5 settle the money. Steps 2 to 4 settle who is on what. Nothing runs on real salaries until A to J are
-answered and one month is compared against the client's own sheet.
+Steps 1 and 5 settle the money. Steps 2 to 4 settle who is on what. A to J are answered (section 6); nothing real is
+approved until one month is compared against the client's own sheet (section 10).

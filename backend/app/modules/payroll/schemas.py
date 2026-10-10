@@ -272,6 +272,7 @@ class LineOut(BaseModel):
     flags: list[str]
     statement_id: str | None
     breakdown: list[dict] = []  # a pay scheme's items: orders, tier bonus, penalties, with why
+    scheme_version: int | None = None  # the scheme's terms version the month was paid on
 
 
 class RunOut(BaseModel):
@@ -355,8 +356,12 @@ class SchemeUpdateIn(BaseModel):
     description: LocalizedText | None = None
     is_active: bool | None = None
     driver_selectable: bool | None = None
-    # what drivers are paid on: refused once a driver is on the scheme (a new price is a new scheme)
+    # the shape of rule: refused once the scheme is used (another shape is another scheme)
     calculator: CalculatorCode | None = None
+    # the terms below: a new version from this month («يسري من»), required once the scheme is used; never a month an
+    # approved payroll paid on the scheme
+    effective_month: date | None = None
+    version_note: Note | None = None
     per_order: Money | None = None
     target_orders: int | None = Field(None, ge=0, le=100_000)
     required_valid_days: int | None = Field(None, ge=0, le=31)
@@ -390,6 +395,12 @@ class SchemeOut(BaseModel):
     steps: list[dict]
     drivers: int  # on it this month
     version: int
+    version_no: int  # the terms above: this month's version
+    effective_month: date  # from when that version applies
+    next_version: dict | None  # a later version already set: {version_no, effective_month}
+    used: bool  # a driver was put on it or a payroll used it: a change of terms needs its month
+    change_from: date  # the earliest month a change of terms may take effect
+    versions: list[dict]  # every version with its terms, the newest first
 
 
 class AssignSchemeIn(BaseModel):

@@ -71,3 +71,74 @@ def test_a_chart_in_use_is_kept_and_the_drivers_salaries_start_on_its_salaries_a
     finally:
         with admin_engine.connect() as c:
             c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+
+
+def test_existing_schemes_become_their_version_1(database_url, admin_engine):
+    """Migration 0045: a scheme set up before versions keeps its terms as version 1, from its creation month or the
+    earliest month a driver was put on it."""
+    import uuid
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, text
+
+    from tests.conftest import BACKEND, _url
+
+    name = f"fleet_mig_{uuid.uuid4().hex[:8]}"
+    with admin_engine.connect() as c:
+        c.execute(text(f'CREATE DATABASE "{name}"'))
+    try:
+        cfg = Config(str(BACKEND / "alembic.ini"))
+        cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+        cfg.set_main_option("sqlalchemy.url", _url(name).replace("%", "%%"))
+        command.upgrade(cfg, "0044_vehicle_claims_superseded")
+        engine = create_engine(_url(name))
+        with engine.begin() as c:
+            platform = c.scalar(
+                text("INSERT INTO payroll.platforms (code, name) VALUES ('kx', :n) RETURNING id"),
+                {"n": '{"ar": "ك", "en": "k"}'},
+            )
+            scheme = c.scalar(
+                text(
+                    "INSERT INTO payroll.schemes (platform_id, code, name, calculator, per_order, missing_order_rate, "
+                    "reduced_rate, company_covers, created_by, created_at) VALUES "
+                    """(:p, 'standard', '{"ar": "س", "en": "s"}', 'tiered_target', 0.350, 0.350, 0.200, '{gas}', 1, """
+                    "'2026-03-31 22:30:00+00') RETURNING id"
+                ),
+                {"p": platform},
+            )
+            c.execute(
+                text(
+                    "INSERT INTO payroll.scheme_steps (scheme_id, kind, threshold, amount) VALUES "
+                    "(:s, 'tier_bonus', 450, 50), (:s, 'marks_reduce', 5, NULL)"
+                ),
+                {"s": scheme},
+            )
+        command.upgrade(cfg, "head")
+        with engine.connect() as c:
+            row = c.execute(
+                text(
+                    "SELECT version_no, effective_month, per_order, missing_order_rate, reduced_rate, company_covers, "
+                    "bonus_when_reduced, floor_at_zero, steps FROM payroll.scheme_versions WHERE scheme_id = :s"
+                ),
+                {"s": scheme},
+            ).all()
+        engine.dispose()
+        assert len(row) == 1
+        no, month, per_order, missing, reduced, covers, bonus, floor, steps = row[0]
+        assert (no, str(month)) == (1, "2026-04-01")  # 31 March 22:30 UTC is already April in Kuwait
+        assert (str(per_order), str(missing), str(reduced), covers, bonus, floor) == (
+            "0.350",
+            "0.350",
+            "0.200",
+            ["gas"],
+            False,
+            True,
+        )
+        assert steps == [
+            {"kind": "marks_reduce", "threshold": "5.000", "amount": None},
+            {"kind": "tier_bonus", "threshold": "450.000", "amount": "50.000"},
+        ]
+    finally:
+        with admin_engine.connect() as c:
+            c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))

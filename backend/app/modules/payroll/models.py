@@ -230,6 +230,7 @@ class Line(Base):
     net: Mapped[Decimal] = mapped_column(Numeric(12, 3))
     flags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
     scheme_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.schemes.id"))
+    scheme_version: Mapped[int | None] = mapped_column(Integer)  # the scheme's terms version the month was paid on
     breakdown: Mapped[list] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))  # how the scheme got the pay
 
 
@@ -253,7 +254,8 @@ class LineDeduction(Base):
 
 class Scheme(Base):
     """A pay scheme a platform offers (per order, by batch level, base price with tier bonuses and penalties): its
-    calculator and its numbers. Never changed once a driver is on it: a new price is a new scheme."""
+    calculator and its numbers. The numbers change by version, each from a month (SchemeVersion); the columns here
+    and the scheme's steps hold the latest version, a run reads the version of its own month."""
 
     __tablename__ = "schemes"
     __table_args__ = (
@@ -297,6 +299,46 @@ class Scheme(Base):
     created_by: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+
+
+class SchemeVersion(Base):
+    """A scheme's terms from a month on, until the next version's month (the first version also covers any month
+    before it). A run pays each month on its own month's version, so a change never reaches a month already paid."""
+
+    __tablename__ = "scheme_versions"
+    __table_args__ = (
+        UniqueConstraint("scheme_id", "version_no", name="scheme_versions_scheme_id_key"),
+        UniqueConstraint("scheme_id", "effective_month", name="scheme_versions_month_key"),
+        CheckConstraint("version_no >= 1", name="version_no"),
+        CheckConstraint("extract(day FROM effective_month) = 1", name="effective_month"),
+        CheckConstraint("per_order >= 0", name="per_order"),
+        CheckConstraint("target_orders >= 0", name="target_orders"),
+        CheckConstraint("required_valid_days BETWEEN 0 AND 31", name="required_valid_days"),
+        CheckConstraint("missing_order_rate >= 0", name="missing_order_rate"),
+        CheckConstraint("reduced_rate >= 0", name="reduced_rate"),
+        CheckConstraint(
+            "company_covers <@ ARRAY['maintenance', 'housing', 'gas', 'sim']::text[]", name="company_covers"
+        ),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    scheme_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("payroll.schemes.id", ondelete="CASCADE"))
+    version_no: Mapped[int] = mapped_column(Integer)
+    effective_month: Mapped[date] = mapped_column(Date)
+    per_order: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    target_orders: Mapped[int] = mapped_column(Integer)
+    required_valid_days: Mapped[int] = mapped_column(SmallInteger)
+    missing_order_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    reduced_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    bonus_when_reduced: Mapped[bool] = mapped_column(Boolean)
+    marks_when_reduced: Mapped[bool] = mapped_column(Boolean)
+    floor_at_zero: Mapped[bool] = mapped_column(Boolean)
+    company_covers: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    steps: Mapped[list] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))  # [{kind, threshold, amount}]
+    note: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class SchemeStep(Base):
