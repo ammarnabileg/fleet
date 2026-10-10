@@ -21,7 +21,7 @@ test('audit log: by user, record type and day, exported with the same filters', 
   await expect(admin.locator('#view [aria-busy]')).toHaveCount(0); // the rows of the last filter are drawn
   const rows = admin.locator('#view tbody tr');
   await expect(rows.filter({ hasText: company.public_id.slice(0, 8) })).toHaveCount(1);
-  await expect(rows.filter({ hasText: 'منصة' })).toHaveCount(0);
+  await expect(rows.filter({ hasText: 'منصة ' + n })).toHaveCount(0); // its own platform, not a company named with the word
   expect(await rows.evaluateAll((trs) => trs.every((tr) => tr.innerText.includes('شركة')))).toBe(true);
 
   const [file] = await Promise.all([admin.waitForEvent('download'), admin.locator('[data-audit-export=xlsx]').click()]);
