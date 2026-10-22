@@ -68,9 +68,10 @@ def workbook(db: Session, run: Run, lines: list[Line]) -> bytes:
             cell.font = Font(bold=True)
             cell.fill = PatternFill("solid", fgColor="DDEBF7")
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        for line in groups.get(pid, []):
+        # rows counted here: ws.max_row (and ws[row]) scan every cell written so far, a sheet grew quadratic
+        for n, line in enumerate(groups.get(pid, []), start=2):
             ws.append([_value(c["code"], line.cells.get(c["code"]), labels) for c in cols])
-            for cell in ws[ws.max_row]:
+            for (cell,) in ws.iter_cols(min_row=n, max_row=n, max_col=len(cols)):
                 if isinstance(cell.value, str):
                     cell.data_type = "s"  # openpyxl takes any text starting with "=" for a formula: a name must not run
         for i, c in enumerate(cols, start=1):

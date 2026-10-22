@@ -112,6 +112,10 @@ class OdometerReading(Base):
         CheckConstraint("review_status IN ('ok', 'pending', 'reviewed')", name="review_status"),
         CheckConstraint("corrected_km IS NULL OR review_reason IS NOT NULL", name="correction"),
         Index("odometer_readings_vehicle_id_idx", "vehicle_id", "recorded_at"),
+        Index("odometer_readings_recorded_at_idx", "recorded_at", "id"),
+        Index("odometer_readings_pending_idx", "recorded_at", postgresql_where=text("review_status = 'pending'")),
+        Index("odometer_readings_driver_id_idx", "driver_id", "business_date"),
+        Index("odometer_readings_start_day_idx", "business_date", postgresql_where=text("kind = 'start_day'")),
         SCHEMA,
     )
 

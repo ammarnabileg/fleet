@@ -64,7 +64,7 @@ def test_sections_follow_permissions_and_scope(admin_client, client, new_client,
     c = new_client()
     login(c, "ops_b")
     dash = c.get("/api/v1/dashboard").json()
-    assert dash["daily_reports"]["today_sent"] == 0 and dash["cash"]["held_by_drivers"] == "0"
+    assert dash["daily_reports"]["today_sent"] == 0 and dash["cash"]["held_by_drivers"] == "0.000"
     make_user(admin_client, "nobody", permissions=["vehicles.view"])
     c = new_client()
     login(c, "nobody")
