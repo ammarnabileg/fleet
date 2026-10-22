@@ -285,7 +285,9 @@
         <div class="section-t mt-16">قراءات العداد خلال العهدة</div>
         ${c.readings.length ? h`<div class="list">${c.readings.map(function (rd) { return h`<button type="button" class="li" data-reading="${rd.id}" style="width:100%;text-align:start"><span class="li-ic ${rd.flags.length ? 'o' : ''}">${icon('gauge', 16)}</span><div class="li-main"><div class="li-t"><span class="num">${fmt.km(rd.effective_km)}</span> كم · ${api.t('reading_kind', rd.kind)}</div><div class="li-d">${fmt.dt(rd.recorded_at)}${rd.flags.length ? ' · ' + rd.flags.map(function (f) { return api.t('odometer_flags', f); }).join('، ') : ''}</div></div></button>`; })}</div>` : raw('<div class="muted fs-sm">لا توجد قراءات</div>')}
         <div class="section-t mt-16">صور الحالة عند التسليم</div>${A.thumbs(stages[0].map(photo))}
-        ${c.ended_at ? h`<div class="section-t mt-16">صور الحالة عند الاستلام</div>${A.thumbs(stages[1].map(photo))}` : ''}`);
+        ${c.ended_at ? h`<div class="section-t mt-16">صور الحالة عند الاستلام</div>${A.thumbs(stages[1].map(photo))}` : ''}
+        <div data-custody-mnt-box></div>`);
+      if (A.custodyMaintenance) A.custodyMaintenance(dlg.body.querySelector('[data-custody-mnt-box]'), c); // الصيانة خلال العهدة، والطلب الذي أعطاها بديلة
       BT.on(dlg.body, 'click', '[data-reading]', function (e, b) { var rd = c.readings.find(function (x) { return x.id === b.getAttribute('data-reading'); }); A.reading(rd); });
       var btns = [];
       if (c.needs_review && api.can('custody.emergency')) btns.push(h`<button type="button" class="btn btn-outline" data-x="review">${icon('badge-check', 15)}تمت المراجعة</button>`);

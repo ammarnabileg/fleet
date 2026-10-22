@@ -398,6 +398,7 @@ def _expense_out(db: Session, rows: list[Expense]) -> list[dict]:
                 "supplier": e.supplier,
                 "reference_no": e.reference_no,
                 "vehicle": {"id": vehicle["id"], "plate_number": vehicle["plate_number"]} if vehicle else None,
+                "odometer_km": e.odometer_km,
                 "employee": employees.get(e.employee_id),
                 "petty_employee": employees.get(e.petty_employee_id),
                 "center": {"id": center["id"], "name": center["name"]} if center else None,
@@ -451,6 +452,8 @@ def create_expense(db: Session, data: dict, *, actor_user_id: int, all_companies
     for linked in (vehicle, employee):
         if linked is not None and linked.company_id != company_id:
             raise AppError(422, "expense_company_mismatch")
+    if data.get("odometer_km") is not None and vehicle is None:
+        raise AppError(422, "expense_odometer_needs_vehicle")
     for sha in data.get("files", []):
         files.get(db, sha)
     branch_id = data.get("branch_id")
@@ -474,6 +477,7 @@ def create_expense(db: Session, data: dict, *, actor_user_id: int, all_companies
         supplier=data.get("supplier"),
         reference_no=data.get("reference_no"),
         vehicle_id=vehicle.id if vehicle else None,
+        odometer_km=data.get("odometer_km"),
         employee_id=employee.id if employee else None,
         center_id=center["id"] if center else None,
         notes=data.get("notes"),
@@ -1655,3 +1659,35 @@ def close_period(db: Session, month: str, *, actor_user_id: int, all_companies: 
 def reopen_period(db: Session, month: str, *, reason: str, actor_user_id: int, all_companies: bool, **_) -> dict:
     _need_all_companies(all_companies)
     return periods.reopen(db, periods.parse_month(month), reason=reason, actor_user_id=actor_user_id)
+
+
+def fuel_fills(db: Session, vehicle_ids: Iterable[int] | None, first: date, last: date) -> list[dict]:
+    """The approved fuel expenses of a vehicle (type "fuel"), expense_date first..last, as fills for the fuel economy:
+    {"source", "id", "vehicle_id", "employee_id", "day", "amount", "litres" (the quantity), "odometer_km"}."""
+    q = (
+        select(Expense)
+        .join(ExpenseType, ExpenseType.id == Expense.type_id)
+        .where(
+            ExpenseType.code == "fuel",
+            Expense.status == "approved",
+            Expense.vehicle_id.is_not(None),
+            Expense.expense_date.between(first, last),
+        )
+    )
+    if vehicle_ids is not None:
+        q = q.where(Expense.vehicle_id.in_(list(vehicle_ids)))
+    return [
+        {
+            "source": "expense",
+            "id": str(e.public_id),
+            "number": e.number,
+            "vehicle_id": e.vehicle_id,
+            "employee_id": e.employee_id,
+            "company_id": e.company_id,
+            "day": e.expense_date,
+            "amount": e.amount,
+            "litres": e.quantity,
+            "odometer_km": e.odometer_km,
+        }
+        for e in db.scalars(q)
+    ]

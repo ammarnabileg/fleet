@@ -65,6 +65,7 @@ class ExpenseIn(_In):
     supplier: Short | None = None
     reference_no: Short | None = None
     vehicle_id: uuid.UUID | None = None
+    odometer_km: Annotated[int, Field(ge=0, le=5_000_000)] | None = None  # the vehicle's, for fuel (needs vehicle_id)
     employee_id: uuid.UUID | None = None
     center_id: uuid.UUID | None = None
     notes: Note | None = None
@@ -187,6 +188,7 @@ class ExpenseOut(BaseModel):
     supplier: str | None
     reference_no: str | None
     vehicle: VehicleRef | None
+    odometer_km: int | None = None
     employee: Ref | None
     petty_employee: Ref | None = None  # whose petty cash custody paid
     center: Ref | None

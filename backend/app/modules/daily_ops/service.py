@@ -129,8 +129,11 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
         # drove today and this session is still open: its closing reading comes first
         if started["end"] is None and session == len(started["sessions"]):
             raise AppError(409, "end_reading_required")
-    custodies = fleet.custodies_for_driver(db, employee_id, utcnow() - timedelta(days=MAX_DAYS_BACK + 1), utcnow())
-    custody = custodies[-1] if custodies else None
+    # the car he works with now (a replacement while his own is at a center), or his last one of these days
+    custody = fleet.custody_for_driver_at(db, employee_id, utcnow())
+    if custody is None:
+        custodies = fleet.custodies_for_driver(db, employee_id, utcnow() - timedelta(days=MAX_DAYS_BACK + 1), utcnow())
+        custody = custodies[-1] if custodies else None
     amount = Decimal(data.get("cash_amount") or 0)
     report = Report(
         employee_id=employee_id,

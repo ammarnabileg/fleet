@@ -327,11 +327,13 @@
   function fuelApprove(c, after) {
     A.formModal({
       title: 'قبول فاتورة البنزين', subtitle: api.name(c.driver.name) + ' — ' + fmt.money(c.amount) + ' ' + BT.config.currency, icon: 'fuel', size: 'sm', submitText: 'قبول وترحيل', done: 'قُبلت الفاتورة ونقص رصيد السائق',
-      body: h`<div class="form">${BT.f.money({ name: 'amount', label: 'المبلغ المعتمد', required: true, min: 0.001, value: c.amount })}${BT.f.textarea({ name: 'note', label: 'ملاحظة', optional: true, rows: 2, hint: 'مطلوبة إن غيّرت المبلغ' })}
+      body: h`<div class="form">${BT.f.money({ name: 'amount', label: 'المبلغ المعتمد', required: true, min: 0.001, value: c.amount })}
+        ${BT.f.input({ name: 'litres', label: 'اللترات (من الفاتورة)', optional: true, num: true, min: 0.01, value: c.litres || '', hint: c.litres ? 'كما أدخلها السائق: صحّحها إن خالفت الفاتورة' : 'السائق لم يدخلها: من الفاتورة، لحساب الاستهلاك (لا تغيّر المبلغ)' })}
+        ${BT.f.textarea({ name: 'note', label: 'ملاحظة', optional: true, rows: 2, hint: 'مطلوبة إن غيّرت المبلغ' })}
         <div class="hint">يُرحّل فوراً: ينقص رصيد كاش السائق بالمبلغ المعتمد، ويُقيَّد مدين مصروف الوقود / دائن كاش السائقين.</div></div>`,
       submit: function (v) {
         var amount = Number(v.amount).toFixed(3);
-        return api.post('/cash/fuel-claims/' + c.id + '/approve', { amount: amount, note: v.note || null });
+        return api.post('/cash/fuel-claims/' + c.id + '/approve', { amount: amount, litres: v.litres === '' || v.litres == null ? null : Number(v.litres).toFixed(2), note: v.note || null });
       },
       after: after
     });
@@ -343,7 +345,9 @@
   function fuelPanel(el) {
     var month = BT.config.today.slice(0, 7);
     var review = api.can('cash.fuel_review');
-    BT.render(el, h`<div data-fuel-queue></div><div class="card"><div class="card-h"><div class="card-t">${icon('fuel', 16)} كل فواتير البنزين</div><div class="ms-auto" style="min-width:160px">${BT.f.input({ name: 'fuel_month', label: '', type: 'month', value: month })}</div></div><div data-fuel-all></div></div>`);
+    BT.render(el, h`<div data-fuel-queue></div><div class="card"><div class="card-h"><div class="card-t">${icon('fuel', 16)} كل فواتير البنزين</div><div class="ms-auto" style="min-width:160px">${BT.f.input({ name: 'fuel_month', label: '', type: 'month', value: month })}</div></div><div data-fuel-all></div></div>
+      <div class="card mt-16" data-fuel-economy></div>`);
+    fuelEconomy(el.querySelector('[data-fuel-economy]'));
     var queue = el.querySelector('[data-fuel-queue]'), all = el.querySelector('[data-fuel-all]');
     function reload() { drawQueue(); drawAll(); A.refreshCounts(); }
     function drawQueue() {
@@ -353,7 +357,7 @@
         BT.render(queue, h`<div class="card mb-16" data-pending="fuel"><div class="card-h"><div class="card-t">${icon('fuel', 16)} بانتظار المراجعة ${BT.pill(fmt.int(list.length), 'o')}</div><span class="card-meta">راجع الفاتورة عند استلام كاش السائق</span></div><div class="card-b">${list.map(function (c) {
           return h`<div class="between mb-12" data-pending-id="${c.id}" style="gap:12px;align-items:flex-start"><div style="width:96px">${fuelReceipt(c)}</div><div class="flex-1">
             <div><b>${api.name(c.driver.name)}</b> <span class="muted fs-sm">${c.vehicle_plate || ''}</span></div>
-            <div class="fs-sm">دُفع في <span class="num">${fmt.dt(c.paid_at)}</span> · <b class="num">${fmt.money(c.amount)}</b> ${BT.config.currency}${c.odometer_km != null ? h` · العداد <span class="num">${fmt.int(c.odometer_km)}</span> كم` : ''}</div>
+            <div class="fs-sm">دُفع في <span class="num">${fmt.dt(c.paid_at)}</span> · <b class="num">${fmt.money(c.amount)}</b> ${BT.config.currency}${c.odometer_km != null ? h` · العداد <span class="num">${fmt.int(c.odometer_km)}</span> كم` : ''}${c.litres ? h` · <span class="num">${c.litres}</span> لتر (<span class="num">${c.price_per_litre}</span> للتر)` : h` · <span class="muted">بلا لترات</span>`}</div>
             ${c.notes ? h`<div class="fs-sm muted">${c.notes}</div>` : ''}${fuelCovered(c)}</div>
             ${review ? h`<div class="nowrap">${c.covered ? h`<button type="button" class="btn btn-sm btn-success" data-fuel-approve>${icon('check', 13)} قبول</button> ` : ''}<button type="button" class="btn btn-sm btn-outline" data-fuel-reject>${icon('x', 13)} رفض</button></div>` : ''}</div>`;
         })}</div></div>`);
@@ -380,6 +384,8 @@
               { key: 'driver', label: 'السائق', render: function (c) { return A.person(c.driver, c.vehicle_plate || ''); } },
               { key: 'amount', label: 'المبلغ', num: true, render: function (c) { return amt(c.amount); } },
               { key: 'approved_amount', label: 'المعتمد', num: true, render: function (c) { return c.approved_amount ? amt(c.approved_amount) : raw('<span class="muted">—</span>'); } },
+              { key: 'litres', label: 'لتر', num: true, render: function (c) { return c.litres ? h`<span class="num">${c.litres}</span><span class="sub num">${c.price_per_litre} للتر</span>` : raw('<span class="muted">—</span>'); } },
+              { key: 'odometer_km', label: 'العداد', num: true, render: function (c) { return c.odometer_km != null ? h`<span class="num">${fmt.km(c.odometer_km)}</span>` : raw('<span class="muted">—</span>'); } },
               { key: 'status', label: 'الحالة', render: function (c) { return h`${fuelStatus(c)}${c.decision_note ? h`<span class="sub">${c.decision_note}</span>` : ''}`; } }
             ],
             rowClick: function (c) {
@@ -394,6 +400,84 @@
     var input = el.querySelector('[name=fuel_month]');
     if (input) input.addEventListener('change', function () { if (input.value) { month = input.value; drawAll(); } });
     drawQueue(); drawAll();
+  }
+
+  /* ================= استهلاك الوقود: لتر/100 كم وتكلفة الكيلومتر =================
+     من تعبئات متتالية لنفس السيارة بعداد يتقدم ولا يخالف قراءاتها المصوّرة، ولترات معروفة لكل تعبئة بينها.
+     ما لا تكفيه البيانات يظهر «بيانات غير كافية» مع السبب، ولا يُخمَّن. */
+  function fuelEconomy(box) {
+    var to = BT.config.today, d = new Date(to + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - 89);
+    var from = d.toISOString().slice(0, 10), tab = 'vehicles', cache = {};
+    BT.render(box, h`<div class="card-h"><div><div class="card-t">${icon('gauge', 16)} استهلاك الوقود</div><div class="card-meta">لتر لكل 100 كم وتكلفة الكيلومتر من التعبئات المعتمدة (فواتير السائقين ومصروفات الوقود بسيارتها)</div></div>
+      <div class="ms-auto flex gap-8 wrap"><div style="min-width:150px">${BT.f.input({ name: 'eco_from', label: '', type: 'date', value: from, max: to })}</div><div style="min-width:150px">${BT.f.input({ name: 'eco_to', label: '', type: 'date', value: to, max: to })}</div></div></div><div data-eco-body></div>`);
+    var body = box.querySelector('[data-eco-body]');
+    function l100(x) { return x.l_per_100km != null ? h`<b class="num">${x.l_per_100km}</b>` : h`<span class="muted" data-insufficient>${api.t('fuel_flag', x.insufficient || 'few_stretches')}</span>`; }
+    function perKm(x) { return x.cost_per_km != null ? h`<span class="num">${fmt.money(x.cost_per_km)}</span>` : raw('<span class="muted">—</span>'); }
+    function flags(list) { return h`${(list || []).map(function (f) { return BT.pill(api.t('fuel_flag', f), f === 'odometer_conflict' || f === 'odometer_backwards' || f === 'above_fleet' ? 'r' : 'o'); })}`; }
+    function skipped(m) { var k = Object.keys(m || {}); return k.length ? h`<span class="sub">${k.map(function (f) { return api.t('fuel_flag', f) + ' ' + m[f]; }).join('، ')}</span>` : ''; }
+    function draw() {
+      var key = from + '|' + to;
+      if (!cache[key]) cache[key] = api.get('/cash/fuel-economy', { from: from, to: to });
+      A.load(body, cache[key], function (e) {
+        var f = e.fleet, cover = f.fills ? Math.round(100 * Math.min(f.fills_litres, f.fills_odometer) / f.fills) : 0;
+        setTimeout(function () {
+          var t = body.querySelector('[data-eco-table]');
+          if (!t) return;
+          var specs = {
+            vehicles: { rows: e.vehicles, columns: [
+              { key: 'vehicle', label: 'السيارة', render: function (x) { return A.plate(x.vehicle.plate_number, x.vehicle.id); } },
+              { key: 'l_per_100km', label: 'لتر/100 كم', num: true, render: function (x) { return h`${l100(x)}${x.vs_fleet_pct != null ? h`<span class="sub num">${x.vs_fleet_pct > 0 ? '+' : ''}${x.vs_fleet_pct}% عن المتوسط</span>` : ''}`; } },
+              { key: 'cost_per_km', label: 'تكلفة/كم', num: true, render: perKm },
+              { key: 'km', label: 'كم محسوبة', num: true, render: function (x) { return h`<span class="num">${fmt.km(x.km)}</span><span class="sub num">${x.stretches} مسافة</span>`; } },
+              { key: 'fills', label: 'التعبئات', num: true, render: function (x) { return h`<span class="num">${x.fills}</span>${skipped(x.skipped)}`; } },
+              { key: 'spent', label: 'المصروف', num: true, render: function (x) { return h`${amt(x.spent)}<span class="sub num">${x.litres} لتر</span>`; } }
+            ], empty: 'لا توجد تعبئات في الفترة' },
+            drivers: { rows: e.drivers, columns: [
+              { key: 'driver', label: 'السائق', render: function (x) { return A.person(x.driver); } },
+              { key: 'l_per_100km', label: 'لتر/100 كم', num: true, render: l100 },
+              { key: 'cost_per_km', label: 'تكلفة/كم', num: true, render: perKm },
+              { key: 'km', label: 'كم محسوبة', num: true, render: function (x) { return h`<span class="num">${fmt.km(x.km)}</span><span class="sub num">${x.stretches} مسافة</span>`; } },
+              { key: 'fills', label: 'تعبئاته', num: true }
+            ], empty: 'لا توجد تعبئات لسائقين في الفترة' },
+            months: { rows: e.months, columns: [
+              { key: 'month', label: 'الشهر', render: function (x) { return h`<span class="num">${String(x.month).slice(0, 7)}</span>`; } },
+              { key: 'l_per_100km', label: 'لتر/100 كم', num: true, render: l100 },
+              { key: 'cost_per_km', label: 'تكلفة/كم', num: true, render: perKm },
+              { key: 'litres', label: 'اللترات', num: true, render: function (x) { return h`<span class="num">${x.litres}</span>`; } },
+              { key: 'spent', label: 'المصروف', num: true, render: function (x) { return amt(x.spent); } },
+              { key: 'fills', label: 'التعبئات', num: true }
+            ], empty: 'لا توجد بيانات' },
+            exceptions: { rows: e.exceptions, columns: [
+              { key: 'at', label: 'التعبئة', render: function (x) { return x.source === 'vehicle' ? raw('<span class="muted">السيارة في الفترة</span>') : h`<span class="num">${x.dated_only ? fmt.date(x.day) : fmt.dt(x.at)}</span><span class="sub">${x.source === 'claim' ? 'فاتورة سائق' : 'مصروف #' + x.number}</span>`; } },
+              { key: 'vehicle', label: 'السيارة', render: function (x) { return A.plate(x.vehicle.plate_number, x.vehicle.id); } },
+              { key: 'driver', label: 'السائق', render: function (x) { return x.driver ? A.person(x.driver) : raw('<span class="muted">—</span>'); } },
+              { key: 'values', label: 'القيم', render: function (x) { return x.source === 'vehicle' ? h`<span class="num">${x.l_per_100km}</span> لتر/100 كم (+${x.vs_fleet_pct}%)` : h`${amt(x.amount)}<span class="sub">${x.litres ? x.litres + ' لتر' : 'بلا لترات'} · ${x.km != null ? fmt.km(x.km) + ' كم' : 'بلا عداد'}</span>`; } },
+              { key: 'flags', label: 'السبب', render: function (x) { return flags(x.flags); } }
+            ], empty: 'لا استثناءات: كل التعبئات مكتملة ومتسقة' }
+          };
+          var sp = specs[tab];
+          BT.table(t, { rows: sp.rows, pageSize: 25, columns: sp.columns, empty: { icon: 'fuel', title: sp.empty } });
+        });
+        return h`<div class="kpis mb-16" data-eco-kpis>
+            ${BT.kpi({ label: 'لتر/100 كم للأسطول', value: f.l_per_100km != null ? String(f.l_per_100km) : 'بيانات غير كافية', sub: f.l_per_100km != null ? fmt.km(f.km) + ' كم من ' + f.stretches + ' مسافة' + (f.median_l_per_100km != null ? ' · الوسيط للسيارات ' + f.median_l_per_100km : '') : 'يلزم ' + e.rules.min_stretches + ' تعبئات متتالية و' + fmt.km(e.rules.min_km) + ' كم على الأقل', dot: f.l_per_100km != null ? 'b' : 'n' })}
+            ${BT.kpi({ label: 'تكلفة الكيلومتر', value: f.cost_per_km != null ? fmt.money(f.cost_per_km) : '—', sub: f.median_price_per_litre != null ? 'وسيط سعر اللتر ' + fmt.money(f.median_price_per_litre) : 'لا لترات معروفة', dot: 'b' })}
+            ${BT.kpi({ label: 'مصروف الوقود في الفترة', value: fmt.money(f.spent), sub: f.litres_total + ' لتر · ' + f.fills + ' تعبئة', dot: 'o' })}
+            ${BT.kpi({ label: 'اكتمال البيانات', value: cover + '%', sub: f.fills_litres + ' بلترات · ' + f.fills_odometer + ' بعداد' + (f.pending_claims ? ' · ' + f.pending_claims + ' بانتظار المراجعة لا تُحسب' : ''), dot: cover >= 80 ? 'g' : 'o' })}
+          </div>
+          <div class="hint mb-12">المسافة تُحسب بين تعبئتين لنفس السيارة بعداد يتقدم ولا يخالف قراءاتها المصوّرة (±${e.rules.reading_tolerance_km} كم)، ولترات كل التعبئات بينهما معروفة؛ وأطول من ${fmt.km(e.rules.max_gap_km)} كم يعني تعبئة ناقصة فلا تُحسب. السائق يُحسب من تعبئاته المتتالية هو. الفواتير بانتظار المراجعة لا تدخل.</div>
+          ${BT.tabs('eco', [['vehicles', 'السيارات', e.vehicles.length], ['drivers', 'السائقون', e.drivers.length], ['months', 'الاتجاه الشهري', e.months.length], ['exceptions', 'الاستثناءات', e.exceptions.length]], tab, 'tabs-line')}
+          <div data-eco-table class="mt-12"></div>`;
+      }).then(function () {
+        A.delegate(body, 'bt:tab', '[data-tabs="eco"]', function (ev) { tab = ev.detail; draw(); });
+      }).catch(function () { delete cache[key]; });
+    }
+    box.addEventListener('change', function (ev) {
+      var n = ev.target && ev.target.name;
+      if (n !== 'eco_from' && n !== 'eco_to') return;
+      var a = box.querySelector('[name=eco_from]').value, b = box.querySelector('[name=eco_to]').value;
+      if (a && b && a <= b) { from = a; to = b; draw(); }
+    });
+    draw();
   }
 
   function treasuryPanel(el) {

@@ -1669,4 +1669,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get objectionInstallment => 'An installment';
+
+  @override
+  String pickupReplacementTitle(String plate) {
+    return 'The replacement car $plate';
+  }
+
+  @override
+  String get pickupReplacementHint =>
+      'You hand it back as you collect your car: photograph its odometer and enter the reading.';
+
+  @override
+  String get pickupReplacementPhoto => 'Photo of the replacement car odometer';
+
+  @override
+  String get fuelLitres => 'Litres (optional)';
+
+  @override
+  String get fuelLitresInvalid => 'Enter the litres as on the receipt (up to 500)';
+
+  @override
+  String get fuelLitresUnit => 'L';
+
+  @override
+  String get replacementCar => 'Replacement car — yours is at the center';
 }

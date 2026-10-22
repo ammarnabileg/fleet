@@ -125,6 +125,13 @@ class MaintenanceSettings(_Section):
     # no longer read: every request goes straight to the center the driver (or the office) picks. Kept so a stored
     # value stays valid; the settings page does not show it
     direct_to_center: bool = False
+    # periodic schedules: "due soon" this many days or kilometres before the due date or reading
+    due_soon_days: int = Field(14, ge=0, le=365)
+    due_soon_km: int = Field(1000, ge=0, le=50_000)
+    # a repair past its expected date is late (alerted); this many days later, or at once when urgent, escalated
+    escalate_after_days: int = Field(2, ge=0, le=60)
+    # a car at the center this many days with no expected date is alerted as a long stay; 0 = off
+    long_stay_days: int = Field(7, ge=0, le=180)
 
 
 class AccidentsSettings(_Section):

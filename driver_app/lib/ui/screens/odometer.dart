@@ -9,11 +9,12 @@ import 'home.dart';
 /// Start or end of the day: a photo of the odometer from the app's camera, then the reading. Saved with the
 /// photo's own time and sent at once, or later if there is no network.
 class OdometerScreen extends StatefulWidget {
-  const OdometerScreen({super.key, required this.state, required this.kind, this.requestId});
+  const OdometerScreen({super.key, required this.state, required this.kind, this.requestId, this.replacementPlate});
 
   final AppState state;
   final String kind; // start_day | end_day | pickup (the car collected from the maintenance center)
   final String? requestId; // pickup: the maintenance request
+  final String? replacementPlate; // pickup: the replacement car he hands back in the same step (its reading too)
 
   @override
   State<OdometerScreen> createState() => _OdometerScreenState();
@@ -21,8 +22,19 @@ class OdometerScreen extends StatefulWidget {
 
 class _OdometerScreenState extends State<OdometerScreen> {
   TakenPhoto? photo;
+  TakenPhoto? sparePhoto;
   final _km = TextEditingController();
+  final _spareKm = TextEditingController();
   final _form = GlobalKey<FormState>();
+
+  bool get _spare => widget.kind == 'pickup' && widget.replacementPlate != null;
+
+  @override
+  void dispose() {
+    _km.dispose();
+    _spareKm.dispose();
+    super.dispose();
+  }
 
   int? get lastKm => widget.state.today?.custody?.lastKm;
 
@@ -33,7 +45,7 @@ class _OdometerScreenState extends State<OdometerScreen> {
 
   Future<void> _send() async {
     final l = context.l;
-    if (photo == null) {
+    if (photo == null || (_spare && sparePhoto == null)) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.photoRequired)));
       return;
     }
@@ -45,6 +57,8 @@ class _OdometerScreenState extends State<OdometerScreen> {
               km: int.parse(_km.text),
               photoPath: photo!.path,
               takenAt: photo!.takenAt,
+              replacementKm: _spare ? int.parse(_spareKm.text) : null,
+              replacementPhotoPath: _spare ? sparePhoto!.path : null,
             )
           : await widget.state.sendReading(
               kind: widget.kind,
@@ -120,6 +134,50 @@ class _OdometerScreenState extends State<OdometerScreen> {
                 ],
               ),
             ),
+            if (_spare) ...[
+              const SizedBox(height: 12),
+              DCard(
+                key: const Key('pickup-replacement'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      l.pickupReplacementTitle('\u2066${widget.replacementPlate}\u2069'),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(l.pickupReplacementHint, style: const TextStyle(fontSize: 12.5, height: 1.5)),
+                    const SizedBox(height: 10),
+                    FieldLabel(l.pickupReplacementPhoto, required: true),
+                    PhotoTile(
+                      key: const Key('spare-photo'),
+                      label: sparePhoto == null ? l.takeOdometerPhoto : l.pickupReplacementPhoto,
+                      hint: l.cameraOnly,
+                      path: sparePhoto?.path,
+                      onTap: () async {
+                        final p = await Photos.camera(context);
+                        if (p != null) setState(() => sparePhoto = p);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    FieldLabel(l.odometerKm, required: true),
+                    TextFormField(
+                      key: const Key('spare-km'),
+                      controller: _spareKm,
+                      keyboardType: TextInputType.number,
+                      textDirection: TextDirection.ltr,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(7)],
+                      decoration: InputDecoration(
+                        hintText: '000000',
+                        hintTextDirection: TextDirection.ltr,
+                        suffixText: l.km,
+                      ),
+                      validator: (v) => int.tryParse(v ?? '') == null ? l.kmInvalid : null,
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Banner2(text: widget.kind == 'pickup' ? l.pickupIntro : l.odometerIntro, icon: Icons.info_outline),
             if (typed != null && lastKm != null && typed < lastKm!) ...[

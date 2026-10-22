@@ -234,6 +234,9 @@ class DriverCashOut(BaseModel):
 Note = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
 
+Litres = Annotated[Decimal, Field(gt=0, le=500, max_digits=8, decimal_places=2)]
+
+
 class FuelClaimIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -241,6 +244,7 @@ class FuelClaimIn(BaseModel):
     paid_at: datetime  # when the receipt's photo was taken
     amount: Amount
     odometer_km: Annotated[int, Field(ge=0, le=10_000_000)] | None = None
+    litres: Litres | None = None  # from the receipt, if he gives it (an older app sends none)
     receipt_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]  # a camera photo of the receipt
     notes: Note | None = None
 
@@ -253,6 +257,7 @@ class DriverFuelClaimOut(BaseModel):
     status: str  # pending | approved | rejected
     decision_note: str | None
     odometer_km: int | None
+    litres: Decimal | None = None
     notes: str | None
     vehicle_plate: str | None
     created_at: datetime
@@ -275,6 +280,8 @@ class FuelClaimOut(BaseModel):
     amount: Decimal
     approved_amount: Decimal | None
     odometer_km: int | None
+    litres: Decimal | None = None
+    price_per_litre: Decimal | None = None  # the amount (as approved) per litre, when the litres are known
     notes: str | None
     status: str
     decision_note: str | None
@@ -291,6 +298,7 @@ class FuelApproveIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     amount: Amount | None = None  # the claimed amount when omitted; a different one needs a note
+    litres: Litres | None = None  # read from the receipt: given, or corrected (the driver's otherwise)
     note: Note | None = None
 
 
@@ -335,3 +343,20 @@ class PettyMovementsOut(BaseModel):
 
 class PettyStatusOut(BaseModel):
     role_ready: bool  # the petty_cash role is on an open account: custodies can be funded
+
+
+# ---- fuel economy
+
+
+class FuelEconomyOut(BaseModel):
+    """Per vehicle, per driver and per month, from consecutive fills with known litres and odometer readings that go
+    forward; figures are None where the data is insufficient (the reasons say what is missing)."""
+
+    first: date
+    last: date
+    fleet: dict
+    vehicles: list[dict]
+    drivers: list[dict]
+    months: list[dict]
+    exceptions: list[dict]
+    rules: dict

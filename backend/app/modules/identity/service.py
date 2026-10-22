@@ -755,6 +755,30 @@ def user_options(db: Session) -> list[dict]:
     return [{"id": str(p), "name": f"{n} ({u})"} for p, n, u in rows]
 
 
+def users_with_permission(db: Session, permission: str) -> list[dict]:
+    """The active office users holding a permission (whom a task can be given to), by name: {"id", "name"}."""
+    users = db.execute(
+        select(User.id, User.public_id, User.full_name, User.username, User.is_superuser)
+        .where(User.is_active.is_(True))
+        .order_by(User.full_name)
+    ).all()
+    return [
+        {"id": str(p), "name": f"{n} ({u})", "user_id": i}
+        for i, p, n, u, superuser in users
+        if superuser or permission in user_permissions(db, i)
+    ]
+
+
+def office_user(db: Session, public_id, permission: str) -> int:
+    """The internal id of an active office user holding the permission (a task's assignee), else refused."""
+    found = db.execute(select(User.id, User.is_active, User.is_superuser).where(User.public_id == public_id)).first()
+    if found is None:
+        raise AppError(404, "user_not_found")
+    if not found.is_active or not (found.is_superuser or permission in user_permissions(db, found.id)):
+        raise AppError(422, "assignee_not_allowed", permission=permission)
+    return found.id
+
+
 def role_id_by_code(db: Session, code: str) -> int:
     found = db.scalar(select(Role.id).where(Role.code == code))
     if found is None:

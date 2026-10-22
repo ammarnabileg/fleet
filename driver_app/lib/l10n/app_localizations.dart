@@ -3037,6 +3037,48 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'قسط خصم'**
   String get objectionInstallment;
+
+  /// No description provided for @pickupReplacementTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'السيارة البديلة {plate}'**
+  String pickupReplacementTitle(String plate);
+
+  /// No description provided for @pickupReplacementHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'تُرجعها وأنت تستلم سيارتك: صوّر عدادها واكتب قراءتها.'**
+  String get pickupReplacementHint;
+
+  /// No description provided for @pickupReplacementPhoto.
+  ///
+  /// In ar, this message translates to:
+  /// **'صورة عداد السيارة البديلة'**
+  String get pickupReplacementPhoto;
+
+  /// No description provided for @fuelLitres.
+  ///
+  /// In ar, this message translates to:
+  /// **'اللترات (اختياري)'**
+  String get fuelLitres;
+
+  /// No description provided for @fuelLitresInvalid.
+  ///
+  /// In ar, this message translates to:
+  /// **'اكتب اللترات كما في الفاتورة (حتى 500)'**
+  String get fuelLitresInvalid;
+
+  /// No description provided for @fuelLitresUnit.
+  ///
+  /// In ar, this message translates to:
+  /// **'لتر'**
+  String get fuelLitresUnit;
+
+  /// No description provided for @replacementCar.
+  ///
+  /// In ar, this message translates to:
+  /// **'سيارة بديلة — سيارتك في الصيانة'**
+  String get replacementCar;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

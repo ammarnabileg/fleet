@@ -133,6 +133,7 @@
           ${BT.f.input({ name: 'supplier', label: 'المورد', optional: true })}
           ${BT.f.input({ name: 'ref', label: 'رقم الفاتورة أو الإيصال', optional: true })}
           <div class="full">${A.picker({ name: 'vehicle', label: 'السيارة (اختياري)', items: vehicles.map(function (x) { return { id: x.id, label: A.vehicleLabel(x) }; }) })}</div>
+          ${BT.f.input({ name: 'odometer', label: 'عداد السيارة عند التعبئة (كم)', optional: true, num: true, min: 0, hint: 'للوقود مع السيارة واللترات: يدخل حساب الاستهلاك (لتر/100 كم)' })}
           <div class="full">${A.picker({ name: 'employee', label: 'الموظف أو السائق (اختياري)', items: people.map(function (x) { return { id: x.id, label: x.employee_number + ' · ' + api.name(x.name) }; }) })}</div>
           ${centers.length ? h`<div class="full">${BT.f.select({ name: 'center', label: 'مركز الصيانة (اختياري)', options: centers.map(function (c) { return { v: c.id, t: c.name }; }) })}</div>` : ''}
           ${BT.f.upload({ name: 'files', label: 'صورة الفاتورة أو الإيصال', optional: true, full: true, multiple: true, accept: 'image/*,application/pdf' })}
@@ -142,6 +143,7 @@
           var vehicle = f.vehicle ? A.picked('vehicle', f.vehicle) : null, employee = f.employee ? A.picked('employee', f.employee) : null;
           if (f.vehicle && !vehicle) return Promise.reject(new Error('اختر السيارة من القائمة'));
           if (f.employee && !employee) return Promise.reject(new Error('اختر الموظف من القائمة'));
+          if (f.odometer !== '' && f.odometer != null && !vehicle) return Promise.reject(new Error('قراءة العداد تحتاج اختيار السيارة'));
           var missing = needBranch(f.method, f.branch);
           if (missing) return missing;
           if (f.method === 'petty' && !f.petty_holder) return Promise.reject(new Error('اختر الموظف صاحب العهدة التي دفعت'));
@@ -150,7 +152,7 @@
             return api.post('/finance/expenses', {
               company_id: Number(f.company), branch_id: f.branch ? Number(f.branch) : null, type_id: Number(f.type), expense_date: f.date, amount: String(f.amount), payment_method: f.method,
               petty_employee_id: f.method === 'petty' ? f.petty_holder : null, quantity: f.quantity ? String(f.quantity) : null, supplier: f.supplier || null, reference_no: f.ref || null,
-              vehicle_id: vehicle, employee_id: employee, center_id: f.center || null, notes: f.notes || null, files: shas
+              vehicle_id: vehicle, odometer_km: f.odometer === '' || f.odometer == null ? null : Math.round(f.odometer), employee_id: employee, center_id: f.center || null, notes: f.notes || null, files: shas
             });
           });
         },
@@ -182,6 +184,7 @@
           e.supplier ? ['المورد', e.supplier] : null,
           e.reference_no ? ['رقم الفاتورة', h`<span class="num">${e.reference_no}</span>`] : null,
           e.vehicle ? ['السيارة', BT.plate(e.vehicle.plate_number)] : null,
+          e.odometer_km != null ? ['العداد عند التعبئة', h`<span class="num">${fmt.km(e.odometer_km)}</span> كم`] : null,
           e.employee ? ['الموظف', A.person(e.employee)] : null,
           e.center ? ['مركز الصيانة', e.center.name] : null,
           e.files.length ? ['الملفات', h`${e.files.map(function (sha, i) { return h`<a href="${api.url('/finance/expenses/' + e.id + '/files/' + sha)}" target="_blank" rel="noopener">${icon('file-text', 14)} ملف ${i + 1}</a> `; })}`] : null,

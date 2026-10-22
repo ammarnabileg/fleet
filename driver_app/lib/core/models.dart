@@ -8,6 +8,7 @@ class Custody {
     this.model,
     this.inMaintenance = false,
     this.maintenanceCenter,
+    this.replacement = false,
   });
 
   factory Custody.fromJson(Map<String, dynamic> j) => Custody(
@@ -18,6 +19,7 @@ class Custody {
     model: [j['make'], j['model'], j['year']].whereType<Object>().join(' ').trim(),
     inMaintenance: j['in_maintenance'] as bool? ?? false,
     maintenanceCenter: j['maintenance_center'] as String?,
+    replacement: j['replacement'] as bool? ?? false,
   );
 
   final String id;
@@ -27,6 +29,7 @@ class Custody {
   final String? model; // make, model and year as one line ("Toyota Yaris 2023"); empty from an older server
   final bool inMaintenance; // at a center: still his, but no work day starts with it until he collects it
   final String? maintenanceCenter;
+  final bool replacement; // a replacement car while his own is at a center (handed back when he collects it)
 }
 
 /// The business day (yyyy-mm-dd) of a moment, by Kuwait's clock (UTC+3, no daylight saving), as the server counts.
@@ -360,6 +363,7 @@ class MaintenanceRequest {
     this.rejectedReason,
     this.direct = false,
     bool? pickupInApp,
+    this.replacementPlate,
   }) : pickupInApp = pickupInApp ?? direct;
 
   factory MaintenanceRequest.fromJson(Map<String, dynamic> j) {
@@ -379,6 +383,7 @@ class MaintenanceRequest {
       rejectedReason: j['decision_note'] as String?,
       direct: j['direct'] as bool? ?? false,
       pickupInApp: j['pickup_in_app'] as bool?, // an older server: the requests sent straight to the center
+      replacementPlate: j['replacement_plate'] as String?,
     );
   }
 
@@ -398,6 +403,7 @@ class MaintenanceRequest {
   bool get isReady => status == 'ready';
   final bool direct; // sent straight to the center
   final bool pickupInApp; // ready and his to collect: he confirms the pickup himself
+  final String? replacementPlate; // the replacement car he holds meanwhile: handed back at the pickup, with its reading
 }
 
 /// A deduction as the driver sees it: the total and its monthly installments (amounts as the server sends them).
@@ -910,6 +916,7 @@ class FuelClaim {
     this.approvedAmount,
     this.decisionNote,
     this.odometerKm,
+    this.litres,
     this.plate,
   });
 
@@ -921,6 +928,7 @@ class FuelClaim {
     approvedAmount: j['approved_amount'] as String?,
     decisionNote: j['decision_note'] as String?,
     odometerKm: j['odometer_km'] as int?,
+    litres: j['litres'] as String?,
     plate: j['vehicle_plate'] as String?,
   );
 
@@ -931,6 +939,7 @@ class FuelClaim {
   final String? approvedAmount;
   final String? decisionNote; // the reason of a rejection, or of a corrected amount
   final int? odometerKm;
+  final String? litres;
   final String? plate;
 }
 

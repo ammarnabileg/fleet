@@ -88,6 +88,7 @@ class Expense(Base):
     __table_args__ = (
         CheckConstraint("amount > 0", name="amount"),
         CheckConstraint("quantity > 0", name="quantity"),
+        CheckConstraint("odometer_km >= 0", name="odometer_km"),
         CheckConstraint("payment_method IN ('treasury', 'bank', 'payable', 'petty')", name="payment_method"),
         CheckConstraint("(payment_method = 'petty') = (petty_employee_id IS NOT NULL)", name="petty"),
         CheckConstraint("status IN ('pending', 'approved', 'rejected', 'cancelled')", name="status"),
@@ -118,6 +119,7 @@ class Expense(Base):
     supplier: Mapped[str | None] = mapped_column(Text)
     reference_no: Mapped[str | None] = mapped_column(Text)
     vehicle_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("fleet.vehicles.id"))
+    odometer_km: Mapped[int | None] = mapped_column(Integer)  # the car's, when fuel was filled (fuel economy)
     employee_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
     center_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("maintenance.centers.id"))
     notes: Mapped[str | None] = mapped_column(Text)

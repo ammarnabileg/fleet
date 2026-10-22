@@ -11,7 +11,7 @@ from app.core import sheets
 from app.core.clock import KUWAIT, today
 from app.core.db import get_session
 from app.core.errors import AppError
-from app.modules.cash import fuel, schemas, service
+from app.modules.cash import fuel, fuel_economy, schemas, service
 from app.modules.files import service as files
 from app.modules.i18n import service as i18n
 from app.modules.identity.service import (
@@ -480,6 +480,19 @@ def fuel_claims(
     )
 
 
+@router.get("/cash/fuel-economy", response_model=schemas.FuelEconomyOut)
+def fuel_economy_view(
+    date_from: Annotated[date, Query(alias="from")],
+    date_to: Annotated[date, Query(alias="to")],
+    vehicle_id: uuid.UUID | None = None,
+    principal: Principal = Depends(_fuel_reader),
+    db: Session = Depends(get_session),
+):
+    """Litres per 100 km and cost per km, per vehicle, driver and month, from consecutive fills that can be trusted;
+    None with the reason where the data does not allow a figure."""
+    return fuel_economy.economy(db, first=date_from, last=date_to, vehicle_public_id=vehicle_id, **principal.scope)
+
+
 @router.get("/cash/fuel-claims/pending-count", response_model=schemas.CountOut)
 def fuel_pending(principal: Principal = Depends(_fuel_reader), db: Session = Depends(get_session)):
     return {"count": fuel.pending_count(db, **principal.scope)}
@@ -500,7 +513,13 @@ def approve_fuel(
     db: Session = Depends(get_session),
 ):
     return fuel.approve(
-        db, public_id, amount=body.amount, note=body.note, actor_user_id=principal.user_id, **principal.scope
+        db,
+        public_id,
+        amount=body.amount,
+        litres=body.litres,
+        note=body.note,
+        actor_user_id=principal.user_id,
+        **principal.scope,
     )
 
 

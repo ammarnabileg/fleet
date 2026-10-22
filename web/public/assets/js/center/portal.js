@@ -226,6 +226,8 @@
       if (M.READY_FROM.indexOf(s) > -1 && (hasInvoice || api.can('portal.invoices'))) acts.push(['جاهزة للاستلام', 'bell-ring', 'btn-primary', 'ready']);
       if (['completed', 'ready', 'picked_up', 'closed'].indexOf(s) > -1 && !hasInvoice && api.can('portal.invoices')) acts.push(['إدخال الفاتورة', 'receipt-text', 'btn-outline', 'invoice']);
       if (s === 'ready' && !r.driver_collects) acts.push(['تم الاستلام', 'log-out', 'btn-secondary', 'picked']);
+      // موعد الإنجاز المتوقع: تتابعه الشركة، وبعده يظهر الطلب متأخراً عندها
+      if (['referred', 'quote_pending'].concat(M.READY_FROM).indexOf(s) > -1) acts.push([r.expected_ready_on ? 'تغيير الموعد المتوقع' : 'موعد الإنجاز المتوقع', 'calendar', 'btn-ghost', 'expected']);
       var hint = s === 'referred' ? 'سجّلوا الاستلام عند وصول السيارة: تبقى في عهدة السائق ولا يعمل بها حتى يستلمها.'
         : M.READY_FROM.indexOf(s) > -1 ? (api.can('portal.invoices') || hasInvoice ? 'عند انتهاء الإصلاح: «جاهزة للاستلام» مع الفاتورة (الملف والرقم والمبلغ)، فيُبلَّغ السائق.' : 'تُدخل الفاتورة مع «جاهزة للاستلام» بحساب الفواتير في المركز.')
           : s === 'ready' ? (r.driver_collects ? 'أُبلغ السائق. يؤكد الاستلام من تطبيقه عند خروج السيارة.' : 'لا يحمل السيارة سائق الآن: سجّلوا «تم الاستلام» عند خروجها مع مندوب الشركة.') : '';
@@ -237,6 +239,15 @@
   };
 
   var ACT = {
+    expected: function (r) {
+      form({
+        title: 'موعد الإنجاز المتوقع', subtitle: r.vehicle.plate_number + ' · طلب #' + r.number, icon: 'calendar', size: 'sm',
+        body: h`<div class="form">${BT.f.input({ name: 'on', label: 'متى تكون السيارة جاهزة؟', type: 'date', required: true, min: BT.config.today, value: r.expected_ready_on || '' })}
+          ${BT.f.textarea({ name: 'note', label: 'ملاحظة للشركة', optional: true, rows: 2, placeholder: 'بانتظار قطعة، فحص إضافي…' })}</div>`,
+        submitText: 'حفظ', submitIcon: 'check', done: 'حُفظ الموعد',
+        submit: function (f) { return api.post('/portal/requests/' + r.id + '/expected', { expected_ready_on: f.on, note: f.note || null }); }
+      });
+    },
     receive: function (r) {
       form({
         title: 'تسجيل استلام السيارة', subtitle: r.vehicle.plate_number + ' · طلب #' + r.number, icon: 'log-in', size: 'lg',
