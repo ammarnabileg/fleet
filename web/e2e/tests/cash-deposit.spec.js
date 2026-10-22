@@ -73,5 +73,8 @@ test('receipts not confirmed after a day are listed above the balances', async (
   await admin.reload();
   await settled(admin);
   await expect(admin.locator('#bal-panel [data-bal]')).toBeVisible();
+  // owed by the drivers and owed to them kept apart, with the net
+  await expect(admin.locator('#bal-panel [data-cash-split]')).toContainText('مستحق للشركة على السائقين');
+  await expect(admin.locator('#bal-panel [data-cash-split]')).toContainText('أرصدة دائنة للسائقين');
   await expect(admin.locator(`#bal-panel tr[data-receipt="${given.id}"]`)).toHaveCount(0); // given just now: not late
 });

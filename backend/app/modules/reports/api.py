@@ -30,6 +30,12 @@ class Out:
     def name(self, name: dict) -> str:
         return service.name_in(name, self.lang, self.default)
 
+    def side(self, fmt: str, side: str | None) -> str:
+        """A driver's balance side: the key for other systems (CSV), in words for people (Excel)."""
+        if not side or fmt == "csv":
+            return side or ""
+        return i18n.t(self.db, self.lang, f"balance_side.{side}")
+
     def send(self, fmt: str, base: str, title: str, header: list[str], rows) -> Response:
         if not self.principal.has("reports.export"):
             raise AppError(403, "permission_denied", permission="reports.export")
@@ -186,8 +192,9 @@ def cash_balances(
     db: Session = Depends(get_session),
     limit: Annotated[int, Query(ge=1, le=5000)] = 5000,
 ):
+    """Every driver with a balance, as the cash page lists them: total positive, he owes it to the company; negative,
+    the company owes it to him (balance_side says which, in words in Excel, as owes/owed in CSV)."""
     out = Out(db, principal, accept_language)
-    drivers = people.app_drivers(db, **principal.scope) + people.departed_drivers(db, **principal.scope)
     rows = [
         [
             out.name(b["driver"]["name"]),
@@ -195,10 +202,11 @@ def cash_balances(
             f"{b['pending']:.3f}",
             f"{b['total']:.3f}",
             "yes" if b["over_limit"] else "",
+            out.side(format, b["side"]),
         ]
-        for b in cash.driver_balances(db, drivers)[:limit]
+        for b in cash.driver_balances(db, people.all_drivers(db, **principal.scope))[:limit]
     ]
-    header = ["driver", "approved", "unapproved", "total", "over_limit"]
+    header = ["driver", "approved", "unapproved", "total", "over_limit", "balance_side"]
     return out.send(format, "cash-balances", "cash_balances", header, rows)
 
 
@@ -440,7 +448,8 @@ def cash_report_(
         return data
     out = Out(db, principal, accept_language)
     if section == "aging":
-        header = ["driver", "approved", "unapproved", "d0_1", "d2_3", "d4_7", "d8_plus", "oldest"]
+        header = ["driver", "approved", "unapproved", "d0_1", "d2_3", "d4_7", "d8_plus", "oldest", "total"]
+        header.append("balance_side")
         rows = [
             [
                 out.name(r["driver"]["name"]) if r["driver"] else "",
@@ -451,6 +460,8 @@ def cash_report_(
                 _money(r["d4_7"]),
                 _money(r["d8_plus"]),
                 str(r["oldest"] or ""),
+                _money(r["total"]),
+                out.side(format, r["side"]),
             ]
             for r in data["aging"]["rows"]
         ]

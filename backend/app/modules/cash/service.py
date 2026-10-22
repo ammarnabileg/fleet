@@ -1000,6 +1000,27 @@ def statement(db: Session, driver: people.EmployeeRef, *, limit: int = 100) -> d
     }
 
 
+def balance_side(total: Decimal) -> str | None:
+    """A driver's balance read the same everywhere (dashboard, cash page, reports, exports): positive, he owes it to
+    the company (cash he holds, "owes"); negative, the company owes it to him (a credit to settle, "owed")."""
+    return "owes" if total > 0 else "owed" if total < 0 else None
+
+
+def cash_split(totals: Iterable[Decimal]) -> dict:
+    """The drivers' balances kept apart, never netted silently: owed by drivers, owed to drivers, and the net."""
+    totals = list(totals)
+    owing = [t for t in totals if t > 0]
+    owed = [-t for t in totals if t < 0]
+    by, to = sum(owing, ZERO), sum(owed, ZERO)
+    return {
+        "owed_by_drivers": by,
+        "owed_to_drivers": to,
+        "net": by - to,
+        "drivers_owing": len(owing),
+        "drivers_owed": len(owed),
+    }
+
+
 def driver_balances(db: Session, drivers: list[people.EmployeeRef]) -> list[dict]:
     accounts = (
         dict(
@@ -1025,6 +1046,7 @@ def driver_balances(db: Session, drivers: list[people.EmployeeRef]) -> list[dict
                     "posted": b.posted,
                     "pending": b.pending,
                     "total": b.total,
+                    "side": balance_side(b.total),
                     "over_limit": b.total > limit,
                 }
             )

@@ -15,6 +15,9 @@ class Dashboard(BaseModel):
     drivers: dict | None = None
     daily_reports: dict | None = None
     cash: dict | None = None
+    # the drivers' balances apart: owed_by_drivers (cash they hold for the company), owed_to_drivers (credits the
+    # company owes them, to settle), net, drivers_owing, drivers_owed
+    driver_cash: dict | None = None
     documents: dict[str, int] | None = None
     maintenance: dict[str, int] | None = None
     accidents: dict[str, int] | None = None
@@ -205,6 +208,8 @@ class AgingLine(BaseModel):
     driver: dict | None
     posted: Decimal
     pending: Decimal
+    total: Decimal | None = None
+    side: str | None = None  # owes | owed
     d0_1: Decimal
     d2_3: Decimal
     d4_7: Decimal

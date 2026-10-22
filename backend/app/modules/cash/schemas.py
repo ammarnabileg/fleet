@@ -125,6 +125,7 @@ class BalanceOut(BaseModel):
     posted: Decimal
     pending: Decimal
     total: Decimal
+    side: str | None = None  # owes: he owes it to the company; owed: the company owes it to him (to settle)
     over_limit: bool
 
 

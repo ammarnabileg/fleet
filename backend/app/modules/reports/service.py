@@ -184,12 +184,16 @@ def dashboard(
             .subquery()
         )
         limit = org.get_section(db, "cash").driver_balance_alert
-        posted, pending, over, holding = db.execute(
+        total = per_driver.c.posted + per_driver.c.pending
+        posted, pending, over, holding, owed_by, owed_to, owed = db.execute(
             select(
                 func.coalesce(func.sum(per_driver.c.posted), 0),
                 func.coalesce(func.sum(per_driver.c.pending), 0),
-                func.count().filter(per_driver.c.posted + per_driver.c.pending > limit),
-                func.count().filter(per_driver.c.posted + per_driver.c.pending > 0),
+                func.count().filter(total > limit),
+                func.count().filter(total > 0),
+                func.coalesce(func.sum(total).filter(total > 0), 0),
+                func.coalesce(-func.sum(total).filter(total < 0), 0),
+                func.count().filter(total < 0),
             )
         ).one()
         deposited = db.scalar(
@@ -197,8 +201,19 @@ def dashboard(
             .join(Employee, Employee.id == Receipt.driver_id)
             .where(driver_scope, func.date(func.timezone("Asia/Kuwait", Receipt.created_at)) == today())
         )
+        # a balance is what the driver owes the company (positive) or what it owes him (negative, a credit to
+        # settle): the two kept apart, never netted into one figure that hides either (cash_service.cash_split)
+        owed_by, owed_to = Decimal(owed_by).quantize(ZERO), Decimal(owed_to).quantize(ZERO)
+        out["driver_cash"] = {
+            "owed_by_drivers": owed_by,
+            "owed_to_drivers": owed_to,
+            "net": owed_by - owed_to,
+            "drivers_owing": holding,
+            "drivers_owed": owed,
+        }
         out["cash"] = {
-            "held_by_drivers": Decimal(posted) + Decimal(pending),
+            "held_by_drivers": Decimal(posted)
+            + Decimal(pending),  # the net: kept until the dashboard reads driver_cash
             "unapproved": Decimal(pending),
             "approved": Decimal(posted),
             "over_limit": over,
@@ -345,25 +360,35 @@ def _by_company(db: Session, companies: list[dict], has) -> list[dict]:
         ):
             rows[company_id] |= {"reports_today": sent, "orders_today": int(orders)}
     if has("cash.view"):
-        zero("cash_held", value=ZERO)
-        put(
-            "cash_held",
-            (
-                (company_id, Decimal(amount))
-                for company_id, amount in db.execute(
-                    select(Employee.company_id, func.coalesce(func.sum(JournalLine.amount), 0))
-                    .join(Account, Account.driver_id == Employee.id)
-                    .join(JournalLine, JournalLine.account_id == Account.id)
-                    .join(Journal, Journal.id == JournalLine.journal_id)
-                    .where(
-                        Account.kind == "driver",
-                        Journal.status.in_(("posted", "pending")),
-                        Employee.company_id.in_(ids),
-                    )
-                    .group_by(Employee.company_id)
-                )
-            ),
+        zero("cash_held", "cash_owed_by_drivers", "cash_owed_to_drivers", value=ZERO)
+        per_driver = (
+            select(Employee.company_id, func.sum(JournalLine.amount).label("total"))
+            .join(Account, Account.driver_id == Employee.id)
+            .join(JournalLine, JournalLine.account_id == Account.id)
+            .join(Journal, Journal.id == JournalLine.journal_id)
+            .where(
+                Account.kind == "driver",
+                Journal.status.in_(("posted", "pending")),
+                Employee.company_id.in_(ids),
+            )
+            .group_by(Employee.company_id, Employee.id)
+            .subquery()
         )
+        t = per_driver.c.total
+        for company_id, net, by, to in db.execute(
+            select(
+                per_driver.c.company_id,
+                func.coalesce(func.sum(t), 0),
+                func.coalesce(func.sum(t).filter(t > 0), 0),
+                func.coalesce(-func.sum(t).filter(t < 0), 0),
+            ).group_by(per_driver.c.company_id)
+        ):
+            # cash_held: the net, as before; the two sides apart
+            rows[company_id] |= {
+                "cash_held": Decimal(net).quantize(ZERO),
+                "cash_owed_by_drivers": Decimal(by).quantize(ZERO),
+                "cash_owed_to_drivers": Decimal(to).quantize(ZERO),
+            }
     return list(rows.values())
 
 

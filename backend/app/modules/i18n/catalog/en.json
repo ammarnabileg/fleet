@@ -1245,6 +1245,7 @@
     "approved": "Approved",
     "unapproved": "Unapproved",
     "total": "Total",
+    "balance_side": "Balance side",
     "over_limit": "Over the limit",
     "center": "Center",
     "received": "Received",
@@ -1642,6 +1643,10 @@
     "decided_at": "Closed at",
     "note": "Note",
     "with": "With {name}"
+  },
+  "balance_side": {
+    "owes": "Owes the company",
+    "owed": "Owed by the company (to settle)"
   },
   "change_status": {
     "pending": "Under review",

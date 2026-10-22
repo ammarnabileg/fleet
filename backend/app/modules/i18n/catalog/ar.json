@@ -1245,6 +1245,7 @@
     "approved": "معتمد",
     "unapproved": "غير معتمد",
     "total": "الإجمالي",
+    "balance_side": "اتجاه الرصيد",
     "over_limit": "فوق الحد",
     "center": "المركز",
     "received": "المستلمة",
@@ -1642,6 +1643,10 @@
     "decided_at": "وقت الإغلاق",
     "note": "الملاحظة",
     "with": "مع {name}"
+  },
+  "balance_side": {
+    "owes": "عليه للشركة",
+    "owed": "له عند الشركة (يحتاج تسوية)"
   },
   "change_status": {
     "pending": "قيد المراجعة",

@@ -19,6 +19,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, BIGINT
 from sqlalchemy.orm import Session
 
 from app.core.clock import today
+from app.modules.cash import service as cash_service
 from app.modules.identity import service as identity
 from app.modules.org import service as org
 from app.modules.reports.filters import Filters
@@ -153,11 +154,14 @@ def cash_report(
         b = buckets.get(driver_id) or {key: ZERO for key, _, _ in AGES} | {"oldest": None}
         if not posted and not pending:
             continue
+        total = (Decimal(posted) + Decimal(pending)).quantize(ZERO)
         rows.append(
             {
                 "driver": names.get(driver_id),
                 "posted": Decimal(posted).quantize(ZERO),
                 "pending": Decimal(pending).quantize(ZERO),
+                "total": total,
+                "side": cash_service.balance_side(total),  # owes: he owes the company; owed: it owes him (to settle)
                 **{key: b[key].quantize(ZERO) for key, _, _ in AGES},
                 "oldest": b["oldest"],
                 "oldest_days": (as_of - b["oldest"]).days if b["oldest"] else None,
@@ -165,6 +169,8 @@ def cash_report(
         )
     rows.sort(key=lambda r: (-r["d8_plus"], -r["posted"], r["driver"]["id"] if r["driver"] else ""))
     totals = {k: sum((r[k] for r in rows), ZERO) for k in ("posted", "pending", *(key for key, _, _ in AGES))}
+    # what the drivers owe the company and what it owes them, apart (the same split as the dashboard and cash page)
+    totals |= cash_service.cash_split(r["total"] for r in rows)
 
     window = params | {"start": start, "end": end}
     found = list(db.execute(COLLECTORS, window).mappings())
