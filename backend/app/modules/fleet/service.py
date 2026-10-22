@@ -794,6 +794,7 @@ def _start_custody(
     )
     _add_photos(db, custody, "handover", photos)
     _close_pending_claim(db, driver.id, vehicle, custody, decided_by=by_user)
+    _settle_change_requests(db, driver.id, vehicle, custody, decided_by=by_user)
     vehicle.status = "assigned"
     vehicle.version += 1
     emit(
@@ -943,7 +944,7 @@ def _end_custody(
         vehicle.status = "available"
     vehicle.version += 1
     notifications.resolve(db, f"driver_left:{custody.id}")
-    _close_change_request(db, custody, vehicle, actor_user_id)
+    # a change of vehicle he asked for stays open: it is done only when he takes the car he asked for
     out = _custodies_out(db, [custody])[0]
     audit.record(
         db,
@@ -1773,11 +1774,45 @@ def _change_out(r: VehicleChangeRequest | None, plates: dict | None = None, name
         "reason": r.reason,
         "note": r.note,
         "created_at": r.created_at,
+        "approved_at": r.approved_at,
         "decided_at": r.decided_at,
         "requested_plate": r.requested_plate,
         "vehicle_plate": (plates or {}).get(r.vehicle_id),
         "driver": (names or {}).get(r.employee_id),
     }
+
+
+OPEN_CHANGE = ("pending", "approved")
+CHANGE_SUPERSEDED_NOTE = "اتسلم عربية غير اللي طلبها"
+
+
+def _handed_over_after():
+    """The custody that carried out a change request: the one linked to it, or (requests closed as done before the link
+    existed) a custody of the requested car started for the driver after he asked; a request that named no car: any
+    other car he took after it. SQL, so the office's list can filter on it."""
+    r = VehicleChangeRequest
+    target = case(
+        (r.requested_vehicle_id.is_not(None), Custody.vehicle_id == r.requested_vehicle_id),
+        else_=Custody.vehicle_id != r.vehicle_id,
+    )
+    return (
+        select(Custody.started_at)
+        .where(
+            or_(
+                Custody.id == r.fulfilled_custody_id,
+                (Custody.driver_id == r.employee_id) & (Custody.started_at >= r.created_at) & target,
+            )
+        )
+        .order_by(Custody.started_at)
+        .limit(1)
+        .scalar_subquery()
+    )
+
+
+def _unverified():
+    """Closed as done with no handover of the requested car to the driver after it (closed by hand, or by the return
+    of his car, before the change was tied to its handover): for a person to review, never corrected automatically."""
+    return (VehicleChangeRequest.status == "done") & _handed_over_after().is_(None)
 
 
 def _plate_key(plate: str) -> str:
@@ -1931,16 +1966,23 @@ def vehicle_change_requests(
     all_companies: bool,
     company_ids,
 ) -> list:
-    """The office's list: the pending ones oldest first (the queue), or every request (status "all" or empty) newest
-    first, with the car asked for as it is now and who closed it. vehicle_id matches the car held or the one asked
-    for."""
+    """The office's list: the open ones oldest first (the queue: "pending" waiting for a decision, "approved" waiting
+    for the handover, "open" both), or every request (status "all" or empty) newest first, with the car asked for as
+    it is now, who closed it and when the requested car was handed over. "unverified": closed as done without that
+    handover (to review). vehicle_id matches the car held or the one asked for."""
     if status == "all":
         status = None
-    q = select(VehicleChangeRequest).order_by(
-        VehicleChangeRequest.created_at if status == "pending" else VehicleChangeRequest.created_at.desc(),
-        VehicleChangeRequest.id if status == "pending" else VehicleChangeRequest.id.desc(),
+    queue = status in ("pending", "approved", "open")
+    handed_over = _handed_over_after().label("handed_over_at")
+    q = select(VehicleChangeRequest, handed_over).order_by(
+        VehicleChangeRequest.created_at if queue else VehicleChangeRequest.created_at.desc(),
+        VehicleChangeRequest.id if queue else VehicleChangeRequest.id.desc(),
     )
-    if status:
+    if status == "open":
+        q = q.where(VehicleChangeRequest.status.in_(OPEN_CHANGE))
+    elif status == "unverified":
+        q = q.where(_unverified())
+    elif status:
         q = q.where(VehicleChangeRequest.status == status)
     if driver_id is not None:
         q = q.where(VehicleChangeRequest.employee_id == driver_id)
@@ -1950,69 +1992,115 @@ def vehicle_change_requests(
         )
     if not all_companies:
         q = q.where(VehicleChangeRequest.company_id.in_(list(company_ids)))
-    rows = list(db.scalars(q.limit(limit).offset(offset)))
+    found = db.execute(q.limit(limit).offset(offset)).all()
+    rows = [r for r, _ in found]
     plates = plate_numbers(db, {r.vehicle_id for r in rows})
     public = dict(
         db.execute(select(Vehicle.id, Vehicle.public_id).where(Vehicle.id.in_({r.vehicle_id for r in rows}))).all()
     )
     names = people.names(db, {r.employee_id for r in rows})
     requested = _requested_vehicles(db, rows)
-    users = identity.user_names(db, {r.decided_by for r in rows} - {None})
+    users = identity.user_names(db, ({r.decided_by for r in rows} | {r.approved_by for r in rows}) - {None})
     out = []
-    for r in rows:
+    for r, at in found:
         item = _change_out(r, plates, names)
         item["vehicle_id"] = str(public[r.vehicle_id])
         item["requested_vehicle"] = requested.get(r.requested_vehicle_id) or (
             {"found": False, "plate": r.requested_plate} if r.requested_plate else None
         )
         item["decided_by"] = users.get(r.decided_by)
+        item["approved_by"] = users.get(r.approved_by)
+        item["handed_over_at"] = at if r.status == "done" else None
+        item["unverified"] = r.status == "done" and at is None
         out.append(item)
     return out
 
 
-def _decide_change(db: Session, r: VehicleChangeRequest, status: str, actor_user_id: int, note: str | None) -> None:
+def _settle_change_requests(
+    db: Session, driver_id: int, vehicle: Vehicle, custody: Custody, *, decided_by: int | None
+) -> None:
+    """A custody started for the driver, however (a handover, a transfer, his claim approved, a car collected from a
+    center): the change he asked for is settled with it. The car he asked for: done, linked to this custody. Another
+    car: closed, he did not get the change. In the caller's transaction, locked, so it happens once."""
+    for r in db.scalars(
+        select(VehicleChangeRequest)
+        .where(VehicleChangeRequest.employee_id == driver_id, VehicleChangeRequest.status.in_(OPEN_CHANGE))
+        .order_by(VehicleChangeRequest.id)
+        .with_for_update()
+    ):
+        wanted = r.requested_vehicle_id == vehicle.id or (r.requested_vehicle_id is None and r.vehicle_id != vehicle.id)
+        if wanted:
+            r.fulfilled_custody_id = custody.id
+            _decide_change(db, r, "done", decided_by, None)
+        else:
+            _decide_change(db, r, "closed", decided_by, CHANGE_SUPERSEDED_NOTE)
+        audit.record(
+            db,
+            action=f"vehicle_change.{r.status}",
+            entity_type="vehicle",
+            entity_id=db.get(Vehicle, r.vehicle_id).public_id,
+            actor_user_id=decided_by,
+            actor_type="user" if decided_by else "device",
+            company_id=r.company_id,
+            after={"custody": str(custody.public_id), "vehicle": vehicle.plate_number, "note": r.note},
+        )
+
+
+def _decide_change(
+    db: Session, r: VehicleChangeRequest, status: str, actor_user_id: int | None, note: str | None
+) -> None:
+    """The request's new state, and the driver told. Approved, it stays open (waiting for the handover)."""
+    plate = db.get(Vehicle, r.vehicle_id).plate_number
+    if status == "approved":
+        r.status, r.approved_by, r.approved_at = status, actor_user_id, utcnow()
+        r.note = note or r.note
+        notifications.resolve(db, f"vehicle_change:{r.id}")
+        notifications.notify_driver(
+            db, r.employee_id, "vehicle_change_approved", params={"plate": plate, "requested": r.requested_plate}
+        )
+        return
     r.status, r.decided_by, r.decided_at, r.note = status, actor_user_id, utcnow(), note
     notifications.resolve(db, f"vehicle_change:{r.id}")
-    plate = db.get(Vehicle, r.vehicle_id).plate_number
     if status == "done":
         notifications.notify_driver(db, r.employee_id, "vehicle_change_done", params={"plate": plate})
+    elif status == "closed":
+        notifications.notify_driver(
+            db, r.employee_id, "vehicle_change_closed", params={"plate": plate, "reason": note or ""}
+        )
     else:
         notifications.notify_driver(
             db, r.employee_id, "vehicle_change_rejected", params={"plate": plate, "reason": note or ""}
         )
 
 
-def _close_change_request(db: Session, custody: Custody, vehicle: Vehicle, actor_user_id: int) -> None:
-    """The vehicle returned: the change the driver asked for is done."""
-    pending = db.scalar(
-        select(VehicleChangeRequest).where(
-            VehicleChangeRequest.custody_id == custody.id, VehicleChangeRequest.status == "pending"
-        )
-    )
-    if pending is not None:
-        _decide_change(db, pending, "done", actor_user_id, None)
+CHANGE_DECISIONS = {"approve": "approved", "reject": "rejected", "close": "closed"}
 
 
 def close_vehicle_change(
-    db: Session, public_id, *, done: bool, note: str | None, actor_user_id: int, all_companies: bool, company_ids
+    db: Session, public_id, *, decision: str, note: str | None, actor_user_id: int, all_companies: bool, company_ids
 ) -> dict:
-    """The supervisor closes the request: done (handled another way), or refused with the note the driver reads."""
+    """The supervisor decides: approve (the request then waits for the handover of the requested car, which alone
+    makes it done), reject with the note the driver reads, or close it without the change (handled another way,
+    with a note). Done is never set by hand: it follows the handover."""
     r = db.scalar(select(VehicleChangeRequest).where(VehicleChangeRequest.public_id == public_id).with_for_update())
     if r is None or not (all_companies or r.company_id in set(company_ids)):
         raise AppError(404, "vehicle_change_not_found")
-    if r.status != "pending":
-        raise AppError(409, "vehicle_change_decided")
-    if not done and not note:
+    status = CHANGE_DECISIONS[decision]
+    if r.status not in OPEN_CHANGE or (status == "approved" and r.status == "approved"):
+        raise AppError(409, "vehicle_change_decided", status=r.status)
+    if status != "approved" and not note:
         raise AppError(422, "reason_required")
-    _decide_change(db, r, "done" if done else "rejected", actor_user_id, note)
+    if status == "approved" and r.requested_vehicle_id is None:
+        raise AppError(422, "vehicle_change_no_vehicle")  # nothing to hand over: close it with a note instead
+    _decide_change(db, r, status, actor_user_id, note)
     audit.record(
         db,
-        action="vehicle_change.done" if done else "vehicle_change.rejected",
+        action=f"vehicle_change.{status}",
         entity_type="vehicle",
         entity_id=db.get(Vehicle, r.vehicle_id).public_id,
         actor_user_id=actor_user_id,
         company_id=r.company_id,
-        after={"note": note},
+        after={"note": note, "requested_plate": r.requested_plate},
     )
     db.commit()
     plates = plate_numbers(db, {r.vehicle_id})

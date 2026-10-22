@@ -143,17 +143,24 @@ class OdometerReading(Base):
 
 
 class VehicleChangeRequest(Base):
-    """The driver asks from the app for another vehicle, naming it by its plate, with his reason (BRD FR-ASG-04); the
-    supervisor changes it (the return closes the request) or refuses with a note."""
+    """The driver asks from the app for another vehicle, naming it by its plate, with his reason (BRD FR-ASG-04).
+    pending: waiting for the office; approved: agreed, waiting for the handover; done: the requested car's custody
+    started for him (fulfilled_custody_id); rejected: refused with a note; closed: ended without the change (another
+    car handed to him, or closed by the office with a note)."""
 
     __tablename__ = "vehicle_change_requests"
     __table_args__ = (
-        CheckConstraint("status IN ('pending', 'done', 'rejected')", name="status"),
+        CheckConstraint("status IN ('pending', 'approved', 'done', 'rejected', 'closed')", name="status"),
         Index(
             "vehicle_change_requests_one_pending_idx",
             "custody_id",
             unique=True,
-            postgresql_where=text("status = 'pending'"),
+            postgresql_where=text("status IN ('pending', 'approved')"),
+        ),
+        Index(
+            "vehicle_change_requests_employee_open_idx",
+            "employee_id",
+            postgresql_where=text("status IN ('pending', 'approved')"),
         ),
         SCHEMA,
     )
@@ -173,6 +180,9 @@ class VehicleChangeRequest(Base):
     decided_by: Mapped[int | None] = mapped_column(BigInteger)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     note: Mapped[str | None] = mapped_column(Text)
+    approved_by: Mapped[int | None] = mapped_column(BigInteger)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fulfilled_custody_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("fleet.custodies.id"))
 
 
 class VehicleClaim(Base):

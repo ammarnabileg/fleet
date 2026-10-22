@@ -330,7 +330,7 @@ def _change_requests(db: Session, principal: Principal, status, driver_id, vehic
     )
 
 
-ChangeStatus = Literal["pending", "done", "rejected", "all", ""]
+ChangeStatus = Literal["pending", "approved", "open", "done", "unverified", "rejected", "closed", "all", ""]
 
 
 @router.get("/vehicle-change-requests", response_model=list[schemas.VehicleChangeOut])
@@ -343,8 +343,9 @@ def vehicle_change_requests(
     principal: Principal = Depends(require_permission("custody.view")),
     db: Session = Depends(get_session),
 ):
-    """Pending (the default, oldest first), one status, or "all" (or empty) newest first; for a driver or a vehicle
-    (the one he held or the one he asked for)."""
+    """Pending (the default, oldest first), approved (waiting for the handover), open (both), one status, "unverified"
+    (done without a handover of the requested car: to review), or "all" (or empty) newest first; for a driver or a
+    vehicle (the one he held or the one he asked for)."""
     return _change_requests(db, principal, status, driver_id, vehicle_id, limit, offset)
 
 
@@ -356,6 +357,8 @@ CHANGE_COLUMNS = (
     "requested_now",
     "reason",
     "status",
+    "approved_at",
+    "handed_over_at",
     "decided_by",
     "decided_at",
     "note",
@@ -401,7 +404,11 @@ def export_vehicle_change_requests(
             r["requested_plate"],
             now(r["requested_vehicle"]),
             r["reason"],
-            text(f"change_status.{r['status']}", r["status"]),
+            text("change_status.unverified", "unverified")
+            if r["unverified"]
+            else text(f"change_status.{r['status']}", r["status"]),
+            when(r["approved_at"]),
+            when(r["handed_over_at"]),
             r["decided_by"] or "",
             when(r["decided_at"]),
             r["note"] or "",
@@ -420,15 +427,17 @@ def export_vehicle_change_requests(
 @router.post("/vehicle-change-requests/{public_id}/{decision}", response_model=schemas.VehicleChangeOut)
 def close_vehicle_change(
     public_id: uuid.UUID,
-    decision: Literal["done", "reject"],
+    decision: Literal["approve", "reject", "close"],
     body: schemas.CloseChangeIn,
     principal: Principal = Depends(require_permission("custody.assign")),
     db: Session = Depends(get_session),
 ):
+    """approve: agreed, waiting for the handover of the requested car (the handover alone makes it done); reject: with
+    the note the driver reads; close: ended without the change, with a note."""
     return service.close_vehicle_change(
         db,
         public_id,
-        done=decision == "done",
+        decision=decision,
         note=body.note,
         actor_user_id=principal.user_id,
         **principal.scope,

@@ -271,6 +271,7 @@
     "vehicle_change_exists": "طلب تغيير السيارة لدى المشرف بالفعل",
     "vehicle_change_not_found": "طلب تغيير السيارة غير موجود",
     "vehicle_change_decided": "أُغلق طلب تغيير السيارة هذا من قبل",
+    "vehicle_change_no_vehicle": "الطلب لا يحدد سيارة لتسليمها: أغلقه بملاحظة",
     "renewal_exists": "يوجد تجديد لهذا المستند بانتظار المكتب",
     "renewal_not_found": "تجديد المستند غير موجود",
     "renewal_decided": "تم البت في هذا التجديد من قبل",
@@ -1555,8 +1556,10 @@
     "report_returned": "أُعيد تقرير {date} للتصحيح: {reason}. عدّله وأرسله من جديد.",
     "report_change_approved": "تمت الموافقة على تعديل تقرير {date} الذي طلبته",
     "report_change_rejected": "رُفض تعديل تقرير {date} الذي طلبته: {reason}",
-    "vehicle_change_done": "تمت معالجة طلبك تغيير السيارة {plate}",
+    "vehicle_change_approved": "تمت الموافقة على طلبك تغيير السيارة {plate} بالسيارة {requested}: استلمها من المكتب",
+    "vehicle_change_done": "تم تغيير سيارتك {plate} بالسيارة التي طلبتها",
     "vehicle_change_rejected": "رُفض طلبك تغيير السيارة {plate}: {reason}",
+    "vehicle_change_closed": "أُغلق طلبك تغيير السيارة {plate} دون تغيير: {reason}",
     "vehicle_handed_over": "العربية {plate} اتسلمت لك وبقت في عهدتك",
     "vehicle_returned": "العربية {plate} اترجعت للمكتب وخرجت من عهدتك",
     "vehicle_taken": "اتسلمت العربية {plate} من عهدتك",
@@ -1633,6 +1636,8 @@
     "requested_now": "المطلوبة الآن",
     "reason": "السبب",
     "status": "الحالة",
+    "approved_at": "وقت الموافقة",
+    "handed_over_at": "وقت تسليم السيارة المطلوبة",
     "decided_by": "أغلقه",
     "decided_at": "وقت الإغلاق",
     "note": "الملاحظة",
@@ -1640,8 +1645,11 @@
   },
   "change_status": {
     "pending": "قيد المراجعة",
+    "approved": "تمت الموافقة — بانتظار التسليم",
     "done": "تم التغيير",
-    "rejected": "مرفوض"
+    "rejected": "مرفوض",
+    "closed": "أُغلق دون تغيير",
+    "unverified": "أُغلق «تم التغيير» دون تسليم السيارة المطلوبة"
   },
   "uncollected": {
     "review": "للمراجعة",

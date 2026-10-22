@@ -1669,4 +1669,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get objectionInstallment => 'An installment';
+
+  @override
+  String vehicleChangeApprovedFor(String plate) {
+    return 'Your change to $plate was approved: collect it from the office';
+  }
 }

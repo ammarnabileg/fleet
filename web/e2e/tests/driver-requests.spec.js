@@ -1,7 +1,7 @@
 // What drivers ask for from the app and the office decides (BRD FR-ASG-04, FR-APP-05): a change of vehicle naming
-// the other car by its plate (an unknown plate refused), refused with its reason then closed as done, from the custody
-// page, and kept in its history with the Excel export; a renewed residence checked against its photo and approved,
-// from the documents tab, after which it is the driver's current one.
+// the other car by its plate (an unknown plate refused), refused with its reason, then approved and done only when the
+// car asked for is handed over, from the custody page, and kept in its history with the Excel export; a renewed
+// residence checked against its photo and approved, from the documents tab, after which it is the driver's current one.
 const fs = require('fs');
 const { test, expect, uid, phone, settled, jpeg } = require('./fixtures');
 const { readXlsx } = require('./xlsx');
@@ -46,11 +46,29 @@ test('a change of vehicle refused then done, and a renewed document approved', a
 
   await app.call('POST', '/driver/vehicle-change-requests', { requested_plate: other.plate_number, reason: 'ما زال معطلاً' });
   row = await custodyPage();
-  await row.getByRole('button', { name: 'تم التغيير' }).click();
-  await top().getByRole('button', { name: 'تم التغيير' }).click();
+  await row.getByRole('button', { name: 'موافقة' }).click();
+  await top().getByRole('button', { name: 'موافقة' }).click();
   await expect(row).toBeHidden();
   mine = await app.call('GET', '/driver/vehicle');
-  expect([mine.change_request.status, mine.change_request.requested_plate]).toEqual(['done', other.plate_number]);
+  // approved is not changed: it waits for the handover of the car asked for
+  expect([mine.change_request.status, mine.change_request.requested_plate]).toEqual(['approved', other.plate_number]);
+  const waiting = admin.locator('[data-pending=vehicle-changes-approved] [data-pending-id]', { hasText: driver.name.ar });
+  await expect(waiting).toContainText(other.plate_number);
+  await waiting.locator('[data-change-handover]').click();
+  await expect(top().locator('[name=vehicle]')).toHaveValue(new RegExp(other.plate_number));
+  await expect(top().locator('[name=driver]')).toHaveValue(new RegExp(driver.employee_number));
+  await expect(top().locator('[data-transfer]')).toContainText(vehicle.plate_number); // his car comes back in the same step
+  await admin.keyboard.press('Escape');
+  await expect(top()).toBeHidden();
+  // the handover (here through the API) is what makes it done
+  await api.post('/custodies/transfer', {
+    vehicle_id: other.id, driver_id: driver.id, mode: 'release', odometer_km: 110, photo_sha256: await api.upload('odo.jpg', 'image/jpeg', jpeg()),
+    other_odometer_km: 5020, other_photo_sha256: await api.upload('odo.jpg', 'image/jpeg', jpeg()),
+  });
+  mine = await app.call('GET', '/driver/vehicle');
+  expect(mine.vehicle.plate_number).toEqual(other.plate_number);
+  await custodyPage();
+  await expect(waiting).toBeHidden();
 
   // ---- the history keeps both, closed, with the car asked for; filtered by status, and exported
   const history = admin.locator('[data-change-history]');
@@ -98,5 +116,5 @@ test('a change of vehicle refused then done, and a renewed document approved', a
   const docs = await api.get(`/documents?owner_type=employee&owner_id=${driver.id}`);
   expect(docs.filter((d) => d.type_code === 'residence').map((d) => [d.number, d.expiry_date])).toEqual([['RES2-' + n, expiry(400)]]);
   const told = (await app.call('GET', '/driver/notifications')).items.map((x) => x.kind);
-  expect(told.slice(0, 3)).toEqual(['document_renewal_approved', 'vehicle_change_done', 'vehicle_change_rejected']);
+  expect(told.slice(0, 5)).toEqual(['document_renewal_approved', 'vehicle_handed_over', 'vehicle_change_done', 'vehicle_change_approved', 'vehicle_change_rejected']);
 });
