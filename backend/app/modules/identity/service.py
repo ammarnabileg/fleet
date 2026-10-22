@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, Request
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, exists, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.core import crypto, permissions
@@ -798,6 +798,35 @@ def user_refs(db: Session, ids: Iterable[int]) -> dict[int, dict]:
             select(User.id, User.public_id, User.full_name, User.username).where(User.id.in_(ids))
         )
     }
+
+
+def users_who_can(db: Session, permission: str, company_id: int | None) -> dict[int, dict]:
+    """The active office users holding the permission within the company (an alert's possible handlers), by id."""
+    holds = or_(
+        User.is_superuser.is_(True),
+        exists(
+            select(UserRole.user_id)
+            .join(Role, Role.id == UserRole.role_id)
+            .outerjoin(RolePermission, RolePermission.role_id == Role.id)
+            .where(
+                UserRole.user_id == User.id,
+                or_(Role.all_permissions.is_(True), RolePermission.permission == permission),
+            )
+        ),
+    )
+    q = select(User.id, User.public_id, User.full_name, User.username).where(User.is_active.is_(True), holds)
+    if company_id is not None:
+        q = q.where(
+            or_(
+                User.all_companies.is_(True),
+                exists(
+                    select(UserCompany.user_id).where(
+                        UserCompany.user_id == User.id, UserCompany.company_id == company_id
+                    )
+                ),
+            )
+        )
+    return {i: {"id": str(p), "name": f"{n} ({u})"} for i, p, n, u in db.execute(q.order_by(User.full_name))}
 
 
 def user_names(db: Session, ids: Iterable[int]) -> dict[int, str]:

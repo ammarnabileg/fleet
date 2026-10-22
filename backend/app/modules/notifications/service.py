@@ -2,17 +2,18 @@
 and only for the companies in their scope. Texts are translations: namespace "alerts", key = kind; the params fill
 the placeholders (a param may be a localized name, picked in the reader's language)."""
 
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import Text, and_, case, cast, func, literal, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.modules.i18n import service as i18n
-from app.modules.notifications.models import Alert, DriverNotice
+from app.modules.notifications.models import Alert, AlertEvent, DriverNotice
 
 
 @dataclass(frozen=True)
@@ -86,9 +87,11 @@ def raise_alert(
     once: bool = False,
     refresh: bool = False,
 ) -> bool:
-    """Adds the alert to the caller's transaction. With a dedupe_key, at most one alert per situation stays open;
-    with once=True, a situation alerts only once even after someone acknowledged it; with refresh=True, the open
-    alert takes the new params (a balance that keeps rising shows its current value)."""
+    """Adds the alert to the caller's transaction. With a dedupe_key, at most one alert per situation stays open (not
+    handled); with once=True, a situation alerts only once even after it was handled; with refresh=True, the open
+    alert takes the new params (a balance that keeps rising shows its current value) and notes when (updated_at).
+    The text says what happened when the alert was raised; how long ago, and what is true now, the reader's screen
+    works out from the times."""
     spec = KINDS[kind]
     missing = set(spec.params) - set(params or {})
     if missing:
@@ -108,18 +111,36 @@ def raise_alert(
     if dedupe_key and refresh:
         stmt = stmt.on_conflict_do_update(
             index_elements=["dedupe_key"],
-            index_where=Alert.acknowledged_at.is_(None),
-            set_={"params": stmt.excluded.params},
+            index_where=Alert.resolved_at.is_(None),
+            set_={
+                "params": stmt.excluded.params,
+                # only a change of figures is an update: the same figures again leave the time alone
+                "updated_at": case((Alert.params == stmt.excluded.params, Alert.updated_at), else_=func.now()),
+            },
         )
     elif dedupe_key:
-        stmt = stmt.on_conflict_do_nothing(index_elements=["dedupe_key"], index_where=Alert.acknowledged_at.is_(None))
+        stmt = stmt.on_conflict_do_nothing(index_elements=["dedupe_key"], index_where=Alert.resolved_at.is_(None))
     return db.execute(stmt.returning(Alert.id)).first() is not None
 
 
 def resolve(db: Session, dedupe_key: str, *, prefix: bool = False) -> None:
-    """The situation is over (e.g. the signal is back): the open alert closes itself."""
+    """The situation is over (e.g. the signal is back): the open alert closes itself (handled automatically)."""
     match = Alert.dedupe_key.startswith(dedupe_key, autoescape=True) if prefix else Alert.dedupe_key == dedupe_key
-    db.execute(update(Alert).where(match, Alert.acknowledged_at.is_(None)).values(acknowledged_at=func.now()))
+    _close_auto(db, match)
+
+
+def resolve_entity(db: Session, entity_type: str, entity_id, kinds: Iterable[str] | None = None) -> None:
+    """The record an alert is about was dealt with (a flagged reading reviewed): its open alerts close themselves."""
+    match = and_(Alert.entity_type == entity_type, Alert.entity_id == str(entity_id))
+    if kinds is not None:
+        match = and_(match, Alert.kind.in_(list(kinds)))
+    _close_auto(db, match)
+
+
+def _close_auto(db: Session, match) -> None:
+    db.execute(
+        update(Alert).where(match, Alert.resolved_at.is_(None)).values(resolved_at=func.now(), resolution="auto")
+    )
 
 
 def _visible(q, *, permissions: Iterable[str], all_companies: bool, company_ids: Iterable[int]):
@@ -129,20 +150,68 @@ def _visible(q, *, permissions: Iterable[str], all_companies: bool, company_ids:
     return q
 
 
-def _out(db: Session, a: Alert, lang: str, default: str) -> dict:
-    params = {k: i18n.pick(v, lang, default) if isinstance(v, dict) else v for k, v in a.params.items()}
-    return {
-        "id": str(a.public_id),
-        "kind": a.kind,
-        "severity": a.severity,
-        "message": i18n.t(db, lang, f"alerts.{a.kind}", **params),
-        "params": params,
-        "company_id": a.company_id,
-        "entity_type": a.entity_type,
-        "entity_id": a.entity_id,
-        "created_at": a.created_at,
-        "acknowledged_at": a.acknowledged_at,
-    }
+ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+SEVERITY_RANK = case({"critical": 0, "warning": 1, "info": 2}, value=Alert.severity, else_=3)
+
+
+def _shown(key: str, value):
+    """A date param reads as the panel shows dates (day-month-year), the right way round inside Arabic text."""
+    if isinstance(value, str) and ISO_DATE.match(value):
+        y, m, d = value.split("-")
+        return f"⁦{d}-{m}-{y}⁩"
+    return value
+
+
+def _status(a: Alert) -> str:
+    return "resolved" if a.resolved_at is not None else "seen" if a.acknowledged_at is not None else "new"
+
+
+def _outs(db: Session, alerts: list[Alert], lang: str) -> list[dict]:
+    from app.modules.identity import service as identity  # identity raises alerts: imported when used
+
+    default = i18n.default_language(db).code
+    users = identity.user_refs(
+        db, {u for a in alerts for u in (a.acknowledged_by, a.resolved_by, a.assigned_to, a.escalated_by)}
+    )
+    out = []
+    for a in alerts:
+        params = {k: i18n.pick(v, lang, default) if isinstance(v, dict) else v for k, v in a.params.items()}
+        out.append(
+            {
+                "id": str(a.public_id),
+                "kind": a.kind,
+                "severity": a.severity,
+                "message": i18n.t(db, lang, f"alerts.{a.kind}", **{k: _shown(k, v) for k, v in params.items()}),
+                "params": params,
+                "company_id": a.company_id,
+                "entity_type": a.entity_type,
+                "entity_id": a.entity_id,
+                "created_at": a.created_at,
+                "updated_at": a.updated_at,
+                "status": _status(a),
+                "acknowledged_at": a.acknowledged_at,
+                "acknowledged_by": users.get(a.acknowledged_by),
+                "resolved_at": a.resolved_at,
+                "resolved_by": users.get(a.resolved_by),
+                "resolution": a.resolution,
+                "resolution_note": a.resolution_note,
+                "assigned_to": users.get(a.assigned_to),
+                "assigned_at": a.assigned_at,
+                "escalated_at": a.escalated_at,
+                "escalated_by": users.get(a.escalated_by),
+            }
+        )
+    return out
+
+
+def _kinds_matching(db: Session, lang: str, q: str) -> list[str]:
+    """The kinds whose text (in the reader's language) holds the words searched: «إشارة» finds the lost signals."""
+    texts = i18n.effective_catalog(db, lang).get("alerts", {})
+    return [k for k, text in texts.items() if q.casefold() in PLACEHOLDER.sub(" ", text).casefold()]
+
+
+PLACEHOLDER = re.compile(r"\{\w+\}")
+STATUSES = ("open", "new", "seen", "resolved", "all")
 
 
 def list_alerts(
@@ -152,66 +221,243 @@ def list_alerts(
     all_companies: bool,
     company_ids: Iterable[int],
     lang: str,
-    open_only: bool = True,
+    status: str = "open",
+    severity: str | None = None,
     kind: str | None = None,
+    q: str | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    assigned: str | None = None,
+    user_id: int | None = None,
+    sort: str = "newest",
     before: datetime | None = None,
+    offset: int = 0,
     limit: int = 50,
 ) -> list[dict]:
-    q = _visible(
-        select(Alert).order_by(Alert.created_at.desc(), Alert.id.desc()).limit(min(limit, 200)),
+    """status: open (not handled: new or seen), new (nobody has seen it), seen, resolved, all. sort: newest first, or
+    the most severe first (then the newest). assigned: me, none, or a user's public id."""
+    order = (Alert.created_at.desc(), Alert.id.desc())
+    if sort == "severity":
+        order = (SEVERITY_RANK, *order)
+    query = _visible(
+        select(Alert).order_by(*order).offset(offset).limit(min(limit, 200)),
         permissions=permissions,
         all_companies=all_companies,
         company_ids=company_ids,
     )
-    if open_only:
-        q = q.where(Alert.acknowledged_at.is_(None))
+    if status == "open":
+        query = query.where(Alert.resolved_at.is_(None))
+    elif status == "new":
+        query = query.where(Alert.resolved_at.is_(None), Alert.acknowledged_at.is_(None))
+    elif status == "seen":
+        query = query.where(Alert.resolved_at.is_(None), Alert.acknowledged_at.is_not(None))
+    elif status == "resolved":
+        query = query.where(Alert.resolved_at.is_not(None))
+    if severity:
+        query = query.where(Alert.severity == severity)
     if kind:
-        q = q.where(Alert.kind == kind)
-    if before:  # pagination: pass the created_at of the last alert received
-        q = q.where(Alert.created_at < before)
-    default = i18n.default_language(db).code
-    return [_out(db, a, lang, default) for a in db.scalars(q)]
+        query = query.where(Alert.kind == kind)
+    if q and q.strip():
+        words = q.strip()
+        like = words.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        query = query.where(
+            or_(
+                cast(Alert.params, Text).ilike(f"%{like}%", escape="\\"),  # names, plates, numbers
+                Alert.kind.in_(_kinds_matching(db, lang, words)),
+            )
+        )
+    if since:
+        query = query.where(Alert.created_at >= since)
+    if until:
+        query = query.where(Alert.created_at < until)
+    if assigned == "me":
+        query = query.where(Alert.assigned_to == user_id)
+    elif assigned == "none":
+        query = query.where(Alert.assigned_to.is_(None))
+    elif assigned:
+        from app.modules.identity import service as identity
+
+        query = query.where(Alert.assigned_to == identity.user_id(db, assigned))
+    if before:  # pagination by time: pass the created_at of the last alert received
+        query = query.where(Alert.created_at < before)
+    return _outs(db, list(db.scalars(query)), lang)
 
 
 def summary(
-    db: Session, *, permissions: Iterable[str], all_companies: bool, company_ids: Iterable[int], lang: str
+    db: Session,
+    *,
+    permissions: Iterable[str],
+    all_companies: bool,
+    company_ids: Iterable[int],
+    lang: str,
+    user_id: int | None = None,
 ) -> dict:
-    """What the panel polls every few seconds: the open alerts by severity (not capped) and the newest one, so it can
-    say what arrived. Two small queries on the open-alerts index."""
+    """What the panel polls every few seconds: the open alerts by severity (not capped), how many nobody has seen yet
+    (the bell), how many are assigned to this user, and the newest one, so it can say what arrived. Small queries on
+    the open-alerts index."""
     scope = {"permissions": list(permissions), "all_companies": all_companies, "company_ids": list(company_ids)}
+    open_ = Alert.resolved_at.is_(None)
     counts = dict(
-        db.execute(
-            _visible(
-                select(Alert.severity, func.count()).where(Alert.acknowledged_at.is_(None)).group_by(Alert.severity),
-                **scope,
-            )
-        ).all()
+        db.execute(_visible(select(Alert.severity, func.count()).where(open_).group_by(Alert.severity), **scope)).all()
     )
-    latest = db.scalar(
-        _visible(select(Alert).where(Alert.acknowledged_at.is_(None)).order_by(Alert.id.desc()).limit(1), **scope)
-    )
+    new, mine = db.execute(
+        _visible(
+            select(
+                func.count().filter(Alert.acknowledged_at.is_(None)),
+                func.count().filter(Alert.assigned_to == user_id) if user_id is not None else literal(0),
+            ).where(open_),
+            **scope,
+        )
+    ).one()
+    latest = db.scalar(_visible(select(Alert).where(open_).order_by(Alert.id.desc()).limit(1), **scope))
     return {
         "open": sum(counts.values()),
         **{s: counts.get(s, 0) for s in ("critical", "warning", "info")},
-        "latest": _out(db, latest, lang, i18n.default_language(db).code) if latest else None,
+        "new": new,
+        "mine": mine,
+        "latest": _outs(db, [latest], lang)[0] if latest else None,
     }
 
 
-def acknowledge(
-    db: Session, public_id, *, actor_user_id: int, permissions: Iterable[str], all_companies: bool, company_ids
-) -> None:
+def _get(db: Session, public_id, *, permissions, all_companies: bool, company_ids, lock: bool = False) -> Alert:
     q = _visible(
         select(Alert).where(Alert.public_id == public_id),
         permissions=permissions,
         all_companies=all_companies,
         company_ids=company_ids,
     )
-    alert = db.scalar(q.with_for_update())
+    alert = db.scalar(q.with_for_update() if lock else q)
     if alert is None:
         raise AppError(404, "alert_not_found")
+    return alert
+
+
+def _log(db: Session, alert: Alert, action: str, actor_user_id: int, *, target: int | None = None, note=None):
+    from app.modules.audit import service as audit
+
+    db.add(AlertEvent(alert_id=alert.id, action=action, actor_user_id=actor_user_id, target_user_id=target, note=note))
+    audit.record(
+        db,
+        action=f"alert.{action}",
+        entity_type="alert",
+        entity_id=alert.public_id,
+        actor_user_id=actor_user_id,
+        company_id=alert.company_id,
+        after={"kind": alert.kind, "note": note} | ({"user_id": target} if target is not None else {}),
+    )
+
+
+def acknowledge(
+    db: Session, public_id, *, actor_user_id: int, permissions: Iterable[str], all_companies: bool, company_ids
+) -> None:
+    """Seen: someone looked at it. It stays open until its cause is gone or someone records how it was handled."""
+    alert = _get(
+        db, public_id, permissions=permissions, all_companies=all_companies, company_ids=company_ids, lock=True
+    )
     if alert.acknowledged_at is None:
         alert.acknowledged_at, alert.acknowledged_by = func.now(), actor_user_id
+        _log(db, alert, "acknowledged", actor_user_id)
     db.commit()
+
+
+def resolve_by_user(
+    db: Session,
+    public_id,
+    *,
+    note: str,
+    actor_user_id: int,
+    permissions: Iterable[str],
+    all_companies: bool,
+    company_ids,
+) -> None:
+    """Handled: what was done, in a word. Seen too, when nobody had acknowledged it yet."""
+    alert = _get(
+        db, public_id, permissions=permissions, all_companies=all_companies, company_ids=company_ids, lock=True
+    )
+    if alert.resolved_at is not None:
+        raise AppError(409, "alert_resolved")
+    if alert.acknowledged_at is None:
+        alert.acknowledged_at, alert.acknowledged_by = func.now(), actor_user_id
+    alert.resolved_at, alert.resolved_by, alert.resolution, alert.resolution_note = (
+        func.now(),
+        actor_user_id,
+        "manual",
+        note,
+    )
+    _log(db, alert, "resolved", actor_user_id, note=note)
+    db.commit()
+
+
+def handlers(db: Session, public_id, *, permissions: Iterable[str], all_companies: bool, company_ids) -> list[dict]:
+    """Who may handle the alert: the active users who would see it themselves (its permission, its company)."""
+    from app.modules.identity import service as identity
+
+    alert = _get(db, public_id, permissions=permissions, all_companies=all_companies, company_ids=company_ids)
+    return list(identity.users_who_can(db, alert.permission, alert.company_id).values())
+
+
+def assign(
+    db: Session,
+    public_id,
+    *,
+    user_public_id,
+    note: str | None,
+    escalate: bool,
+    actor_user_id: int,
+    permissions: Iterable[str],
+    all_companies: bool,
+    company_ids,
+) -> None:
+    """Gives the open alert to someone who can see it (or to nobody). Escalating gives it to another, with the reason,
+    and marks it escalated; it is also seen, by the one who escalated it."""
+    from app.modules.identity import service as identity
+
+    alert = _get(
+        db, public_id, permissions=permissions, all_companies=all_companies, company_ids=company_ids, lock=True
+    )
+    if alert.resolved_at is not None:
+        raise AppError(409, "alert_resolved")
+    target = None
+    if user_public_id is not None:
+        target = identity.user_id(db, user_public_id)
+        if target not in identity.users_who_can(db, alert.permission, alert.company_id):
+            raise AppError(422, "alert_handler_cannot_see")
+    elif escalate:
+        raise AppError(422, "alert_handler_required")
+    if escalate:
+        if target == actor_user_id:
+            raise AppError(422, "alert_escalate_to_self")
+        alert.escalated_at, alert.escalated_by = func.now(), actor_user_id
+        if alert.acknowledged_at is None:
+            alert.acknowledged_at, alert.acknowledged_by = func.now(), actor_user_id
+    elif target == alert.assigned_to:
+        db.commit()
+        return
+    alert.assigned_to, alert.assigned_at = target, (func.now() if target is not None else None)
+    action = "escalated" if escalate else "assigned" if target is not None else "unassigned"
+    _log(db, alert, action, actor_user_id, target=target, note=note)
+    db.commit()
+
+
+def detail(db: Session, public_id, *, lang: str, permissions: Iterable[str], all_companies: bool, company_ids) -> dict:
+    """The alert and what people did with it, oldest first."""
+    from app.modules.identity import service as identity
+
+    alert = _get(db, public_id, permissions=permissions, all_companies=all_companies, company_ids=company_ids)
+    events = list(db.scalars(select(AlertEvent).where(AlertEvent.alert_id == alert.id).order_by(AlertEvent.id)))
+    users = identity.user_refs(db, {u for e in events for u in (e.actor_user_id, e.target_user_id)})
+    return _outs(db, [alert], lang)[0] | {
+        "events": [
+            {
+                "action": e.action,
+                "at": e.at,
+                "by": users.get(e.actor_user_id),
+                "user": users.get(e.target_user_id),
+                "note": e.note,
+            }
+            for e in events
+        ]
+    }
 
 
 # ------------------------------------------------------------------ what the driver is told (FR-NTF-01/02)

@@ -410,6 +410,7 @@ def _add_reading(
                 entity_type="odometer_reading",
                 entity_id=reading.public_id,
                 params=params,
+                dedupe_key=f"{kind_}:{reading.id}",
             )
     _recompute_last_km(db, vehicle)
     return reading
@@ -480,6 +481,7 @@ def review_reading(
     reading.corrected_km = corrected_km
     reading.review_status = "reviewed"
     reading.reviewed_by, reading.reviewed_at, reading.review_reason = actor_user_id, func.now(), reason
+    notifications.resolve_entity(db, "odometer_reading", reading.public_id)  # decided: its alerts have done their work
     db.flush()
     db.refresh(reading)
     _recompute_last_km(db, vehicle)
@@ -705,6 +707,7 @@ def handover(
             entity_type="custody",
             entity_id=custody.public_id,
             params={"plate": vehicle.plate_number, "driver": driver.name, "reason": reason},
+            dedupe_key=f"emergency_custody:{custody.id}",
         )
     out = _custodies_out(db, [custody])[0]
     audit.record(
@@ -1388,6 +1391,7 @@ def review_custody(db: Session, public_id, *, note: str, actor_user_id: int, **s
     if not custody.needs_review:
         raise AppError(409, "nothing_to_review")
     custody.needs_review = False
+    notifications.resolve(db, f"emergency_custody:{custody.id}")
     audit.record(
         db,
         action="custody.reviewed",
