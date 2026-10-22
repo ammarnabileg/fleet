@@ -176,7 +176,7 @@
     var key = BT.uid('th');
     A._thumbs = A._thumbs || {};
     A._thumbs[key] = items;
-    return h`<div class="thumbs">${items.map(function (it, i) { return h`<figure data-thumbs="${key}" data-i="${i}"><img src="${it.src}" alt="${it.caption || ''}" loading="lazy"><figcaption>${it.caption || ''}</figcaption></figure>`; })}</div>`;
+    return h`<div class="thumbs">${items.map(function (it, i) { return h`<figure><button type="button" class="thumb-open" data-thumbs="${key}" data-i="${i}" aria-label="${(it.caption || 'صورة') + ' — تكبير'}"><img src="${it.src}" alt="" loading="lazy"></button><figcaption>${it.caption || ''}</figcaption></figure>`; })}</div>`;
   };
   document.addEventListener('click', function (e) {
     var f = e.target.closest && e.target.closest('[data-thumbs]');

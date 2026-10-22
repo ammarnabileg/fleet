@@ -45,7 +45,12 @@
       dismissible: opts.dismissible !== false
     };
     ov.addEventListener('mousedown', function (e) { api._downOnBackdrop = e.target === ov; });
-    ov.addEventListener('click', function (e) { if (e.target === ov && api._downOnBackdrop && api.dismissible) api.close(); });
+    ov.addEventListener('click', function (e) {
+      if (!(e.target === ov && api._downOnBackdrop && api.dismissible)) return;
+      // a tap beside a form with something typed in it is not "throw it away": that takes «إلغاء» or Esc
+      if (api._dirty) { BT.toast('ما كتبته لم يُحفظ بعد: للإغلاق دون حفظ اضغط «إلغاء»', { type: 'warning' }); return; }
+      api.close();
+    });
     BT.on(ov, 'click', '[data-close]', function (e) { e.preventDefault(); api.close(); });
     root().appendChild(ov);
     stack.push(api);
@@ -110,6 +115,8 @@
     });
     if (api.form) {
       BT.form.live(api.form);
+      // typed by the person (not filled by the screen): kept from a stray tap outside and through an expired session
+      ['input', 'change'].forEach(function (ev) { api.form.addEventListener(ev, function (e) { if (e.isTrusted) api._dirty = true; }); });
       api.form.addEventListener('submit', function (e) {
         e.preventDefault();
         if (!BT.form.validate(api.form)) return;
@@ -129,6 +136,8 @@
   BT.drawer = { open: function (o) { return dialog('drawer', o); } };
   BT.sheet = { open: function (o) { return dialog('sheet', o); } };
   BT.closeAll = function () { stack.slice().reverse().forEach(function (a) { a.close(); }); };
+  /* نموذج مفتوح فيه ما كتبه المستخدم ولم يُحفظ (api.js لا يغادر الصفحة عند انتهاء الجلسة وهو مفتوح) */
+  BT.ui.unsavedForm = function () { return stack.some(function (a) { return a.form && a._dirty; }); };
 
   /* ---------- Confirm ----------
      BT.confirm({title, message, confirmText, tone:'danger'|'warn'|'success', reason:{label, required}, typed:'نص'})
@@ -401,8 +410,12 @@
     if (o.autofocus) a += ' autofocus';
     if (o.maxlength) a += ' maxlength="' + o.maxlength + '"';
     if (o.num) a += ' data-type="number" inputmode="decimal"';
+    if (o.ltr || (o.ltr !== false && (LTR_FIELD.test(o.name || '') || o.type === 'email' || o.type === 'tel'))) a += ' dir="ltr"';
     return raw(a);
   }
+  /* أرقام الهواتف وIBAN واللوحات والرقم المدني والمراجع وأسماء المستخدمين تُكتب من اليسار لليمين حتى في الواجهة العربية:
+     +965 5… لا تنقلب، والمؤشر يتحرك في اتجاه ما يُكتب */
+  var LTR_FIELD = /(^|_)(phone|iban|civil_id|plate_number|vin|email|username|number|ref|reference)$/;
   BT.f = {
     input: function (o) {
       var type = o.type || 'text';
@@ -494,19 +507,56 @@
   /* ---------- Tabs ----------
      <div class="tabs" data-tabs="g1"><button data-tab="a" class="active">أ</button>…</div>
      <div data-panel="a" data-group="g1" class="active">…</div>                              */
-  document.addEventListener('click', function (e) {
-    var b = e.target.closest && e.target.closest('[data-tabs] [data-tab]');
-    if (!b) return;
+  /* نمط WAI-ARIA للتبويبات: التبويب المختار aria-selected="true" منذ أول رسم، والأسهم وHome/End تنقل بينها
+     (في الواجهة العربية السهم الأيسر هو التالي)، وكل تبويب مربوط بلوحته (aria-controls ↔ role=tabpanel). */
+  function tabId(g, k) { return 'tab-' + g + '-' + k; }
+  function panelId(g, k) { return 'tp-' + g + '-' + k; }
+  function selectTab(b) {
     var bar = b.closest('[data-tabs]'), g = bar.getAttribute('data-tabs'), t = b.getAttribute('data-tab');
-    BT.$$('[data-tab]', bar).forEach(function (x) { x.classList.toggle('active', x === b); x.setAttribute('aria-selected', x === b); });
+    BT.$$('[data-tab]', bar).forEach(function (x) { x.classList.toggle('active', x === b); x.setAttribute('aria-selected', x === b ? 'true' : 'false'); x.tabIndex = x === b ? 0 : -1; });
     BT.$$('[data-panel][data-group="' + g + '"]').forEach(function (p) { p.classList.toggle('active', p.getAttribute('data-panel') === t); });
     bar.dispatchEvent(new CustomEvent('bt:tab', { bubbles: true, detail: t }));
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-tabs] [data-tab]');
+    if (b) selectTab(b);
+  });
+  document.addEventListener('keydown', function (e) {
+    var b = e.target.closest && e.target.closest('[data-tabs] [data-tab]');
+    if (!b || e.altKey || e.ctrlKey || e.metaKey) return;
+    var all = BT.$$('[data-tab]', b.closest('[data-tabs]')).filter(function (x) { return !x.disabled && x.offsetParent !== null; });
+    var i = all.indexOf(b), rtl = getComputedStyle(b).direction === 'rtl', next = null;
+    if (e.key === 'ArrowLeft') next = all[(i + (rtl ? 1 : -1) + all.length) % all.length];
+    else if (e.key === 'ArrowRight') next = all[(i + (rtl ? -1 : 1) + all.length) % all.length];
+    else if (e.key === 'Home') next = all[0];
+    else if (e.key === 'End') next = all[all.length - 1];
+    if (!next) return;
+    e.preventDefault();
+    next.focus();
+    if (next !== b) next.click(); // the same path as a click: the page's own bt:tab handler draws the panel
   });
   BT.tabs = function (group, items, active, cls) { // items: [[key, label, count?]]
+    if (!items.some(function (it) { return it[0] === active; }) && items.length) active = items[0][0];
     return h`<div class="${cls || 'tabs'}" data-tabs="${group}" role="tablist">${items.map(function (it) {
-      return h`<button type="button" role="tab" data-tab="${it[0]}" class="${it[0] === active ? 'active' : ''}">${it[1]}${it[2] != null ? h` <span class="count">${it[2]}</span>` : ''}</button>`;
+      var on = it[0] === active;
+      return h`<button type="button" role="tab" id="${tabId(group, it[0])}" data-tab="${it[0]}" class="${on ? 'active' : ''}" aria-selected="${on ? 'true' : 'false'}" tabindex="${on ? '0' : '-1'}">${it[1]}${it[2] != null ? h` <span class="count">${it[2]}</span>` : ''}</button>`;
     })}</div>`;
   };
+  /* بعد كل رسم: كل لوحة (data-panel + data-group) لها تبويب تصبح role=tabpanel مربوطة به، والتبويب يشير إليها */
+  BT.tabs.link = function (root) {
+    BT.$$('[data-tabs] [data-tab]', root).forEach(function (b) {
+      var g = b.closest('[data-tabs]').getAttribute('data-tabs'), k = b.getAttribute('data-tab');
+      var p = root.querySelector('[data-panel="' + k + '"][data-group="' + g + '"]') || document.querySelector('[data-panel="' + k + '"][data-group="' + g + '"]');
+      if (!p) { b.removeAttribute('aria-controls'); return; }
+      if (!b.id) b.id = tabId(g, k);
+      if (!p.id) p.id = panelId(g, k);
+      b.setAttribute('aria-controls', p.id);
+      p.setAttribute('role', 'tabpanel');
+      p.setAttribute('aria-labelledby', b.id);
+    });
+  };
+  var hydrateBase = BT.hydrate;
+  BT.hydrate = function (root) { hydrateBase(root); BT.tabs.link(root || document); };
 
   /* =================================================================
      Data table — BT.table(el, opts)

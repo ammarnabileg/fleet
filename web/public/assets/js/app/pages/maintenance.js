@@ -36,7 +36,7 @@
       var el = v.querySelector('[data-p="' + t + '"]');
       ({ requests: requestsPanel, invoices: invoicesPanel, centers: centersPanel })[t](el, q);
     }
-    v.addEventListener('bt:tab', function (e) { show(e.detail); });
+    v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/maintenance?tab=' + e.detail); });
     show(tab);
   };
   BT.actions['mnt-new'] = function () { newRequest(); };
@@ -291,7 +291,7 @@
     var manage = api.can('maintenance_centers.manage');
     var d = BT.drawer.open({
       title: c.name, subtitle: c.specialty || '', icon: 'store', size: 'lg',
-      body: h`${BT.kv([['جهة الاتصال', c.contact_name || '—'], ['الهاتف', c.phone ? h`<span class="ltr">${c.phone}</span>` : '—'], ['البريد', c.email || '—'], ['العنوان', c.address || '—'], ['سيارات لديه الآن', String(c.at_center)], ['الحالة', c.is_active ? 'نشط' : 'موقوف']])}
+      body: h`${BT.kv([['جهة الاتصال', c.contact_name || '—'], ['الهاتف', c.phone ? h`<span class="ltr">${c.phone}</span>` : '—'], ['البريد', c.email ? h`<span class="ltr">${c.email}</span>` : '—'], ['العنوان', c.address || '—'], ['سيارات لديه الآن', String(c.at_center)], ['الحالة', c.is_active ? 'نشط' : 'موقوف']])}
         ${c.notes ? h`<div class="fs-sm mt-12" style="white-space:pre-wrap">${c.notes}</div>` : ''}
         <div class="between mt-16 mb-8"><div class="section-t" style="margin:0">حسابات البوابة</div>${manage ? h`<div class="flex gap-8"><button type="button" class="btn btn-sm btn-ghost" data-user-link>${icon('link', 14)} ربط حساب موجود</button><button type="button" class="btn btn-sm btn-soft" data-user-add>${icon('user-plus', 14)} إضافة حساب</button></div>` : ''}</div>
         <div data-users>${A.spinner()}</div>

@@ -233,7 +233,7 @@
         <div class="full">${scopeFields(u)}</div></div>`,
       submit: function (v) {
         var roles_ = [].concat(v.role_codes || []).filter(Boolean), cos = [].concat(v.company_ids || []).filter(Boolean).map(Number);
-        if (!v.all_companies && !cos.length) { BT.toast('اختر شركة واحدة على الأقل', { type: 'error' }); return Promise.reject(new Error('scope')); }
+        if (!v.all_companies && !cos.length) { BT.toast('اختر شركة واحدة على الأقل', { type: 'error' }); return false; } // the form stays open, one message
         var body = { full_name: v.full_name, phone: A.phoneE164(v.phone), role_codes: roles_, all_companies: !!v.all_companies, company_ids: v.all_companies ? [] : cos };
         if (!editing) return api.post('/users', Object.assign(body, { username: v.username, password: v.password }));
         return api.patch('/users/' + u.public_id, Object.assign(body, { version: u.version, is_active: !!v.is_active }));
@@ -368,6 +368,12 @@
   // أيام الأسبوع الكويتي: 0 السبت … 6 الجمعة (cash.treasury_deposit_weekdays)
   var WEEKDAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
   var DATES = { 'finance.books_start_date': true };
+  /* قوائم تُختار بمربعات بأسماء مفهومة، لا رموز تُكتب بفواصل (residence, driving_license…) */
+  var docTypesList = [];
+  var CHOICES = {
+    'onboarding.required_documents': function () { return docTypesList.filter(function (t) { return t.applies_to === 'employee'; }).map(function (t) { return { v: t.code, t: api.name(t.name) }; }); },
+    'onboarding.vehicle_photos': function () { return A.options('photo_position', ['front', 'back', 'left', 'right', 'interior']); }
+  };
   var HIDDEN = { 'maintenance.direct_to_center': true }; // لم يعد يُقرأ: كل طلب يذهب مباشرة للمركز المختار
   // يغيّرها مالك النظام فقط (دور بكل الصلاحيات): الخادم يرفض غيره (owner_only)
   var OWNER_ONLY = { 'payroll.live_approval_enabled': 'متوقف افتراضياً: الكشوف تُحضَّر وتُراجع وتُصدَّر، والاعتماد مرفوض حتى تُقارن رواتب شهر بكشفكم لشهر سابق. يفعّله مالك النظام فقط بعد المطابقة.' };
@@ -380,7 +386,7 @@
     'cash.treasury_deposit_weekdays': 'في هذه الأيام يصل صباحاً (7:00) تنبيه بإيداع الخزينة لكل فرع في خزينته مبلغ، ويُغلق نهاية اليوم أو عندما تفرغ الخزينة.'
   };
   function systemPanel(el) {
-    A.load(el, Promise.all([api.get('/settings'), A.docTypes()]).then(function (r) { return r[0]; }), function (sections) {
+    A.load(el, Promise.all([api.get('/settings'), A.docTypes()]).then(function (r) { docTypesList = r[1] || []; return r[0]; }), function (sections) {
       var canEdit = api.can('settings.update');
       setTimeout(function () {
         BT.$$('form[data-sec]', el).forEach(function (form) {
@@ -392,6 +398,7 @@
               var old = cur.value[k];
               if (HIDDEN[name + '.' + k] || (OWNER_ONLY[name + '.' + k] && !owner())) value[k] = old;
               else if (name + '.' + k === 'cash.treasury_deposit_weekdays') value[k] = [].concat(vals[k] || []).map(Number);
+              else if (CHOICES[name + '.' + k]) value[k] = [].concat(vals[k] || []).filter(Boolean);
               else if (ENUMS[name + '.' + k] && typeof old === 'number') value[k] = Number(vals[k]);
               else if (Array.isArray(old)) value[k] = String(vals[k] || '').split(/[,،]/).map(function (x) { return x.trim(); }).filter(Boolean);
               else if (typeof old === 'boolean') value[k] = !!vals[k];
@@ -408,7 +415,13 @@
         var s = sections[name];
         return h`<form class="card" data-sec="${name}" novalidate><div class="card-h"><div class="card-t">${api.t('settings', name)}</div><span class="muted fs-sm">نسخة ${s.version}</span></div><div class="form">${Object.keys(s.value).filter(function (k) { return !HIDDEN[name + '.' + k]; }).map(function (k) {
           var val = s.value[k], label = api.t('settings', name + '.' + k), key = name + '.' + k, hint = HINTS[key];
-          if (key === 'cash.treasury_deposit_weekdays') return h`<div class="field" data-weekdays><label>${label}</label><div class="flex gap-8" style="flex-wrap:wrap">${WEEKDAYS.map(function (d, i) { return h`<label class="check"><input type="checkbox" name="${k}" value="${i}"${val.indexOf(i) > -1 ? raw(' checked') : ''}${canEdit ? '' : raw(' disabled')}><span>${d}</span></label>`; })}</div><div class="hint">${hint}</div></div>`;
+          if (key === 'cash.treasury_deposit_weekdays') return h`<fieldset class="field" data-weekdays><legend class="label">${label}</legend><div class="flex gap-8" style="flex-wrap:wrap">${WEEKDAYS.map(function (d, i) { return h`<label class="check"><input type="checkbox" name="${k}" value="${i}"${val.indexOf(i) > -1 ? raw(' checked') : ''}${canEdit ? '' : raw(' disabled')}><span>${d}</span></label>`; })}</div><div class="hint">${hint}</div></fieldset>`;
+          if (CHOICES[key]) {
+            var choices = CHOICES[key]();
+            // a code saved earlier that is no longer an active type stays visible (and kept unless unticked)
+            val.forEach(function (c) { if (!choices.some(function (x) { return x.v === c; })) choices.push({ v: c, t: c }); });
+            return h`<fieldset class="field" data-choices="${key}"><legend class="label">${label}</legend><div class="flex gap-8" style="flex-wrap:wrap">${choices.map(function (x) { return h`<label class="check"><input type="checkbox" name="${k}" value="${x.v}"${val.indexOf(x.v) > -1 ? raw(' checked') : ''}${canEdit ? '' : raw(' disabled')}><span>${x.t}</span></label>`; })}</div></fieldset>`;
+          }
           if (ENUMS[key]) return BT.f.select({ name: k, label: label, value: val, placeholder: false, options: ENUMS[key], disabled: !canEdit, hint: hint });
           if (DATES[key]) return BT.f.input({ name: k, label: label, type: 'date', value: val || '', readonly: !canEdit, hint: hint });
           if (hint) return BT.f.input({ name: k, label: label, value: val == null ? '' : val, readonly: !canEdit, num: true, hint: hint });

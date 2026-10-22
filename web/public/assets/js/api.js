@@ -31,6 +31,8 @@
 
   api.request = function (method, path, opts) {
     opts = opts || {};
+    // signed in again (another tab) after the session ended under an open form: that session's CSRF token first
+    if (method !== 'GET' && api._renew) return api.renew().then(function () { return api.request(method, path, opts); });
     var headers = { Accept: 'application/json', 'Accept-Language': api.lang };  // نصوص التنبيهات بلغة الواجهة لا بلغة المتصفح
     if (method !== 'GET' && api.csrf) headers['X-CSRF-Token'] = api.csrf;
     var body;
@@ -43,7 +45,12 @@
         return (json ? res.json() : res.text()).then(function (data) {
           if (res.ok) { if (method !== 'GET') api.touched(path, data); return data; }
           var err = new ApiError(res.status, json ? data : {});
-          if (res.status === 401 && !opts.noRedirect) api.toLogin();
+          if (res.status === 401 && !opts.noRedirect) {
+            // a form with typed data open (its save, or a refresh in the background): stay, keep it, and say how to go on
+            // (sign in in a new tab, then save again). Leaving for the sign-in page would throw away what was typed.
+            if (BT.ui && BT.ui.unsavedForm && BT.ui.unsavedForm()) { err.kept = true; api._renew = true; }
+            else api.toLogin();
+          }
           throw err;
         });
       }, function () { throw new ApiError(0, { code: 'network' }); });
@@ -77,6 +84,13 @@
     return api.request('POST', path, { form: fd, query: query });
   };
 
+  api.renew = function () {
+    return api.get('/auth/me', null, { noRedirect: true }).then(function (me) {
+      api._renew = false;
+      if (api.me && me.public_id !== api.me.public_id) { location.reload(); return new Promise(function () {}); } // another user: start over
+      api.csrf = me.csrf_token;
+    }, function (err) { if (err instanceof ApiError && err.status === 401) err.kept = true; throw err; }); // not signed in yet: same message
+  };
   api.toLogin = function () {
     if (api._leaving) return;
     api._leaving = true;
@@ -116,6 +130,7 @@
   api.message = function (err) {
     if (!(err instanceof ApiError)) return String(err && err.message || err || 'خطأ غير متوقع');
     if (err.code === 'network') return 'تعذر الاتصال بالخادم، تحقق من الشبكة وحاول مرة أخرى';
+    if (err.kept) return 'انتهت جلستك، وما كتبته باقٍ هنا: سجّل الدخول في نافذة جديدة ثم اضغط حفظ مرة أخرى';
     if (err.code === 'validation_error') {
       var fields = (err.body.errors || []).map(function (e) {
         var loc = (e.loc || []).filter(function (x) { return x !== 'body' && x !== 'query' && typeof x === 'string'; });
@@ -135,8 +150,8 @@
   };
   /* يعرض الخطأ ثم يعيد رفضه حتى يبقى النموذج مفتوحاً */
   api.fail = function (err) {
-    if (err instanceof ApiError && err.status === 401) throw err;
-    BT.toast(api.message(err), { type: 'error', timeout: 6000 });
+    if (err instanceof ApiError && err.status === 401 && !err.kept) throw err;
+    BT.toast(api.message(err), { type: 'error', timeout: err.kept ? 15000 : 6000, action: err.kept ? { label: 'تسجيل الدخول', fn: function () { window.open('login.html', '_blank', 'noopener'); } } : null });
     throw err;
   };
 
