@@ -215,7 +215,12 @@ jobs:
             EXTRA=(--android-project-arg ciDebugSigning=true)
             echo "### Driver app: CI-ONLY build signed with a throw-away debug key (no release key in secrets)" >> "$GITHUB_STEP_SUMMARY"
           fi
-          flutter build apk --release --dart-define=API_URL="$API_URL" --android-project-arg activationHost="$HOST" "${EXTRA[@]}"
+          # measured, so the heap in android/gradle.properties is raised on evidence, not guessed
+          [ -x /usr/bin/time ] || sudo apt-get install -y -qq time >/dev/null
+          free -m | awk 'NR==2 {print "runner RAM: " $2 " MB"}'
+          /usr/bin/time -v -o build-mem.txt flutter build apk --release --dart-define=API_URL="$API_URL" --android-project-arg activationHost="$HOST" "${EXTRA[@]}"
+          PEAK=$(awk -F': ' '/Maximum resident set size/ {print int($2/1024)}' build-mem.txt)
+          echo "### Driver app build: peak memory of the largest process ${PEAK} MB (runner RAM $(free -m | awk 'NR==2 {print $2}') MB)" >> "$GITHUB_STEP_SUMMARY"
       - name: check the APK
         working-directory: driver_app/build/app/outputs/flutter-apk
         run: |
