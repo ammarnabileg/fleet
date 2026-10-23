@@ -39,6 +39,8 @@ test('a contact request reaches the driver, is acknowledged from his phone and c
 
   await admin.goto('/admin.html#/driver-status');
   await settled(admin);
+  // the whole suite has made many drivers by now: search, he may be past the first page
+  await admin.locator('#dst-status input[type=search]').fill('سائق الحالة ' + n);
   const row = admin.locator('#dst-status tr', { hasText: 'سائق الحالة ' + n });
   await expect(row.locator('[data-tracking]')).toHaveAttribute('data-tracking', 'stale'); // nothing sent yet: never "live"
   await row.locator('[data-contact]').click();
