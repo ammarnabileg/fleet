@@ -1701,4 +1701,36 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get replacementCar => 'Replacement car — yours is at the center';
+
+  @override
+  String outboxAttention(String reason) {
+    return 'Needs your attention: $reason';
+  }
+
+  @override
+  String get outboxTooOld => 'not sent for two days';
+
+  @override
+  String get outboxKeptFailing => 'the server could not take it';
+
+  @override
+  String outboxAttentionCount(int n) {
+    return '$n need your attention';
+  }
+
+  @override
+  String get startFailedTitle => 'The app could not start';
+
+  @override
+  String get startFailedBody => 'Something went wrong while loading. Check the connection and try again.';
+
+  @override
+  String get activationReplaceTitle => 'Replace the signed-in driver?';
+
+  @override
+  String get activationReplaceBody =>
+      'A driver is already signed in on this phone. Activating this link signs him out and removes anything of his not sent yet.';
+
+  @override
+  String get activationReplaceConfirm => 'Activate';
 }

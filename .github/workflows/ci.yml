@@ -179,9 +179,12 @@ jobs:
         env:
           BACKEND_URL: http://127.0.0.1:8000
         run: flutter test --tags contract || (cat /tmp/api.log; exit 1)
-      # the permanent signing key, when the repository has it (Settings -> Secrets -> Actions). Without it the APK is
-      # signed with this runner's throw-away debug key, so it cannot install over the one before (uninstall first)
+      # the permanent signing key, when the repository has it (Settings -> Secrets -> Actions). Without it the release
+      # build would fail (the app never falls back to the debug key by itself): CI then asks explicitly for a CI-only
+      # test APK signed with this runner's throw-away debug key (-PciDebugSigning=true), which cannot install over
+      # the one before (uninstall first) and is marked as such in the run summary
       - name: signing key
+        id: signing
         working-directory: driver_app/android
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -190,7 +193,8 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::warning::no ANDROID_KEYSTORE_BASE64 secret: this APK is signed with a throw-away key and cannot update an installed one"
+            echo "::warning::no ANDROID_KEYSTORE_BASE64 secret: CI-ONLY APK signed with a throw-away debug key; it cannot update an installed one"
+            echo "ci_debug_signing=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "$KEYSTORE_BASE64" | base64 -d > app/release.jks
@@ -203,9 +207,15 @@ jobs:
         # build drivers had runs the app's code unoptimised, several times slower on the phone
         env:
           API_URL: ${{ vars.DRIVER_API_URL || 'https://fleet.kuw1.com' }}
+          CI_DEBUG_SIGNING: ${{ steps.signing.outputs.ci_debug_signing }}
         run: |
           HOST=$(echo "$API_URL" | sed -E 's#^https?://([^/:]+).*#\1#')
-          flutter build apk --release --dart-define=API_URL="$API_URL" --android-project-arg activationHost="$HOST"
+          EXTRA=()
+          if [ "$CI_DEBUG_SIGNING" = "true" ]; then
+            EXTRA=(--android-project-arg ciDebugSigning=true)
+            echo "### Driver app: CI-ONLY build signed with a throw-away debug key (no release key in secrets)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          flutter build apk --release --dart-define=API_URL="$API_URL" --android-project-arg activationHost="$HOST" "${EXTRA[@]}"
       - name: check the APK
         working-directory: driver_app/build/app/outputs/flutter-apk
         run: |

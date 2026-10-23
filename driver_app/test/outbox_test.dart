@@ -187,12 +187,12 @@ void main() {
     expect(await box.flush(api), 1);
   });
 
-  test('older than the server would accept: marked failed instead of retried forever', () async {
+  test('older than the server would accept: parked for the driver instead of retried forever', () async {
     final (db, _, api, server) = await session();
     final box = Outbox(db, clock: () => DateTime.now().add(const Duration(hours: 50)));
     await Outbox(db).add('report', {'business_date': '2026-10-04'}, {});
     await box.flush(api);
-    expect((await box.items()).single.lastError, 'too_old');
+    expect(((await box.items()).single.state, (await box.items()).single.lastError), ('parked', 'too_old'));
     expect(server.requests, isEmpty);
   });
 

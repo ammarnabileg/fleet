@@ -9,6 +9,7 @@ import 'app/push.dart';
 import 'app/state.dart';
 import 'core/db.dart';
 import 'core/device.dart';
+import 'core/error_log.dart';
 import 'l10n/app_localizations.dart';
 import 'tracking/service.dart';
 import 'ui/screens/home.dart';
@@ -23,8 +24,25 @@ import 'ui/widgets/common.dart';
 final _theme = appTheme(); // built once, not on every rebuild
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  final db = await AppDb.open();
+  // whatever escapes goes to the phone's local error log (no outside service, no driver data in it)
+  AppDb? opened;
+  await runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      FlutterError.onError = (d) {
+        FlutterError.presentError(d);
+        if (opened != null) unawaited(ErrorLog(opened!).record('flutter', d.exception, d.stack));
+      };
+      final db = opened = await AppDb.open();
+      await _main(db);
+    },
+    (e, st) {
+      if (opened != null) unawaited(ErrorLog(opened!).record('zone', e, st));
+    },
+  );
+}
+
+Future<void> _main(AppDb db) async {
   final state = AppState(
     db: db,
     platform: PhoneHooks(
@@ -59,6 +77,7 @@ class _DriverAppState extends State<DriverApp> with WidgetsBindingObserver {
   StreamSubscription<Uri>? _links;
   String? _activating;
   String? _activationError;
+  String? _confirming; // a link opened while a driver is signed in: waits for his yes
 
   @override
   void initState() {
@@ -83,7 +102,17 @@ class _DriverAppState extends State<DriverApp> with WidgetsBindingObserver {
 
   Future<void> _onLink(Uri uri) async {
     final token = AppState.activationToken(uri);
-    if (token == null || _activating != null) return;
+    if (token == null || _activating != null || _confirming != null) return;
+    // a driver signed in already: the link (any app or page can open it) replaces him only when he says so
+    if (await widget.state.hasSession()) {
+      if (mounted) setState(() => _confirming = token);
+      return;
+    }
+    await _activate(token);
+  }
+
+  Future<void> _activate(String token) async {
+    if (!mounted) return;
     setState(() {
       _activating = token;
       _activationError = null;
@@ -107,6 +136,16 @@ class _DriverAppState extends State<DriverApp> with WidgetsBindingObserver {
 
   Widget _home() {
     final s = widget.state;
+    if (_confirming != null) {
+      final token = _confirming!;
+      return ConfirmActivationScreen(
+        onConfirm: () {
+          setState(() => _confirming = null);
+          unawaited(_activate(token));
+        },
+        onCancel: () => setState(() => _confirming = null),
+      );
+    }
     if (_activating != null) {
       return ActivatingScreen(error: _activationError, onBack: () => setState(() => _activating = null));
     }
@@ -121,6 +160,7 @@ class _DriverAppState extends State<DriverApp> with WidgetsBindingObserver {
       Phase.waiting => WaitingScreen(state: s),
       Phase.blocked => WaitingScreen(state: s, blocked: true),
       Phase.ready => HomeScreen(state: s),
+      Phase.failed => StartFailedScreen(onRetry: () => unawaited(s.retryStart())),
     };
   }
 

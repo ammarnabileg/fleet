@@ -361,6 +361,15 @@ class HomeTab extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
+          if (state.needsAttention > 0) ...[
+            Banner2(
+              key: const Key('outbox-attention'),
+              text: l.outboxAttentionCount(state.needsAttention),
+              tone: BannerTone.warn,
+              icon: Icons.priority_high,
+            ),
+            const SizedBox(height: 12),
+          ],
           _VehicleCard(state: state),
           if (custody != null) ...[const SizedBox(height: 12), _DayCard(state: state)],
           if (state.queued.isNotEmpty) ...[
@@ -688,19 +697,44 @@ class _QueuedTile extends StatelessWidget {
       'vehicle_claim' => l.kind_vehicle_claim,
       _ => l.kind_report,
     };
+    final parked = item.needsAttention;
     final reason = failed
         ? state.message(ApiError(422, item.lastError ?? ''), network: l.networkError, generic: item.lastError ?? '')
+        : parked
+        ? (item.lastError == 'too_old' ? l.outboxTooOld : l.outboxKeptFailing)
         : l.outboxQueued;
     return DRow(
       divider: !last,
       leading: IconTile(
-        failed ? Icons.error_outline : Icons.schedule,
+        failed
+            ? Icons.error_outline
+            : parked
+            ? Icons.priority_high
+            : Icons.schedule,
         bg: failed ? AppColors.dangerSoft : AppColors.warningSoft,
         fg: failed ? AppColors.danger : AppColors.warning,
       ),
       title: what,
-      subtitle: failed ? l.outboxFailed(reason) : reason,
-      trailing: failed ? TextButton(onPressed: () => state.discard(item.id), child: Text(l.outboxDiscard)) : null,
+      subtitle: failed
+          ? l.outboxFailed(reason)
+          : parked
+          ? l.outboxAttention(reason)
+          : reason,
+      trailing: failed
+          ? TextButton(onPressed: () => state.discard(item.id), child: Text(l.outboxDiscard))
+          : parked
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  key: Key('outbox-retry-${item.id}'),
+                  onPressed: () => state.retryQueued(item.id),
+                  child: Text(l.retry),
+                ),
+                TextButton(onPressed: () => state.discard(item.id), child: Text(l.outboxDiscard)),
+              ],
+            )
+          : null,
     );
   }
 }

@@ -17,7 +17,7 @@ class AppDb {
     final location = path ?? p.join(await f.getDatabasesPath(), fileName);
     final db = await f.openDatabase(
       location,
-      options: OpenDatabaseOptions(version: 1, onConfigure: _configure, onCreate: _create),
+      options: OpenDatabaseOptions(version: 2, onConfigure: _configure, onCreate: _create, onUpgrade: _upgrade),
     );
     return AppDb._(db);
   }
@@ -54,8 +54,14 @@ class AppDb {
         state TEXT NOT NULL DEFAULT 'pending',
         claimed_at TEXT,
         attempts INTEGER NOT NULL DEFAULT 0,
-        last_error TEXT
+        last_error TEXT,
+        next_at TEXT
       )''');
+  }
+
+  /// v2: the outbox waits between attempts ([next_at]: not before this time).
+  static Future<void> _upgrade(Database db, int from, int to) async {
+    if (from < 2) await db.execute('ALTER TABLE outbox ADD COLUMN next_at TEXT');
   }
 
   Future<String?> get(String key, {DatabaseExecutor? tx}) async {

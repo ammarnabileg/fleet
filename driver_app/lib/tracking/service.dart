@@ -9,6 +9,7 @@ import 'package:geolocator/geolocator.dart';
 import '../core/api.dart';
 import '../core/config.dart';
 import '../core/db.dart';
+import '../core/error_log.dart';
 import '../core/tokens.dart';
 import '../l10n/app_localizations.dart';
 import 'fix_mapper.dart';
@@ -120,7 +121,20 @@ class WorkNotice {
 Future<void> trackingMain(ServiceInstance service) async {
   WidgetsFlutterBinding.ensureInitialized();
   DartPluginRegistrant.ensureInitialized();
-  final db = await AppDb.open();
+  // whatever escapes (a plugin's error, a timer) goes to the phone's local error log, never stops the service quietly
+  AppDb? db;
+  FlutterError.onError = (d) => unawaited(_log(db, 'service.flutter', d.exception, d.stack));
+  await runZonedGuarded(() async {
+    db = await AppDb.open();
+    await _run(service, db!);
+  }, (e, st) => unawaited(_log(db, 'service.zone', e, st)));
+}
+
+Future<void> _log(AppDb? db, String where, Object e, StackTrace? st) async {
+  if (db != null) await ErrorLog(db).record(where, e, st);
+}
+
+Future<void> _run(ServiceInstance service, AppDb db) async {
   final api = Api(baseUrl: AppConfig.apiUrl, tokens: TokenStore(db), lang: await db.get('lang') ?? 'ar');
   final notice = WorkNotice();
   await notice.init();
@@ -143,7 +157,11 @@ Future<void> trackingMain(ServiceInstance service) async {
     await service.stopSelf();
   });
   service.on('refresh').listen((_) async {
-    api.lang = await db.get('lang') ?? api.lang;
+    try {
+      api.lang = await db.get('lang') ?? api.lang;
+    } catch (e, st) {
+      await tracker.errors.record('service.refresh', e, st);
+    }
     await tracker.heartbeat();
     await tracker.sync();
   });

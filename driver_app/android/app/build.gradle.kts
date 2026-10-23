@@ -50,9 +50,19 @@ android {
         }
     }
 
+    // A release is signed with the release key, or the build fails: a silently debug-signed APK cannot update the
+    // installed app and fails the App Link verification. Only CI, with no key in its secrets, may pass
+    // -PciDebugSigning=true to sign a test build with the runner's throw-away debug key (said loudly in the log).
+    val ciDebugSigning = (project.findProperty("ciDebugSigning") as String?) == "true"
     buildTypes {
         release {
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
+                ?: if (ciDebugSigning) {
+                    logger.warn("WARNING: CI-only build signed with the DEBUG key (-PciDebugSigning=true); not for drivers")
+                    signingConfigs.getByName("debug")
+                } else {
+                    null
+                }
         }
     }
 }
@@ -65,6 +75,22 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+// fails before anything is built, with the reason, instead of producing an unsigned or debug-signed release
+gradle.taskGraph.whenReady {
+    val releasing = allTasks.any {
+        it.project == project && it.name.endsWith("Release") &&
+            (it.name.startsWith("assemble") || it.name.startsWith("bundle"))
+    }
+    if (releasing && android.signingConfigs.findByName("release") == null &&
+        (project.findProperty("ciDebugSigning") as String?) != "true"
+    ) {
+        throw GradleException(
+            "Release signing key missing: create android/key.properties (storeFile, storePassword, keyAlias, " +
+                "keyPassword). CI test builds without a key pass -PciDebugSigning=true.",
+        )
+    }
 }
 
 dependencies {

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'api.dart';
 import 'config.dart';
@@ -10,7 +11,17 @@ import 'errors.dart';
 /// photo and original time, then sent in order. The server accepts readings up to 48 hours late with their real
 /// time, so a lost connection never loses a reading.
 class OutboxItem {
-  OutboxItem(this.id, this.kind, this.payload, this.files, this.createdAt, this.state, this.attempts, this.lastError);
+  OutboxItem(
+    this.id,
+    this.kind,
+    this.payload,
+    this.files,
+    this.createdAt,
+    this.state,
+    this.attempts,
+    this.lastError, [
+    this.nextAt,
+  ]);
 
   factory OutboxItem.fromRow(Map<String, Object?> r) => OutboxItem(
     r['id'] as int,
@@ -21,6 +32,7 @@ class OutboxItem {
     r['state'] as String,
     r['attempts'] as int,
     r['last_error'] as String?,
+    r['next_at'] == null ? null : DateTime.parse(r['next_at'] as String),
   );
 
   final int id;
@@ -28,18 +40,48 @@ class OutboxItem {
   final Map<String, dynamic> payload;
   final Map<String, String> files; // payload field -> local file still to upload
   final DateTime createdAt;
-  final String state; // pending | sending | failed
+
+  /// pending | sending | failed (the server's final refusal) | parked (needs the driver: too old, or the server kept
+  /// failing on it). Neither failed nor parked holds back the items after it.
+  final String state;
   final int attempts;
   final String? lastError;
+
+  /// Not tried again before this time (the wait grows after each server failure).
+  final DateTime? nextAt;
+
+  bool get needsAttention => state == 'parked';
 }
 
 enum SendResult { sent, queued }
 
 class Outbox {
-  Outbox(this.db, {DateTime Function()? clock}) : _now = clock ?? DateTime.now;
+  Outbox(this.db, {DateTime Function()? clock, math.Random? random})
+    : _now = clock ?? DateTime.now,
+      _random = random ?? math.Random();
 
   final AppDb db;
   final DateTime Function() _now;
+  final math.Random _random;
+
+  /// After a server failure (5xx, 429, 408) an item waits before its next try: 30 s, doubling up to 30 minutes,
+  /// each with up to half of it at random so phones do not retry in step. After [maxServerFailures] it is parked
+  /// for the driver instead of retried forever. No network is not counted: it ends the round, nothing is tried.
+  static const backoffBase = Duration(seconds: 30);
+  static const backoffCap = Duration(minutes: 30);
+  static const maxServerFailures = 10;
+
+  /// Kinds whose order matters to the server: a day's readings and its report (a new start of day never overtakes
+  /// the end before it, nor a report the reading it follows). Every other kind stands alone.
+  static String _group(String kind) =>
+      const {'odometer', 'report', 'report_edit', 'report_change'}.contains(kind) ? 'day' : kind;
+
+  Duration backoff(int failures) {
+    final n = math.max(0, math.min(failures - 1, 16));
+    final base = backoffBase * math.pow(2, n).toInt();
+    final capped = base > backoffCap ? backoffCap : base;
+    return capped + capped * (_random.nextDouble() * 0.5);
+  }
 
   /// Where each kind goes, how its files are uploaded, and which answers mean "already recorded" (the first try
   /// reached the server but its answer was lost: the retry must not count as a failure).
@@ -88,7 +130,8 @@ class Outbox {
   ];
 
   Future<int> waiting() async =>
-      (await db.raw.rawQuery("SELECT count(*) AS n FROM outbox WHERE state != 'failed'")).first['n'] as int;
+      (await db.raw.rawQuery("SELECT count(*) AS n FROM outbox WHERE state NOT IN ('failed', 'parked')")).first['n']
+          as int;
 
   Future<void> discard(int id) async {
     final rows = await db.raw.query('outbox', where: 'id = ?', whereArgs: [id]);
@@ -100,13 +143,16 @@ class Outbox {
   /// driver can correct and send again; no network leaves it queued. Older items still waiting go first, in order:
   /// a new start of day never overtakes the end before it, nor a report the reading it follows.
   Future<SendResult> sendNow(int id, Api api) async {
-    final older = await db.raw.rawQuery("SELECT count(*) AS n FROM outbox WHERE id < ? AND state != 'failed'", [id]);
+    final older = await db.raw.rawQuery(
+      "SELECT count(*) AS n FROM outbox WHERE id < ? AND state NOT IN ('failed', 'parked')",
+      [id],
+    );
     if ((older.first['n'] as int) > 0) {
       await flush(api);
       final rows = await db.raw.query('outbox', where: 'id = ?', whereArgs: [id]);
       if (rows.isEmpty) return SendResult.sent;
       final left = OutboxItem.fromRow(rows.first);
-      if (left.state == 'failed') {
+      if (left.state == 'failed' || left.state == 'parked') {
         await discard(id); // the server's final answer for this one: the driver sees it, as below
         throw ApiError(422, left.lastError ?? '');
       }
@@ -119,7 +165,7 @@ class Outbox {
       return SendResult.sent;
     } on ApiError catch (e) {
       if (e.isTransient) {
-        await _release(item, e.code);
+        await _retryLater(item, e);
         return SendResult.queued;
       }
       await discard(item.id);
@@ -130,53 +176,113 @@ class Outbox {
     }
   }
 
-  /// Sends everything waiting, oldest first; stops at the first network problem to keep the order.
+  /// Sends everything waiting, oldest first. No network ends the round (nothing else would get through); an item
+  /// the server keeps failing on waits its turn ([backoff]) and holds back only the items that must follow it (its
+  /// [_group]), never the rest of the queue. One too old for the server is parked for the driver, never dropped.
   Future<int> flush(Api api) async {
     var sent = 0;
-    final rows = await db.raw.query('outbox', where: "state != 'failed'", orderBy: 'id');
+    final rows = await db.raw.query('outbox', where: "state NOT IN ('failed', 'parked')", orderBy: 'id');
+    final held = <String>{}; // groups waiting behind an earlier item
     for (final r in rows) {
       final candidate = OutboxItem.fromRow(r);
+      final group = _group(candidate.kind);
+      if (held.contains(group)) continue;
       if (_now().difference(candidate.createdAt) > AppConfig.outboxMaxAge) {
-        await db.raw.update(
-          'outbox',
-          {'state': 'failed', 'last_error': 'too_old'},
-          where: 'id = ?',
-          whereArgs: [candidate.id],
-        );
+        await _park(candidate.id, 'too_old');
+        continue;
+      }
+      if (candidate.nextAt != null && _now().isBefore(candidate.nextAt!)) {
+        held.add(group);
         continue;
       }
       final item = await _claim(candidate.id);
-      if (item == null) continue;
+      if (item == null) {
+        held.add(group); // the other engine is sending it: what follows it waits
+        continue;
+      }
       try {
         await _deliver(item, api);
         sent++;
       } on ApiError catch (e) {
-        if (e.isTransient) {
-          await _release(item, e.code);
+        if (e.isNetwork) {
+          await _release(item, e.code, count: false);
           break;
+        }
+        if (e.isTransient) {
+          final parked = await _retryLater(item, e);
+          if (!parked) held.add(group);
+          continue;
         }
         await db.raw.update(
           'outbox',
-          {'state': 'failed', 'last_error': e.code, 'claimed_at': null},
+          {'state': 'failed', 'last_error': e.code, 'claimed_at': null, 'next_at': null},
           where: 'id = ?',
           whereArgs: [item.id],
         );
       } on SessionEnded {
-        await _release(item, 'session_ended');
+        await _release(item, 'session_ended', count: false);
         rethrow;
       }
     }
     return sent;
   }
 
+  /// The driver asks to try a parked item again: one attempt now, whatever its age (the server decides). A final
+  /// refusal marks it failed; no network or another server failure parks it again.
+  Future<SendResult> retry(int id, Api api) async {
+    final item = await _claim(id, parked: true);
+    if (item == null) return SendResult.queued;
+    try {
+      await _deliver(item, api);
+      return SendResult.sent;
+    } on ApiError catch (e) {
+      if (e.isTransient) {
+        await _park(item.id, e.code, attempts: item.attempts + 1);
+        return SendResult.queued;
+      }
+      await db.raw.update(
+        'outbox',
+        {'state': 'failed', 'last_error': e.code, 'claimed_at': null, 'next_at': null},
+        where: 'id = ?',
+        whereArgs: [item.id],
+      );
+      rethrow;
+    } on SessionEnded {
+      await _park(item.id, 'session_ended');
+      rethrow;
+    }
+  }
+
+  /// A server failure: wait longer before the next try, or park the item after too many. Returns whether parked.
+  Future<bool> _retryLater(OutboxItem item, ApiError e) async {
+    final failures = item.attempts + 1;
+    if (!e.isNetwork && failures >= maxServerFailures) {
+      await _park(item.id, e.code, attempts: failures);
+      return true;
+    }
+    if (e.isNetwork) {
+      await _release(item, e.code, count: false);
+    } else {
+      await _release(item, e.code, nextAt: _now().add(backoff(failures)));
+    }
+    return false;
+  }
+
+  Future<void> _park(int id, String error, {int? attempts}) => db.raw.update(
+    'outbox',
+    {'state': 'parked', 'last_error': error, 'claimed_at': null, 'next_at': null, 'attempts': ?attempts},
+    where: 'id = ?',
+    whereArgs: [id],
+  );
+
   /// Takes an item for sending, unless the other engine is sending it right now.
-  Future<OutboxItem?> _claim(int id) {
+  Future<OutboxItem?> _claim(int id, {bool parked = false}) {
     return db.exclusive((tx) async {
       final rows = await tx.query('outbox', where: 'id = ?', whereArgs: [id]);
       if (rows.isEmpty) return null;
       final item = OutboxItem.fromRow(rows.first);
       final claimed = rows.first['claimed_at'] as String?;
-      if (item.state == 'failed') return null;
+      if (item.state == 'failed' || (item.state == 'parked') != parked) return null;
       if (item.state == 'sending' && claimed != null && _now().difference(DateTime.parse(claimed)) < _claimTimeout) {
         return null;
       }
@@ -190,9 +296,16 @@ class Outbox {
     });
   }
 
-  Future<void> _release(OutboxItem item, String error) => db.raw.update(
+  /// Back to waiting. [count]: a server failure that counts toward parking it (no network does not).
+  Future<void> _release(OutboxItem item, String error, {bool count = true, DateTime? nextAt}) => db.raw.update(
     'outbox',
-    {'state': 'pending', 'claimed_at': null, 'attempts': item.attempts + 1, 'last_error': error},
+    {
+      'state': 'pending',
+      'claimed_at': null,
+      'attempts': item.attempts + (count ? 1 : 0),
+      'last_error': error,
+      'next_at': nextAt?.toUtc().toIso8601String(),
+    },
     where: 'id = ?',
     whereArgs: [item.id],
   );

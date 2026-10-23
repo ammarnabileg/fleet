@@ -5,6 +5,8 @@ import 'dart:math' as math;
 import '../core/api.dart';
 import '../core/config.dart';
 import '../core/db.dart';
+import '../core/driver_data.dart';
+import '../core/error_log.dart';
 import '../core/errors.dart';
 import '../core/outbox.dart';
 import 'positions.dart';
@@ -53,7 +55,8 @@ class Tracker {
     this.syncEvery = const Duration(minutes: 1),
   }) : _now = clock ?? DateTime.now,
        queue = PositionQueue(db, clock: clock),
-       outbox = Outbox(db, clock: clock);
+       outbox = Outbox(db, clock: clock),
+       errors = ErrorLog(db, clock: clock);
 
   final AppDb db;
   final Api api;
@@ -68,6 +71,7 @@ class Tracker {
   final Duration syncEvery;
   final PositionQueue queue;
   final Outbox outbox;
+  final ErrorLog errors;
 
   bool required = false;
   bool onDuty = false; // day started and not ended (the server's rule, as on the live map)
@@ -92,17 +96,26 @@ class Tracker {
   static const stillFor = Duration(minutes: 2);
 
   Future<void> start() async {
-    // what the last run knew, so an offline restart still shows the right notification
-    final saved = await db.get('tracking_state');
-    if (saved != null) {
-      final m = jsonDecode(saved) as Map<String, dynamic>;
-      onDuty = m['on_duty'] as bool? ?? false;
-      company = (m['company'] as Map?)?.cast<String, dynamic>();
+    // what the last run knew: an offline restart (the phone rebooted, Android killed the service) during a custody
+    // goes on tracking with the last intervals, and shows the right notification
+    try {
+      final saved = await db.get('tracking_state');
+      if (saved != null) {
+        final m = jsonDecode(saved) as Map<String, dynamic>;
+        required = m['required'] == true;
+        onDuty = m['on_duty'] == true;
+        company = (m['company'] as Map?)?.cast<String, dynamic>();
+        final mv = m['moving_s'], st = m['stationary_s'];
+        if (mv is num && mv > 0) moving = Duration(seconds: mv.toInt());
+        if (st is num && st > 0) stationary = Duration(seconds: st.toInt());
+      }
+    } catch (e, st) {
+      await errors.record('tracker.restore', e, st); // a damaged state: start from the server's answer
     }
     await heartbeat();
     await sync();
-    _beat = Timer.periodic(heartbeatEvery, (_) => heartbeat());
-    _sync = Timer.periodic(syncEvery, (_) => sync());
+    _beat = Timer.periodic(heartbeatEvery, (_) => unawaited(heartbeat()));
+    _sync = Timer.periodic(syncEvery, (_) => unawaited(sync()));
   }
 
   Future<void> stop() async {
@@ -115,6 +128,8 @@ class Tracker {
   }
 
   /// Reports health; the answer switches tracking on or off and sets the intervals (from the server settings).
+  /// Never throws (it runs from a timer in the service): an answer it cannot read keeps the last decision, as no
+  /// network does, and is written to the local error log.
   Future<void> heartbeat() async {
     if (_stopped) return;
     try {
@@ -123,19 +138,32 @@ class Tracker {
         queueSize: await queue.size(),
         lastUploadAt: await db.get('last_upload_at'),
       );
-      final r = await api.post('/driver/status', body: state) as Map<String, dynamic>;
+      final r = await api.post('/driver/status', body: state);
+      if (r is! Map ||
+          r['tracking_required'] is! bool ||
+          r['interval_moving_s'] is! num ||
+          r['interval_stationary_s'] is! num) {
+        throw const FormatException('bad_response');
+      }
+      final ms = (r['interval_moving_s'] as num).toInt(), ss = (r['interval_stationary_s'] as num).toInt();
       required = r['tracking_required'] as bool;
-      moving = Duration(seconds: (r['interval_moving_s'] as num).toInt());
-      stationary = Duration(seconds: (r['interval_stationary_s'] as num).toInt());
-      onDuty = r['on_duty'] as bool? ?? false; // an older server: not at work
-      company = (r['company'] as Map?)?.cast<String, dynamic>() ?? company;
+      if (ms > 0) moving = Duration(seconds: ms);
+      if (ss > 0) stationary = Duration(seconds: ss);
+      onDuty = r['on_duty'] == true; // an older server: not at work
+      company = (r['company'] is Map ? (r['company'] as Map).cast<String, dynamic>() : null) ?? company;
     } on ApiError {
       // offline: keep the last known decision (a custody does not end because the network did)
     } on SessionEnded {
       await _ended();
       return;
+    } catch (e, st) {
+      await errors.record('tracker.heartbeat', e, st);
     }
-    await _apply();
+    try {
+      await _apply();
+    } catch (e, st) {
+      await errors.record('tracker.apply', e, st);
+    }
   }
 
   Duration get _wanted => _parked ? stationary : moving;
@@ -156,7 +184,10 @@ class Tracker {
   void _listen(Duration interval) {
     _sub?.cancel();
     _interval = interval;
-    _sub = fixes(interval).listen(_onFix, onError: (Object _) {});
+    _sub = fixes(interval).listen(
+      (f) => unawaited(_onFix(f)),
+      onError: (Object e, StackTrace st) => unawaited(errors.record('tracker.gps', e, st)),
+    );
   }
 
   Future<void> _onFix(Fix f) async {
@@ -169,15 +200,21 @@ class Tracker {
     // the platform may deliver faster than asked: keep one point per interval
     if (_lastKept != null && f.at.difference(_lastKept!) < (_interval ?? moving) * 0.8) return;
     _lastKept = f.at;
-    await queue.add(
-      recordedAt: f.at,
-      lat: f.lat,
-      lng: f.lng,
-      accuracyM: f.accuracyM,
-      speedKmh: speed,
-      heading: f.heading,
-      isMock: f.isMock, // sent as it is: the server rejects it and alerts the supervisors
-    );
+    try {
+      await queue.add(
+        recordedAt: f.at,
+        lat: f.lat,
+        lng: f.lng,
+        accuracyM: f.accuracyM,
+        speedKmh: speed,
+        heading: f.heading,
+        isMock: f.isMock, // sent as it is: the server rejects it and alerts the supervisors
+      );
+    } catch (e, st) {
+      // the database refused it (locked past its timeout, full): this point is lost, the tracking goes on
+      await errors.record('tracker.fix', e, st);
+      return;
+    }
     _adapt(f, moved ? movingSpeedKmh : speed);
     unawaited(sync()); // each point goes at once (the live map moves with it); offline it waits in the queue
   }
@@ -248,14 +285,27 @@ class Tracker {
       // offline or server trouble: everything stays queued
     } on SessionEnded {
       await _ended();
+    } catch (e, st) {
+      // an answer it cannot read, a database error: everything stays queued for the next round
+      await errors.record('tracker.sync', e, st);
     } finally {
       _syncing = false;
     }
-    await _publish();
+    try {
+      await _publish();
+    } catch (e, st) {
+      await errors.record('tracker.publish', e, st);
+    }
   }
 
+  /// The session ended (signed out, another phone): what was kept for this driver goes, never sent by the next one.
   Future<void> _ended() async {
     await stop();
+    try {
+      await forgetDriver(db);
+    } catch (e, st) {
+      await errors.record('tracker.forget', e, st);
+    }
     onSessionEnded?.call();
   }
 
@@ -269,6 +319,8 @@ class Tracker {
         'required': required,
         'running': _sub != null,
         'interval_s': _interval?.inSeconds,
+        'moving_s': moving.inSeconds,
+        'stationary_s': stationary.inSeconds,
         'last_fix_at': lastFixAt?.toUtc().toIso8601String(),
         'last_upload_at': last,
         'queue': size,

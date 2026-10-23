@@ -3091,6 +3091,60 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'سيارة بديلة — سيارتك في الصيانة'**
   String get replacementCar;
+
+  /// No description provided for @outboxAttention.
+  ///
+  /// In ar, this message translates to:
+  /// **'يحتاج انتباهك: {reason}'**
+  String outboxAttention(String reason);
+
+  /// No description provided for @outboxTooOld.
+  ///
+  /// In ar, this message translates to:
+  /// **'لم يُرسل منذ يومين'**
+  String get outboxTooOld;
+
+  /// No description provided for @outboxKeptFailing.
+  ///
+  /// In ar, this message translates to:
+  /// **'تعذّر على الخادم استلامه'**
+  String get outboxKeptFailing;
+
+  /// No description provided for @outboxAttentionCount.
+  ///
+  /// In ar, this message translates to:
+  /// **'{n} بحاجة لانتباهك'**
+  String outboxAttentionCount(int n);
+
+  /// No description provided for @startFailedTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'تعذّر تشغيل التطبيق'**
+  String get startFailedTitle;
+
+  /// No description provided for @startFailedBody.
+  ///
+  /// In ar, this message translates to:
+  /// **'حدث خطأ أثناء التحميل. تحقق من الاتصال وأعد المحاولة.'**
+  String get startFailedBody;
+
+  /// No description provided for @activationReplaceTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'استبدال السائق المسجّل؟'**
+  String get activationReplaceTitle;
+
+  /// No description provided for @activationReplaceBody.
+  ///
+  /// In ar, this message translates to:
+  /// **'يوجد سائق مسجّل دخوله على هذا الهاتف. تفعيل هذا الرابط يُخرجه ويحذف ما لم يُرسل من بياناته.'**
+  String get activationReplaceBody;
+
+  /// No description provided for @activationReplaceConfirm.
+  ///
+  /// In ar, this message translates to:
+  /// **'تفعيل'**
+  String get activationReplaceConfirm;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

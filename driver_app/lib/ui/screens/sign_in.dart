@@ -411,3 +411,88 @@ class ActivatingScreen extends StatelessWidget {
     );
   }
 }
+
+/// An activation link opened while a driver is signed in: replacing him is his decision, never the link's.
+class ConfirmActivationScreen extends StatelessWidget {
+  const ConfirmActivationScreen({super.key, required this.onConfirm, required this.onCancel});
+
+  final VoidCallback onConfirm;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.swap_horiz, size: 48, color: AppColors.warning),
+                const SizedBox(height: 20),
+                Text(
+                  l.activationReplaceTitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  l.activationReplaceBody,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.muted, height: 1.6),
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  key: const Key('activation-confirm'),
+                  onPressed: onConfirm,
+                  child: Text(l.activationReplaceConfirm),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton(key: const Key('activation-cancel'), onPressed: onCancel, child: Text(l.cancel)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The start failed (an answer the app could not read, a database error): said plainly, with a retry.
+class StartFailedScreen extends StatelessWidget {
+  const StartFailedScreen({super.key, required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
+                const SizedBox(height: 20),
+                Text(l.startFailedTitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 10),
+                Text(
+                  l.startFailedBody,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.muted, height: 1.6),
+                ),
+                const SizedBox(height: 20),
+                FilledButton(key: const Key('start-retry'), onPressed: onRetry, child: Text(l.retry)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -541,5 +541,14 @@
   "fuelLitres": "Litres (optional)",
   "fuelLitresInvalid": "Enter the litres as on the receipt (up to 500)",
   "fuelLitresUnit": "L",
-  "replacementCar": "Replacement car — yours is at the center"
+  "replacementCar": "Replacement car — yours is at the center",
+  "outboxAttention": "Needs your attention: {reason}",
+  "outboxTooOld": "not sent for two days",
+  "outboxKeptFailing": "the server could not take it",
+  "outboxAttentionCount": "{n} need your attention",
+  "startFailedTitle": "The app could not start",
+  "startFailedBody": "Something went wrong while loading. Check the connection and try again.",
+  "activationReplaceTitle": "Replace the signed-in driver?",
+  "activationReplaceBody": "A driver is already signed in on this phone. Activating this link signs him out and removes anything of his not sent yet.",
+  "activationReplaceConfirm": "Activate"
 }

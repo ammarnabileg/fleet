@@ -10,12 +10,17 @@ import '../core/catalog.dart';
 import '../core/config.dart';
 import '../core/db.dart';
 import '../core/device.dart';
+import '../core/driver_data.dart';
+import '../core/error_log.dart';
 import '../core/errors.dart';
 import '../core/models.dart';
 import '../core/outbox.dart';
 import '../core/tokens.dart';
+import '../tracking/positions.dart';
 
-enum Phase { booting, signedOut, permissions, onboarding, waiting, ready, blocked }
+/// [failed]: the start itself failed in a way no retry inside could fix (an answer it could not read, a database
+/// error); the screen says so and offers to try again, never an endless spinner.
+enum Phase { booting, signedOut, permissions, onboarding, waiting, ready, blocked, failed }
 
 /// What needs the phone (camera, gallery, permissions, the background service). Replaced by fakes in tests.
 class PhoneHooks {
@@ -51,7 +56,8 @@ class AppState extends ChangeNotifier {
     this.pollEvery = const Duration(seconds: 15),
   }) : tokens = TokenStore(db),
        outbox = Outbox(db),
-       catalog = Catalog(db) {
+       catalog = Catalog(db),
+       errors = ErrorLog(db) {
     this.api = api ?? Api(baseUrl: baseUrl ?? AppConfig.apiUrl, tokens: tokens);
     this.api.onSessionEnded = _sessionEnded;
   }
@@ -64,6 +70,7 @@ class AppState extends ChangeNotifier {
   final TokenStore tokens;
   final Outbox outbox;
   final Catalog catalog;
+  final ErrorLog errors;
   late final Api api;
 
   Phase phase = Phase.booting;
@@ -173,6 +180,35 @@ class AppState extends ChangeNotifier {
 
   /// [deviceLang]: the phone's language at first launch; afterwards the driver's choice is kept.
   Future<void> boot({String deviceLang = 'ar'}) async {
+    _deviceLang = deviceLang;
+    try {
+      await _boot(deviceLang);
+    } catch (e, st) {
+      await _failed('boot', e, st);
+    }
+  }
+
+  String _deviceLang = 'ar';
+
+  /// The failed start's "try again".
+  Future<void> retryStart() async {
+    lastError = null;
+    _set(Phase.booting);
+    await boot(deviceLang: _deviceLang);
+  }
+
+  /// Something unexpected: written to the local error log; during the start the screen shows the failure.
+  Future<void> _failed(String where, Object e, StackTrace st) async {
+    await errors.record(where, e, st);
+    lastError = e;
+    if (phase == Phase.booting) {
+      _set(Phase.failed);
+    } else {
+      notifyListeners();
+    }
+  }
+
+  Future<void> _boot(String deviceLang) async {
     lang = await db.get('lang') ?? (deviceLang == 'ar' ? 'ar' : 'en');
     api.lang = lang;
     try {
@@ -186,7 +222,7 @@ class AppState extends ChangeNotifier {
     _applyMaintenanceForm(await db.get('maintenance_form'));
     _applyFuel(await db.get('fuel'));
     await _showSplash();
-    unawaited(catalog.load(api, lang));
+    unawaited(catalog.load(api, lang).catchError((Object e, StackTrace st) => errors.record('catalog', e, st)));
     if (!await tokens.hasSession()) {
       _set(Phase.signedOut);
       unawaited(loadAppConfig());
@@ -295,7 +331,10 @@ class AppState extends ChangeNotifier {
     return token != null && token.length >= 20 ? token : null;
   }
 
+  /// A driver still signed in (he confirmed the replacement) is signed out first: what he queued goes with his own
+  /// session or is forgotten, never sent with the new one.
   Future<void> activate(String token) async {
+    if (await tokens.hasSession()) await signOut();
     final t = await api.post(
       '/driver/auth/activate',
       body: {'token': token, 'device_uid': await DeviceIdentity.uid(db), ...await platform.deviceMeta()},
@@ -363,28 +402,44 @@ class AppState extends ChangeNotifier {
     await _signedIn(t as Map<String, dynamic>);
   }
 
+  /// Whether a driver is signed in on this phone (an activation link then asks before replacing him).
+  Future<bool> hasSession() => tokens.hasSession();
+
   Future<void> _signedIn(Map<String, dynamic> t) async {
+    // a new session starts clean: nothing another driver left on this phone is ever sent with it
+    await forgetDriver(db);
     await tokens.save(t);
     await refresh();
     _startPolling();
   }
 
   Future<void> signOut() async {
+    await platform.stopTracking();
+    // what is still queued goes now if it can (a short wait): after sign-out it is forgotten, never sent by the next
+    // driver's session
+    try {
+      await Future(() async {
+        await outbox.flush(api);
+        await PositionQueue(db).upload(api);
+      }).timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // offline: forgotten below
+    }
     try {
       await api.post('/driver/auth/logout');
     } catch (_) {
       // the phone forgets the session anyway
     }
-    await platform.stopTracking();
     await tokens.clear();
-    await db.put('push_token', null); // the server forgot it: the next sign-in sends it again
+    await forgetDriver(db); // his queue, his positions, what was read for him (the push token too: sent again)
     _reset();
     _set(Phase.signedOut);
     unawaited(loadAppConfig());
   }
 
   void _sessionEnded() {
-    unawaited(platform.stopTracking());
+    unawaited(platform.stopTracking().catchError((Object _) {}));
+    unawaited(forgetDriver(db).catchError((Object e, StackTrace st) => errors.record('forget', e, st)));
     _reset();
     _set(Phase.signedOut);
     unawaited(loadAppConfig());
@@ -407,8 +462,11 @@ class AppState extends ChangeNotifier {
     objections = [];
     schemes = null;
     fuel = null;
-    unawaited(db.put('fuel', null)); // whether he may claim fuel was his, not the next driver's
     notices = null;
+    queued = [];
+    tracking = {};
+    reportForm = (fields: const ['orders', 'cash'], screenshot: true, endReading: false, custom: const []);
+    maintenanceForm = (direct: false, centers: const []);
   }
 
   // ---------------------------------------------------------------- data
@@ -445,6 +503,9 @@ class AppState extends ChangeNotifier {
       // offline: show what we have; the first launch with no data stays on its current phase
       if (phase == Phase.booting) _set(onboarding == null ? Phase.ready : phase);
       notifyListeners();
+    } catch (e, st) {
+      // an answer it could not read, a database error: shown with a retry, never an endless spinner
+      await _failed('refresh', e, st);
     }
   }
 
@@ -1047,6 +1108,20 @@ class AppState extends ChangeNotifier {
   Future<void> discard(int id) async {
     await outbox.discard(id);
     await _readLocal();
+  }
+
+  /// Queued actions that need the driver (too old for the server, or the server kept failing on them).
+  int get needsAttention => queued.where((i) => i.needsAttention).length;
+
+  /// The driver tries a parked action again (the server decides; a refusal shows as not accepted).
+  Future<void> retryQueued(int id) async {
+    try {
+      await outbox.retry(id, api);
+    } on ApiError {
+      // its final answer is on the item now
+    } finally {
+      await _readLocal();
+    }
   }
 
   /// A readable message for any failure, in the app's language.

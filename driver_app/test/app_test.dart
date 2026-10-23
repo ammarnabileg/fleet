@@ -314,6 +314,7 @@ Future<void> shot(WidgetTester tester, String name) async {
 
 void main() {
   setUpAll(loadFonts);
+  reviewWidgetTests();
 
   testWidgets('sign in with the WhatsApp code, land on today with the vehicle in custody', (tester) async {
     final w = (await tester.runAsync(() => world(signedIn: false)))!;
@@ -3758,5 +3759,84 @@ void main() {
     expect(w.state.queued, isEmpty, reason: 'a resend already recorded is done');
     final body = jsonDecode(w.server.calls('/api/v1/driver/fuel', method: 'POST').single.body) as Map;
     expect((body['receipt_sha256'], body['amount']), ('e' * 64, '3.250'));
+  });
+}
+
+void reviewWidgetTests() {
+  testWidgets('an activation link while a driver is signed in asks first; cancel keeps him', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on('POST', '/api/v1/driver/auth/activate', (r) => (200, tokensJson('2')));
+    w.server.on('POST', '/api/v1/driver/auth/logout', (r) => (204, null));
+    final links = StreamController<Uri>();
+    tester.view.physicalSize = const Size(1080, 2280);
+    tester.view.devicePixelRatio = 2.75;
+    await tester.pumpWidget(DriverApp(state: w.state, links: links.stream));
+    await tester.runAsync(() => w.state.boot());
+    await settle(tester);
+    final link = Uri.parse('https://fleet.example.com/activate#t=${'a' * 43}');
+    links.add(link);
+    await idle(tester);
+    expect(find.byKey(const Key('activation-confirm')), findsOneWidget);
+    expect(w.server.calls('/api/v1/driver/auth/activate'), isEmpty, reason: 'nothing replaced before he says so');
+    await tester.tap(find.byKey(const Key('activation-cancel')));
+    await idle(tester);
+    expect(find.byKey(const Key('activation-confirm')), findsNothing);
+    expect(w.server.calls('/api/v1/driver/auth/activate'), isEmpty);
+    expect(w.state.phase, Phase.ready);
+
+    links.add(link);
+    await idle(tester);
+    await tester.tap(find.byKey(const Key('activation-confirm')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/auth/logout'), hasLength(1), reason: 'the previous driver signed out first');
+    expect(w.server.calls('/api/v1/driver/auth/activate'), hasLength(1));
+    await links.close();
+  });
+
+  testWidgets('a start that fails on an unreadable answer shows the failure with a retry, not a spinner', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    final good = w.server.routes['GET /api/v1/driver/onboarding']!;
+    w.server.on('GET', '/api/v1/driver/onboarding', (r) => (200, {'required': null}));
+    await pumpApp(tester, w);
+    expect(w.state.phase, Phase.failed);
+    expect(find.byKey(const Key('start-retry')), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    final logged = (await tester.runAsync(() => w.state.errors.entries()))!;
+    expect(logged.single['where'], 'refresh');
+    w.server.on('GET', '/api/v1/driver/onboarding', good);
+    await tester.tap(find.byKey(const Key('start-retry')));
+    await idle(tester);
+    expect(w.state.phase, Phase.ready);
+  });
+
+  testWidgets('an action the server kept failing on is shown as needing attention, with retry and remove', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    await tester.runAsync(() async {
+      final id = await w.state.outbox.add('maintenance', {'client_ref': 'm', 'kind': 'x', 'description': 'd'}, {});
+      await w.state.db.raw.update(
+        'outbox',
+        {'state': 'parked', 'last_error': 'too_old'},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    });
+    await pumpApp(tester, w);
+    expect(find.byKey(const Key('outbox-attention')), findsOneWidget);
+    final id = w.state.queued.single.id;
+    w.server.on('POST', '/api/v1/driver/maintenance', (r) => (201, {'id': 'm'}));
+    await tester.scrollUntilVisible(
+      find.byKey(Key('outbox-retry-$id')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(Key('outbox-retry-$id')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/maintenance', method: 'POST'), hasLength(1));
+    expect(w.state.queued, isEmpty);
+    expect(find.byKey(const Key('outbox-attention')), findsNothing);
   });
 }

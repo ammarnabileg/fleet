@@ -1692,4 +1692,36 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get replacementCar => 'سيارة بديلة — سيارتك في الصيانة';
+
+  @override
+  String outboxAttention(String reason) {
+    return 'يحتاج انتباهك: $reason';
+  }
+
+  @override
+  String get outboxTooOld => 'لم يُرسل منذ يومين';
+
+  @override
+  String get outboxKeptFailing => 'تعذّر على الخادم استلامه';
+
+  @override
+  String outboxAttentionCount(int n) {
+    return '$n بحاجة لانتباهك';
+  }
+
+  @override
+  String get startFailedTitle => 'تعذّر تشغيل التطبيق';
+
+  @override
+  String get startFailedBody => 'حدث خطأ أثناء التحميل. تحقق من الاتصال وأعد المحاولة.';
+
+  @override
+  String get activationReplaceTitle => 'استبدال السائق المسجّل؟';
+
+  @override
+  String get activationReplaceBody =>
+      'يوجد سائق مسجّل دخوله على هذا الهاتف. تفعيل هذا الرابط يُخرجه ويحذف ما لم يُرسل من بياناته.';
+
+  @override
+  String get activationReplaceConfirm => 'تفعيل';
 }

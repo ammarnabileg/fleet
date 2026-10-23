@@ -1109,5 +1109,28 @@
   "fuelLitres": "اللترات (اختياري)",
   "fuelLitresInvalid": "اكتب اللترات كما في الفاتورة (حتى 500)",
   "fuelLitresUnit": "لتر",
-  "replacementCar": "سيارة بديلة — سيارتك في الصيانة"
+  "replacementCar": "سيارة بديلة — سيارتك في الصيانة",
+  "outboxAttention": "يحتاج انتباهك: {reason}",
+  "@outboxAttention": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "outboxTooOld": "لم يُرسل منذ يومين",
+  "outboxKeptFailing": "تعذّر على الخادم استلامه",
+  "outboxAttentionCount": "{n} بحاجة لانتباهك",
+  "@outboxAttentionCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "startFailedTitle": "تعذّر تشغيل التطبيق",
+  "startFailedBody": "حدث خطأ أثناء التحميل. تحقق من الاتصال وأعد المحاولة.",
+  "activationReplaceTitle": "استبدال السائق المسجّل؟",
+  "activationReplaceBody": "يوجد سائق مسجّل دخوله على هذا الهاتف. تفعيل هذا الرابط يُخرجه ويحذف ما لم يُرسل من بياناته.",
+  "activationReplaceConfirm": "تفعيل"
 }
