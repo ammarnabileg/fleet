@@ -532,5 +532,7 @@
   "objectionStatus_accepted": "Accepted",
   "objectionStatus_rejected": "Rejected",
   "objectionStatus_closed": "Closed",
-  "objectionInstallment": "An installment"
+  "objectionInstallment": "An installment",
+  "vehicleChangeApprovedFor": "Your change to {plate} was approved: collect it from the office",
+  "receiptReversed": "Cancelled"
 }

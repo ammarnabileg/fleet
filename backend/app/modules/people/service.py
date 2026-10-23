@@ -711,6 +711,20 @@ def app_drivers(db: Session, *, all_companies: bool, company_ids: Iterable[int])
     return [_ref(e, s) for e, s in db.execute(q)]
 
 
+def all_drivers(db: Session, *, all_companies: bool, company_ids: Iterable[int]) -> list[EmployeeRef]:
+    """Every driver in scope, whatever his app access or status: whoever may still hold the company's cash or be owed
+    by it (the cash balances list them all, as the dashboard and the cash report count them all)."""
+    q = _scoped(
+        select(Employee, EmploymentStatus)
+        .join(EmploymentStatus, EmploymentStatus.code == Employee.status_code)
+        .where(Employee.is_driver.is_(True))
+        .order_by(Employee.employee_number),
+        all_companies,
+        company_ids,
+    )
+    return [_ref(e, s) for e, s in db.execute(q)]
+
+
 def departed_drivers(db: Session, *, all_companies: bool, company_ids: Iterable[int]) -> list[EmployeeRef]:
     """Drivers whose employment ended, in scope (their cash still has to be settled)."""
     q = _scoped(

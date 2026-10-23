@@ -202,19 +202,23 @@
       var rows = r[0], late = r[1];
       var sum = function (k) { return rows.reduce(function (s, r) { return s + Number(r[k]); }, 0); };
       var over = rows.filter(function (r) { return r.over_limit; }).length;
+      // a balance read the same as on the dashboard and in the reports: positive, the driver owes it to the company;
+      // negative, the company owes it to him (a credit to settle). The two are never netted silently.
+      var owing = rows.filter(function (r) { return Number(r.total) > 0; }), owed = rows.filter(function (r) { return Number(r.total) < 0; });
+      var owedBy = owing.reduce(function (s, r) { return s + Number(r.total); }, 0), owedTo = -owed.reduce(function (s, r) { return s + Number(r.total); }, 0);
       setTimeout(function () {
         var tbl = el.querySelector('[data-bal]');
         if (!tbl) return;
         BT.table(tbl, {
           rows: rows, pageSize: 25,
           search: { placeholder: 'اسم السائق…', text: function (r) { return api.name(r.driver.name); } },
-          chips: { key: 'over_limit', options: [{ v: 'true', t: 'فوق الحد' }], match: function (r, c) { return String(r.over_limit) === c; } },
+          chips: { key: 'side', options: [{ v: 'owes', t: 'عليه للشركة' }, { v: 'owed', t: 'له عند الشركة' }, { v: 'over', t: 'فوق الحد' }], match: function (r, c) { return c === 'over' ? r.over_limit : r.side === c; } },
           sort: { key: 'total', dir: 'desc' },
           columns: [
             { key: 'driver', label: 'السائق', sort: function (r) { return api.name(r.driver.name); }, render: function (r) { return A.person(r.driver, api.company(r.company_id)); } },
             { key: 'posted', label: 'معتمد', num: true, sort: function (r) { return Number(r.posted); }, render: function (r) { return amt(r.posted); } },
             { key: 'pending', label: 'غير معتمد', num: true, sort: function (r) { return Number(r.pending); }, render: function (r) { return Number(r.pending) ? amt(r.pending) : raw('<span class="muted">—</span>'); } },
-            { key: 'total', label: 'الإجمالي', num: true, sort: function (r) { return Number(r.total); }, render: function (r) { return h`<b>${amt(r.total)}</b>${r.over_limit ? h` ${BT.pill('فوق الحد', 'o')}` : ''}`; } }
+            { key: 'total', label: 'الرصيد', num: true, sort: function (r) { return Number(r.total); }, render: function (r) { return A.cashSide(r.total, r.over_limit); } }
           ],
           rowClick: function (r) { A.statement(r.driver); },
           rowMenu: function (r) {
@@ -224,7 +228,7 @@
             if (api.can('cash.writeoff')) m.push({ label: 'تسوية نهاية الخدمة', icon: 'user-round-check', onClick: function () { A.settle(r.driver, r); } });
             return m;
           },
-          foot: function (list) { return h`<tr><td>الإجمالي (${fmt.int(list.length)})</td><td class="num">${fmt.kwd(list.reduce(function (s, r) { return s + Number(r.posted); }, 0))}</td><td class="num">${fmt.kwd(list.reduce(function (s, r) { return s + Number(r.pending); }, 0))}</td><td class="num"><b>${fmt.kwd(list.reduce(function (s, r) { return s + Number(r.total); }, 0))}</b></td><td></td></tr>`; },
+          foot: function (list) { return h`<tr><td>الصافي (${fmt.int(list.length)})</td><td class="num">${fmt.kwd(list.reduce(function (s, r) { return s + Number(r.posted); }, 0))}</td><td class="num">${fmt.kwd(list.reduce(function (s, r) { return s + Number(r.pending); }, 0))}</td><td class="num"><b>${fmt.kwd(list.reduce(function (s, r) { return s + Number(r.total); }, 0))}</b></td><td></td></tr>`; },
           empty: { icon: 'wallet', title: 'لا توجد أرصدة', text: 'تظهر هنا أرصدة السائقين بعد أول تقرير معتمد أو رصيد افتتاحي' }
         });
       });
@@ -232,7 +236,7 @@
       var lateCard = late.length ? h`<div class="card mb-16" data-unconfirmed><div class="card-h"><div class="card-t">${icon('receipt', 16)} إيصالات لم يؤكدها السائق بعد 24 ساعة ${BT.pill(fmt.int(late.length), 'o')}</div><span class="card-meta">اسأل السائق: هل استلم الكاش منه من أعطاه الإيصال؟</span></div>
         <div class="table-wrap"><table class="t compact"><thead><tr><th>السائق</th><th class="num">رقم الإيصال</th><th class="num">المبلغ</th><th class="num">أُعطي في</th></tr></thead>
         <tbody>${late.map(function (x) { return h`<tr data-receipt="${x.id}"><td>${api.name(x.driver.name)}</td><td class="num">${x.receipt_no}</td><td class="num">${fmt.money(x.amount)}</td><td class="num">${fmt.dt(x.created_at)}</td></tr>`; })}</tbody></table></div></div>` : '';
-      return h`${lateCard}<div class="kpis">${BT.kpi({ label: 'لدى السائقين (الإجمالي)', value: fmt.kwd(sum('total')), sub: BT.config.currency, dot: 'o' })}${BT.kpi({ label: 'منه معتمد', value: fmt.kwd(sum('posted')), dot: 'g' })}${BT.kpi({ label: 'منه غير معتمد', value: fmt.kwd(sum('pending')), sub: 'تقارير بانتظار المراجعة', dot: 'b' })}${BT.kpi({ label: 'فوق حد التنبيه', value: fmt.int(over), sub: 'تنبيه فقط، لا يوقف السائق', dot: 'r', tone: over ? 'danger' : null })}</div>
+      return h`${lateCard}<div class="kpis" data-cash-split>${BT.kpi({ label: 'مستحق للشركة على السائقين', value: fmt.kwd(owedBy), sub: fmt.int(owing.length) + ' سائق · غير معتمد منه ' + fmt.kwd(sum('pending')), dot: 'o' })}${BT.kpi({ label: 'أرصدة دائنة للسائقين', value: fmt.kwd(owedTo), sub: fmt.int(owed.length) + ' سائق · تحتاج تسوية', dot: 'b', tone: owed.length ? 'warning' : null })}${BT.kpi({ label: 'صافي أرصدة السائقين', value: fmt.kwd(owedBy - owedTo), sub: 'المستحق على السائقين ناقص الدائن لهم', dot: 'g' })}${BT.kpi({ label: 'فوق حد التنبيه', value: fmt.int(over), sub: 'تنبيه فقط، لا يوقف السائق', dot: 'r', tone: over ? 'danger' : null })}</div>
         <div class="card">${api.can('cash.view') && api.can('reports.export') ? h`<div class="card-h"><span></span><button type="button" class="btn btn-sm btn-outline ms-auto" data-csv>${icon('download', 14)} تصدير CSV</button></div>` : ''}<div data-bal></div></div>`;
     }).then(function () {
       var c = el.querySelector('[data-csv]');
@@ -240,10 +244,17 @@
     }).catch(function () {});
   }
 
+  /* رصيد السائق بنفس المعنى في كل الصفحات: موجب عليه للشركة، سالب له عند الشركة (تسوية) */
+  A.cashSide = function (total, overLimit) {
+    var t = Number(total);
+    if (t < 0) return h`<b>${fmt.kwd(-t)}</b> ${BT.pill('له عند الشركة', 'b')}`;
+    return h`<b>${amt(total)}</b>${t > 0 ? h` <span class="muted fs-sm">عليه</span>` : ''}${overLimit ? h` ${BT.pill('فوق الحد', 'o')}` : ''}`;
+  };
   A.statement = function (driver) {
     var dlg = BT.drawer.open({ title: 'كشف حساب: ' + api.name(driver.name), icon: 'receipt-text', size: 'lg', body: A.spinner(), buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] });
     api.get('/cash/drivers/' + driver.id + '/statement').then(function (s) {
-      dlg.setBody(h`<div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">${BT.kpi({ label: 'معتمد', value: fmt.money(s.posted), dot: 'g' })}${BT.kpi({ label: 'غير معتمد', value: fmt.money(s.pending), dot: 'b' })}${BT.kpi({ label: 'الإجمالي', value: fmt.money(s.total), dot: 'o' })}</div>
+      var t = Number(s.total);
+      dlg.setBody(h`<div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">${BT.kpi({ label: 'معتمد', value: fmt.money(s.posted), dot: 'g' })}${BT.kpi({ label: 'غير معتمد', value: fmt.money(s.pending), dot: 'b' })}${BT.kpi({ label: t < 0 ? 'له عند الشركة (تسوية)' : 'عليه للشركة', value: fmt.money(Math.abs(t)), dot: t < 0 ? 'b' : 'o' })}</div>
         ${s.lines.length ? h`<div class="table-wrap"><table class="t compact"><thead><tr><th>الحركة</th><th class="num">اليوم</th><th class="num">المبلغ</th><th class="num">الحالة</th><th></th></tr></thead><tbody>${s.lines.map(function (l) {
           var canRev = l.status === 'posted' && api.can('cash.reverse') && l.kind !== 'reversal';
           return h`<tr><td>${api.t('journal_kind', l.kind)}${l.reason ? h`<span class="sub">${l.reason}</span>` : ''}</td><td class="num">${fmt.date(l.business_date)}</td><td class="num"><span class="${Number(l.amount) > 0 ? '' : 't-success'}">${fmt.signed(Number(l.amount))}</span></td><td class="num">${A.pill('journal_status', l.status)}</td><td class="num">${canRev ? h`<button type="button" class="btn btn-sm btn-ghost" data-rev="${l.journal_id}">${icon('rotate-ccw', 13)} عكس</button>` : ''}</td></tr>`;

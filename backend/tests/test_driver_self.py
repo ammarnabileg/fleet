@@ -131,26 +131,37 @@ def test_my_car_and_a_change_of_vehicle_asked_for(admin_client, client, new_clie
     assert sup.post(f"{V}/{req['id']}/reject", json={}).json()["code"] == "reason_required"
     r = sup.post(f"{V}/{req['id']}/reject", json={"note": "يُصلح المكيف غداً"})
     assert r.status_code == 200 and r.json()["status"] == "rejected"
-    assert sup.post(f"{V}/{req['id']}/done", json={}).json()["code"] == "vehicle_change_decided"
+    assert sup.post(f"{V}/{req['id']}/approve", json={}).json()["code"] == "vehicle_change_decided"
+    assert sup.post(f"{V}/{req['id']}/done", json={}).status_code == 422  # done follows the handover, never by hand
     assert told(client, h)[0] == "vehicle_change_rejected"
     assert [a for a in sup.get("/api/v1/alerts").json() if a["kind"] == "vehicle_change_requested"] == []
 
-    # asked again: the vehicle returned closes it as done
+    # asked again and approved: it waits for the handover; returning his car does not change his car
     client.post(url, headers=h, json={**ask, "reason": "المكيف ما زال معطلاً"})
+    (req,) = sup.get(V).json()
+    r = sup.post(f"{V}/{req['id']}/approve", json={})
+    assert r.status_code == 200 and r.json()["status"] == "approved", r.text
+    assert told(client, h)[0] == "vehicle_change_approved"
+    assert client.get("/api/v1/driver/vehicle", headers=h).json()["change_request"]["status"] == "approved"
+    assert client.post(url, headers=h, json={**ask, "reason": "مرة ثالثة"}).json()["code"] == "vehicle_change_exists"
+    assert sup.get(V).json() == [] and [x["id"] for x in sup.get(V, params={"status": "open"}).json()] == [req["id"]]
     custody = admin_client.get("/api/v1/custodies", params={"open": "true"}).json()
     (c,) = [x for x in custody if x["vehicle"]["id"] == v["id"]]
     r = admin_client.post(
         f"/api/v1/custodies/{c['id']}/return", json={"odometer_km": 33_100, "photo_sha256": upload(admin_client)}
     )
     assert r.status_code == 200, r.text
-    # every request, newest first, with who closed it
+    assert sup.get(V, params={"status": "approved"}).json()[0]["id"] == req["id"]
+    # the car he asked for handed over: done, with when
+    hand_over(admin_client, other, d)
     history = sup.get(V, params={"status": ""}).json()
     assert [x["status"] for x in history] == ["done", "rejected"]
     assert [x["status"] for x in sup.get(V, params={"status": "all"}).json()] == ["done", "rejected"]
     assert history[1]["decided_by"] == "User sup5 (sup5)" and history[1]["note"] == "يُصلح المكيف غداً"
-    assert history[0]["decided_by"] is not None and history[0]["decided_at"] is not None
-    assert sup.get(V).json() == []
-    assert told(client, h)[0] == "vehicle_change_done"
+    assert history[0]["approved_by"] == "User sup5 (sup5)" and history[0]["handed_over_at"] is not None
+    assert history[0]["decided_at"] is not None and history[0]["unverified"] is False
+    assert sup.get(V, params={"status": "open"}).json() == []
+    assert told(client, h)[:2] == ["vehicle_handed_over", "vehicle_change_done"]
 
 
 def test_his_cash_movements_and_the_warning_before_the_limit(admin_client, client, company):

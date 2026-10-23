@@ -216,17 +216,21 @@ class RequestedVehicle(BaseModel):
 
 class VehicleChangeOut(BaseModel):
     id: str
-    status: str  # pending | done | rejected
+    status: str  # pending | approved (waiting for the handover) | done (requested car handed over) | rejected | closed
     reason: str
     note: str | None
     created_at: datetime
+    approved_at: datetime | None = None
     decided_at: datetime | None
     requested_plate: str = ""  # '' for a request made before the plate was asked
     vehicle_plate: str | None = None
     vehicle_id: str | None = None
     driver: dict | None = None
     requested_vehicle: RequestedVehicle | None = None  # the office's list only
-    decided_by: str | None = None  # the office's list only: the user who closed it (or who took the car back)
+    decided_by: str | None = None  # the office's list only: the user who closed it (or who handed the car over)
+    approved_by: str | None = None  # the office's list only
+    handed_over_at: datetime | None = None  # done: when the requested car's custody started for him
+    unverified: bool = False  # done with no handover of the requested car after it: to review
 
 
 class MyVehicle(BaseModel):

@@ -190,7 +190,7 @@
   BT.pages['custody'] = function (p, q) {
     A.setTitle('العُهد والتسليم');
     var v = A.view();
-    BT.render(v, h`${A.head('من يحمل كل سيارة الآن', 'التسليم والاستلام بقراءة العداد وصورته وصور الحالة، والعهد الطارئة تنتظر المراجعة', api.can('custody.assign') ? A.btn('تسليم سيارة لسائق', { icon: 'key-round', cls: 'btn-primary', action: 'handover-new' }) : '')}<div id="cus-claims"></div><div id="cus-changes"></div><div class="card"><div id="cus-table"></div></div><div id="cus-history"></div>`);
+    BT.render(v, h`${A.head('من يحمل كل سيارة الآن', 'التسليم والاستلام بقراءة العداد وصورته وصور الحالة، والعهد الطارئة تنتظر المراجعة', api.can('custody.assign') ? A.btn('تسليم سيارة لسائق', { icon: 'key-round', cls: 'btn-primary', action: 'handover-new' }) : '')}<div id="cus-claims"></div><div id="cus-changes"></div><div id="cus-approved"></div><div class="card"><div id="cus-table"></div></div><div id="cus-history"></div>`);
     if (api.can('custody.assign')) A.pendingBox(document.getElementById('cus-claims'), {
       key: 'vehicle-claims', url: '/vehicle-claims', title: 'طلبات استلام عربية من السائقين',
       hint: 'السائق سجّل العربية من التطبيق بقراءة عدادها وصورته؛ العهدة تبدأ بالموافقة',
@@ -210,16 +210,41 @@
       ],
       after: function () { t.refresh(); }
     });
-    if (api.can('custody.assign')) A.pendingBox(document.getElementById('cus-changes'), {
-      key: 'vehicle-changes', url: '/vehicle-change-requests', title: 'طلبات تغيير السيارة من السائقين',
-      hint: 'استلام السيارة من السائق يغلق طلبه تلقائياً؛ أو أغلقه هنا',
-      row: function (x) { return h`${A.person(x.driver)} ${A.plate(x.vehicle_plate, x.vehicle_id)}${x.requested_plate ? h` <span class="muted">←</span> ${A.requestedCar(x)}` : ''} <span class="muted fs-sm">${fmt.dt(x.created_at)}</span><div class="fs-sm">السبب: ${x.reason}</div>`; },
-      actions: [
-        { label: 'تم التغيير', cls: 'btn-primary', title: 'إغلاق الطلب', message: 'يُغلق الطلب على أنه نُفّذ، ويُبلَّغ السائق.', done: 'أُغلق الطلب', run: function (x) { return api.post('/vehicle-change-requests/' + x.id + '/done', {}); } },
-        { label: 'رفض', tone: 'danger', title: 'رفض طلب تغيير السيارة', message: 'يصل السبب للسائق في التطبيق.', reason: { label: 'السبب' }, done: 'رُفض الطلب', run: function (x, reason) { return api.post('/vehicle-change-requests/' + x.id + '/reject', { note: reason }); } }
-      ],
-      after: function () { t.refresh(); if (changes) changes.refresh(); }
-    });
+    if (api.can('custody.assign')) {
+      var changeRow = function (x) { return h`${A.person(x.driver)} ${A.plate(x.vehicle_plate, x.vehicle_id)}${x.requested_plate ? h` <span class="muted">←</span> ${A.requestedCar(x)}` : ''} <span class="muted fs-sm">${fmt.dt(x.created_at)}</span><div class="fs-sm">السبب: ${x.reason}</div>`; };
+      var closeAction = { label: 'إغلاق دون تغيير', title: 'إغلاق الطلب دون تغيير السيارة', message: 'يُغلق الطلب بدون تسليم السيارة المطلوبة (مثلاً: اتصلحت عربيته)، ويصل السبب للسائق.', reason: { label: 'السبب' }, done: 'أُغلق الطلب', run: function (x, reason) { return api.post('/vehicle-change-requests/' + x.id + '/close', { note: reason }); } };
+      var rejectAction = { label: 'رفض', tone: 'danger', title: 'رفض طلب تغيير السيارة', message: 'يصل السبب للسائق في التطبيق.', reason: { label: 'السبب' }, done: 'رُفض الطلب', run: function (x, reason) { return api.post('/vehicle-change-requests/' + x.id + '/reject', { note: reason }); } };
+      var changesAfter = function () { t.refresh(); if (changes) changes.refresh(); };
+      A.pendingBox(document.getElementById('cus-changes'), {
+        key: 'vehicle-changes', url: '/vehicle-change-requests?status=pending', title: 'طلبات تغيير السيارة من السائقين',
+        hint: 'الموافقة لا تغيّر السيارة: الطلب يصبح «تم التغيير» تلقائياً عند تسليمه السيارة المطلوبة',
+        row: changeRow,
+        actions: [
+          { label: 'موافقة', cls: 'btn-primary', title: 'الموافقة على تغيير السيارة', message: 'يُبلَّغ السائق بالموافقة، ويبقى الطلب «بانتظار التسليم» حتى تُسلَّم له السيارة المطلوبة من هنا (تسليم أو نقل عهدة).', done: 'تمت الموافقة — بانتظار التسليم', run: function (x) { return api.post('/vehicle-change-requests/' + x.id + '/approve', {}); } },
+          rejectAction
+        ],
+        after: function () { changesAfter(); A.pendingBox(document.getElementById('cus-approved'), approvedBox); }
+      });
+      // approved, waiting for the handover of the car asked for: the handover itself closes it as done
+      var approvedBox = {
+        key: 'vehicle-changes-approved', url: '/vehicle-change-requests?status=approved', title: 'تغيير سيارة: تمت الموافقة — بانتظار التسليم',
+        hint: 'سلّم السائق السيارة المطلوبة ليُغلق الطلب «تم التغيير»؛ تسليمه سيارة أخرى يغلقه «دون تغيير»',
+        row: function (x) { return h`${changeRow(x)}${x.requested_vehicle && x.requested_vehicle.found ? h`<button type="button" class="btn btn-sm btn-primary mt-8" data-change-handover="${x.id}">${icon('key-round', 14)} تسليم السيارة المطلوبة</button>` : ''}`; },
+        actions: [rejectAction, closeAction],
+        after: changesAfter
+      };
+      var approvedEl = document.getElementById('cus-approved');
+      A.pendingBox(approvedEl, approvedBox);
+      BT.on(approvedEl, 'click', '[data-change-handover]', function (e, b) {
+        api.get('/vehicle-change-requests', { status: 'approved' }).then(function (list) {
+          var x = list.find(function (r) { return r.id === b.getAttribute('data-change-handover'); });
+          if (!x) return;
+          return api.get('/vehicles/' + x.requested_vehicle.id).then(function (car) {
+            A.handover({ vehicle: car, driver: x.driver }, function () { t.refresh(); if (changes) changes.refresh(); A.pendingBox(approvedEl, approvedBox); A.refreshCounts(); });
+          });
+        }).catch(function (err) { BT.toast(api.message(err), { type: 'error' }); });
+      });
+    }
     var t = BT.table(document.getElementById('cus-table'), {
       fetch: function (s) { return api.get('/custodies', { open: s.chip === 'open' || null, needs_review: s.chip === 'review' || null, limit: s.limit, offset: s.offset }); },
       chips: { value: q.view || 'open', all: 'السجل كاملاً', options: [{ v: 'open', t: 'المفتوحة' }, { v: 'review', t: 'تحتاج مراجعة' }] },
@@ -245,7 +270,11 @@
     var pill = !car || !car.found ? '' : car.holder ? BT.pill('مع ' + api.name(car.holder.name), 'o') : car.status === 'available' ? BT.pill('متاحة', 'g') : A.pill('vehicle_status', car.status);
     return h`<span class="nowrap" data-requested>${A.plate(x.requested_plate, car && car.id)} ${pill}</span>`;
   };
-  A.changeStatusPill = function (status) { return BT.pill(api.t('change_status', status), { pending: 'o', done: 'g', rejected: 'r' }[status] || 'n'); };
+  A.changeStatusPill = function (status, x) {
+    // closed as done with no handover of the car asked for (before the change was tied to it): for review
+    if (x && x.unverified) return h`<span data-change-unverified title="أُغلق «تم التغيير» ولم تُسلَّم للسائق السيارة المطلوبة بعده: راجع العهدة">${BT.pill(api.t('change_status', 'unverified'), 'r')}</span>`;
+    return BT.pill(api.t('change_status', status), { pending: 'o', approved: 'b', done: 'g', rejected: 'r', closed: 'n' }[status] || 'n');
+  };
   A.changeRequestsTable = function (el, filter) { // filter: {driver_id} | {vehicle_id} | {}
     if (!el) return null;
     var chip = 'all', full = !filter.driver_id && !filter.vehicle_id;
@@ -255,7 +284,7 @@
       { key: 'vehicle', label: 'السيارة التي معه', render: function (x) { return A.plate(x.vehicle_plate, x.vehicle_id); } },
       { key: 'requested', label: 'السيارة المطلوبة', render: function (x) { return A.requestedCar(x); } },
       { key: 'reason', label: 'السبب', render: function (x) { return x.reason; } },
-      { key: 'status', label: 'الحالة', render: function (x) { return A.changeStatusPill(x.status); } },
+      { key: 'status', label: 'الحالة', render: function (x) { return h`${A.changeStatusPill(x.status, x)}${x.handed_over_at ? h`<span class="sub num">سُلّمت ${fmt.dt(x.handed_over_at)}</span>` : x.status === 'approved' && x.approved_at ? h`<span class="sub num">وافق ${x.approved_by || ''} ${fmt.dt(x.approved_at)}</span>` : ''}`; } },
       { key: 'decided', label: 'أغلقه', render: function (x) { return x.decided_at ? h`${x.decided_by || '—'}<span class="sub num">${fmt.dt(x.decided_at)}</span>` : '—'; } },
       { key: 'note', label: 'الملاحظة', render: function (x) { return x.note || '—'; } }
     ].filter(Boolean);
@@ -263,7 +292,7 @@
     var t = BT.table(el.querySelector('[data-change-table]'), {
       fetch: function (s) { chip = s.chip || 'all'; return api.get('/vehicle-change-requests', Object.assign({ status: chip, limit: s.limit, offset: s.offset }, filter)); },
       pageSize: full ? 25 : 10,
-      chips: full ? { value: '', all: 'الكل', options: [{ v: 'pending', t: api.t('change_status', 'pending') }, { v: 'done', t: api.t('change_status', 'done') }, { v: 'rejected', t: api.t('change_status', 'rejected') }] } : null,
+      chips: full ? { value: '', all: 'الكل', options: ['pending', 'approved', 'done', 'closed', 'rejected'].map(function (k) { return { v: k, t: api.t('change_status', k) }; }).concat([{ v: 'unverified', t: 'تم التغيير دون تسليم (للمراجعة)' }]) } : null,
       tools: full ? h`<button type="button" class="btn btn-sm btn-outline" data-change-export>${icon('sheet', 14)} Excel</button>` : null,
       columns: columns,
       compact: !full,
@@ -317,7 +346,7 @@
         title: 'تسليم سيارة لسائق', icon: 'key-round', size: 'lg', submitText: 'تسليم', done: 'تم التسليم وبدأت العهدة',
         body: h`<div class="form-grid">
           ${A.picker({ name: 'vehicle', label: 'السيارة', required: true, items: vehicles.map(function (x) { return { id: x.id, plate: x.plate_number, label: A.vehicleLabel(x) + (x.custody && x.custody.driver ? ' · مع ' + api.name(x.custody.driver.name) : ''), km: x.last_odometer_km }; }), value: pre.vehicle && pre.vehicle.id, hint: pre.vehicle ? '' : 'المتاحة، والتي مع سائق (تُستلم منه في نفس الخطوة)' })}
-          ${A.picker({ name: 'driver', label: 'السائق', required: true, items: drivers.map(function (e) { return { id: e.id, label: api.name(e.name) + ' — ' + e.employee_number + (holding[e.id] ? ' · معه ' + holding[e.id] : '') }; }), hint: 'السائقون على رأس العمل؛ من معه سيارة يرجّعها أو تتبدّل في نفس الخطوة' })}
+          ${A.picker({ name: 'driver', label: 'السائق', required: true, items: drivers.map(function (e) { return { id: e.id, label: api.name(e.name) + ' — ' + e.employee_number + (holding[e.id] ? ' · معه ' + holding[e.id] : '') }; }), value: pre.driver && pre.driver.id, hint: 'السائقون على رأس العمل؛ من معه سيارة يرجّعها أو تتبدّل في نفس الخطوة' })}
           <div class="full" data-transfer></div>
           <div class="full hidden" data-other><div class="section-t" data-other-title></div><div class="form-grid">
             ${BT.f.input({ name: 'other_odometer_km', label: 'قراءة عدادها (كم)', num: true, min: 0 })}

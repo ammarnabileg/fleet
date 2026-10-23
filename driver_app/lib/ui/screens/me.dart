@@ -153,6 +153,13 @@ class _MyCarScreenState extends State<MyCarScreen> {
                     tone: BannerTone.warn,
                     icon: Icons.hourglass_top,
                   )
+                else if (request != null && request['status'] == 'approved')
+                  Banner2(
+                    key: const Key('change-approved'),
+                    text: l.vehicleChangeApprovedFor('\u2066${request['requested_plate'] ?? ''}\u2069'),
+                    tone: BannerTone.info,
+                    icon: Icons.check_circle_outline,
+                  )
                 else ...[
                   if (request != null && request['status'] == 'rejected') ...[
                     Banner2(text: l.vehicleChangeRejected('${request['note'] ?? ''}'), tone: BannerTone.danger),

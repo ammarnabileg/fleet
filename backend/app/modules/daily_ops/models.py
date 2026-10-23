@@ -40,6 +40,7 @@ class Report(Base):
             postgresql_where=text("status <> 'rejected'"),
         ),
         Index("reports_status_idx", "status", "submitted_at"),
+        Index("reports_business_date_idx", "business_date"),
         {"schema": "daily_ops"},
     )
 

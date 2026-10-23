@@ -355,7 +355,7 @@ def _next_receipt_no(db: Session, branch_id: int) -> int:
 UNCONFIRMED_AFTER = timedelta(hours=24)
 
 
-def _receipt_out(r: Receipt) -> dict:
+def _receipt_out(r: Receipt, reversed_: bool = False) -> dict:
     return {
         "id": str(r.public_id),
         "receipt_no": r.receipt_no,
@@ -363,9 +363,26 @@ def _receipt_out(r: Receipt) -> dict:
         "amount": r.amount,
         "created_at": r.created_at,
         "driver_confirmed_at": r.driver_confirmed_at,
+        # cancelled (its deposit reversed): the cash counts as his again, the receipt is not proof of a payment
+        "reversed": reversed_,
         # still not confirmed by the driver a day later (BRD FR-CSH-05)
-        "unconfirmed_late": r.driver_confirmed_at is None and r.created_at < utcnow() - UNCONFIRMED_AFTER,
+        "unconfirmed_late": not reversed_
+        and r.driver_confirmed_at is None
+        and r.created_at < utcnow() - UNCONFIRMED_AFTER,
     }
+
+
+def _reversed_receipts(db: Session, receipt_ids: Iterable[int]) -> set[int]:
+    ids = list(receipt_ids)
+    if not ids:
+        return set()
+    return set(
+        db.scalars(
+            select(Journal.source_id).where(
+                Journal.kind == "reversal", Journal.source_type == "receipt", Journal.source_id.in_(ids)
+            )
+        )
+    )
 
 
 def record_receipt(db: Session, driver: people.EmployeeRef, *, amount: Decimal, actor_user_id: int) -> dict:
@@ -431,7 +448,7 @@ def confirm_receipt(db: Session, employee_id: int, public_id) -> dict:
     if receipt.driver_confirmed_at is None:
         receipt.driver_confirmed_at = utcnow()
         db.commit()
-    return _receipt_out(receipt)
+    return _receipt_out(receipt, receipt.id in _reversed_receipts(db, [receipt.id]))
 
 
 def _adjustment_approval(db: Session, journal: Journal, driver: people.EmployeeRef, amount: Decimal) -> dict:
@@ -522,6 +539,8 @@ def reverse(db: Session, public_id, *, reason: str, actor_user_id: int, all_comp
         raise AppError(404, "journal_not_found")
     if original.status != "posted" or original.kind == "reversal":
         raise AppError(409, "journal_not_reversible")
+    if db.scalar(select(Journal.id).where(Journal.reverses_id == original.id)):
+        raise AppError(409, "journal_exists")  # reversed already: said so, before any balance check
     if original.kind == "disbursement":  # undone with its document (the expense cancelled), never on its own
         raise AppError(409, "disbursement_from_expense")
     if original.kind == "count_diff":  # undone by reopening the day it closed
@@ -573,6 +592,17 @@ def reverse(db: Session, public_id, *, reason: str, actor_user_id: int, all_comp
     check_treasury(db)
     for employee_id in _drivers_of(db, journal.id):
         check_balance_alert(db, people.ref(db, employee_id))
+    if original.source_type == "receipt" and original.kind == "deposit":
+        # the driver holds the receipt: he is told it no longer counts, and why
+        receipt = db.get(Receipt, original.source_id)
+        notifications.notify_driver(
+            db,
+            receipt.driver_id,
+            "receipt_reversed",
+            params={"number": receipt.receipt_no, "amount": f"{receipt.amount:.3f}", "reason": reason},
+            entity_type="receipt",
+            entity_id=receipt.public_id,
+        )
     if original.kind == "fuel":  # the fuel claim it paid waits for a decision again
         from app.modules.cash import fuel
 
@@ -1000,6 +1030,27 @@ def statement(db: Session, driver: people.EmployeeRef, *, limit: int = 100) -> d
     }
 
 
+def balance_side(total: Decimal) -> str | None:
+    """A driver's balance read the same everywhere (dashboard, cash page, reports, exports): positive, he owes it to
+    the company (cash he holds, "owes"); negative, the company owes it to him (a credit to settle, "owed")."""
+    return "owes" if total > 0 else "owed" if total < 0 else None
+
+
+def cash_split(totals: Iterable[Decimal]) -> dict:
+    """The drivers' balances kept apart, never netted silently: owed by drivers, owed to drivers, and the net."""
+    totals = list(totals)
+    owing = [t for t in totals if t > 0]
+    owed = [-t for t in totals if t < 0]
+    by, to = sum(owing, ZERO), sum(owed, ZERO)
+    return {
+        "owed_by_drivers": by,
+        "owed_to_drivers": to,
+        "net": by - to,
+        "drivers_owing": len(owing),
+        "drivers_owed": len(owed),
+    }
+
+
 def driver_balances(db: Session, drivers: list[people.EmployeeRef]) -> list[dict]:
     accounts = (
         dict(
@@ -1025,6 +1076,7 @@ def driver_balances(db: Session, drivers: list[people.EmployeeRef]) -> list[dict
                     "posted": b.posted,
                     "pending": b.pending,
                     "total": b.total,
+                    "side": balance_side(b.total),
                     "over_limit": b.total > limit,
                 }
             )
@@ -1046,15 +1098,20 @@ def unconfirmed_receipts(db: Session, drivers: list[people.EmployeeRef]) -> list
         .order_by(Receipt.created_at)
         .limit(500)
     )
+    rows = list(db.scalars(q))
+    cancelled = _reversed_receipts(db, [r.id for r in rows])  # nothing to confirm: the receipt was cancelled
     return [
         _receipt_out(r) | {"driver": {"id": str(by_id[r.driver_id].public_id), "name": by_id[r.driver_id].name}}
-        for r in db.scalars(q)
+        for r in rows
+        if r.id not in cancelled
     ]
 
 
 def receipts_for_driver(db: Session, employee_id: int, limit: int = 20) -> list[dict]:
     q = select(Receipt).where(Receipt.driver_id == employee_id).order_by(Receipt.id.desc()).limit(limit)
-    return [_receipt_out(r) for r in db.scalars(q)]
+    rows = list(db.scalars(q))
+    cancelled = _reversed_receipts(db, [r.id for r in rows])
+    return [_receipt_out(r, r.id in cancelled) for r in rows]
 
 
 def treasury(db: Session) -> list[dict]:

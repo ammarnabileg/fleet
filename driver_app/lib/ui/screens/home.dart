@@ -249,7 +249,7 @@ class HomeTab extends StatelessWidget {
     final custody = state.today?.custody;
     final cash = state.cash;
     final report = state.todaysReport;
-    final unconfirmed = cash?.receipts.where((r) => r.confirmedAt == null).length ?? 0;
+    final unconfirmed = cash?.receipts.where((r) => r.confirmedAt == null && !r.reversed).length ?? 0;
     final actions = [
       if (state.shows('daily_report'))
         QuickAction(
@@ -1016,12 +1016,14 @@ class CashTab extends StatelessWidget {
                         divider: i < cash.receipts.length - 1,
                         leading: IconTile(
                           Icons.receipt_outlined,
-                          bg: r.confirmedAt == null ? AppColors.warningSoft : AppColors.surface3,
-                          fg: r.confirmedAt == null ? AppColors.warning : AppColors.text3,
+                          bg: r.confirmedAt == null && !r.reversed ? AppColors.warningSoft : AppColors.surface3,
+                          fg: r.confirmedAt == null && !r.reversed ? AppColors.warning : AppColors.text3,
                         ),
                         title: l.receiptNo('${r.number}'),
                         subtitle: '${money(r.amount, l.kwd)} · ${when(context, r.createdAt)}',
-                        trailing: r.confirmedAt != null
+                        trailing: r.reversed
+                            ? Pill(l.receiptReversed, key: Key('receipt-reversed-${r.number}'), tone: BannerTone.danger)
+                            : r.confirmedAt != null
                             ? Pill(l.receiptConfirmed, tone: BannerTone.success)
                             : TextButton(onPressed: () => _confirm(context, r), child: Text(l.confirmReceipt)),
                       ),

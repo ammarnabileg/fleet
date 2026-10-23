@@ -275,6 +275,7 @@
     "vehicle_change_exists": "Your request to change the vehicle is already with the supervisor",
     "vehicle_change_not_found": "Vehicle change request not found",
     "vehicle_change_decided": "This vehicle change request was already closed",
+    "vehicle_change_no_vehicle": "The request names no vehicle to hand over: close it with a note",
     "renewal_exists": "A renewal of this document is already waiting for the office",
     "renewal_not_found": "Document renewal not found",
     "renewal_decided": "This renewal was already decided",
@@ -1296,6 +1297,7 @@
     "approved": "Approved",
     "unapproved": "Unapproved",
     "total": "Total",
+    "balance_side": "Balance side",
     "over_limit": "Over the limit",
     "center": "Center",
     "received": "Received",
@@ -1603,12 +1605,15 @@
   },
   "driver_notice": {
     "receipt_issued": "The office received {amount} KWD from you, receipt no. {number}. Confirm it on the cash screen.",
+    "receipt_reversed": "Receipt no. {number} ({amount} KWD) was cancelled: {reason}. The amount counts as yours again; ask the office.",
     "report_corrected": "Report of {date}: the cash was approved as {approved} KWD instead of {reported} KWD. Reason: {reason}",
     "report_returned": "Your report of {date} was sent back for correction: {reason}. Edit it and send it again.",
     "report_change_approved": "The change you asked for to the report of {date} was approved",
     "report_change_rejected": "The change you asked for to the report of {date} was refused: {reason}",
-    "vehicle_change_done": "Your request to change the vehicle {plate} was handled",
+    "vehicle_change_approved": "Your request to change the vehicle {plate} for {requested} was approved: collect it from the office",
+    "vehicle_change_done": "Your vehicle {plate} was changed for the one you asked for",
     "vehicle_change_rejected": "Your request to change the vehicle {plate} was refused: {reason}",
+    "vehicle_change_closed": "Your request to change the vehicle {plate} was closed without a change: {reason}",
     "vehicle_handed_over": "The vehicle {plate} was handed to you and is in your custody",
     "vehicle_returned": "The vehicle {plate} was returned to the office and left your custody",
     "vehicle_taken": "The vehicle {plate} was taken out of your custody",
@@ -1685,15 +1690,24 @@
     "requested_now": "Asked-for vehicle now",
     "reason": "Reason",
     "status": "Status",
+    "approved_at": "Approved at",
+    "handed_over_at": "Requested car handed over",
     "decided_by": "Closed by",
     "decided_at": "Closed at",
     "note": "Note",
     "with": "With {name}"
   },
+  "balance_side": {
+    "owes": "Owes the company",
+    "owed": "Owed by the company (to settle)"
+  },
   "change_status": {
     "pending": "Under review",
+    "approved": "Approved — waiting for the handover",
     "done": "Changed",
-    "rejected": "Refused"
+    "rejected": "Refused",
+    "closed": "Closed without a change",
+    "unverified": "Closed as changed without the requested car handed over"
   },
   "uncollected": {
     "review": "For review",

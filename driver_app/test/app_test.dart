@@ -1061,6 +1061,39 @@ void main() {
     expect(w.server.calls('/api/v1/driver/cash/receipts/r1/confirm'), hasLength(1));
   });
 
+  testWidgets('cash: a receipt the office cancelled is marked so, with nothing to confirm', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/cash',
+      (r) => (
+        200,
+        {
+          'posted': '42.500',
+          'pending': '0.000',
+          'total': '42.500',
+          'alert_limit': '80.000',
+          'receipts': [
+            {
+              'id': 'r1',
+              'receipt_no': 12,
+              'branch_id': 1,
+              'amount': '20.000',
+              'created_at': '2026-10-03T14:00:00Z',
+              'driver_confirmed_at': null,
+              'reversed': true,
+            },
+          ],
+        },
+      ),
+    );
+    await pumpApp(tester, w);
+    await tester.tap(find.text('الكاش').last);
+    await settle(tester);
+    expect(find.byKey(const Key('receipt-reversed-12')), findsOneWidget);
+    expect(find.text('أؤكد التسليم'), findsNothing);
+  });
+
   testWidgets('cash: his movements, and a warning before the limit', (tester) async {
     final w = (await tester.runAsync(() => world()))!;
     w.server.on(
@@ -1229,6 +1262,47 @@ void main() {
     expect(find.textContaining('12-34567'), findsOneWidget);
     expect(find.byKey(const Key('ask-change')), findsNothing);
     await shot(tester, '35-my-car');
+  });
+
+  testWidgets('my car: a change approved by the office waits for the handover, he does not ask again', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/vehicle',
+      (r) => (
+        200,
+        {
+          'vehicle': {
+            'plate_number': '18/23456',
+            'make': 'Kia',
+            'model': 'Pegas',
+            'year': 2023,
+            'color': 'أبيض',
+            'since': '2026-10-02T05:00:00Z',
+            'last_odometer_km': 45210,
+            'last_reading_at': '2026-10-04T05:55:00Z',
+            'registration_expiry': '2027-03-01',
+          },
+          'change_request': {
+            'id': 'v1',
+            'status': 'approved',
+            'reason': 'المكيف لا يعمل',
+            'requested_plate': '12-34567',
+            'note': null,
+            'created_at': '2026-10-04T08:00:00Z',
+            'approved_at': '2026-10-04T09:00:00Z',
+            'decided_at': null,
+          },
+        },
+      ),
+    );
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('my-car')));
+    await settle(tester);
+    expect(find.byKey(const Key('change-approved')), findsOneWidget);
+    expect(find.textContaining('12-34567'), findsOneWidget);
+    expect(find.byKey(const Key('ask-change')), findsNothing);
+    expect(find.byKey(const Key('change-pending')), findsNothing);
   });
 
   testWidgets('no car: he registers the one he takes, it waits for the office, refused then approved', (tester) async {

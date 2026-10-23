@@ -1661,4 +1661,12 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get objectionInstallment => 'قسط خصم';
+
+  @override
+  String vehicleChangeApprovedFor(String plate) {
+    return 'تمت الموافقة على تغيير عربيتك بـ $plate: استلمها من المكتب';
+  }
+
+  @override
+  String get receiptReversed => 'ملغي';
 }

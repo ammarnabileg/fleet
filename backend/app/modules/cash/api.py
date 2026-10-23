@@ -77,9 +77,9 @@ def confirm_receipt(
 
 @router.get("/cash/balances", response_model=list[schemas.BalanceOut])
 def balances(principal: Principal = Depends(require_permission("cash.view")), db: Session = Depends(get_session)):
-    return service.driver_balances(
-        db, [d for d in people.app_drivers(db, **principal.scope)] + people.departed_drivers(db, **principal.scope)
-    )
+    """Every driver with a balance: positive, he owes it to the company (cash he holds); negative, the company owes it
+    to him (a credit to settle). A driver whose app access is off still appears while he has a balance."""
+    return service.driver_balances(db, people.all_drivers(db, **principal.scope))
 
 
 @router.get("/cash/receipts/unconfirmed", response_model=list[schemas.UnconfirmedReceiptOut])
@@ -87,8 +87,7 @@ def unconfirmed_receipts(
     principal: Principal = Depends(require_permission("cash.view")), db: Session = Depends(get_session)
 ):
     """Receipts the drivers have not confirmed a day after they were given (FR-CSH-05)."""
-    drivers = people.app_drivers(db, **principal.scope) + people.departed_drivers(db, **principal.scope)
-    return service.unconfirmed_receipts(db, drivers)
+    return service.unconfirmed_receipts(db, people.all_drivers(db, **principal.scope))
 
 
 @router.get("/cash/drivers/{driver_id}/statement", response_model=schemas.StatementOut)

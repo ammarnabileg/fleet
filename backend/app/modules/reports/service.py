@@ -168,41 +168,31 @@ def dashboard(
             "drivers_on_duty": drivers_on_duty,
         }
 
+    cash_rows: list | None = None
     if has("cash.view"):
         driver_scope = _in_scope(Employee.company_id, all_companies, company_ids)
-        per_driver = (
-            select(
-                Account.driver_id,
-                func.coalesce(func.sum(JournalLine.amount).filter(Journal.status == "posted"), 0).label("posted"),
-                func.coalesce(func.sum(JournalLine.amount).filter(Journal.status == "pending"), 0).label("pending"),
-            )
-            .join(JournalLine, JournalLine.account_id == Account.id)
-            .join(Journal, Journal.id == JournalLine.journal_id)
-            .join(Employee, Employee.id == Account.driver_id)
-            .where(Account.kind == "driver", driver_scope)
-            .group_by(Account.driver_id)
-            .subquery()
-        )
+        # every driver's balance, read once from the ledger (the per-company table reuses it)
+        cash_rows = _driver_balances(db, driver_scope)
         limit = org.get_section(db, "cash").driver_balance_alert
-        posted, pending, over, holding = db.execute(
-            select(
-                func.coalesce(func.sum(per_driver.c.posted), 0),
-                func.coalesce(func.sum(per_driver.c.pending), 0),
-                func.count().filter(per_driver.c.posted + per_driver.c.pending > limit),
-                func.count().filter(per_driver.c.posted + per_driver.c.pending > 0),
-            )
-        ).one()
+        totals = [p + q for _, p, q in cash_rows]
+        posted = sum((p for _, p, _ in cash_rows), ZERO)
+        pending = sum((q for _, _, q in cash_rows), ZERO)
+        over = sum(1 for t in totals if t > limit)
+        split = cash_service.cash_split(totals)
         deposited = db.scalar(
             select(func.coalesce(func.sum(Receipt.amount), 0))
             .join(Employee, Employee.id == Receipt.driver_id)
             .where(driver_scope, func.date(func.timezone("Asia/Kuwait", Receipt.created_at)) == today())
         )
+        # a balance is what the driver owes the company (positive) or what it owes him (negative, a credit to
+        # settle): the two kept apart, never netted into one figure that hides either (cash_service.cash_split)
+        out["driver_cash"] = split
         out["cash"] = {
-            "held_by_drivers": Decimal(posted) + Decimal(pending),
-            "unapproved": Decimal(pending),
-            "approved": Decimal(posted),
+            "held_by_drivers": posted + pending,  # the net: kept until the dashboard reads driver_cash
+            "unapproved": pending,
+            "approved": posted,
             "over_limit": over,
-            "drivers_holding": holding,  # drivers with cash to hand in (FR-DSH-02)
+            "drivers_holding": split["drivers_owing"],  # drivers with cash to hand in (FR-DSH-02)
             "deposited_today": Decimal(deposited),
             "limit": limit,
         }
@@ -256,7 +246,7 @@ def dashboard(
     companies = org.list_companies(db, all_companies=all_companies, company_ids=company_ids)
     figures = ("vehicles.view", "custody.view", "tracking.live", "daily_reports.view", "cash.view")
     if len(companies) > 1 and any(has(p) for p in figures):  # FR-CMP-03: every company, the figures kept apart
-        out["by_company"] = _by_company(db, companies, has)
+        out["by_company"] = _by_company(db, companies, has, cash_rows)
     return out
 
 
@@ -305,7 +295,25 @@ def _hr(db: Session, all_companies: bool, company_ids: list[int], *, payroll: bo
     return out
 
 
-def _by_company(db: Session, companies: list[dict], has) -> list[dict]:
+def _driver_balances(db: Session, driver_scope) -> list[tuple[int, Decimal, Decimal]]:
+    """(company, posted, pending) of every driver in scope with a line on his account: one pass over the ledger."""
+    rows = db.execute(
+        select(
+            Employee.company_id,
+            func.coalesce(func.sum(JournalLine.amount).filter(Journal.status == "posted"), 0),
+            func.coalesce(func.sum(JournalLine.amount).filter(Journal.status == "pending"), 0),
+        )
+        .select_from(Account)
+        .join(Employee, Employee.id == Account.driver_id)
+        .join(JournalLine, JournalLine.account_id == Account.id)
+        .join(Journal, Journal.id == JournalLine.journal_id)
+        .where(Account.kind == "driver", driver_scope)
+        .group_by(Account.driver_id, Employee.company_id)
+    ).all()
+    return [(c, Decimal(p).quantize(ZERO), Decimal(q).quantize(ZERO)) for c, p, q in rows]
+
+
+def _by_company(db: Session, companies: list[dict], has, cash_rows: list | None = None) -> list[dict]:
     ids = [c["id"] for c in companies]
     rows = {c["id"]: {"company_id": c["id"], "name": c["name"]} for c in companies}
 
@@ -344,26 +352,17 @@ def _by_company(db: Session, companies: list[dict], has) -> list[dict]:
             .group_by(Report.company_id)
         ):
             rows[company_id] |= {"reports_today": sent, "orders_today": int(orders)}
-    if has("cash.view"):
-        zero("cash_held", value=ZERO)
-        put(
-            "cash_held",
-            (
-                (company_id, Decimal(amount))
-                for company_id, amount in db.execute(
-                    select(Employee.company_id, func.coalesce(func.sum(JournalLine.amount), 0))
-                    .join(Account, Account.driver_id == Employee.id)
-                    .join(JournalLine, JournalLine.account_id == Account.id)
-                    .join(Journal, Journal.id == JournalLine.journal_id)
-                    .where(
-                        Account.kind == "driver",
-                        Journal.status.in_(("posted", "pending")),
-                        Employee.company_id.in_(ids),
-                    )
-                    .group_by(Employee.company_id)
-                )
-            ),
-        )
+    if has("cash.view") and cash_rows is not None:
+        zero("cash_held", "cash_owed_by_drivers", "cash_owed_to_drivers", value=ZERO)
+        for company_id, posted, pending in cash_rows:
+            if company_id not in rows:
+                continue
+            total, row = posted + pending, rows[company_id]
+            row["cash_held"] += total  # the net, as before; the two sides apart
+            if total > 0:
+                row["cash_owed_by_drivers"] += total
+            else:
+                row["cash_owed_to_drivers"] -= total
     return list(rows.values())
 
 

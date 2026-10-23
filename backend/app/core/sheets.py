@@ -56,11 +56,12 @@ def to_xlsx(
         c.font = Font(bold=True)
     widths = [len(h) for h in header]
     keep = set(text_columns)
-    for row in rows:
+    # the row number counted here: ws.max_row scans every cell written so far, which made a sheet quadratic
+    for n, row in enumerate(rows, start=2):
         values = [("" if v is None else str(v), "@") if i in keep else _cell(v) for i, v in enumerate(row)]
         ws.append([v for v, _ in values])
         for i, (v, number_format) in enumerate(values):
-            cell = ws.cell(row=ws.max_row, column=i + 1)
+            cell = ws.cell(row=n, column=i + 1)
             if number_format:
                 cell.number_format = number_format
             if number_format == "@":

@@ -279,10 +279,11 @@
     var treasury = api.can('treasury.view');
     var sections = [{ v: 'aging', t: 'الأرصدة وأعمارها' }, { v: 'collectors', t: 'التحصيل حسب المستلم' }].concat(treasury ? [{ v: 'treasury', t: 'الخزينة' }, { v: 'deposits', t: 'الإيداعات البنكية' }] : []);
     BT.render(el, h`<div class="card">${rangeForm({ days: 29, filters: ['company', 'branch', 'driver'], sections: sections })}
-      <div class="hint mb-12">الأعمار لليوم أياً كانت الفترة: ما يسلّمه السائق يسدد أقدم كاش معه أولاً، فالباقي معه هو الأحدث. غير المعتمد لا يُعمَّر. التحصيل والخزينة والإيداعات للفترة؛ والخزينة لكل فرع ومشتركة بين شركاته فلا يطبق عليها فلتر الشركة.</div><div data-out></div></div>`);
+      <div class="hint mb-12">الأعمار لليوم أياً كانت الفترة: ما يسلّمه السائق يسدد أقدم كاش معه أولاً، فالباقي معه هو الأحدث. غير المعتمد لا يُعمَّر. الرصيد الموجب عليه للشركة، والسالب له عند الشركة ويحتاج تسوية. التحصيل والخزينة والإيداعات للفترة؛ والخزينة لكل فرع ومشتركة بين شركاته فلا يطبق عليها فلتر الشركة.</div><div data-out></div></div>`);
     var out = el.querySelector('[data-out]');
     var acols = [
-      driverCol('driver', 'السائق'), money('posted', 'معه (معتمد)'), money('pending', 'غير معتمد'),
+      driverCol('driver', 'السائق'), money('posted', 'معتمد'), money('pending', 'غير معتمد'),
+      { key: 'total', label: 'الرصيد', num: true, sort: function (r) { return Number(r.total || 0); }, render: function (r) { return A.cashSide ? A.cashSide(r.total) : fmt.money(r.total); }, print: function (r) { return r.total == null ? '—' : (Number(r.total) < 0 ? fmt.money(-Number(r.total)) + ' له' : fmt.money(r.total) + ' عليه'); } },
       money('d0_1', 'حتى يوم'), money('d2_3', '2–3 أيام'), money('d4_7', '4–7 أيام'),
       { key: 'd8_plus', label: 'أكثر من 7 أيام', num: true, sort: function (r) { return Number(r.d8_plus); }, render: function (r) { return Number(r.d8_plus) ? h`<b class="t-danger">${fmt.money(r.d8_plus)}</b>` : fmt.money(r.d8_plus); }, print: function (r) { return fmt.money(r.d8_plus); } },
       { key: 'oldest_days', label: 'أقدم كاش', num: true, render: function (r) { return r.oldest_days == null ? '—' : r.oldest_days + ' يوم'; } }
@@ -306,9 +307,9 @@
           }
         });
         return h`<div class="kpis">
-            ${BT.kpi({ label: 'كاش مع السائقين (معتمد)', value: fmt.money(T.posted), sub: 'غير معتمد ' + fmt.money(T.pending), dot: 'b' })}
-            ${BT.kpi({ label: 'معهم أكثر من 7 أيام', value: fmt.money(T.d8_plus), dot: 'r', tone: Number(T.d8_plus) ? 'danger' : null })}
-            ${BT.kpi({ label: '4–7 أيام', value: fmt.money(T.d4_7), dot: 'o' })}
+            ${BT.kpi({ label: 'مستحق للشركة على السائقين', value: fmt.money(T.owed_by_drivers), sub: fmt.int(T.drivers_owing) + ' سائق · غير معتمد منه ' + fmt.money(T.pending), dot: 'o' })}
+            ${BT.kpi({ label: 'أرصدة دائنة للسائقين', value: fmt.money(T.owed_to_drivers), sub: fmt.int(T.drivers_owed) + ' سائق · تحتاج تسوية · الصافي ' + fmt.money(T.net), dot: 'b', tone: T.drivers_owed ? 'warning' : null })}
+            ${BT.kpi({ label: 'معهم أكثر من 7 أيام', value: fmt.money(T.d8_plus), sub: '4–7 أيام ' + fmt.money(T.d4_7), dot: 'r', tone: Number(T.d8_plus) ? 'danger' : null })}
             ${BT.kpi({ label: 'حُصّل بإيصالات في الفترة', value: fmt.money(collected), dot: 'g' })}
           </div>
           <div class="section-t mt-12">أرصدة السائقين وأعمارها (اليوم ${fmt.date(d.as_of)})</div><div data-aging></div>

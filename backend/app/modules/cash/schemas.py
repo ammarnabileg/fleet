@@ -24,6 +24,7 @@ class ReceiptOut(BaseModel):
     amount: Decimal
     created_at: datetime
     driver_confirmed_at: datetime | None
+    reversed: bool = False  # cancelled: its deposit was reversed
     unconfirmed_late: bool = False  # still not confirmed by the driver after 24 hours (FR-CSH-05)
 
 
@@ -125,6 +126,7 @@ class BalanceOut(BaseModel):
     posted: Decimal
     pending: Decimal
     total: Decimal
+    side: str | None = None  # owes: he owes it to the company; owed: the company owes it to him (to settle)
     over_limit: bool
 
 

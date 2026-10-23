@@ -939,5 +939,8 @@
   "objectionStatus_accepted": "مقبول",
   "objectionStatus_rejected": "مرفوض",
   "objectionStatus_closed": "مغلق",
-  "objectionInstallment": "قسط خصم"
+  "objectionInstallment": "قسط خصم",
+  "vehicleChangeApprovedFor": "تمت الموافقة على تغيير عربيتك بـ {plate}: استلمها من المكتب",
+  "@vehicleChangeApprovedFor": {"placeholders": {"plate": {"type": "String"}}},
+  "receiptReversed": "ملغي"
 }
