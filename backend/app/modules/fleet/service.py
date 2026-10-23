@@ -879,8 +879,11 @@ def _start_custody(
         pair=pair,
     )
     _add_photos(db, custody, "handover", photos)
-    _close_pending_claim(db, driver.id, vehicle, custody, decided_by=by_user)
-    _settle_change_requests(db, driver.id, vehicle, custody, decided_by=by_user)
+    if kind != "replacement":
+        # a replacement car while his own is at a center settles nothing: his claim and his change request wait
+        # for a custody of his own
+        _close_pending_claim(db, driver.id, vehicle, custody, decided_by=by_user)
+        _settle_change_requests(db, driver.id, vehicle, custody, decided_by=by_user)
     vehicle.status = "assigned"
     vehicle.version += 1
     emit(
@@ -2108,7 +2111,10 @@ def _handed_over_after():
         .where(
             or_(
                 Custody.id == r.fulfilled_custody_id,
-                (Custody.driver_id == r.employee_id) & (Custody.started_at >= r.created_at) & target,
+                (Custody.driver_id == r.employee_id)
+                & (Custody.started_at >= r.created_at)
+                & (Custody.kind != "replacement")
+                & target,
             )
         )
         .order_by(Custody.started_at)

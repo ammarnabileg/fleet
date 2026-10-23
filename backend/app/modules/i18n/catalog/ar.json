@@ -785,7 +785,12 @@
     "accident_awaiting_police_report": "حادث بلا محضر شرطة",
     "fine_no_driver": "مخالفة بلا سائق",
     "approval_escalated": "اعتماد مُصعّد",
-    "payroll_objection": "اعتراض على راتب"
+    "payroll_objection": "اعتراض على راتب",
+    "maintenance_due": "صيانة دورية تستحق قريباً",
+    "maintenance_overdue": "صيانة دورية متأخرة",
+    "maintenance_late": "سيارة تأخرت في المركز",
+    "maintenance_long_stay": "إقامة طويلة في المركز",
+    "maintenance_escalated": "تأخر صيانة مُصعَّد"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",

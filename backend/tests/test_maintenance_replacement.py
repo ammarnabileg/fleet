@@ -136,3 +136,19 @@ def test_the_office_takes_the_replacement_back_before_it_records_a_pickup(admin_
     assert r.status_code == 409 and r.json()["code"] == "no_replacement"
     assert admin_client.post(f"{M}/requests/{rid}/picked-up").status_code == 200
     assert custodies(admin_client, s["spare"])[0]["ended_at"] is not None
+
+
+def test_a_replacement_car_settles_neither_his_change_request_nor_counts_as_its_handover(admin_client, client, s):
+    """He asked to change to the spare; the spare given as a replacement while his own is at the center is not the
+    change: the request stays open (not done, not closed), and is not reported as handed over."""
+    ask = {"requested_plate": s["spare"]["plate_number"], "reason": "المكيف لا يعمل"}
+    r = client.post("/api/v1/driver/vehicle-change-requests", headers=s["h"], json=ask)
+    assert r.status_code in (200, 201), r.text
+    rid = sent(client, s)
+    receive(s, rid)
+    assert give(admin_client, s, rid).status_code == 200
+    [row] = admin_client.get("/api/v1/vehicle-change-requests", params={"status": "all"}).json()
+    assert row["status"] == "pending" and row["handed_over_at"] is None
+    mine = client.get("/api/v1/driver/vehicle", headers=s["h"]).json()
+    assert mine["change_request"]["status"] == "pending"
+    assert mine["vehicle"]["plate_number"] == s["vehicle"]["plate_number"]

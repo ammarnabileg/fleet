@@ -1860,6 +1860,7 @@ def _alert_late(db: Session, r: Request, settings) -> int:
             entity_id=r.public_id,
             params=params,
             dedupe_key=f"mnt_late:{r.id}:{key}",
+            once=True,  # handled by hand while still true: not raised again for the same date/cycle
         )
     )
     if reason != "expected" or r.escalated_at is not None:
@@ -1876,6 +1877,7 @@ def _alert_late(db: Session, r: Request, settings) -> int:
         entity_id=r.public_id,
         params=params | {"assignee": assignee or "—"},
         dedupe_key=f"mnt_escalated:{r.id}:{key}",
+        once=True,  # handled by hand while still true: not raised again for the same date/cycle
     )
     _audit(db, "maintenance.escalated", r, actor_type="system", after={"expected_ready_on": r.expected_ready_on})
     return raised + 1
@@ -2288,6 +2290,7 @@ def scan_due(db: Session) -> int:
             entity_id=s.public_id,
             params={"plate": x["vehicle"].get("plate_number", ""), "title": s.title, "due": _due_text(x)},
             dedupe_key=f"mnt_{x['state']}:{cycle}",
+            once=True,  # handled by hand while still true: not raised again for the same date/cycle
         )
     for r in db.scalars(select(Request).where(Request.status.in_(NOT_READY)).with_for_update()):
         raised += _alert_late(db, r, settings)

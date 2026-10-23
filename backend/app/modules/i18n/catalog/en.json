@@ -785,7 +785,12 @@
     "accident_awaiting_police_report": "Accident without police report",
     "fine_no_driver": "Fine with no driver",
     "approval_escalated": "Approval escalated",
-    "payroll_objection": "Payroll objection"
+    "payroll_objection": "Payroll objection",
+    "maintenance_due": "Periodic maintenance due",
+    "maintenance_overdue": "Periodic maintenance overdue",
+    "maintenance_late": "Car late at the center",
+    "maintenance_long_stay": "Long stay at the center",
+    "maintenance_escalated": "Late repair escalated"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
