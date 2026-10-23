@@ -49,22 +49,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get signInTitle => 'Sign in';
 
   @override
-  String get signInHint =>
-      'Enter your phone number registered with the company. The sign-in code arrives on WhatsApp.';
+  String get signInHint => 'Enter your phone number registered with the company. The sign-in code arrives on WhatsApp.';
 
   @override
   String get phoneLabel => 'Phone';
 
   @override
-  String get phoneInvalid =>
-      '8 Kuwaiti digits, or an international number starting with +';
+  String get phoneInvalid => '8 Kuwaiti digits, or an international number starting with +';
 
   @override
   String get sendCode => 'Send code';
 
   @override
-  String get activationTip =>
-      'If you received an activation link on WhatsApp, open it on this phone: no code needed.';
+  String get activationTip => 'If you received an activation link on WhatsApp, open it on this phone: no code needed.';
 
   @override
   String get otpTitle => 'Sign-in code';
@@ -100,22 +97,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get permLocation => 'Location: “Allow all the time”';
 
   @override
-  String get permLocationWhy =>
-      'So the supervisor sees the vehicle during your custody.';
+  String get permLocationWhy => 'So the supervisor sees the vehicle during your custody.';
 
   @override
   String get permNotifications => 'Notifications';
 
   @override
-  String get permNotificationsWhy =>
-      'A permanent notification shows while tracking (an Android rule).';
+  String get permNotificationsWhy => 'A permanent notification shows while tracking (an Android rule).';
 
   @override
   String get permBattery => 'Ignore battery optimisation';
 
   @override
-  String get permBatteryWhy =>
-      'So the phone does not stop tracking in the background.';
+  String get permBatteryWhy => 'So the phone does not stop tracking in the background.';
 
   @override
   String get permGrant => 'Allow';
@@ -127,8 +121,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get permSettings => 'Open settings';
 
   @override
-  String get permLocationRequired =>
-      'Location permission is needed to continue.';
+  String get permLocationRequired => 'Location permission is needed to continue.';
 
   @override
   String get gpsOff => 'GPS is off: turn it on in the phone settings.';
@@ -223,8 +216,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get obWaitingTitle => 'Your details are being reviewed';
 
   @override
-  String get obWaitingText =>
-      'You will get a WhatsApp message when approved or if something needs fixing.';
+  String get obWaitingText => 'You will get a WhatsApp message when approved or if something needs fixing.';
 
   @override
   String get refresh => 'Refresh';
@@ -260,8 +252,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noCustody => 'No vehicle in your custody now';
 
   @override
-  String get noCustodyHint =>
-      'When a vehicle is handed to you it shows here and tracking starts by itself.';
+  String get noCustodyHint => 'When a vehicle is handed to you it shows here and tracking starts by itself.';
 
   @override
   String custodySince(String when) {
@@ -349,8 +340,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get changeReportTitle => 'Ask to change an approved report';
 
   @override
-  String get changeReportIntro =>
-      'This report is approved: your request goes to the office and applies once approved.';
+  String get changeReportIntro => 'This report is approved: your request goes to the office and applies once approved.';
 
   @override
   String get changeReason => 'Reason for the change';
@@ -359,8 +349,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get newScreenshotOptional => 'New screenshot (optional)';
 
   @override
-  String get reportExistsForDay =>
-      'You already sent this day\'s report. Edit it instead of sending a second one.';
+  String get reportExistsForDay => 'You already sent this day\'s report. Edit it instead of sending a second one.';
 
   @override
   String get editReport => 'Edit the report';
@@ -392,8 +381,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vehicleChangeReason => 'Reason';
 
   @override
-  String get vehicleChangePending =>
-      'Your request for another vehicle is with the supervisor';
+  String get vehicleChangePending => 'Your request for another vehicle is with the supervisor';
 
   @override
   String vehicleChangeRejected(Object note) {
@@ -493,8 +481,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get endDayTitle => 'End of day';
 
   @override
-  String get odometerIntro =>
-      'Photograph the odometer clearly, then type the reading as shown in the photo.';
+  String get odometerIntro => 'Photograph the odometer clearly, then type the reading as shown in the photo.';
 
   @override
   String get retake => 'Retake';
@@ -548,8 +535,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cashInvalid => 'An amount with at most three decimals';
 
   @override
-  String get screenshot =>
-      'Screenshot of the day summary from the delivery app';
+  String get screenshot => 'Screenshot of the day summary from the delivery app';
 
   @override
   String get notes => 'Notes';
@@ -633,8 +619,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get signOut => 'Sign out';
 
   @override
-  String get signOutQ =>
-      'Tracking stops and you will need a new activation to sign in. Continue?';
+  String get signOutQ => 'Tracking stops and you will need a new activation to sign in. Continue?';
 
   @override
   String get blockedTitle => 'Your account is suspended';
@@ -658,8 +643,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mntNew => 'New maintenance request';
 
   @override
-  String get mntIntro =>
-      'Describe the problem and take photos. A car in an accident is repaired through the office.';
+  String get mntIntro => 'Describe the problem and take photos. A car in an accident is repaired through the office.';
 
   @override
   String get mntDirectIntro =>
@@ -682,8 +666,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get kind_pickup => 'Car collected from maintenance';
 
   @override
-  String get mntNoVehicle =>
-      'Maintenance is requested for the vehicle in your custody. You have none now.';
+  String get mntNoVehicle => 'Maintenance is requested for the vehicle in your custody. You have none now.';
 
   @override
   String get mntKind => 'Type';
@@ -924,12 +907,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get statementNoPlatform =>
-      'Your platform is not set yet. Contact the office.';
+  String get statementNoPlatform => 'Your platform is not set yet. Contact the office.';
 
   @override
-  String get statementNoMonth =>
-      'You sent every open month. Wait for the office\'s review.';
+  String get statementNoMonth => 'You sent every open month. Wait for the office\'s review.';
 
   @override
   String get statementMonth => 'Month';
@@ -993,8 +974,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get iban => 'IBAN';
 
   @override
-  String get ibanHint =>
-      'Your salary is paid to it: copy it from your bank\'s app';
+  String get ibanHint => 'Your salary is paid to it: copy it from your bank\'s app';
 
   @override
   String get bankName => 'Bank name';
@@ -1025,8 +1005,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Sign in with your civil ID and your password. The first time: the initial password the office gave you, then you choose your own.';
 
   @override
-  String get forgotPassword =>
-      'Forgot your password? Ask your supervisor for a new initial password.';
+  String get forgotPassword => 'Forgot your password? Ask your supervisor for a new initial password.';
 
   @override
   String choosePassword(String name) {
@@ -1052,8 +1031,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get saveAndSignIn => 'Save and sign in';
 
   @override
-  String get validDayQuestion =>
-      'Did the platform\'s app count this day as valid?';
+  String get validDayQuestion => 'Did the platform\'s app count this day as valid?';
 
   @override
   String get validDayYes => 'Valid day';
@@ -1178,12 +1156,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get schemeCoversNone =>
-      'You pay the expenses: maintenance, housing, gas and SIM';
+  String get schemeCoversNone => 'You pay the expenses: maintenance, housing, gas and SIM';
 
   @override
-  String get schemePlatformRates =>
-      'The platform\'s own rule: a basic salary and the company\'s rates';
+  String get schemePlatformRates => 'The platform\'s own rule: a basic salary and the company\'s rates';
 
   @override
   String get expense_maintenance => 'maintenance';
@@ -1269,8 +1245,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nameLabel => 'Name';
 
   @override
-  String get obOnFile =>
-      'Locked fields are on file with the company. If one is wrong, ask the office to correct it.';
+  String get obOnFile => 'Locked fields are on file with the company. If one is wrong, ask the office to correct it.';
 
   @override
   String get nationalityPick => 'Choose your nationality';
@@ -1402,8 +1377,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get workReportDue => 'Today\'s report is not sent yet';
 
   @override
-  String get workReportDueHint =>
-      'Send the orders and the cash as shown in the platform\'s app';
+  String get workReportDueHint => 'Send the orders and the cash as shown in the platform\'s app';
 
   @override
   String get sendDailyReport => 'Send the daily report';
@@ -1470,8 +1444,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get workReportDueHintDays =>
-      'Send the orders and whether the day counted as valid';
+  String get workReportDueHintDays => 'Send the orders and whether the day counted as valid';
 
   @override
   String get qaReportSubDays => 'Today\'s orders and valid day';
@@ -1543,12 +1516,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'You have a company fuel card: the office tops it up, and fuel is not claimed from your cash.';
 
   @override
-  String get fuelOff_not_covered =>
-      'Fuel is yours under your pay scheme, so it is not charged to the company.';
+  String get fuelOff_not_covered => 'Fuel is yours under your pay scheme, so it is not charged to the company.';
 
   @override
-  String get fuelOff_no_vehicle =>
-      'No vehicle is in your custody now: fuel is recorded for the car you hold.';
+  String get fuelOff_no_vehicle => 'No vehicle is in your custody now: fuel is recorded for the car you hold.';
 
   @override
   String get kind_fuel => 'Fuel receipt';
@@ -1585,8 +1556,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Take the odometer photo with the camera and enter the reading. The request goes to the office; once approved, the car is yours from the photo\'s time.';
 
   @override
-  String get claimConditionPhotos =>
-      'Photos of the car\'s condition (optional)';
+  String get claimConditionPhotos => 'Photos of the car\'s condition (optional)';
 
   @override
   String get claimSend => 'Send to the office';
@@ -1605,8 +1575,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get kind_vehicle_claim => 'Car registration';
 
   @override
-  String get mntNoCenter =>
-      'No maintenance center is available: call the office';
+  String get mntNoCenter => 'No maintenance center is available: call the office';
 
   @override
   String mntInMaintenance(String center) {
@@ -1668,8 +1637,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get objectionSent => 'Your objection was sent; the office will answer';
 
   @override
-  String get objectionQueued =>
-      'Your objection will be sent when the connection is back';
+  String get objectionQueued => 'Your objection will be sent when the connection is back';
 
   @override
   String get myObjections => 'My objections';
@@ -1726,8 +1694,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fuelLitres => 'Litres (optional)';
 
   @override
-  String get fuelLitresInvalid =>
-      'Enter the litres as on the receipt (up to 500)';
+  String get fuelLitresInvalid => 'Enter the litres as on the receipt (up to 500)';
 
   @override
   String get fuelLitresUnit => 'L';
@@ -1755,8 +1722,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get startFailedTitle => 'The app could not start';
 
   @override
-  String get startFailedBody =>
-      'Something went wrong while loading. Check the connection and try again.';
+  String get startFailedBody => 'Something went wrong while loading. Check the connection and try again.';
 
   @override
   String get activationReplaceTitle => 'Replace the signed-in driver?';
@@ -1788,8 +1754,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get noticeBigStaleNever =>
-      'No location sent yet. Open the app and check the location settings';
+  String get noticeBigStaleNever => 'No location sent yet. Open the app and check the location settings';
 
   @override
   String get noticeBigOff => 'Your location is not tracked now';
@@ -1844,4 +1809,72 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get statusDialFailed => 'Could not start a call on this phone';
+
+  @override
+  String get noticeAtWork => 'At work';
+
+  @override
+  String get noticeOffDuty => 'Off duty';
+
+  @override
+  String get noticeInMaintenance => 'Car in maintenance';
+
+  @override
+  String get noticeAwaitingFirst => 'Waiting for the first location';
+
+  @override
+  String get noticeLocating => 'Finding your location…';
+
+  @override
+  String noticeShiftFrom(String time) {
+    return 'Shift since $time';
+  }
+
+  @override
+  String noticeDayEnded(String count) {
+    return 'Day ended · $count orders';
+  }
+
+  @override
+  String get noticeDayEndedNoCount => 'Day ended';
+
+  @override
+  String get noticeDayNotStarted => 'The work day has not started';
+
+  @override
+  String noticeLastConfirmed(String time) {
+    return 'Last confirmed send $time';
+  }
+
+  @override
+  String get noticeNoneConfirmed => 'No send confirmed yet';
+
+  @override
+  String get headsUpContact => 'Contact request';
+
+  @override
+  String headsUpLocationBody(String time) {
+    return 'Last update $time · open the app and check the location settings.';
+  }
+
+  @override
+  String get headsUpLocationBodyNever => 'Open the app and check the location settings.';
+
+  @override
+  String get actionOpenLocationSettings => 'Open location settings';
+
+  @override
+  String get noticeCatAlerts => 'Alerts';
+
+  @override
+  String get noticeCatCash => 'Cash & reports';
+
+  @override
+  String get noticeCatCar => 'Car & custody';
+
+  @override
+  String get noticeCatMaintenance => 'Maintenance & deductions';
+
+  @override
+  String get noticeCatDocuments => 'Documents & payslip';
 }

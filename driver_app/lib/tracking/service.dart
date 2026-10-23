@@ -12,6 +12,8 @@ import '../core/api.dart';
 import '../core/config.dart';
 import '../core/db.dart';
 import '../core/error_log.dart';
+import '../core/models.dart' show inLang;
+import '../core/outbox.dart';
 import '../core/tokens.dart';
 import '../core/translations.dart';
 import '../l10n/app_localizations.dart';
@@ -66,9 +68,9 @@ Stream<Fix> _gps(Duration interval) {
 }
 
 /// The ongoing notification of the tracking service, always the same one (its id and channel), updated in place
-/// when what it says changes: the company as its title, whether the driver is at work and the real tracking state;
-/// expanded, the time of the last location. At work with tracking active the card is painted green (Android colours a
-/// foreground service's notification). One action: open the app. The important alerts go on their own channel.
+/// when what it says changes (its times at most every few minutes, see Tracker.noticeTimesEvery): the design's six
+/// states (notice.dart), the company in its header, the state's accent colour, the longer text when expanded
+/// (BigTextStyle). Silent, one action: open the app. The important alerts go on their own channel.
 class WorkNotice {
   WorkNotice([FlutterLocalNotificationsPlugin? plugin]) : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
@@ -107,6 +109,7 @@ class WorkNotice {
     try {
       await _plugin.initialize(
         settings: const InitializationSettings(android: AndroidInitializationSettings('ic_bg_service_small')),
+        onDidReceiveBackgroundNotificationResponse: noticeBackgroundTap,
       );
       _ready = true;
     } catch (_) {}
@@ -125,8 +128,11 @@ class WorkNotice {
     }
   }
 
+  Map<String, dynamic>? _company; // the heads-up's header, as the ongoing notification's
+
   Future<void> show({required String lang, required WorkState state}) async {
     if (!_ready) return;
+    _company = state.company;
     final l = await _strings(lang);
     final c = workNoticeContent(
       l,
@@ -135,6 +141,8 @@ class WorkNotice {
       working: state.working,
       tracking: state.tracking,
       lastFixAt: state.lastFixAt,
+      lastSentAt: state.lastSentAt,
+      info: state.info,
     );
     try {
       await _plugin.show(
@@ -148,6 +156,7 @@ class WorkNotice {
             ongoing: true,
             autoCancel: false,
             onlyAlertOnce: true,
+            silent: true,
             showWhen: false,
             playSound: false,
             enableVibration: false,
@@ -156,8 +165,8 @@ class WorkNotice {
             category: AndroidNotificationCategory.service,
             icon: 'ic_bg_service_small',
             color: Color(c.color),
-            colorized: c.colorized,
-            styleInformation: BigTextStyleInformation(c.big),
+            subText: c.header,
+            styleInformation: BigTextStyleInformation(c.big, contentTitle: c.title, summaryText: c.header),
             actions: [AndroidNotificationAction('open', l.openApp, showsUserInterface: true)],
           ),
         ),
@@ -165,18 +174,21 @@ class WorkNotice {
     } catch (_) {}
   }
 
-  /// A heads-up for an important alert (a contact request, a location problem), on the high-importance channel.
+  /// A heads-up for an important alert (a contact request, a location problem), on the high-importance channel, with
+  /// its buttons: «Call» and «Done» (sent in the background through the outbox), «Open location settings».
   Future<void> headsUp({required String lang, required StatusAlert alert}) async {
     if (!_ready) return;
     final l = await _strings(lang);
+    final c = headsUpContent(l, alert);
     try {
       await _android?.createNotificationChannel(
         AndroidNotificationChannel(alertsChannel, l.alertsChannel, importance: Importance.high),
       );
       await _plugin.show(
         id: headsUpId(alert.id),
-        title: alert.title ?? l.appTitle,
-        body: alert.subtitle,
+        title: c.title,
+        body: c.body,
+        payload: c.payload,
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             alertsChannel,
@@ -185,13 +197,34 @@ class WorkNotice {
             priority: Priority.high,
             category: AndroidNotificationCategory.message,
             icon: 'ic_bg_service_small',
-            styleInformation: BigTextStyleInformation(
-              [alert.subtitle, alert.data['message']].whereType<String>().where((x) => x.isNotEmpty).join('\n'),
-            ),
+            color: Color(c.color),
+            subText: (inLang(_company, lang) ?? l.appTitle) as String,
+            styleInformation: BigTextStyleInformation(c.big, contentTitle: c.title),
+            actions: [
+              for (final a in c.actions) AndroidNotificationAction(a.id, a.label, showsUserInterface: a.opensApp),
+            ],
           ),
         ),
       );
     } catch (_) {}
+  }
+}
+
+/// A notification button that does not open the app («Done» on a contact request), run by the plugin in a background
+/// engine: the acknowledgement goes through the outbox (the server answers a resend the same), sent by the tracking
+/// service's next round or by the app.
+@pragma('vm:entry-point')
+Future<void> noticeBackgroundTap(NotificationResponse response) async {
+  final tap = noticeTap(response.actionId, response.payload);
+  if (tap.kind != 'ack') return;
+  WidgetsFlutterBinding.ensureInitialized();
+  DartPluginRegistrant.ensureInitialized();
+  AppDb? db;
+  try {
+    db = await AppDb.open();
+    await queueContactAck(Outbox(db), tap.requestId!);
+  } catch (e, st) {
+    await _log(db, 'service.notice_tap', e, st);
   }
 }
 
@@ -229,12 +262,15 @@ Future<void> _run(ServiceInstance service, AppDb db) async {
     ),
     notifyState: (state) => notice.show(lang: api.lang, state: state),
     // the live status and its important alerts: shown, never a reason to start tracking
-    checkAlerts: () => AlertWatcher(
-      api: api,
-      db: db,
-      allowed: notice.allowed,
-      post: (alert) => notice.headsUp(lang: api.lang, alert: alert),
-    ).check(),
+    checkAlerts: () async {
+      final status = await AlertWatcher(
+        api: api,
+        db: db,
+        allowed: notice.allowed,
+        post: (alert) => notice.headsUp(lang: api.lang, alert: alert),
+      ).check();
+      if (status != null) await tracker.setInfo(noticeInfo(status));
+    },
     onSessionEnded: () => service.stopSelf(),
   );
   service.on('stop').listen((_) async {
@@ -250,5 +286,12 @@ Future<void> _run(ServiceInstance service, AppDb db) async {
     await tracker.heartbeat();
     await tracker.sync();
   });
+  // what the last live status said (the shift's start, the day ended, the car at a center), until the next one
+  try {
+    final kept = await LiveStatusStore(db.get, db.put).last();
+    if (kept != null) await tracker.setInfo(noticeInfo(kept), publish: false);
+  } catch (e, st) {
+    await tracker.errors.record('service.status', e, st);
+  }
   await tracker.start();
 }

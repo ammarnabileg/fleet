@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../status/engine.dart';
+import '../theme.dart';
 import 'common.dart';
 
 /// The icons the templates may name: anything else is the default one.
@@ -105,6 +106,151 @@ class LiveStatusPanel extends StatelessWidget {
   }
 }
 
+/// A colour of the design's palette made for a dark screen (#67e7b4, #8dc8ff, ...) has a readable shade for the
+/// app's light one: the templates' colours are those shades, a dark theme lightens them.
+Color accentFor(BuildContext context, Color c) {
+  if (Theme.of(context).brightness != Brightness.dark) return c;
+  return Color.lerp(c, Colors.white, 0.45)!;
+}
+
+/// The design's card: an accent bar at its start, an icon tile tinted with the accent, the title, the text, a meta
+/// row, and the actions as tinted buttons. It slides in when it appears, unless the phone asks for less motion.
+class AccentCard extends StatelessWidget {
+  const AccentCard({
+    super.key,
+    required this.accent,
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.titleColor,
+    this.leadingTitle,
+    this.extra = const [],
+    this.meta,
+    this.actions = const [],
+    this.iconKey,
+    this.highlight = false,
+  });
+
+  final Color accent;
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Color? titleColor;
+  final Widget? leadingTitle;
+  final List<Widget> extra;
+  final Widget? meta;
+  final List<Widget> actions;
+  final Key? iconKey;
+  final bool highlight;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = accentFor(context, accent);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final card = Container(
+      decoration: BoxDecoration(
+        color: highlight ? a.withValues(alpha: 0.07) : (dark ? const Color(0xFF1D2631) : AppColors.surface),
+        border: BorderDirectional(start: BorderSide(color: a, width: 3)),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: AppColors.shadowXs,
+      ),
+      padding: const EdgeInsetsDirectional.fromSTEB(14, 13, 14, 13),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(color: a.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(13)),
+                child: Icon(icon, color: a, size: 22, key: iconKey),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        ?leadingTitle,
+                        Flexible(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                              height: 1.45,
+                              color: titleColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (subtitle != null && subtitle!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          subtitle!,
+                          style: TextStyle(fontSize: 13, height: 1.55, color: dark ? null : AppColors.text2),
+                        ),
+                      ),
+                    ...extra,
+                    if (meta != null) Padding(padding: const EdgeInsets.only(top: 6), child: meta),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (actions.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                for (final (i, b) in actions.indexed) ...[if (i > 0) const SizedBox(width: 8), Expanded(child: b)],
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+    if (MediaQuery.of(context).disableAnimations) return card;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 450),
+      curve: const Cubic(.18, .85, .25, 1),
+      builder: (context, v, child) => Opacity(
+        opacity: v,
+        child: Transform.translate(offset: Offset(0, (1 - v) * 10), child: child),
+      ),
+      child: card,
+    );
+  }
+}
+
+/// The design's action: the accent on its own tint.
+Widget accentButton(
+  BuildContext context, {
+  required Key key,
+  required Color accent,
+  required String label,
+  required VoidCallback onPressed,
+}) {
+  final a = accentFor(context, accent);
+  return TextButton(
+    key: key,
+    style: TextButton.styleFrom(
+      foregroundColor: a,
+      backgroundColor: a.withValues(alpha: 0.10),
+      minimumSize: const Size(0, 44),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+      textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+    ),
+    onPressed: onPressed,
+    child: Text(label, textAlign: TextAlign.center),
+  );
+}
+
 class _ShiftCard extends StatelessWidget {
   const _ShiftCard({super.key, required this.card, required this.tracking, required this.sessionsToday});
 
@@ -123,61 +269,42 @@ class _ShiftCard extends StatelessWidget {
       'off' => (const Color(0xFF6B7280), l.trackingOff),
       _ => (const Color(0xFF6B7280), l.trackingUnknown),
     };
+    final shown = accentFor(context, dot);
     return Semantics(
       container: true,
       label: '${card.title}. ${card.subtitle}. $text',
-      child: DCard(
+      child: AccentCard(
         key: const Key('status-shift'),
-        child: Row(
+        accent: color,
+        icon: statusIcon(card.icon),
+        title: card.title,
+        titleColor: accentFor(context, color),
+        leadingTitle: working
+            ? Padding(
+                padding: const EdgeInsetsDirectional.only(end: 6),
+                child: Container(
+                  key: const Key('status-working-dot'),
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(color: accentFor(context, color), shape: BoxShape.circle),
+                ),
+              )
+            : null,
+        extra: [
+          if (card.subtitle.isNotEmpty) Text(card.subtitle, key: const Key('status-shift-sub')),
+          if (!working && sessionsToday > 0 && card.code != 'shift_ended')
+            Text(l.statusDaySummary('\u2066$sessionsToday\u2069'), style: const TextStyle(color: Color(0xFF6B7280))),
+        ],
+        // the design's status pill: the real tracking state, apart from the work state
+        meta: Row(
+          key: Key('status-tracking-$tracking'),
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
-              child: Icon(statusIcon(card.icon), color: color),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      if (working) ...[
-                        Container(
-                          key: const Key('status-working-dot'),
-                          width: 9,
-                          height: 9,
-                          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                      Flexible(
-                        child: Text(
-                          card.title,
-                          style: TextStyle(fontWeight: FontWeight.w700, color: color),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (card.subtitle.isNotEmpty) Text(card.subtitle, key: const Key('status-shift-sub')),
-                  if (!working && sessionsToday > 0)
-                    Text(
-                      l.statusDaySummary('\u2066$sessionsToday\u2069'),
-                      style: const TextStyle(color: Color(0xFF6B7280)),
-                    ),
-                  const SizedBox(height: 4),
-                  Row(
-                    key: Key('status-tracking-$tracking'),
-                    children: [
-                      Icon(Icons.circle, size: 8, color: dot),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(text, style: TextStyle(color: dot, fontSize: 12.5)),
-                      ),
-                    ],
-                  ),
-                ],
+            Icon(Icons.circle, size: 8, color: shown),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                text,
+                style: TextStyle(color: shown, fontSize: 12.5, fontWeight: FontWeight.w600),
               ),
             ),
           ],
@@ -206,67 +333,34 @@ class _StatusCardView extends StatelessWidget {
         if (a != 'call_supervisor' || (phone is String && phone.isNotEmpty)) a,
     ];
     final message = card.kind == 'contact' ? data['message'] as String? : null;
-    return Container(
+    return AccentCard(
       key: Key('status-card-${card.code}'),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        border: BorderDirectional(start: BorderSide(color: color, width: 4)),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(statusIcon(card.icon), color: color, key: Key('status-icon-${card.icon}')),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(card.title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                    if (card.subtitle.isNotEmpty) Text(card.subtitle),
-                    if (message != null && message.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text('«$message»', key: const Key('status-contact-message')),
-                      ),
-                    if (more > 0)
-                      Text(
-                        l.statusMore('\u2066$more\u2069'),
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                      ),
-                  ],
-                ),
-              ),
-            ],
+      accent: color,
+      icon: statusIcon(card.icon),
+      iconKey: Key('status-icon-${card.icon}'),
+      title: card.title,
+      subtitle: card.subtitle,
+      highlight: true,
+      extra: [
+        if (message != null && message.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text('«$message»', key: const Key('status-contact-message')),
           ),
-          if (actions.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                for (final (i, a) in actions.indexed)
-                  i == 0
-                      ? FilledButton(
-                          key: Key('status-action-$a'),
-                          style: FilledButton.styleFrom(backgroundColor: color),
-                          onPressed: () => onAction(a, card),
-                          child: Text(actionLabel(l, a)),
-                        )
-                      : OutlinedButton(
-                          key: Key('status-action-$a'),
-                          onPressed: () => onAction(a, card),
-                          child: Text(actionLabel(l, a)),
-                        ),
-              ],
-            ),
-          ],
-        ],
-      ),
+      ],
+      meta: more > 0
+          ? Text(l.statusMore('\u2066$more\u2069'), style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)))
+          : null,
+      actions: [
+        for (final a in actions)
+          accentButton(
+            context,
+            key: Key('status-action-$a'),
+            accent: color,
+            label: actionLabel(l, a),
+            onPressed: () => onAction(a, card),
+          ),
+      ],
     );
   }
 }

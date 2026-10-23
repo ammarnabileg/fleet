@@ -66,6 +66,11 @@
             android:name="id.flutter.flutter_background_service.WatchdogReceiver"
             android:exported="false"
             tools:replace="android:exported" />
+        <!-- flutter_local_notifications: a notification action that does not open the app («Done» on a contact
+             request) runs in the background through this receiver; only the system's notification sends to it -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
+            android:exported="false" />
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

@@ -677,7 +677,7 @@ class AppState extends ChangeNotifier {
   /// «Done» on a contact request: through the outbox (sent again until the server has it); gone from the card at
   /// once.
   Future<void> acknowledgeContact(String requestId) async {
-    final id = await outbox.add('contact_ack', {'request_id': requestId, 'client_ref': const Uuid().v4()}, {});
+    final id = await queueContactAck(outbox, requestId);
     final s = liveStatus;
     if (s != null) s.alerts.removeWhere((a) => a.data['request_id'] == requestId);
     notifyListeners();

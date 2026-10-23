@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:uuid/uuid.dart';
+
 import 'api.dart';
 import 'config.dart';
 import 'db.dart';
@@ -368,3 +370,8 @@ class Outbox {
     }
   }
 }
+
+/// «Done» on the office's contact request (the card in the app, or the heads-up's button): through the outbox, its
+/// own client_ref so a resend is answered the same.
+Future<int> queueContactAck(Outbox outbox, String requestId) =>
+    outbox.add('contact_ack', {'request_id': requestId, 'client_ref': const Uuid().v4()}, {});

@@ -13,7 +13,11 @@ void main() {
   late List<(Map<String, dynamic>?, bool)> shown;
   late Map<String, dynamic> status; // what the server answers to the heartbeat; a test may change it
 
-  Future<(Tracker, FakeServer)> make({bool required = true, DateTime Function()? clock}) async {
+  Future<(Tracker, FakeServer)> make({
+    bool required = true,
+    DateTime Function()? clock,
+    void Function(WorkState)? notifyState,
+  }) async {
     final (db, _, api, server) = await session();
     gps = StreamController<Fix>.broadcast();
     asked = [];
@@ -52,6 +56,7 @@ void main() {
         'gps_enabled': true,
       },
       notify: (company, working) => shown.add((company, working)),
+      notifyState: notifyState,
       heartbeatEvery: const Duration(hours: 1),
       syncEvery: const Duration(hours: 1),
       clock: clock,
@@ -294,6 +299,34 @@ void main() {
       ..remove('company');
     await t.start();
     expect(shown, [(null, false)]);
+    await t.stop();
+  });
+
+  test('the notification: a new state at once, the times of the last send at most every five minutes', () async {
+    var now = DateTime.utc(2026, 10, 4, 9);
+    final states = <WorkState>[];
+    final (t, _) = await make(clock: () => now, notifyState: states.add);
+    await t.start();
+    expect([states.single.tracking, states.single.lastFixAt], ['active', null]);
+    gps.add(fix(now));
+    await settle();
+    expect(states, hasLength(2), reason: 'the first fix changes what it says');
+    expect(states.last.lastSentAt, isNotNull);
+    for (var i = 1; i <= 4; i++) {
+      now = now.add(const Duration(minutes: 1));
+      gps.add(fix(now));
+      await settle();
+    }
+    expect(states, hasLength(2), reason: 'a point a minute: not redrawn for each');
+    now = now.add(const Duration(minutes: 1, seconds: 1));
+    gps.add(fix(now));
+    await settle();
+    expect(states, hasLength(3));
+    expect(states.last.lastFixAt, now);
+    await t.setInfo(NoticeInfo(shiftStartedAt: now));
+    expect(states, hasLength(4), reason: 'the shift started: shown at once');
+    await t.setInfo(NoticeInfo(shiftStartedAt: now));
+    expect(states, hasLength(4));
     await t.stop();
   });
 }

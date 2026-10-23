@@ -189,6 +189,15 @@ def _car_at_center(db: Session, employee_id: int) -> bool:
     return custody is not None and bool(fleet.in_maintenance(db, [custody.id]))
 
 
+def orders_on(db: Session, employee_id: int, day) -> int | None:
+    """The orders the driver's reports of a day counted (its sessions added up), or None while none counted any."""
+    return db.scalar(
+        select(func.sum(Report.orders_count)).where(
+            Report.employee_id == employee_id, Report.business_date == day, Report.status != "rejected"
+        )
+    )
+
+
 def for_driver(db: Session, employee_id: int, limit: int = 30) -> list[dict]:
     q = select(Report).where(Report.employee_id == employee_id).order_by(Report.business_date.desc(), Report.id.desc())
     return _many(db, list(db.scalars(q.limit(limit))))

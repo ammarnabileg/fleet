@@ -26,13 +26,14 @@ class AlertWatcher {
 
   static const postedKey = 'headsup_posted';
 
-  Future<void> check() async {
+  /// The live status received (null: an answer it could not read).
+  Future<LiveStatus?> check() async {
     final store = LiveStatusStore(db.get, db.put);
     final version = await store.version();
     final body = await api.get('/driver/live-status', query: {if (version != null) 'config_version': '$version'});
     final now = _now();
     final status = await store.save(body, now);
-    if (status == null) return;
+    if (status == null) return null;
     final posted = <String>{};
     try {
       posted.addAll([for (final x in jsonDecode(await db.get(postedKey) ?? '[]') as List) '$x']);
@@ -47,5 +48,6 @@ class AlertWatcher {
     final current = {for (final a in status.alerts) a.id};
     final keep = {...posted.where(current.contains), for (final a in todo) a.id};
     await db.put(postedKey, jsonEncode(keep.toList()));
+    return status;
   }
 }

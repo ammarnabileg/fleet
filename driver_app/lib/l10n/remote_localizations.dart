@@ -1120,4 +1120,49 @@ class RemoteLocalizations extends AppLocalizations {
   String get statusContactSent => _remote.text('statusContactSent') ?? _base.statusContactSent;
   @override
   String get statusDialFailed => _remote.text('statusDialFailed') ?? _base.statusDialFailed;
+  @override
+  String get noticeAtWork => _remote.text('noticeAtWork') ?? _base.noticeAtWork;
+  @override
+  String get noticeOffDuty => _remote.text('noticeOffDuty') ?? _base.noticeOffDuty;
+  @override
+  String get noticeInMaintenance => _remote.text('noticeInMaintenance') ?? _base.noticeInMaintenance;
+  @override
+  String get noticeAwaitingFirst => _remote.text('noticeAwaitingFirst') ?? _base.noticeAwaitingFirst;
+  @override
+  String get noticeLocating => _remote.text('noticeLocating') ?? _base.noticeLocating;
+  @override
+  String noticeShiftFrom(String time) =>
+      _remote.format('noticeShiftFrom', {'time': time}) ?? _base.noticeShiftFrom(time);
+  @override
+  String noticeDayEnded(String count) =>
+      _remote.format('noticeDayEnded', {'count': count}) ?? _base.noticeDayEnded(count);
+  @override
+  String get noticeDayEndedNoCount => _remote.text('noticeDayEndedNoCount') ?? _base.noticeDayEndedNoCount;
+  @override
+  String get noticeDayNotStarted => _remote.text('noticeDayNotStarted') ?? _base.noticeDayNotStarted;
+  @override
+  String noticeLastConfirmed(String time) =>
+      _remote.format('noticeLastConfirmed', {'time': time}) ?? _base.noticeLastConfirmed(time);
+  @override
+  String get noticeNoneConfirmed => _remote.text('noticeNoneConfirmed') ?? _base.noticeNoneConfirmed;
+  @override
+  String get headsUpContact => _remote.text('headsUpContact') ?? _base.headsUpContact;
+  @override
+  String headsUpLocationBody(String time) =>
+      _remote.format('headsUpLocationBody', {'time': time}) ?? _base.headsUpLocationBody(time);
+  @override
+  String get headsUpLocationBodyNever => _remote.text('headsUpLocationBodyNever') ?? _base.headsUpLocationBodyNever;
+  @override
+  String get actionOpenLocationSettings =>
+      _remote.text('actionOpenLocationSettings') ?? _base.actionOpenLocationSettings;
+  @override
+  String get noticeCatAlerts => _remote.text('noticeCatAlerts') ?? _base.noticeCatAlerts;
+  @override
+  String get noticeCatCash => _remote.text('noticeCatCash') ?? _base.noticeCatCash;
+  @override
+  String get noticeCatCar => _remote.text('noticeCatCar') ?? _base.noticeCatCar;
+  @override
+  String get noticeCatMaintenance => _remote.text('noticeCatMaintenance') ?? _base.noticeCatMaintenance;
+  @override
+  String get noticeCatDocuments => _remote.text('noticeCatDocuments') ?? _base.noticeCatDocuments;
 }
