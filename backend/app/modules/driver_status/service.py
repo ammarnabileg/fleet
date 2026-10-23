@@ -48,9 +48,30 @@ def current(db: Session) -> tuple[int, dict]:
     return row.version, {k: dict(row.templates.get(k) or v) for k, v in tpl.DEFAULTS.items()}
 
 
-def _config_out(version: int, templates: dict, company_id: int | None = None) -> dict:
+def _localized(db: Session, code: str, template: dict, langs) -> dict:
+    """The template with its built-in texts in the drivers' other languages (French, Hindi, ...), from the dashboard's
+    translations, while the office has not rewritten them (Arabic and English are the template's own)."""
+    out = dict(template)
+    for field in ("name", "title", "subtitle"):
+        value = dict(out.get(field) or {})
+        for lang in langs:
+            if lang in ("ar", "en") or value.get(lang):
+                continue
+            text_ = i18n.status_text(db, lang, f"{code}.{field}", value.get("en", ""))
+            if text_:
+                value[lang] = text_
+        out[field] = value
+    return out
+
+
+def _config_out(version: int, templates: dict, company_id: int | None = None, db: Session | None = None) -> dict:
     # a driver gets what applies to him: a template off for him is not there, and his app uses its built-in card
-    items = [{"code": c} | t for c, t in templates.items() if company_id is None or tpl.applies(t, company_id)]
+    langs = [lang.code for lang in i18n.list_languages(db)] if db is not None else []
+    items = [
+        {"code": c} | (_localized(db, c, t, langs) if db is not None else t)
+        for c, t in templates.items()
+        if company_id is None or tpl.applies(t, company_id)
+    ]
     return {"version": version, "min_app_template_version": tpl.ENGINE_VERSION, "templates": items}
 
 
@@ -335,7 +356,7 @@ def compute(
         expires_at = created_at + timedelta(minutes=t["ttl_minutes"]) if created_at and t["ttl_minutes"] else None
         if expires_at is not None and expires_at <= now:
             continue  # expired: the card goes back to the base state (the office still sees the request open)
-        shown = tpl.render(t, values, lang)
+        shown = tpl.render(_localized(db, code, t, [lang]), values, lang)
         alerts.append(
             {
                 "id": alert_id,
@@ -372,7 +393,7 @@ def for_driver(db: Session, device: identity.DevicePrincipal, *, lang: str, conf
     out = compute(db, employee, lang=lang, device_id=device.device_id)
     if config_version != out["config_version"]:
         version, templates = current(db)
-        out["config"] = _config_out(version, templates, employee.company_id)
+        out["config"] = _config_out(version, templates, employee.company_id, db)
     else:
         out["config"] = None
     return out

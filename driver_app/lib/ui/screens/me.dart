@@ -328,7 +328,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    '${d.typeName[lang] ?? d.typeName['ar']}',
+                                    '${inLang(d.typeName, lang)}',
                                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                                   ),
                                 ),
@@ -440,7 +440,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
   @override
   Widget build(BuildContext context) {
     final l = context.l;
-    final name = widget.document.typeName[widget.state.lang] ?? widget.document.typeName['ar'];
+    final name = inLang(widget.document.typeName, widget.state.lang);
     return Scaffold(
       appBar: AppBar(title: Text('$name')),
       body: Form(

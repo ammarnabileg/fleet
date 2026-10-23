@@ -8,6 +8,10 @@ def test_public_languages_and_catalog_with_etag(client):
     assert [(lang["code"], lang["direction"], lang["is_default"]) for lang in langs] == [
         ("ar", "rtl", True),
         ("en", "ltr", False),
+        ("fr", "ltr", False),
+        ("sw", "ltr", False),
+        ("hi", "ltr", False),
+        ("fil", "ltr", False),
     ]
     r = client.get("/api/v1/i18n/catalog/ar", params={"ns": "errors,common"})
     assert r.status_code == 200
@@ -94,7 +98,7 @@ def test_user_locale(admin_client, new_client):
     login(c, "driver_sup")
     assert c.put("/api/v1/auth/me/locale", json={"locale": "en"}).status_code == 204
     assert c.get("/api/v1/auth/me").json()["locale"] == "en"
-    r = c.put("/api/v1/auth/me/locale", json={"locale": "fr"})
+    r = c.put("/api/v1/auth/me/locale", json={"locale": "xx"})
     assert r.status_code == 404 and r.json()["code"] == "unknown_language"
     groups = c.get("/api/v1/permissions").json()  # no Accept-Language: the user's own language
     assert next(g for g in groups if g["module"] == "cash")["label"] == "Cash"

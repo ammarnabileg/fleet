@@ -609,7 +609,11 @@
     "template_audience_unknown": "الجمهور غير معروف",
     "template_audience_companies": "اختر شركة واحدة على الأقل من شركاتك",
     "template_actions_too_many": "أزرار أكثر من {max}",
-    "template_action_unknown": "زر غير مدعوم في التطبيق أو مكرر"
+    "template_action_unknown": "زر غير مدعوم في التطبيق أو مكرر",
+    "language_required": "العربية والإنجليزية لغتا التطبيق الأساسيتان ولا يمكن تعطيلهما",
+    "invalid_translation": "ترجمة {key} غير صالحة: {reason}",
+    "translation_sheet_invalid": "يجب أن يحتوي الملف على الأعمدة scope وkey وtranslation (صدّر اللغة أولاً)",
+    "translation_import_invalid": "{count} صفوف في الملف غير صالحة، ولم يُحفظ شيء"
   },
   "settings": {
     "branding": "الهوية",

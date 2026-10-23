@@ -1,3 +1,8 @@
+/// A name written by the office in several languages, in the reader's: his own, else English for any language but
+/// Arabic (a French or Hindi reader), else Arabic. Names and notes are shown as written, never translated.
+T? inLang<T>(Map<String, T>? m, String lang) =>
+    m == null ? null : m[lang] ?? (lang == 'ar' ? null : m['en']) ?? m['ar'];
+
 /// The shapes the driver API returns. Amounts stay strings with three decimals, exactly as the server sends them.
 class Custody {
   Custody({
@@ -210,7 +215,7 @@ class FormItem {
   final List<({String value, Map<String, String> label})> options;
 
   static String pick(Map<String, String>? m, String lang) =>
-      m == null || m.isEmpty ? '' : (m[lang] ?? m['ar'] ?? m.values.first);
+      m == null || m.isEmpty ? '' : (inLang(m, lang) ?? m.values.first);
 
   String labelOf(String lang) => pick(label, lang);
 }
@@ -266,7 +271,7 @@ class KnownRecord {
   final List<String> locked; // civil_id, nationality, iban, bank_name: filled by the office
 
   bool has(String field) => locked.contains(field);
-  String? label(String lang) => name[lang] ?? name['ar'] ?? name.values.firstOrNull;
+  String? label(String lang) => inLang(name, lang) ?? name.values.firstOrNull;
 }
 
 /// One entry of the nationality list the server sends: the driver picks, never types; [value] is what is saved.
@@ -280,7 +285,7 @@ class Nationality {
   final String ar;
   final String en;
 
-  String label(String lang) => lang == 'en' ? en : ar;
+  String label(String lang) => lang == 'ar' ? ar : en;
 }
 
 /// The self-registration as the driver sees it (GET /driver/onboarding).
@@ -569,7 +574,7 @@ class PlatformStatus {
 
   String platformName(String lang) {
     final n = Map<String, dynamic>.from(platform?['name'] as Map? ?? {});
-    return (n[lang] ?? n['ar'] ?? n.values.firstOrNull ?? '') as String;
+    return (inLang(n, lang) ?? n.values.firstOrNull ?? '') as String;
   }
 }
 
@@ -626,7 +631,7 @@ class Payslip {
   final Map<String, String>? schemeName; // his pay scheme that month
   final List<PayItem> breakdown; // how the scheme computed the month
 
-  String? scheme(String lang) => schemeName == null ? null : schemeName![lang] ?? schemeName!['ar'];
+  String? scheme(String lang) => schemeName == null ? null : inLang(schemeName!, lang);
 }
 
 /// The driver's objection to a payslip (all of it, or one line) and the office's answer.
@@ -744,8 +749,8 @@ class PayScheme {
   final List<String> companyCovers; // maintenance | housing | gas | sim
   final List<SchemeStep> steps;
 
-  String label(String lang) => name[lang] ?? name['ar'] ?? name.values.first;
-  String? about(String lang) => description == null ? null : description![lang] ?? description!['ar'];
+  String label(String lang) => inLang(name, lang) ?? name.values.first;
+  String? about(String lang) => description == null ? null : inLang(description!, lang);
   List<SchemeStep> stepsOf(String kind) => [
     for (final s in steps)
       if (s.kind == kind) s,
@@ -783,7 +788,7 @@ class SchemeRequest {
   final String? adminNote;
 
   bool get pending => status == 'pending';
-  String requestedLabel(String lang) => requested[lang] ?? requested['ar'] ?? requested.values.firstOrNull ?? '';
+  String requestedLabel(String lang) => inLang(requested, lang) ?? requested.values.firstOrNull ?? '';
 }
 
 /// GET /driver/schemes: his scheme this month (and next month when it changes), what his platform offers, and his

@@ -58,6 +58,30 @@ class Api {
     return res.bodyBytes;
   }
 
+  /// A GET answered as it is (status, headers, bytes): the translations' manifest (304 when unchanged) and bundles,
+  /// checked byte for byte. With the session when there is one; none needed. Network failures are ApiError(0).
+  Future<http.Response> raw(String path, {Map<String, String>? headers, Duration timeout = timeout}) async {
+    final h = {'Accept-Language': lang, 'User-Agent': userAgent, ...?headers};
+    try {
+      if (await tokens.hasSession()) h['Authorization'] = 'Bearer ${await _token(null)}';
+    } on SessionEnded {
+      // signed out meanwhile: without
+    } catch (_) {
+      // no token now: without
+    }
+    try {
+      return await _http.get(uri(path), headers: h).timeout(timeout);
+    } on SocketException {
+      throw ApiError(0, 'network');
+    } on TimeoutException {
+      throw ApiError(0, 'network');
+    } on http.ClientException {
+      throw ApiError(0, 'network');
+    } on HandshakeException {
+      throw ApiError(0, 'network');
+    }
+  }
+
   /// Uploads a file to /driver/files. [source] "camera" for photos taken in the app, "upload" for picked files.
   Future<Map<String, dynamic>> upload(String filePath, {String source = 'camera'}) async {
     final res = await _withAuth(true, (headers) async {

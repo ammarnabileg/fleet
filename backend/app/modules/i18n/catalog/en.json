@@ -609,7 +609,11 @@
     "template_audience_unknown": "Unknown audience",
     "template_audience_companies": "Choose at least one of your companies",
     "template_actions_too_many": "More than {max} actions",
-    "template_action_unknown": "An action the app does not support, or repeated"
+    "template_action_unknown": "An action the app does not support, or repeated",
+    "language_required": "Arabic and English are the app's own languages and cannot be turned off",
+    "invalid_translation": "The translation of {key} is not valid: {reason}",
+    "translation_sheet_invalid": "The sheet must have the columns scope, key and translation (export the language first)",
+    "translation_import_invalid": "{count} rows in the sheet are not valid; nothing was saved"
   },
   "settings": {
     "branding": "Branding",

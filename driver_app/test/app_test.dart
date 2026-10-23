@@ -81,6 +81,7 @@ Future<World> world({
     db: db,
     api: api,
     pollEvery: null,
+    updateStringsAtStart: false, // every request here is scripted; test/l10n_test.dart covers the update
     platform: PhoneHooks(
       permissionsOk: () async => true,
       startTracking: startTracking ?? () async => trackingStarts++,
@@ -3211,7 +3212,13 @@ void main() {
     expect(w.server.calls('/api/v1/driver/splash/$sha').length, 1);
 
     // the next launch: shown before anything else, then the app goes on
-    final again = AppState(db: w.state.db, api: w.state.api, pollEvery: null, platform: w.state.platform);
+    final again = AppState(
+      db: w.state.db,
+      api: w.state.api,
+      pollEvery: null,
+      platform: w.state.platform,
+      updateStringsAtStart: false,
+    );
     await tester.pumpWidget(const SizedBox()); // the app closed
     await tester.pumpWidget(DriverApp(state: again));
     await tester.runAsync(() => again.boot());

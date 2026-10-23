@@ -451,7 +451,7 @@ class PayItemRow extends StatelessWidget {
         'missing_target' => l.payItem_missing_target,
         'marks_deduction' => l.payItem_marks_deduction,
         'uncovered_penalty' => l.payItem_uncovered_penalty,
-        _ => named == null || named.isEmpty ? code : (named[lang] ?? named['ar'] ?? named.values.first),
+        _ => named == null || named.isEmpty ? code : (inLang(named, lang) ?? named.values.first),
       };
 
   @override

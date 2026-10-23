@@ -1,3 +1,4 @@
+import '../core/models.dart' show inLang;
 import '../l10n/app_localizations.dart';
 import '../status/engine.dart';
 
@@ -46,7 +47,7 @@ NoticeContent workNoticeContent(
   required String tracking,
   DateTime? lastFixAt,
 }) {
-  final title = (company?[lang] ?? company?['ar'] ?? l.appTitle) as String;
+  final title = (inLang(company, lang) ?? l.appTitle) as String;
   final status = working ? l.driverWorking : l.driverNotWorking;
   final (trackText, big) = switch (tracking) {
     'active' => (l.trackingActive, lastFixAt == null ? l.trackingActive : l.noticeBigActive(hm(lastFixAt))),

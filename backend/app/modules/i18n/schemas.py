@@ -1,3 +1,6 @@
+from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.types import LangCode
@@ -69,3 +72,57 @@ class OverridesIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     items: list[OverrideItem] = Field(min_length=1, max_length=2000)
+
+
+class DriverLanguageOut(BaseModel):
+    code: str
+    name_native: str
+    name_en: str
+    dir: str
+
+
+class LanguageToggleIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: int
+    is_active: bool
+
+
+class TranslationRowOut(BaseModel):
+    scope: str
+    key: str
+    en: str
+    ar: str
+    text: str
+    base: str | None
+    status: str
+    edited: bool
+    updated_at: datetime | None
+
+
+class TranslationIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scope: Literal["app", "server", "status_templates"]
+    key: str = Field(min_length=1, max_length=160)
+    text: str = Field(min_length=1, max_length=4000)
+    reviewed: bool = False
+
+
+class TranslationsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[TranslationIn] = Field(min_length=1, max_length=2000)
+
+
+class ReviewItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scope: Literal["app", "server", "status_templates"]
+    key: str = Field(min_length=1, max_length=160)
+
+
+class ReviewIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[ReviewItem] = Field(min_length=1, max_length=2000)

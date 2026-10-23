@@ -169,7 +169,7 @@ def driver_notices(
     db: Session = Depends(get_session),
 ):
     """What the driver was told: receipts, decisions on his reports and requests, deductions, payslips, documents."""
-    return service.driver_notices(db, device.employee_id, lang=i18n.negotiate(db, None, accept_language), limit=limit)
+    return service.driver_notices(db, device.employee_id, lang=i18n.driver_lang(db, accept_language), limit=limit)
 
 
 @router.post("/driver/notifications/read", response_model=schemas.ReadOut)

@@ -1,16 +1,19 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../core/api.dart';
 import '../core/config.dart';
 import '../core/db.dart';
 import '../core/error_log.dart';
 import '../core/tokens.dart';
+import '../core/translations.dart';
 import '../l10n/app_localizations.dart';
 import '../status/engine.dart';
 import 'alerts.dart';
@@ -75,6 +78,29 @@ class WorkNotice {
 
   bool _ready = false;
 
+  /// The published strings kept on the phone (the app downloads them), read again now and then: this service runs
+  /// in its own engine.
+  final _bundles = BundleStore(
+    () => getApplicationSupportDirectory().then<Directory?>((d) => d, onError: (Object _) => null),
+    appBuild: AppConfig.appBuild,
+  );
+  final _read = <String, (DateTime, RemoteStrings)>{};
+
+  Future<AppLocalizations> _strings(String lang) async {
+    final kept = _read[lang];
+    if (kept == null || DateTime.now().difference(kept.$1) > const Duration(minutes: 10)) {
+      RemoteStrings remote;
+      try {
+        final b = await _bundles.read(lang);
+        remote = b == null ? RemoteStrings.empty : RemoteStrings(lang, b.version, b.strings);
+      } catch (_) {
+        remote = RemoteStrings.empty;
+      }
+      _read[lang] = (DateTime.now(), remote);
+    }
+    return appStrings(Locale(lang), _read[lang]!.$2);
+  }
+
   /// A notice that cannot be set up (say its icon went missing from a build) leaves the service's own notification
   /// in place; it never stops the tracking.
   Future<void> init() async {
@@ -101,7 +127,7 @@ class WorkNotice {
 
   Future<void> show({required String lang, required WorkState state}) async {
     if (!_ready) return;
-    final l = lookupAppLocalizations(Locale(lang == 'en' ? 'en' : 'ar'));
+    final l = await _strings(lang);
     final c = workNoticeContent(
       l,
       lang: lang,
@@ -142,7 +168,7 @@ class WorkNotice {
   /// A heads-up for an important alert (a contact request, a location problem), on the high-importance channel.
   Future<void> headsUp({required String lang, required StatusAlert alert}) async {
     if (!_ready) return;
-    final l = lookupAppLocalizations(Locale(lang == 'en' ? 'en' : 'ar'));
+    final l = await _strings(lang);
     try {
       await _android?.createNotificationChannel(
         AndroidNotificationChannel(alertsChannel, l.alertsChannel, importance: Importance.high),

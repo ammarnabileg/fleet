@@ -676,7 +676,7 @@ class _NationalitySheetState extends State<NationalitySheet> {
 
   String _key(Nationality n) {
     final name = _fold(n.label(widget.lang));
-    return widget.lang == 'en' ? name : name.replaceFirst(RegExp('^ال'), '');
+    return widget.lang != 'ar' ? name : name.replaceFirst(RegExp('^ال'), '');
   }
 
   @override
@@ -715,7 +715,7 @@ class _NationalitySheetState extends State<NationalitySheet> {
                       itemBuilder: (c, i) => ListTile(
                         key: Key('nat-${shown[i].en}'),
                         title: Text(shown[i].label(widget.lang)),
-                        subtitle: Text(widget.lang == 'en' ? shown[i].ar : shown[i].en),
+                        subtitle: Text(widget.lang != 'ar' ? shown[i].ar : shown[i].en),
                         onTap: () => Navigator.pop(c, shown[i]),
                       ),
                     ),

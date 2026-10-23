@@ -19,6 +19,10 @@ def install(app: FastAPI) -> None:
         started = time.perf_counter()
         response = await call_next(request)
         response.headers["X-Request-ID"] = rid
+        if request.url.path.startswith("/api/"):
+            # texts and errors are written in the request's language: caches keep one copy per language
+            vary = response.headers.get("Vary")
+            response.headers["Vary"] = f"{vary}, Accept-Language" if vary else "Accept-Language"
         log.info(
             "%s %s %s %.1fms",
             request.method,

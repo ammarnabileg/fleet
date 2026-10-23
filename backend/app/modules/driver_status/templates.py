@@ -257,14 +257,18 @@ def fill(text: str, values: dict) -> str:
     return PLACEHOLDER.sub(one, text)
 
 
+def text_in(value: dict, lang: str) -> str:
+    """A template text in the reader's language: his own, else English for a language beyond Arabic, else Arabic."""
+    return value.get(lang) or (value.get("en") if lang != "ar" else None) or value.get("ar", "")
+
+
 def render(template: dict, values: dict, lang: str) -> dict:
-    lang = lang if lang in ("ar", "en") else "ar"
     return {
         "kind": template["kind"],
         "icon": template["icon"],
         "color": template["color"],
-        "title": fill(template["title"].get(lang) or template["title"]["ar"], values),
-        "subtitle": fill(template["subtitle"].get(lang) or template["subtitle"].get("ar", ""), values),
+        "title": fill(text_in(template["title"], lang), values),
+        "subtitle": fill(text_in(template["subtitle"], lang), values),
         "actions": list(template["actions"]),
     }
 

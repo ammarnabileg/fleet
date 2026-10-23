@@ -288,6 +288,16 @@ def driver_logout(
     service.logout_device(db, device)
 
 
+@router.put("/driver/preferred-language")
+def preferred_language(
+    body: schemas.PreferredLanguageIn,
+    device: service.DevicePrincipal = Depends(service.require_device),
+    db: Session = Depends(get_session),
+):
+    """The app's language as the driver chose it: his notifications follow it."""
+    return {"preferred_language": service.set_preferred_language(db, device.device_id, body.lang)}
+
+
 @router.post("/driver/push-token", status_code=204)
 def push_token(
     body: schemas.PushTokenIn,

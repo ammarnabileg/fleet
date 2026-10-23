@@ -36,6 +36,9 @@ class Catalog {
       if (text != null) {
         return text.replaceAllMapped(RegExp(r'\{(\w+)\}'), (m) => '${error.params[m[1]] ?? m[0]}');
       }
+      // not in the kept catalog (a new error, or never loaded): the server's own text in the app's language
+      final ready = error.body['message'];
+      if (ready is String && ready.trim().isNotEmpty) return ready;
     }
     return generic;
   }

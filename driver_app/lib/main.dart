@@ -1,16 +1,19 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'app/push.dart';
 import 'app/state.dart';
 import 'core/db.dart';
 import 'core/device.dart';
 import 'core/error_log.dart';
+import 'core/translations.dart';
 import 'l10n/app_localizations.dart';
 import 'tracking/service.dart';
 import 'ui/screens/home.dart';
@@ -47,6 +50,7 @@ Future<void> main() async {
 Future<void> _main(AppDb db) async {
   final state = AppState(
     db: db,
+    stringsDir: () => getApplicationSupportDirectory().then<Directory?>((d) => d, onError: (Object _) => null),
     platform: PhoneHooks(
       permissionsOk: Perms.ok,
       startTracking: () async {
@@ -182,12 +186,17 @@ class _DriverAppState extends State<DriverApp> with WidgetsBindingObserver {
       theme: _theme,
       locale: Locale(widget.state.lang),
       supportedLocales: AppLocalizations.supportedLocales,
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
+      // the driver's language even when the app has no built-in strings for it (one added on the server)
+      localeResolutionCallback: (locale, _) => locale,
+      localizationsDelegates: [
+        AppStringsDelegate(widget.state.translations.active),
+        const FallbackDelegate(GlobalMaterialLocalizations.delegate),
+        const FallbackDelegate(GlobalWidgetsLocalizations.delegate),
+        const FallbackDelegate(GlobalCupertinoLocalizations.delegate),
       ],
+      // right to left for Arabic only (the language list's direction), whatever Flutter guesses for the locale
+      builder: (context, child) =>
+          Directionality(textDirection: widget.state.rtl ? TextDirection.rtl : TextDirection.ltr, child: child!),
       home: _home(),
     );
   }

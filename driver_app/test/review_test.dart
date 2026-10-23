@@ -33,6 +33,7 @@ Tracker tracker(Api api, dynamic db, {FixStream? fixes}) => Tracker(
 );
 
 AppState appState(dynamic db, Api api) => AppState(
+  updateStringsAtStart: false,
   db: db,
   api: api,
   pollEvery: null,

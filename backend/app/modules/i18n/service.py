@@ -5,10 +5,8 @@ overrides saved from the settings screen, following the language's fallback chai
 language. A new language (e.g. Urdu for drivers) can be added and translated without a deploy.
 """
 
-import json
 import re
 from functools import lru_cache
-from pathlib import Path
 
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -16,9 +14,25 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.modules.audit import service as audit
-from app.modules.i18n.models import Language, Override, State
+from app.modules.i18n import store
+from app.modules.i18n.models import Language, State, Translation
+from app.modules.i18n.store import (  # noqa: F401 - the dashboard's and the app's side, used by api.py
+    CATALOG_DIR,
+    REQUIRED,
+    SCOPES,
+    bundle_body,
+    export_xlsx,
+    for_driver,
+    import_xlsx,
+    manifest,
+    progress,
+    publish,
+    revert,
+    review,
+    save,
+    table,
+)
 
-CATALOG_DIR = Path(__file__).parent / "catalog"
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 MAX_CHAIN = 5
 
@@ -28,10 +42,9 @@ _effective_cache: dict[tuple[str, int], dict[str, dict[str, str]]] = {}
 # ------------------------------------------------------------------ base catalogs (code)
 
 
-@lru_cache
 def base_catalog(lang: str) -> dict[str, dict[str, str]]:
-    path = CATALOG_DIR / f"{lang}.json"
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    """The catalog shipped with the code: catalog/<lang>.json, or the seed of a language added for the drivers."""
+    return store.base_catalog(lang)
 
 
 @lru_cache
@@ -39,7 +52,7 @@ def base_keys() -> frozenset[tuple[str, str]]:
     """Every key the application knows. Translators can change texts, not invent keys."""
     keys: set[tuple[str, str]] = set()
     for path in CATALOG_DIR.glob("*.json"):
-        for ns, entries in base_catalog(path.stem).items():
+        for ns, entries in store.catalog_file(path.stem).items():
             keys.update((ns, k) for k in entries)
     return frozenset(keys)
 
@@ -57,6 +70,11 @@ def revision(db: Session) -> int:
 
 def _bump(db: Session) -> None:
     db.execute(update(State).values(revision=State.revision + 1))
+
+
+def _strings_changed(db: Session, code: str, actor_user_id: int | None) -> None:
+    """Texts edited from the old settings screen apply at once: the language is published (a new version)."""
+    store.publish(db, actor_user_id, code, commit=False)
 
 
 def list_languages(db: Session, *, active_only: bool = True) -> list[Language]:
@@ -160,6 +178,8 @@ def update_language(db: Session, actor_user_id: int, code: str, *, version: int,
     before = _language_snapshot(lang)
     if changes.get("is_active") is False and (lang.is_default or changes.get("is_default")):
         raise AppError(422, "cannot_deactivate_default")
+    if changes.get("is_active") is False and code in REQUIRED:
+        raise AppError(422, "language_required", code=code)  # the driver app's own languages
     if changes.get("is_default") is False and lang.is_default:
         raise AppError(422, "cannot_deactivate_default")  # choose another language as default instead
     if "fallback_code" in changes:
@@ -192,10 +212,8 @@ def update_language(db: Session, actor_user_id: int, code: str, *, version: int,
 
 
 def _overrides(db: Session, lang: str) -> dict[str, dict[str, str]]:
-    out: dict[str, dict[str, str]] = {}
-    for o in db.scalars(select(Override).where(Override.lang == lang)):
-        out.setdefault(o.namespace, {})[o.key] = o.value
-    return out
+    """The server texts edited from the dashboard (i18n.translations, scope "server")."""
+    return store.server_rows(db, lang)
 
 
 def effective_catalog(db: Session, code: str, *, active_only: bool = True) -> dict[str, dict[str, str]]:
@@ -248,6 +266,57 @@ def negotiate(db: Session, user_locale: str | None, accept_language: str | None)
             if candidate in active:
                 return candidate
     return default_language(db).code
+
+
+def driver_lang(db: Session, accept_language: str | None) -> str:
+    """The language of the texts a driver gets: the app's language when active, else English, else the default."""
+    active = {lang.code for lang in list_languages(db)}
+    for part in sorted((accept_language or "").split(","), key=_q, reverse=True):
+        tag = part.split(";")[0].strip()
+        for candidate in (tag, tag.split("-")[0].lower()):
+            if candidate in active:
+                return candidate
+    if not (accept_language or "").strip():
+        return default_language(db).code  # no language asked: as before
+    return "en" if "en" in active else default_language(db).code
+
+
+def usable(db: Session, code: str | None) -> str:
+    """A language a text can be written in now: the one given when active (a phone may keep one turned off since),
+    else English, else the default."""
+    active = {lang.code for lang in list_languages(db)}
+    if code in active:
+        return code
+    return "en" if "en" in active else default_language(db).code
+
+
+def status_text(db: Session, lang: str, key: str, en_text: str) -> str | None:
+    """A built-in live-status text (key "<code>.<field>") in a language beyond Arabic and English, while the office
+    has not rewritten it."""
+    return store.status_text(db, lang, key, en_text, revision(db))
+
+
+def driver_languages(db: Session) -> list[dict]:
+    return [
+        {"code": lang.code, "name_native": lang.name_native, "name_en": lang.name_en, "dir": lang.direction}
+        for lang in list_languages(db)
+    ]
+
+
+def admin_languages(db: Session) -> list[dict]:
+    """The dashboard's languages page: each language with its review progress."""
+    out = []
+    for lang in list_languages(db, active_only=False):
+        out.append(
+            _language_snapshot(lang)
+            | {
+                "required": lang.code in REQUIRED,
+                "published_version": lang.strings_version,
+                "unpublished": store.unpublished(db, lang.code),
+                "progress": progress(db, lang.code),
+            }
+        )
+    return out
 
 
 def _q(part: str) -> float:
@@ -317,14 +386,20 @@ def save_overrides(db: Session, actor_user_id: int, code: str, items: list[dict]
                 placeholders=", ".join(f"{{{p}}}" for p in sorted(expected)) or "-",
             )
     for item in items:
-        stmt = insert(Override).values(
-            lang=code, namespace=item["namespace"], key=item["key"], value=item["value"], updated_by=actor_user_id
+        stmt = insert(Translation).values(
+            scope="server",
+            key=f"{item['namespace']}.{item['key']}",
+            lang=code,
+            text=item["value"],
+            status="reviewed",
+            updated_by=actor_user_id,
         )
         db.execute(
             stmt.on_conflict_do_update(
-                index_elements=["lang", "namespace", "key"],
+                index_elements=["scope", "key", "lang"],
                 set_={
-                    "value": stmt.excluded.value,
+                    "text": stmt.excluded.text,
+                    "status": "reviewed",
                     "updated_by": actor_user_id,
                     "updated_at": stmt.excluded.updated_at,
                 },
@@ -338,17 +413,18 @@ def save_overrides(db: Session, actor_user_id: int, code: str, items: list[dict]
         actor_user_id=actor_user_id,
         after={"count": len(items), "keys": [f"{i['namespace']}.{i['key']}" for i in items[:50]]},
     )
-    _bump(db)
+    _strings_changed(db, code, actor_user_id)
     db.commit()
     return len(items)
 
 
 def delete_override(db: Session, actor_user_id: int, code: str, namespace: str, key: str) -> None:
-    row = db.get(Override, (code, namespace, key))
+    row = db.get(Translation, ("server", f"{namespace}.{key}", code))
     if row is None:
         raise AppError(404, "unknown_translation_key", key=f"{namespace}.{key}")
-    before = row.value
+    before = row.text
     db.delete(row)
+    db.flush()
     audit.record(
         db,
         action="translations.reverted",
@@ -357,7 +433,7 @@ def delete_override(db: Session, actor_user_id: int, code: str, namespace: str, 
         actor_user_id=actor_user_id,
         before={"key": f"{namespace}.{key}", "value": before},
     )
-    _bump(db)
+    _strings_changed(db, code, actor_user_id)
     db.commit()
 
 
@@ -385,7 +461,9 @@ def validate_localized(db: Session, value: dict[str, str] | None, *, required: b
 
 
 def pick(value: dict[str, str] | None, code: str, default: str) -> str:
-    """The text of a localized name for display: requested language, then default, then any."""
+    """The text of a localized name for display: requested language, then English for a language the names are
+    rarely written in (French, Hindi, ...), then default, then any."""
     if not value:
         return ""
-    return value.get(code) or value.get(default) or next(iter(value.values()))
+    english = value.get("en") if code not in (default, "ar", "en") else None
+    return value.get(code) or english or value.get(default) or next(iter(value.values()))

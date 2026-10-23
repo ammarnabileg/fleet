@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     rate_otp_send_per_hour: int = 30
     rate_otp_check_per_15min: int = 60
     rate_uploads_per_hour: int = 600
+    rate_public_texts_per_15min: int = 120
     rate_limit_exempt: str = ""  # addresses or networks never limited, comma separated (the office, on sign-up day)
 
     files_dir: str = "/data/files"
