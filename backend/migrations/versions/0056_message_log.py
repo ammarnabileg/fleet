@@ -7,13 +7,13 @@ back here whether the phone received it) or "failed" with the reason. Never the 
 Kept 90 days.
 
 Revision ID: 0056_message_log
-Revises: 0051_scheme_blocks
+Revises: 0054_alert_handling
 """
 
 from alembic import op
 
 revision = "0056_message_log"
-down_revision = "0051_scheme_blocks"
+down_revision = "0054_alert_handling"
 branch_labels = None
 depends_on = None
 
