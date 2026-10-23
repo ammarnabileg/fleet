@@ -50,7 +50,7 @@ jobs:
       - run: docker build -t fleet-postgres:ci deploy/postgres
       - run: docker build -t fleet-maps:ci deploy/maps
       - name: the map service reports a failed download and keeps running
-        run: docker run --rm -e MAP_SOURCE=/nowhere.pmtiles fleet-maps:ci sh -c 'timeout 10 run.sh; grep -q "\"state\":\"failed\"" /srv/maps/status.json'
+        run: docker run --rm -e MAP_SOURCE=/nowhere.pmtiles fleet-maps:ci sh -c 'timeout 10 run.sh; grep -q "\"error_code\":\"download_failed\"" /srv/maps/status.json && ! grep -q nowhere /srv/maps/status.json'
 
   # the admin panel in a real browser against a real backend: every page and tab, phone width, and whole flows
   web-e2e:

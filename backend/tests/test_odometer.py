@@ -244,3 +244,20 @@ def test_a_handover_at_the_moment_of_the_return_is_not_compared_with_it_as_next(
     nxt = hand_over(admin_client, v, make_driver(admin_client, company["id"]), km=60_110, started_at=moment)
     flags = admin_client.get(f"/api/v1/custodies/{nxt['id']}").json()["readings"][0]["flags"]
     assert flags == ["off_duty_km"]  # 10 km idle: yes; "higher than the next reading": the return is not next
+
+
+def test_a_flag_the_next_reading_gets_after_a_review_raises_its_alert(admin_client, company):
+    v = make_vehicle(admin_client, company["id"], km=80_000)
+    c = hand_over(admin_client, v, make_driver(admin_client, company["id"]), km=79_900)  # lower: waits
+    _return(admin_client, c, 79_850)  # lower than 79,900: waits too
+    first, second = sorted(
+        admin_client.get("/api/v1/odometer/readings", params={"review_status": "pending"}).json(),
+        key=lambda r: r["recorded_at"],
+    )
+    assert second["flags"] == ["lower_than_previous"]
+    # the first one was really 70,000: the second is no longer lower, but 9,850 km in one day is over the limit
+    body = {"corrected_km": 70_000, "reason": "photo shows 70000"}
+    r = admin_client.post(f"/api/v1/odometer/readings/{first['id']}/review", json=body)
+    assert r.status_code == 200, r.text
+    alerts = [(a["kind"], a["entity_id"]) for a in admin_client.get("/api/v1/alerts").json()]
+    assert alerts == [("odometer_daily_limit", second["id"])]

@@ -415,7 +415,7 @@
   }
   /* أرقام الهواتف وIBAN واللوحات والرقم المدني والمراجع وأسماء المستخدمين تُكتب من اليسار لليمين حتى في الواجهة العربية:
      +965 5… لا تنقلب، والمؤشر يتحرك في اتجاه ما يُكتب */
-  var LTR_FIELD = /(^|_)(phone|iban|civil_id|plate_number|vin|email|username|number|ref|reference)$/;
+  var LTR_FIELD = /^(phone|contact_phone|iban|civil_id|plate_number|vin|email|username|employee_number|license_number|cr_number|pam_file_number|number|ref|reference|payment_ref)$/; // known fields only: a new one is added here
   BT.f = {
     input: function (o) {
       var type = o.type || 'text';

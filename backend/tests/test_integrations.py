@@ -367,3 +367,14 @@ def test_whatsapp_readiness_tells_a_working_connection_from_messages_that_went_o
     assert w["state"] == "failed" and "close" in w["check_error"]
     checked = admin_client.post(f"{C}/whatsapp/check").json()
     assert checked["check_ok"] is False and "QR" in checked["check_error"]
+
+
+def test_a_transport_error_is_logged_as_a_failed_message(admin_client, owner_db):
+    class Hanging:
+        def send(self, to, text):
+            raise TimeoutError("read timed out")
+
+    with pytest.raises(TimeoutError):
+        integrations.Recorded(Hanging(), "otp").send("+96550001234", "code 123456")
+    row = owner_db.execute(text("SELECT status, error, recipient FROM integrations.message_log")).one()
+    assert tuple(row) == ("failed", "TimeoutError", "…1234")

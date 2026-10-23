@@ -23,19 +23,23 @@ if [ -z "$url" ]; then
     if pmtiles show "$url" >/dev/null 2>&1; then break; fi
     url=""
   done
-  [ -n "$url" ] || { echo "no Protomaps build found in the last 7 days" >&2; exit 1; }
+  [ -n "$url" ] || { echo "no Protomaps build found in the last 7 days" >&2; exit 2; }
 fi
 
-echo "extracting Kuwait from $url"
-rm -f kuwait.pmtiles.new
-pmtiles extract "$url" kuwait.pmtiles.new --bbox="$BBOX" --maxzoom="$MAXZOOM"
-pmtiles verify kuwait.pmtiles.new
-size=$(wc -c < kuwait.pmtiles.new)
+# the source without credentials or a query string (a signed mirror URL) in the log
+echo "extracting Kuwait from $(printf '%s' "$url" | sed -e 's|^\([a-z]*://\)[^/@]*@|\1|' -e 's|[?#].*||')"
+# the file being written stays out of the served folder (.work is refused by nginx too) until it is complete
+mkdir -p .work
+NEW=.work/kuwait.pmtiles.new
+rm -f "$NEW" kuwait.pmtiles.new
+pmtiles extract "$url" "$NEW" --bbox="$BBOX" --maxzoom="$MAXZOOM" || exit 3
+pmtiles verify "$NEW" || { rm -f "$NEW"; exit 4; }
+size=$(wc -c < "$NEW")
 # a near-empty extract (a wrong MAP_BBOX, a broken build) never replaces a good map
 if [ "$size" -lt "${MAP_MIN_BYTES:-5000000}" ]; then
-  rm -f kuwait.pmtiles.new
+  rm -f "$NEW"
   echo "extract too small ($size bytes): kept the current map" >&2
-  exit 1
+  exit 5
 fi
-mv kuwait.pmtiles.new kuwait.pmtiles       # atomic: requests in flight keep reading the old file
+mv "$NEW" kuwait.pmtiles                   # atomic (same volume): requests in flight keep reading the old file
 pmtiles show kuwait.pmtiles | head -20

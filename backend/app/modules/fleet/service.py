@@ -491,7 +491,6 @@ def review_reading(
     reading.corrected_km = corrected_km
     reading.review_status = "reviewed"
     reading.reviewed_by, reading.reviewed_at, reading.review_reason = actor_user_id, func.now(), reason
-    notifications.resolve_entity(db, "odometer_reading", reading.public_id)  # decided: its alerts have done their work
     db.flush()
     db.refresh(reading)
     # reviewed: its alerts are dealt with; the reading after it was compared with the value it had
@@ -558,6 +557,26 @@ def _recheck_next(db: Session, vehicle: Vehicle, reading: OdometerReading, actor
         after.review_status = "ok"
     db.flush()
     notifications.resolve_entity(db, "odometer_reading", after.public_id, kinds=gone)
+    added = [f for f in flags if f in COMPARED_FLAGS and f not in before["flags"]]
+    if added:  # a flag it did not have before: alerted like a new reading's (one alert per reading and kind)
+        driver = people.names(db, {after.driver_id}).get(after.driver_id, {}).get("name", "") if after.driver_id else ""
+        base = {"plate": vehicle.plate_number, "driver": driver, "value": value, "previous": previous_km}
+        extra = {
+            "lower_than_previous": {},
+            "off_duty_km": {"km": value - previous_km, "from_driver": "—", "to_driver": driver or "—"},
+            "daily_limit": {"km": value - previous_km, "limit": settings.daily_km_alert},
+        }
+        for flag in added:
+            kind_ = COMPARED_FLAGS[flag]
+            notifications.raise_alert(
+                db,
+                kind_,
+                company_id=vehicle.company_id,
+                entity_type="odometer_reading",
+                entity_id=after.public_id,
+                params=base | extra[flag],
+                dedupe_key=f"{kind_}:{after.id}",
+            )
     audit.record(
         db,
         action="odometer.rechecked",

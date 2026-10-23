@@ -385,6 +385,10 @@ class Recorded:
             reason = "not_on_whatsapp" if isinstance(exc, messaging.NotOnWhatsApp) else str(exc)
             _log_message("whatsapp", _provider_name(self.provider), self.purpose, to, "failed", error=reason)
             raise
+        except Exception as exc:  # a timeout or any other transport error the provider let through: failed too
+            name = _provider_name(self.provider)
+            _log_message("whatsapp", name, self.purpose, to, "failed", error=type(exc).__name__)
+            raise
         _log_message("whatsapp", _provider_name(self.provider), self.purpose, to, "accepted", provider_ref=ref)
 
 
