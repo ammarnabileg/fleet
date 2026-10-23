@@ -13,7 +13,7 @@ void main() {
   late List<(Map<String, dynamic>?, bool)> shown;
   late Map<String, dynamic> status; // what the server answers to the heartbeat; a test may change it
 
-  Future<(Tracker, FakeServer)> make({bool required = true}) async {
+  Future<(Tracker, FakeServer)> make({bool required = true, DateTime Function()? clock}) async {
     final (db, _, api, server) = await session();
     gps = StreamController<Fix>.broadcast();
     asked = [];
@@ -54,6 +54,7 @@ void main() {
       notify: (company, working) => shown.add((company, working)),
       heartbeatEvery: const Duration(hours: 1),
       syncEvery: const Duration(hours: 1),
+      clock: clock,
     );
     return (t, server);
   }
@@ -64,6 +65,23 @@ void main() {
     for (final r in server.calls('/api/v1/driver/positions')) ...jsonDecode(r.body)['points'] as List,
   ];
   Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 60));
+
+  test(
+    'the notification is not "location not coming through" while the first fix is awaited, nor when fixes come',
+    () async {
+      var now = DateTime.utc(2026, 10, 4, 9);
+      final (t, _) = await make(clock: () => now);
+      await t.start();
+      expect(t.trackingState, 'active', reason: 'the GPS was just asked: given time before any alarm');
+      now = now.add(const Duration(minutes: 11));
+      expect(t.trackingState, 'stale', reason: 'eleven minutes and still no fix');
+      // a fix whose own time is old (the platform's cached position) still proves the GPS answers now
+      gps.add(fix(now.subtract(const Duration(minutes: 30))));
+      await settle();
+      expect(t.trackingState, 'active');
+      await t.stop();
+    },
+  );
 
   test('tracks only when the server says there is a custody, at the server interval', () async {
     final (t, server) = await make(required: false);

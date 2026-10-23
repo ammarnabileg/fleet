@@ -104,6 +104,8 @@ class Tracker {
   DateTime? _stillSince;
   Fix? _prev; // the last fix received, kept or not, to work out a speed the phone did not measure
   DateTime? lastFixAt;
+  DateTime? _fixSeenAt;
+  DateTime? _listeningSince;
   String? _shown; // what the notification shows now
   Timer? _beat;
   Timer? _sync;
@@ -121,7 +123,9 @@ class Tracker {
   /// What the phone itself can tell: off when nothing is to be tracked, active while fixes come, stale otherwise.
   String get trackingState {
     if (!required) return 'off';
-    final last = lastFixAt;
+    // when a fix last ARRIVED on this phone (a fix's own time may be older, from the platform's cache); before the
+    // first fix, the GPS just asked is given the same grace instead of "not coming through" from the first second
+    final last = _fixSeenAt ?? _listeningSince;
     return _sub == null || last == null || _now().difference(last) > staleAfter ? 'stale' : 'active';
   }
 
@@ -215,6 +219,7 @@ class Tracker {
       _interval = null;
       _parked = false;
       _stillSince = null;
+      _listeningSince = _fixSeenAt = null; // the next custody's start gets its grace again
     } else if (_interval != _wanted) {
       _listen(_wanted); // started, or the office changed the intervals: applied at once
     }
@@ -236,6 +241,7 @@ class Tracker {
   void _listen(Duration interval) {
     _sub?.cancel();
     _interval = interval;
+    _listeningSince ??= _now();
     _sub = fixes(interval).listen(
       (f) => unawaited(_onFix(f)),
       onError: (Object e, StackTrace st) => unawaited(errors.record('tracker.gps', e, st)),
@@ -245,6 +251,7 @@ class Tracker {
   Future<void> _onFix(Fix f) async {
     if (!required || _stopped) return;
     lastFixAt = f.at;
+    _fixSeenAt = _now();
     final speed = f.speedKmh ?? _derivedSpeed(_prev, f, maxGap: _gapLimit);
     // parked, the fixes are far apart: a clear move away from the last one wakes the tracker whatever the speed
     final moved = _parked && _prev != null && _farFrom(_prev!, f);
