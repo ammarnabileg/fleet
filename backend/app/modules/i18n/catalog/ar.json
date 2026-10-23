@@ -1553,6 +1553,7 @@
   },
   "driver_notice": {
     "receipt_issued": "استلم المكتب منك {amount} د.ك، إيصال رقم {number}. أكّد الاستلام من شاشة الكاش.",
+    "receipt_reversed": "أُلغي الإيصال رقم {number} ({amount} د.ك): {reason}. المبلغ محسوب عليك من جديد؛ راجع المكتب.",
     "report_corrected": "تقرير {date}: اعتُمد الكاش {approved} د.ك بدل {reported} د.ك. السبب: {reason}",
     "report_returned": "أُعيد تقرير {date} للتصحيح: {reason}. عدّله وأرسله من جديد.",
     "report_change_approved": "تمت الموافقة على تعديل تقرير {date} الذي طلبته",

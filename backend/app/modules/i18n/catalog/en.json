@@ -1553,6 +1553,7 @@
   },
   "driver_notice": {
     "receipt_issued": "The office received {amount} KWD from you, receipt no. {number}. Confirm it on the cash screen.",
+    "receipt_reversed": "Receipt no. {number} ({amount} KWD) was cancelled: {reason}. The amount counts as yours again; ask the office.",
     "report_corrected": "Report of {date}: the cash was approved as {approved} KWD instead of {reported} KWD. Reason: {reason}",
     "report_returned": "Your report of {date} was sent back for correction: {reason}. Edit it and send it again.",
     "report_change_approved": "The change you asked for to the report of {date} was approved",

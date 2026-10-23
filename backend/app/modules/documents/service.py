@@ -74,15 +74,19 @@ def list_for_owner(db: Session, owner: Owner, *, include_history: bool = False) 
     return [_out(d, owner.public_id) for d in db.scalars(q.order_by(Document.type_code, Document.id.desc()))]
 
 
+EXPIRING_MAX = 5000
+
+
 def list_expiring(
-    db: Session, *, within_days: int, all_companies: bool, company_ids: Iterable[int], limit: int = 200
+    db: Session, *, within_days: int, all_companies: bool, company_ids: Iterable[int], limit: int = EXPIRING_MAX
 ) -> list[dict]:
-    """Current documents expiring within `within_days` (expired ones included), soonest first."""
+    """Current documents expiring within `within_days` (expired ones included), soonest first. All of them, as the
+    dashboard counts them: cut at 200, many old expired ones hid those about to expire (the ones still to act on)."""
     q = _scoped(
         select(Document)
         .where(Document.is_current.is_(True), Document.expiry_date <= today() + timedelta(days=within_days))
         .order_by(Document.expiry_date)
-        .limit(min(limit, 500)),
+        .limit(min(limit, EXPIRING_MAX)),
         all_companies,
         company_ids,
     )

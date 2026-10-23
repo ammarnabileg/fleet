@@ -1666,4 +1666,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String vehicleChangeApprovedFor(String plate) {
     return 'تمت الموافقة على تغيير عربيتك بـ $plate: استلمها من المكتب';
   }
+
+  @override
+  String get receiptReversed => 'ملغي';
 }

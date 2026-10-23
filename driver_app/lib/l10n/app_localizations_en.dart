@@ -1674,4 +1674,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String vehicleChangeApprovedFor(String plate) {
     return 'Your change to $plate was approved: collect it from the office';
   }
+
+  @override
+  String get receiptReversed => 'Cancelled';
 }

@@ -24,6 +24,7 @@ class ReceiptOut(BaseModel):
     amount: Decimal
     created_at: datetime
     driver_confirmed_at: datetime | None
+    reversed: bool = False  # cancelled: its deposit was reversed
     unconfirmed_late: bool = False  # still not confirmed by the driver after 24 hours (FR-CSH-05)
 
 

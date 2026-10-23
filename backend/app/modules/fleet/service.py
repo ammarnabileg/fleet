@@ -11,7 +11,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, func, or_, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -482,6 +482,9 @@ def review_reading(
     reading.reviewed_by, reading.reviewed_at, reading.review_reason = actor_user_id, func.now(), reason
     db.flush()
     db.refresh(reading)
+    # reviewed: its alerts are dealt with; the reading after it was compared with the value it had
+    notifications.resolve_entity(db, "odometer_reading", reading.public_id)
+    _recheck_next(db, vehicle, reading, actor_user_id)
     _recompute_last_km(db, vehicle)
     audit.record(
         db,
@@ -495,6 +498,65 @@ def review_reading(
     )
     db.commit()
     return _readings_out(db, [reading])[0]
+
+
+FLAG_ORDER = ("lower_than_previous", "off_duty_km", "daily_limit", "higher_than_next", "photo_reused")
+COMPARED_FLAGS = {  # the flags a reading gets from the one before it, and the alert each raised
+    "lower_than_previous": "odometer_lower",
+    "off_duty_km": "odometer_off_duty",
+    "daily_limit": "odometer_daily_limit",
+}
+
+
+def _recheck_next(db: Session, vehicle: Vehicle, reading: OdometerReading, actor_user_id: int) -> None:
+    """The reading right after a reviewed one, still waiting for review, was compared with the value the reviewed one
+    had: compared again with its value now (as _add_reading does). Its other flags stay. Nothing left: it is fine and
+    its alerts close; something left: it keeps waiting, with the flags that still hold."""
+    after = db.scalar(
+        select(OdometerReading)
+        .where(
+            OdometerReading.vehicle_id == vehicle.id,
+            tuple_(OdometerReading.recorded_at, OdometerReading.id) > tuple_(reading.recorded_at, reading.id),
+        )
+        .order_by(OdometerReading.recorded_at, OdometerReading.id)
+        .limit(1)
+        .with_for_update()
+    )
+    if after is None or after.review_status != "pending" or not set(after.flags) & set(COMPARED_FLAGS):
+        return
+    settings = org.get_section(db, "odometer")
+    previous_km, value = reading.effective_km, after.value_km
+    flags = [f for f in after.flags if f not in COMPARED_FLAGS]
+    if value < previous_km:
+        flags.append("lower_than_previous")
+    if value > previous_km:
+        driven = value - previous_km
+        if reading.kind in ("return", "end_day") and after.kind in ("handover", "start_day"):
+            if driven > settings.off_duty_km_alert:
+                flags.append("off_duty_km")
+        if driven > settings.daily_km_alert * max(1, (after.business_date - reading.business_date).days):
+            flags.append("daily_limit")
+    flags.sort(key=FLAG_ORDER.index)
+    if flags == list(after.flags):
+        return
+    before = _reading_out(after)
+    gone = [COMPARED_FLAGS[f] for f in after.flags if f in COMPARED_FLAGS and f not in flags]
+    after.flags = flags
+    if not flags:
+        after.review_status = "ok"
+    db.flush()
+    notifications.resolve_entity(db, "odometer_reading", after.public_id, kinds=gone)
+    audit.record(
+        db,
+        action="odometer.rechecked",
+        entity_type="odometer_reading",
+        entity_id=after.public_id,
+        actor_user_id=actor_user_id,
+        company_id=vehicle.company_id,
+        before=before,
+        after=_reading_out(after),
+        comment=f"compared again after the reading before it was reviewed ({reading.effective_km} km)",
+    )
 
 
 def reading_photo(db: Session, public_id, **scope) -> files.FileInfo:
@@ -1867,9 +1929,15 @@ def driver_vehicle(db: Session, employee_id: int) -> dict:
         .limit(1)
     )
     _, registration = documents.current_expiry(db, "registration", "vehicle", vehicle.id)
-    request = db.scalar(
+    request = db.scalar(  # this custody's last request, or one still open from before (his own car given back)
         select(VehicleChangeRequest)
-        .where(VehicleChangeRequest.custody_id == custody.id)
+        .where(
+            VehicleChangeRequest.employee_id == employee_id,
+            or_(
+                VehicleChangeRequest.custody_id == custody.id,
+                VehicleChangeRequest.status.in_(("pending", "approved")),
+            ),
+        )
         .order_by(VehicleChangeRequest.id.desc())
         .limit(1)
     )
@@ -1903,6 +1971,12 @@ def request_vehicle_change(db: Session, *, employee_id: int, device_id: int, req
         raise AppError(422, "vehicle_plate_not_found")
     if requested.id == custody.vehicle_id:
         raise AppError(422, "vehicle_change_same_vehicle")
+    if db.scalar(
+        select(VehicleChangeRequest.id).where(
+            VehicleChangeRequest.employee_id == employee_id, VehicleChangeRequest.status.in_(OPEN_CHANGE)
+        )
+    ):
+        raise AppError(409, "vehicle_change_exists")  # one open at a time, even from before his car came back
     request = VehicleChangeRequest(
         employee_id=employee_id,
         company_id=custody.company_id,
@@ -2021,15 +2095,17 @@ def _settle_change_requests(
 ) -> None:
     """A custody started for the driver, however (a handover, a transfer, his claim approved, a car collected from a
     center): the change he asked for is settled with it. The car he asked for: done, linked to this custody. Another
-    car: closed, he did not get the change. In the caller's transaction, locked, so it happens once."""
+    car: closed, he did not get the change. His own car again (back from a center): nothing changed, it stays open.
+    In the caller's transaction, locked, so it happens once."""
     for r in db.scalars(
         select(VehicleChangeRequest)
         .where(VehicleChangeRequest.employee_id == driver_id, VehicleChangeRequest.status.in_(OPEN_CHANGE))
         .order_by(VehicleChangeRequest.id)
         .with_for_update()
     ):
-        wanted = r.requested_vehicle_id == vehicle.id or (r.requested_vehicle_id is None and r.vehicle_id != vehicle.id)
-        if wanted:
+        if r.vehicle_id == vehicle.id and r.requested_vehicle_id != vehicle.id:
+            continue
+        if r.requested_vehicle_id == vehicle.id or r.requested_vehicle_id is None:
             r.fulfilled_custody_id = custody.id
             _decide_change(db, r, "done", decided_by, None)
         else:

@@ -312,3 +312,21 @@ def test_a_request_closed_as_done_without_the_handover_is_shown_for_review(admin
     assert "دون تسليم" in statuses[d1["name"]["ar"]] and statuses[d2["name"]["ar"]] == "تم التغيير"
     # nothing corrected automatically: still done, for a person to review
     assert admin_client.get(V, params={"status": "all", "driver_id": d1["id"]}).json()[0]["status"] == "done"
+
+
+def test_his_own_car_given_back_leaves_the_request_open(admin_client, client, company):
+    """Back from a return (or a center), his own car again is not the change, nor a refusal of it."""
+    wanted = make_vehicle(admin_client, company["id"])
+    d, v, h = holding(admin_client, client, company)
+    row = asked(admin_client, client, h, wanted["plate_number"])
+    (c,) = open_custody(admin_client, v)
+    admin_client.post(
+        f"/api/v1/custodies/{c['id']}/return",
+        json={"odometer_km": v["last_odometer_km"] + 5, "photo_sha256": upload(admin_client)},
+    )
+    hand_over(admin_client, v, d, km=v["last_odometer_km"] + 5)
+    assert [x["id"] for x in admin_client.get(V, params={"status": "pending"}).json()] == [row["id"]]
+    mine = client.get("/api/v1/driver/vehicle", headers=h).json()["change_request"]
+    assert (mine["id"], mine["status"]) == (row["id"], "pending")
+    again = client.post(ASK, headers=h, json={"requested_plate": wanted["plate_number"], "reason": "تاني"})
+    assert again.status_code == 409 and again.json()["code"] == "vehicle_change_exists"

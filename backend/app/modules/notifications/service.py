@@ -122,6 +122,16 @@ def resolve(db: Session, dedupe_key: str, *, prefix: bool = False) -> None:
     db.execute(update(Alert).where(match, Alert.acknowledged_at.is_(None)).values(acknowledged_at=func.now()))
 
 
+def resolve_entity(db: Session, entity_type: str, entity_id, kinds: Iterable[str] | None = None) -> None:
+    """What the alerts about one record pointed at was dealt with (a reading reviewed): they close themselves."""
+    q = update(Alert).where(
+        Alert.entity_type == entity_type, Alert.entity_id == str(entity_id), Alert.acknowledged_at.is_(None)
+    )
+    if kinds is not None:
+        q = q.where(Alert.kind.in_(list(kinds)))
+    db.execute(q.values(acknowledged_at=func.now()))
+
+
 def _visible(q, *, permissions: Iterable[str], all_companies: bool, company_ids: Iterable[int]):
     q = q.where(Alert.permission.in_(list(permissions)))
     if not all_companies:
@@ -218,6 +228,7 @@ def acknowledge(
 
 DRIVER_KINDS: dict[str, tuple[str, ...]] = {  # kind: the params its text uses
     "receipt_issued": ("number", "amount"),
+    "receipt_reversed": ("number", "amount", "reason"),
     "report_corrected": ("date", "reported", "approved", "reason"),
     "report_rejected": ("date", "reason"),
     "maintenance_approved": ("number",),

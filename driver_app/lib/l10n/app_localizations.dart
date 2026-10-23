@@ -3043,6 +3043,12 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'تمت الموافقة على تغيير عربيتك بـ {plate}: استلمها من المكتب'**
   String vehicleChangeApprovedFor(String plate);
+
+  /// No description provided for @receiptReversed.
+  ///
+  /// In ar, this message translates to:
+  /// **'ملغي'**
+  String get receiptReversed;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

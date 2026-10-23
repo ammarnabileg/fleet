@@ -1061,6 +1061,39 @@ void main() {
     expect(w.server.calls('/api/v1/driver/cash/receipts/r1/confirm'), hasLength(1));
   });
 
+  testWidgets('cash: a receipt the office cancelled is marked so, with nothing to confirm', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/cash',
+      (r) => (
+        200,
+        {
+          'posted': '42.500',
+          'pending': '0.000',
+          'total': '42.500',
+          'alert_limit': '80.000',
+          'receipts': [
+            {
+              'id': 'r1',
+              'receipt_no': 12,
+              'branch_id': 1,
+              'amount': '20.000',
+              'created_at': '2026-10-03T14:00:00Z',
+              'driver_confirmed_at': null,
+              'reversed': true,
+            },
+          ],
+        },
+      ),
+    );
+    await pumpApp(tester, w);
+    await tester.tap(find.text('الكاش').last);
+    await settle(tester);
+    expect(find.byKey(const Key('receipt-reversed-12')), findsOneWidget);
+    expect(find.text('أؤكد التسليم'), findsNothing);
+  });
+
   testWidgets('cash: his movements, and a warning before the limit', (tester) async {
     final w = (await tester.runAsync(() => world()))!;
     w.server.on(

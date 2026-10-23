@@ -65,7 +65,14 @@ class Today {
 }
 
 class Receipt {
-  Receipt({required this.id, required this.number, required this.amount, required this.createdAt, this.confirmedAt});
+  Receipt({
+    required this.id,
+    required this.number,
+    required this.amount,
+    required this.createdAt,
+    this.confirmedAt,
+    this.reversed = false,
+  });
 
   factory Receipt.fromJson(Map<String, dynamic> j) => Receipt(
     id: j['id'] as String,
@@ -73,6 +80,7 @@ class Receipt {
     amount: j['amount'] as String,
     createdAt: DateTime.parse(j['created_at'] as String),
     confirmedAt: j['driver_confirmed_at'] == null ? null : DateTime.parse(j['driver_confirmed_at'] as String),
+    reversed: j['reversed'] == true,
   );
 
   final String id;
@@ -80,6 +88,9 @@ class Receipt {
   final String amount;
   final DateTime createdAt;
   final DateTime? confirmedAt;
+
+  /// Cancelled by the office (its deposit reversed): nothing to confirm, the cash counts as his again.
+  final bool reversed;
 }
 
 class Cash {
