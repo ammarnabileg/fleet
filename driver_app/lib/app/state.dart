@@ -922,11 +922,19 @@ class AppState extends ChangeNotifier {
     required int km,
     required String photoPath,
     required DateTime takenAt,
+    int? replacementKm,
+    String? replacementPhotoPath,
   }) async {
+    // a replacement car he held meanwhile goes back in the same step: its reading and photo too
     final id = await outbox.add(
       'maintenance_pickup',
-      {'request_id': requestId, 'odometer_km': km, 'picked_up_at': takenAt.toUtc().toIso8601String()},
-      {'odometer_photo': photoPath},
+      {
+        'request_id': requestId,
+        'odometer_km': km,
+        'picked_up_at': takenAt.toUtc().toIso8601String(),
+        'replacement_odometer_km': ?replacementKm,
+      },
+      {'odometer_photo': photoPath, 'replacement_odometer_photo': ?replacementPhotoPath},
     );
     return _sendNow(
       id,
@@ -985,6 +993,7 @@ class AppState extends ChangeNotifier {
     required DateTime paidAt,
     required String amount,
     int? odometerKm,
+    String? litres,
     String? notes,
     required String receiptPath,
   }) async {
@@ -995,6 +1004,7 @@ class AppState extends ChangeNotifier {
         'paid_at': paidAt.toUtc().toIso8601String(),
         'amount': amount,
         'odometer_km': ?odometerKm,
+        'litres': ?litres,
         'notes': ?notes,
       },
       {'receipt_sha256': receiptPath},

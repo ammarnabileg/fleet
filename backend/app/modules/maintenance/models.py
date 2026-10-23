@@ -41,6 +41,7 @@ STATUSES = (
     "closed",
     "cancelled",
 )
+PRIORITIES = ("low", "normal", "high", "urgent")
 AT_CENTER = ("referred", "received", "inspection", "quote_pending", "in_repair", "waiting_parts", "completed", "ready")
 NUMBER_SEQ = Sequence("request_number_seq", schema="maintenance")
 
@@ -103,6 +104,8 @@ class Request(Base):
         Index("requests_vehicle_id_idx", "vehicle_id", "created_at"),
         Index("requests_center_id_idx", "center_id", "status"),
         Index("requests_driver_id_idx", "driver_id", "created_at"),
+        Index("requests_schedule_id_idx", "schedule_id"),
+        CheckConstraint(f"priority IN ({_in(PRIORITIES)})", name="priority"),
         SCHEMA,
     )
 
@@ -144,7 +147,64 @@ class Request(Base):
     picked_up_by: Mapped[int | None] = mapped_column(BigInteger)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancel_reason: Mapped[str | None] = mapped_column(Text)
+    # the follow-up: how urgent, who in the office follows it, when the center expects to have it ready (late after
+    # that day: alerted, then escalated); the periodic schedule it carries out, if any
+    priority: Mapped[str] = mapped_column(Text, server_default=text("'normal'"))
+    assignee_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("identity.users.id"))
+    expected_ready_on: Mapped[date | None] = mapped_column(Date)
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    schedule_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("maintenance.schedules.id"))
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+
+
+class Schedule(Base):
+    """Periodic maintenance of one vehicle, every so many days and/or kilometres since it was last done. Due and
+    overdue are computed from today and the vehicle's last odometer reading; a request made from it (schedule_id)
+    records it done when the car is picked up."""
+
+    __tablename__ = "schedules"
+    __table_args__ = (
+        CheckConstraint(f"kind IN ({_in(KINDS)})", name="kind"),
+        CheckConstraint("every_days BETWEEN 1 AND 3650", name="every_days"),
+        CheckConstraint("every_km BETWEEN 100 AND 1000000", name="every_km"),
+        CheckConstraint("last_done_km >= 0", name="last_done_km"),
+        CheckConstraint("every_days IS NOT NULL OR every_km IS NOT NULL", name="interval"),
+        Index("schedules_vehicle_id_idx", "vehicle_id"),
+        Index(
+            "schedules_title_idx", "vehicle_id", func.lower(text("title")), unique=True, postgresql_where=text("active")
+        ),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    vehicle_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("fleet.vehicles.id"))
+    company_id: Mapped[int] = mapped_column(BigInteger)
+    kind: Mapped[str] = mapped_column(Text, server_default=text("'periodic'"))
+    title: Mapped[str] = mapped_column(Text)
+    every_days: Mapped[int | None] = mapped_column(Integer)
+    every_km: Mapped[int | None] = mapped_column(Integer)
+    last_done_on: Mapped[date] = mapped_column(Date)
+    last_done_km: Mapped[int | None] = mapped_column(Integer)
+    active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+
+
+class Replacement(Base):
+    """A replacement car the request gave its driver while his own is at the center: a custody of kind
+    "replacement" (who, which car, from when to when), ended when he collects his car."""
+
+    __tablename__ = "replacements"
+    __table_args__ = (Index("replacements_request_id_idx", "request_id"), SCHEMA)
+
+    custody_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("fleet.custodies.id"), primary_key=True)
+    request_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("maintenance.requests.id"))
+    created_by: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class RequestPhoto(Base):

@@ -571,7 +571,27 @@
     "uncollected_carried_taken": "The run cannot be reopened: a deduction carried from its uncollected balance ({month}) was already taken by an approved run",
     "deduction_partly_taken": "An approved run already took part of this deduction",
     "rule_price_change_twice": "Rule {position}: a second price change would take from the same base price twice; put the price changes in one priority group (the first that holds applies).",
-    "rule_exception_twice": "Rule {position}: the exceptions were already counted by «approved exceptions» above it; they are never counted twice."
+    "rule_exception_twice": "Rule {position}: the exceptions were already counted by «approved exceptions» above it; they are never counted twice.",
+    "driver_has_replacement": "The driver already holds a replacement car: return it first",
+    "replacement_custody": "A replacement car is not part of a transfer: it ends when the driver collects his own car from the center, or when it is returned from the maintenance request",
+    "replacement_needs_holder": "No driver keeps this car in his custody while it is at the center: no replacement car",
+    "replacement_same_vehicle": "Choose a car other than the one at the center",
+    "replacement_not_at_center": "A replacement car is given once the center received the car and before it is ready",
+    "no_replacement": "This request has no replacement car out",
+    "replacement_open": "Take the replacement car back first (from the maintenance request), then record the pickup",
+    "replacement_reading_required": "Give the replacement car {plate}'s odometer reading and photo: you hand it back as you collect your car",
+    "request_finished": "The request is finished: its follow-up no longer changes",
+    "expected_before_request": "The expected date is before the request",
+    "expected_in_past": "The expected date cannot be in the past",
+    "assignee_not_allowed": "The person responsible must be an active user who sees maintenance",
+    "schedule_not_found": "Maintenance schedule not found",
+    "schedule_title_taken": "The vehicle already has a schedule with this name",
+    "schedule_interval_required": "Give every how many days or kilometres (or both)",
+    "schedule_other_vehicle": "The schedule is another vehicle's, or stopped",
+    "schedule_has_request": "The schedule already has an open maintenance request",
+    "schedule_done_before_last": "The date or reading is before the last time it was done",
+    "expense_odometer_needs_vehicle": "An odometer reading needs the vehicle",
+    "fuel_price_implausible": "A price of {price} KWD per litre is not plausible: check the amount or the litres"
   },
   "settings": {
     "branding": "Branding",
@@ -633,7 +653,11 @@
     "finance.books_start_date": "Books start date in the system",
     "cash.treasury_deposit_limit": "Treasury deposit limit (KWD, 0 = no alert)",
     "cash.treasury_deposit_weekdays": "Treasury bank deposit days",
-    "payroll.live_approval_enabled": "Approve real payroll runs (after the reconciliation test against a previous month's sheet; owner only)"
+    "payroll.live_approval_enabled": "Approve real payroll runs (after the reconciliation test against a previous month's sheet; owner only)",
+    "maintenance.due_soon_days": "Periodic maintenance is “due soon” this many days before",
+    "maintenance.due_soon_km": "Periodic maintenance is “due soon” this many km before",
+    "maintenance.escalate_after_days": "Escalate a late repair this many days after its expected date (urgent at once)",
+    "maintenance.long_stay_days": "Alert a car at the center with no expected date after (days; 0 = off)"
   },
   "common": {
     "active": "Active",
@@ -708,7 +732,12 @@
     "treasury_deposit_due": "The {branch} treasury holds {balance} KWD (limit {limit}): deposit it at the bank",
     "treasury_deposit_day": "Today is the bank deposit day for the {branch} treasury: it holds {balance} KWD",
     "treasury_not_closed": "{branch} treasury: {day} had movements and is not counted and closed",
-    "payroll_objection": "New objection from {driver} to the {month} payslip"
+    "payroll_objection": "New objection from {driver} to the {month} payslip",
+    "maintenance_due": "Periodic maintenance “{title}” of {plate} is due soon: {due}",
+    "maintenance_overdue": "Periodic maintenance “{title}” of {plate} is overdue: it was due at {due}",
+    "maintenance_late": "{plate} (request #{number}) at {center} is past its expected date {date}",
+    "maintenance_long_stay": "{plate} (request #{number}) has been at {center} since {date} with no expected date",
+    "maintenance_escalated": "Escalated: {plate} (request #{number}) at {center} is late since {date} — responsible: {assignee}"
   },
   "alert_kind": {
     "device_replaced": "Driver's phone replaced",
@@ -778,7 +807,8 @@
   },
   "custody_kind": {
     "normal": "Normal",
-    "emergency": "Emergency"
+    "emergency": "Emergency",
+    "replacement": "Replacement"
   },
   "reading_kind": {
     "handover": "Handover",
@@ -1440,7 +1470,8 @@
     "fuel_claim": "Fuel claim",
     "period": "Month of the books",
     "uncollected": "Uncollected deductions",
-    "payroll_objection": "Payslip objection"
+    "payroll_objection": "Payslip objection",
+    "maintenance_schedule": "Maintenance schedule"
   },
   "audit_actor": {
     "user": "User",
@@ -1722,5 +1753,34 @@
     "accepted": "Accepted",
     "rejected": "Rejected",
     "closed": "Closed"
+  },
+  "maintenance_priority": {
+    "low": "Low",
+    "normal": "Normal",
+    "high": "High",
+    "urgent": "Urgent"
+  },
+  "schedule_state": {
+    "ok": "On track",
+    "due": "Due soon",
+    "overdue": "Overdue",
+    "unknown": "Not enough data",
+    "inactive": "Stopped",
+    "no_baseline": "Last reading unknown",
+    "no_reading": "The car has no odometer reading"
+  },
+  "fuel_flag": {
+    "no_odometer": "No odometer",
+    "no_litres": "No litres",
+    "odometer_conflict": "Odometer contradicts the car's photographed readings",
+    "odometer_backwards": "Odometer lower than the previous fill",
+    "price_outlier": "Price per litre far from usual",
+    "stretch_litres_missing": "A fill in between has no litres: the distance is not counted",
+    "gap_too_long": "Longer than a tank: a fill is probably missing",
+    "implausible": "Implausible consumption",
+    "consumption_outlier": "Consumption far from the car's own",
+    "above_fleet": "The car uses more than the fleet's median",
+    "few_stretches": "Too few consecutive fills",
+    "short_distance": "Too little distance"
   }
 }

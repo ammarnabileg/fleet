@@ -111,6 +111,7 @@ def ingest(db: Session, device: identity.DevicePrincipal, *, sent_at: datetime, 
         if candidates
         else []
     )
+    custodies.sort(key=lambda c: c.kind != "replacement")  # a point while he held a replacement is that car's
     # while his car is at a maintenance center his phone's points are not the car's (he keeps it, without driving it)
     first_t = min((t for _, t, _ in candidates), default=now)
     last_t = max((t for _, t, _ in candidates), default=now) + timedelta(seconds=1)

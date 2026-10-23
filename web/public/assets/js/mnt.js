@@ -26,8 +26,24 @@
   M.INV_STATUS = { pending: 'بانتظار الاعتماد', approved: 'معتمدة', rejected: 'مرفوضة' };
   M.FLAG = { duplicate_number: 'رقم مكرر لنفس المركز', differs_from_quote: 'تختلف عن العرض المعتمد' };
 
-  M.NOTES = { ':emergency': 'صيانة طارئة: معتمدة فوراً وتُراجع لاحقاً', ':emergency_reviewed': 'روجعت الصيانة الطارئة', ':quote_approved': 'اعتُمد عرض السعر', ':quote_within_limit': 'عرض السعر ضمن حد الاعتماد: معتمد تلقائياً', ':accident': 'إصلاح حادث: معتمد ومحال للمركز الذي قدّر الأضرار', ':accident_estimate': 'تقدير أضرار الحادث معتمد: يبدأ الإصلاح دون عرض سعر جديد', ':accident_vehicle': 'السيارة في حادث: يمر إصلاحها بالمكتب (التقدير والاعتماد)', ':driver_changed': 'تغيّر السائق: الطلب الآن مع السائق الذي في عهدته السيارة' };
-  M.note = function (n) { return n && n.charAt(0) === ':' ? (M.NOTES[n] || n.slice(1)) : n; };
+  M.NOTES = { ':emergency': 'صيانة طارئة: معتمدة فوراً وتُراجع لاحقاً', ':emergency_reviewed': 'روجعت الصيانة الطارئة', ':quote_approved': 'اعتُمد عرض السعر', ':quote_within_limit': 'عرض السعر ضمن حد الاعتماد: معتمد تلقائياً', ':accident': 'إصلاح حادث: معتمد ومحال للمركز الذي قدّر الأضرار', ':accident_estimate': 'تقدير أضرار الحادث معتمد: يبدأ الإصلاح دون عرض سعر جديد', ':accident_vehicle': 'السيارة في حادث: يمر إصلاحها بالمكتب (التقدير والاعتماد)', ':driver_changed': 'تغيّر السائق: الطلب الآن مع السائق الذي في عهدته السيارة',
+    ':expected_date': 'حدّد المركز موعد الإنجاز المتوقع', ':replacement_given': 'سُلّمت للسائق سيارة بديلة', ':replacement_returned': 'أُرجعت السيارة البديلة' };
+  // ":code" أو ":code قيمة" (رقم لوحة السيارة البديلة مثلاً)
+  M.note = function (n) {
+    if (!n || n.charAt(0) !== ':') return n;
+    var sp = n.indexOf(' '), code = sp > -1 ? n.slice(0, sp) : n, arg = sp > -1 ? n.slice(sp + 1) : '';
+    return (M.NOTES[code] || code.slice(1)) + (arg ? ' ' + arg : '');
+  };
+  M.PRIORITY_TONE = { low: 'n', normal: 'b', high: 'o', urgent: 'r' };
+  M.priority = function (p) { return BT.pill(api.t('maintenance_priority', p || 'normal'), M.PRIORITY_TONE[p] || 'n'); };
+  /* متأخر عن الموعد المتوقع، أو بقاء طويل بلا موعد؛ «مصعّد» حين تجاوز مهلة التصعيد */
+  M.late = function (r) {
+    if (!r.late) return '';
+    return h`<span data-late="${r.late}">${BT.pill(r.late === 'expected' ? (r.escalated ? 'متأخر · مصعّد' : 'متأخر عن الموعد') : 'بقاء طويل بلا موعد', r.escalated ? 'r' : 'o')}</span>`;
+  };
+  M.expected = function (r) {
+    return r.expected_ready_on ? h`<span class="num">${fmt.date(r.expected_ready_on)}</span> ${M.late(r)}` : h`<span class="muted">لم يُحدد</span> ${M.late(r)}`;
+  };
   M.status = function (s) { return BT.pill(api.t('maintenance_status', s), M.TONE[s] || 'n'); };
   M.kind = function (k) { return api.t('maintenance_kind', k); };
   M.kindOptions = function () { return M.KINDS.map(function (k) { return { v: k, t: M.kind(k) }; }); };
@@ -152,10 +168,14 @@
       ['المصدر', r.source === 'driver' ? 'السائق من التطبيق' : 'الإدارة'],
       r.emergency ? ['طارئة', r.emergency_reviewed ? 'نعم · روجعت' : BT.pill('نعم · بانتظار المراجعة', 'o')] : null,
       opts.admin && r.driver ? ['السائق', api.name(r.driver.name)] : null,
-      ['تاريخ الطلب', fmt.dt(r.created_at)]
+      ['تاريخ الطلب', fmt.dt(r.created_at)],
+      opts.admin ? ['الأولوية', M.priority(r.priority)] : null,
+      opts.admin ? ['المسؤول عن المتابعة', r.assignee ? r.assignee.name : h`<span class="muted">لم يُحدد</span>`] : null,
+      opts.admin && r.schedule ? ['ضمن الصيانة الدورية', h`<a href="#/maintenance?tab=schedules">${r.schedule.title}</a>`] : null
     ].filter(Boolean);
     var center = [
       r.center ? ['المركز', r.center.name] : null,
+      r.center ? ['موعد الإنجاز المتوقع', M.expected(r)] : null,
       r.referred_at && !r.direct ? ['الإحالة', fmt.dt(r.referred_at)] : null,
       r.received_at ? ['الوصول', fmt.dt(r.received_at)] : null,
       r.received_km != null ? ['العداد عند الوصول', h`<span class="num">${fmt.km(r.received_km)}</span>`] : null,

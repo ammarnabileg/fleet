@@ -19,14 +19,14 @@ center and in each status.
 """
 
 from collections.abc import Iterable
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, false, func, or_, select, true
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.clock import today, utcnow
+from app.core.clock import business_date, today, utcnow
 from app.core.db import violated_constraint
 from app.core.errors import AppError
 from app.core.events import emit
@@ -42,9 +42,11 @@ from app.modules.maintenance.models import (
     Invoice,
     InvoiceItem,
     Quote,
+    Replacement,
     Request,
     RequestEvent,
     RequestPhoto,
+    Schedule,
 )
 from app.modules.notifications import service as notifications
 from app.modules.org import service as org
@@ -59,6 +61,10 @@ READY_FROM = ("received", "inspection", "in_repair", "waiting_parts", "completed
 PORTAL_MOVES = {"inspection": ("received",), "in_repair": ("waiting_parts",), "waiting_parts": ("in_repair",)}
 HISTORY = ("picked_up", "closed", "cancelled")
 UNDER_REPAIR = ("received", "inspection", "in_repair", "waiting_parts", "completed")
+NOT_READY = ("referred", *UNDER_REPAIR, "quote_pending")  # at (or sent to) the center, not ready yet: may be late
+FINISHED = ("rejected", "picked_up", "closed", "cancelled")
+SCHEDULE_ERRORS = {"schedules_title_idx": "schedule_title_taken"}
+READING_STALE = timedelta(days=30)  # an older last reading still counts, but the screens say how old it is
 CENT = Decimal("0.001")
 PHOTO_STAGES = {"request": 0, "reception": 1, "repair": 2}  # the order a request's photos are shown in
 
@@ -215,13 +221,37 @@ def _stay(r: Request, now: datetime) -> int | None:
     return int(((r.picked_up_at or now) - r.received_at).total_seconds())
 
 
+def _late(r: Request, settings, day: date) -> str | None:
+    """Why a request not ready yet is late: past its expected date ("expected"), or at the center longer than the
+    settings allow with no expected date ("long_stay"); None when it is not."""
+    if r.status not in NOT_READY:
+        return None
+    if r.expected_ready_on is not None:
+        return "expected" if r.expected_ready_on < day else None
+    if settings.long_stay_days and r.received_at is not None:
+        if (day - business_date(r.received_at)).days >= settings.long_stay_days:
+            return "long_stay"
+    return None
+
+
 def _requests_out(db: Session, rows: list[Request], *, for_center: bool = False) -> list[dict]:
     cards = fleet.vehicle_cards(db, {r.vehicle_id for r in rows})
     names = {} if for_center else people.names(db, {r.driver_id for r in rows if r.driver_id})
     holders = {r.vehicle_id: fleet.holder(db, r.vehicle_id) for r in rows if r.status in AT_CENTER}
     center_ids = {r.center_id for r in rows if r.center_id}
     centers = {c.id: c for c in db.scalars(select(Center).where(Center.id.in_(center_ids)))} if center_ids else {}
-    now = utcnow()
+    assignees = {} if for_center else identity.user_refs(db, {r.assignee_id for r in rows})
+    schedule_ids = {r.schedule_id for r in rows if r.schedule_id}
+    schedules = {
+        i: {"id": str(p), "title": t}
+        for i, p, t in (
+            db.execute(select(Schedule.id, Schedule.public_id, Schedule.title).where(Schedule.id.in_(schedule_ids)))
+            if schedule_ids
+            else []
+        )
+    }
+    settings = org.get_section(db, "maintenance")
+    now, day = utcnow(), today()
     return [
         {
             "id": str(r.public_id),
@@ -251,6 +281,12 @@ def _requests_out(db: Session, rows: list[Request], *, for_center: bool = False)
             "is_new": for_center and r.status == "referred" and r.seen_at is None,
             # at the center, a driver holds the car: he collects it and confirms it in the app
             "driver_collects": holders.get(r.vehicle_id) is not None,
+            "priority": r.priority,
+            "expected_ready_on": r.expected_ready_on,
+            "late": (late := _late(r, settings, day)),
+            "escalated": late is not None and r.escalated_at is not None,
+            "assignee": assignees.get(r.assignee_id),
+            "schedule": schedules.get(r.schedule_id),
             "version": r.version,
         }
         for r in rows
@@ -266,7 +302,10 @@ def _durations(events: list[RequestEvent], now: datetime) -> list[dict]:
             continue
         if e.status in HISTORY:
             break
-        end = events[i + 1].at if i + 1 < len(events) else None
+        if out and out[-1]["status"] == e.status:
+            continue  # a note on the same status (a replacement car, a new date): still the same stay
+        nxt = next((x for x in events[i + 1 :] if x.status != e.status), None)
+        end = nxt.at if nxt else None
         out.append(
             {
                 "status": e.status,
@@ -366,25 +405,53 @@ def _detail(db: Session, r: Request, *, for_center: bool = False) -> dict:
         # in the order they were taken (the primary key would sort them by their hash, which is to say at random)
         .order_by(case(PHOTO_STAGES, value=RequestPhoto.stage), RequestPhoto.file_sha256)
     )
-    return out | {
-        "shortcut": _shortcut(db, r),
-        "condition_note": r.condition_note,
-        "repair_details": r.repair_details,
-        "final_km": r.final_km,
-        "completed_at": r.completed_at,
-        "photos": [{"stage": p.stage, "sha256": p.file_sha256} for p in photos],
-        "events": [
-            {
-                "status": e.status,
-                "at": e.at,
-                "by": users.get(e.by_user) if e.by_user else (driver_label if e.by_device else None),
-                "note": e.note,
-            }
-            for e in events
-        ],
-        "durations": _durations(events, utcnow()),
-        "quotes": [_quote_out(q, users) for q in quotes],
-        "invoices": _invoices_out(db, invoices),
+    return (
+        out
+        | {
+            "shortcut": _shortcut(db, r),
+            "condition_note": r.condition_note,
+            "repair_details": r.repair_details,
+            "final_km": r.final_km,
+            "completed_at": r.completed_at,
+            "photos": [{"stage": p.stage, "sha256": p.file_sha256} for p in photos],
+            "events": [
+                {
+                    "status": e.status,
+                    "at": e.at,
+                    "by": users.get(e.by_user) if e.by_user else (driver_label if e.by_device else None),
+                    "note": e.note,
+                }
+                for e in events
+            ],
+            "durations": _durations(events, utcnow()),
+            "quotes": [_quote_out(q, users) for q in quotes],
+            "invoices": _invoices_out(db, invoices),
+        }
+        | ({} if for_center else _links(db, r, events))
+    )
+
+
+def _links(db: Session, r: Request, events: list[RequestEvent]) -> dict:
+    """What the request is tied to, for the office: the custody the car was in (the driver who keeps it while it is
+    at the center), the replacement cars given meanwhile, and the pickup (when, by whom, at what reading)."""
+    at = r.received_at or r.created_at
+    custody = fleet.custody_ref_at(db, r.vehicle_id, at)
+    given = list(db.scalars(select(Replacement).where(Replacement.request_id == r.id).order_by(Replacement.created_at)))
+    briefs = fleet.custodies_brief(db, [custody.id if custody else None, *(g.custody_id for g in given)])
+    pickup = None
+    if r.picked_up_at is not None:
+        event = next((e for e in reversed(events) if e.status == "picked_up"), None)
+        readings = fleet.readings_between(
+            db, [r.vehicle_id], r.picked_up_at - timedelta(seconds=1), r.picked_up_at + timedelta(seconds=1)
+        ).get(r.vehicle_id, [])
+        by = None
+        if event is not None:
+            by = identity.user_names(db, [event.by_user]).get(event.by_user) if event.by_user else "driver"
+        pickup = {"at": r.picked_up_at, "by": by, "km": readings[-1][1] if readings else r.final_km}
+    return {
+        "custody": briefs.get(custody.id) if custody else None,
+        "replacements": [briefs[g.custody_id] for g in given if g.custody_id in briefs],
+        "pickup": pickup,
     }
 
 
@@ -610,6 +677,18 @@ def create_request(db: Session, data: dict, *, actor_user_id: int, **scope) -> d
     if not center.is_active:
         raise AppError(409, "center_inactive")
     _check_images(db, data.get("photos") or [])
+    schedule = None
+    if data.get("schedule_id"):
+        schedule = _schedule(db, data["schedule_id"], lock=True, **scope)
+        if schedule.vehicle_id != vehicle.id or not schedule.active:
+            raise AppError(422, "schedule_other_vehicle")
+        if db.scalar(
+            select(Request.id).where(Request.schedule_id == schedule.id, Request.status.notin_(FINISHED)).limit(1)
+        ):
+            raise AppError(409, "schedule_has_request")
+    expected = data.get("expected_ready_on")
+    if expected is not None and expected < today():
+        raise AppError(422, "expected_in_past")
     r = Request(
         vehicle_id=vehicle.id,
         company_id=vehicle.company_id,
@@ -619,6 +698,12 @@ def create_request(db: Session, data: dict, *, actor_user_id: int, **scope) -> d
         odometer_km=data.get("odometer_km"),
         emergency=data.get("emergency", False),
         created_by_user=actor_user_id,
+        priority=data.get("priority") or ("high" if data.get("emergency") else "normal"),
+        expected_ready_on=expected,
+        assignee_id=identity.office_user(db, data["assignee_id"], "maintenance.view")
+        if data.get("assignee_id")
+        else None,
+        schedule_id=schedule.id if schedule else None,
     )
     db.add(r)
     _send_to(db, r, center, by_user=actor_user_id)
@@ -686,11 +771,16 @@ def driver_request(db: Session, *, employee_id: int, device_id: int, data: dict)
 
 
 def for_driver(db: Session, employee_id: int, *, limit: int = 20, only: int | None = None) -> list[dict]:
-    """His requests, and the open ones of the car he holds now (asked for while another driver held it)."""
-    custody = fleet.open_custody_for_driver(db, employee_id)
+    """His requests, and the open ones of the cars he holds now (asked for while another driver held it): his own,
+    and a replacement while his own is at the center."""
+    held = {
+        c.vehicle_id
+        for c in (fleet.own_custody_for_driver(db, employee_id), fleet.open_custody_for_driver(db, employee_id))
+        if c
+    }
     mine = Request.driver_id == employee_id
-    if custody is not None:
-        mine = or_(mine, and_(Request.vehicle_id == custody.vehicle_id, Request.status.in_(AT_CENTER)))
+    if held:
+        mine = or_(mine, and_(Request.vehicle_id.in_(held), Request.status.in_(AT_CENTER)))
     q = select(Request).where(mine)
     if only is not None:
         q = q.where(Request.id == only)
@@ -699,11 +789,14 @@ def for_driver(db: Session, employee_id: int, *, limit: int = 20, only: int | No
     holders = {r.vehicle_id: fleet.holder(db, r.vehicle_id) for r in rows if r.status == "ready"}
     center_ids = {r.center_id for r in rows if r.center_id}
     centers = {c.id: c for c in db.scalars(select(Center).where(Center.id.in_(center_ids)))} if center_ids else {}
+    replacing = {r.id: _open_replacement(db, r) for r in rows if r.status in AT_CENTER}
     return [
         {
             "id": str(r.public_id),
             "number": r.number,
             "vehicle_plate": plates.get(r.vehicle_id, ""),
+            # the replacement car he holds meanwhile: he gives its reading too when he collects his own
+            "replacement_plate": replacing[r.id][1]["vehicle"]["plate_number"] if replacing.get(r.id) else None,
             "kind": r.kind,
             "description": r.description,
             "status": r.status,
@@ -781,6 +874,21 @@ def driver_picked_up(db: Session, public_id, *, employee_id: int, device_id: int
     # when the photo was taken: after the car was ready, not in the future, and late by two days at most
     if at > now + fleet.CLOCK_SKEW or at < now - fleet.DRIVER_READING_DELAY or (r.ready_at and at < r.ready_at):
         raise AppError(422, "invalid_recorded_at")
+    replacement = _open_replacement(db, r)
+    if replacement is not None:
+        # he hands the replacement car back as he collects his own: its reading and camera photo, in the same step
+        if data.get("replacement_odometer_km") is None or not data.get("replacement_odometer_photo"):
+            raise AppError(422, "replacement_reading_required", plate=replacement[1]["vehicle"]["plate_number"])
+        _check_images(db, [data["replacement_odometer_photo"]], device_id=device_id)
+        _end_replacement(
+            db,
+            r,
+            replacement,
+            device_id=device_id,
+            odometer_km=data["replacement_odometer_km"],
+            photo_sha256=data["replacement_odometer_photo"],
+            at=at,
+        )
     if handing_back:
         released_by = db.scalar(  # the center account that called him: it gives the vehicle back
             select(RequestEvent.by_user)
@@ -821,6 +929,8 @@ def list_requests(
     active: bool | None = None,
     vehicle_public_id=None,
     center_public_id=None,
+    custody_public_id=None,
+    late: bool = False,
     limit: int = 100,
     offset: int = 0,
     **scope,
@@ -830,12 +940,41 @@ def list_requests(
         q = q.where(Request.status.in_(status.split(",")))
     if active is True:
         q = q.where(Request.status.notin_(("rejected", "closed", "cancelled")))
+    if late:
+        q = q.where(_late_clause(org.get_section(db, "maintenance")))
+    if custody_public_id:
+        # the requests of the custody's car while it held it, and those that gave it as a replacement
+        c = fleet.custody_ref_by_public_id(db, custody_public_id, **scope)
+        at = func.coalesce(Request.received_at, Request.created_at)
+        q = q.where(
+            or_(
+                and_(
+                    Request.vehicle_id == c.vehicle_id,
+                    at >= c.started_at,
+                    true() if c.ended_at is None else at < c.ended_at,
+                ),
+                Request.id.in_(select(Replacement.request_id).where(Replacement.custody_id == c.id)),
+            )
+        )
     if vehicle_public_id:
         q = q.where(Request.vehicle_id == fleet.vehicle_ref_by_public_id(db, vehicle_public_id, **scope).id)
     if center_public_id:
         q = q.where(Request.center_id == _center(db, center_public_id).id)
     rows = db.scalars(q.order_by(Request.created_at.desc(), Request.id.desc()).limit(min(limit, 500)).offset(offset))
     return _requests_out(db, list(rows))
+
+
+def _late_clause(settings):
+    """SQL for _late: not ready, and past its expected date or (none given) at the center too long."""
+    received_on = func.date(func.timezone("Asia/Kuwait", Request.received_at))
+    stay = received_on <= today() - timedelta(days=settings.long_stay_days)
+    return and_(
+        Request.status.in_(NOT_READY),
+        or_(
+            Request.expected_ready_on < today(),
+            and_(Request.expected_ready_on.is_(None), stay) if settings.long_stay_days else false(),
+        ),
+    )
 
 
 def get_request(db: Session, public_id, **scope) -> dict:
@@ -913,6 +1052,7 @@ def cancel(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) 
         raise AppError(409, "request_cannot_cancel", status=r.status)
     r.cancel_reason = reason
     _event(db, r, "cancelled", by_user=actor_user_id, note=reason)
+    _resolve_late(db, r)
     approvals.withdrawn(db, "maintenance_request", [r.id])
     notifications.resolve(db, f"mnt_request:{r.id}")
     _audit(db, "maintenance.cancelled", r, actor_user_id=actor_user_id, after={"reason": reason})
@@ -942,9 +1082,11 @@ def _follow_holder(db: Session, r: Request, actor_user_id: int) -> None:
 
 def _check_office_pickup(db: Session, r: Request) -> None:
     """The driver who holds the car collects it and confirms it in the app; the office or the center records the
-    pickup only of a car nobody holds."""
+    pickup only of a car nobody holds, once a replacement car given meanwhile is back."""
     if r.status == "ready" and fleet.holder(db, r.vehicle_id) is not None:
         raise AppError(409, "pickup_by_driver")
+    if _open_replacement(db, r) is not None:
+        raise AppError(409, "replacement_open")
 
 
 def _picked_up(
@@ -956,6 +1098,8 @@ def _picked_up(
     _event(db, r, "picked_up", by_user=actor_user_id, by_device=by_device, at=at)
     fleet.released_from_maintenance(db, r.vehicle_id)
     notifications.resolve(db, f"mnt_ready:{r.id}")
+    _resolve_late(db, r)
+    _schedule_from_pickup(db, r, r.picked_up_at)
     _audit(
         db,
         "maintenance.picked_up",
@@ -1222,6 +1366,7 @@ def ready(db: Session, public_id, *, user_id: int, data: dict, can_invoice: bool
         _add_photos(db, r, "repair", [photo])
     r.ready_at = utcnow()
     _event(db, r, "ready", by_user=user_id)
+    _resolve_late(db, r)
     if not held:  # nobody to collect it from the app: the office does
         notifications.raise_alert(
             db,
@@ -1684,3 +1829,467 @@ def invoices_for_posting(db: Session, first, last) -> dict[str, list[dict]]:
         }
 
     return {"approved": [out(*r) for r in approved], "paid": [out(*r) for r in paid]}
+
+
+# ------------------------------------------------------------------ the follow-up: priority, responsible, expected date
+
+
+def _resolve_late(db: Session, r: Request) -> None:
+    """Ready, collected, cancelled or given a new date: its late and escalated alerts close."""
+    notifications.resolve(db, f"mnt_late:{r.id}:", prefix=True)
+    notifications.resolve(db, f"mnt_escalated:{r.id}:", prefix=True)
+
+
+def _alert_late(db: Session, r: Request, settings) -> int:
+    """Late (past its expected date, or a long stay with none): alerted once per date; past the expected date by
+    the settings' days (at once when urgent), escalated to the approvers, once per date. In the caller's
+    transaction; how many alerts it raised."""
+    reason = _late(r, settings, today())
+    if reason is None:
+        return 0
+    center = db.get(Center, r.center_id) if r.center_id else None
+    since = r.expected_ready_on if reason == "expected" else business_date(r.received_at)
+    params = _alert_params(db, r) | {"center": center.name if center else "", "date": since.isoformat()}
+    key = r.expected_ready_on.isoformat() if r.expected_ready_on else "stay"
+    raised = int(
+        notifications.raise_alert(
+            db,
+            "maintenance_late" if reason == "expected" else "maintenance_long_stay",
+            company_id=r.company_id,
+            entity_type="maintenance_request",
+            entity_id=r.public_id,
+            params=params,
+            dedupe_key=f"mnt_late:{r.id}:{key}",
+        )
+    )
+    if reason != "expected" or r.escalated_at is not None:
+        return raised
+    if (today() - r.expected_ready_on).days < settings.escalate_after_days and r.priority != "urgent":
+        return raised
+    r.escalated_at = utcnow()
+    assignee = identity.user_names(db, [r.assignee_id]).get(r.assignee_id) if r.assignee_id else None
+    notifications.raise_alert(
+        db,
+        "maintenance_escalated",
+        company_id=r.company_id,
+        entity_type="maintenance_request",
+        entity_id=r.public_id,
+        params=params | {"assignee": assignee or "—"},
+        dedupe_key=f"mnt_escalated:{r.id}:{key}",
+    )
+    _audit(db, "maintenance.escalated", r, actor_type="system", after={"expected_ready_on": r.expected_ready_on})
+    return raised + 1
+
+
+PLAN_FIELDS = ("priority", "assignee_id", "expected_ready_on")
+
+
+def set_plan(db: Session, public_id, *, version: int, changes: dict, actor_user_id: int, **scope) -> dict:
+    """The office's follow-up of a request: its priority, the user who follows it, the date the repair is expected
+    to be ready (the center may give it too). A new date reopens the late and escalation alerts for that date."""
+    r = _get(db, public_id, lock=True, **scope)
+    if r.version != version:
+        raise AppError(409, "version_conflict")
+    if r.status in FINISHED:
+        raise AppError(409, "request_finished", status=r.status)
+    before = {"priority": r.priority, "assignee_id": r.assignee_id, "expected_ready_on": r.expected_ready_on}
+    if "priority" in changes:
+        r.priority = changes["priority"] or "normal"
+    if "assignee_id" in changes:
+        wanted = changes["assignee_id"]
+        r.assignee_id = identity.office_user(db, wanted, "maintenance.view") if wanted else None
+    if "expected_ready_on" in changes and changes["expected_ready_on"] != r.expected_ready_on:
+        _set_expected(db, r, changes["expected_ready_on"])
+    r.version += 1
+    after = {"priority": r.priority, "assignee_id": r.assignee_id, "expected_ready_on": r.expected_ready_on}
+    _audit(db, "maintenance.planned", r, actor_user_id=actor_user_id, after=after | {"before": before})
+    _alert_late(db, r, org.get_section(db, "maintenance"))  # an urgent request already late is escalated now
+    db.commit()
+    return _detail(db, r)
+
+
+def _set_expected(db: Session, r: Request, expected: date | None) -> None:
+    if expected is not None and expected < business_date(r.created_at):
+        raise AppError(422, "expected_before_request")
+    r.expected_ready_on, r.escalated_at = expected, None
+    _resolve_late(db, r)
+
+
+def portal_expected(db: Session, public_id, *, user_id: int, expected_ready_on: date, note: str | None) -> dict:
+    """The center says when it expects the car to be ready (or a new date): the office follows it from there."""
+    center = center_of(db, user_id)
+    r = _for_center(db, public_id, center, lock=True)
+    if r.status not in NOT_READY:
+        raise AppError(409, "invalid_maintenance_status", status=r.status)
+    if expected_ready_on < today():
+        raise AppError(422, "expected_in_past")
+    if expected_ready_on != r.expected_ready_on:
+        _set_expected(db, r, expected_ready_on)
+        r.version += 1
+        db.add(RequestEvent(request_id=r.id, status=r.status, by_user=user_id, note=note or ":expected_date"))
+        _audit(db, "maintenance.expected", r, actor_user_id=user_id, after={"expected_ready_on": expected_ready_on})
+    db.commit()
+    return _detail(db, r, for_center=True)
+
+
+def assignees(db: Session) -> list[dict]:
+    """Who a request can be given to: the active office users who see maintenance."""
+    return [{"id": u["id"], "name": u["name"]} for u in identity.users_with_permission(db, "maintenance.view")]
+
+
+# ------------------------------------------------------------------ a replacement car while his own is at the center
+
+
+def _open_replacement(db: Session, r: Request) -> tuple[int, dict] | None:
+    """The replacement car the driver still holds for this request: (custody id, the custody as listed)."""
+    ids = list(db.scalars(select(Replacement.custody_id).where(Replacement.request_id == r.id)))
+    return next(((i, b) for i, b in fleet.custodies_brief(db, ids).items() if b["ended_at"] is None), None)
+
+
+def give_replacement(db: Session, public_id, *, data: dict, actor_user_id: int, **scope) -> dict:
+    """A replacement car for the driver while his own is at the center being repaired: a custody of its own kind,
+    started with its reading and photo. His own car stays in his custody; the replacement ends when he collects his
+    car (or when the office takes it back first). One at a time."""
+    r = _get(db, public_id, lock=True, **scope)
+    if r.status not in UNDER_REPAIR + ("quote_pending",):
+        raise AppError(409, "replacement_not_at_center", status=r.status)
+    if _open_replacement(db, r) is not None:
+        raise AppError(409, "driver_has_replacement")
+    custody = fleet.start_replacement(
+        db,
+        own_vehicle_id=r.vehicle_id,
+        vehicle_public_id=data["vehicle_id"],
+        odometer_km=data["odometer_km"],
+        photo_sha256=data["photo_sha256"],
+        photos=data.get("photos"),
+        started_at=data.get("started_at"),
+        actor_user_id=actor_user_id,
+        **scope,
+    )
+    db.add(Replacement(custody_id=custody.id, request_id=r.id, created_by=actor_user_id))
+    plate = fleet.plate_numbers(db, [custody.vehicle_id]).get(custody.vehicle_id, "")
+    r.version += 1
+    db.add(RequestEvent(request_id=r.id, status=r.status, by_user=actor_user_id, note=f":replacement_given {plate}"))
+    _audit(db, "maintenance.replacement_given", r, actor_user_id=actor_user_id, after={"plate": plate})
+    db.commit()
+    return _detail(db, r)
+
+
+def return_replacement(db: Session, public_id, *, data: dict, actor_user_id: int, **scope) -> dict:
+    """The office takes the replacement car back before the driver collects his own (its reading and photo)."""
+    r = _get(db, public_id, lock=True, **scope)
+    held = _open_replacement(db, r)
+    if held is None:
+        raise AppError(409, "no_replacement")
+    _end_replacement(
+        db,
+        r,
+        held,
+        odometer_km=data["odometer_km"],
+        photo_sha256=data["photo_sha256"],
+        at=data.get("ended_at"),
+        actor_user_id=actor_user_id,
+        photos=data.get("photos"),
+    )
+    db.commit()
+    return _detail(db, r)
+
+
+def _end_replacement(
+    db: Session, r: Request, held: tuple[int, dict], *, actor_user_id=None, device_id=None, **reading
+) -> None:
+    custody_id, brief = held
+    fleet.end_replacement(db, custody_id, actor_user_id=actor_user_id, device_id=device_id, **reading)
+    plate = brief["vehicle"]["plate_number"]
+    r.version += 1
+    db.add(
+        RequestEvent(
+            request_id=r.id,
+            status=r.status,
+            by_user=actor_user_id,
+            by_device=device_id,
+            note=f":replacement_returned {plate}",
+        )
+    )
+    _audit(
+        db,
+        "maintenance.replacement_returned",
+        r,
+        actor_user_id=actor_user_id,
+        actor_type="device" if device_id is not None else None,
+        after={"plate": plate, "odometer_km": reading["odometer_km"]},
+    )
+
+
+# ------------------------------------------------------------------ periodic schedules (by date and by distance)
+
+
+def _schedule(db: Session, public_id, *, lock=False, all_companies: bool, company_ids: Iterable[int]) -> Schedule:
+    q = _scoped(
+        select(Schedule).where(Schedule.public_id == public_id), all_companies, company_ids, Schedule.company_id
+    )
+    found = db.scalar(q.with_for_update() if lock else q)
+    if found is None:
+        raise AppError(404, "schedule_not_found")
+    return found
+
+
+def _worst(states: list[str]) -> str:
+    for s in ("overdue", "due", "ok"):
+        if s in states:
+            return s
+    return "unknown"
+
+
+def _schedules_out(db: Session, rows: list[Schedule]) -> list[dict]:
+    """Each schedule with when it falls due (date, reading) and its state now: ok, due (soon), overdue, or unknown
+    when only the distance counts and the reading it needs is missing (never a guess)."""
+    if not rows:
+        return []
+    settings = org.get_section(db, "maintenance")
+    day, now = today(), utcnow()
+    cards = fleet.vehicle_cards(db, {s.vehicle_id for s in rows})
+    readings = fleet.last_readings(db, {s.vehicle_id for s in rows})
+    open_requests = {
+        sid: {"id": str(p), "number": n, "status": st}
+        for sid, p, n, st in db.execute(
+            select(Request.schedule_id, Request.public_id, Request.number, Request.status).where(
+                Request.schedule_id.in_([s.id for s in rows]), Request.status.notin_(FINISHED)
+            )
+        )
+    }
+    out = []
+    for s in rows:
+        reading = readings.get(s.vehicle_id)
+        states, days_left, km_left = [], None, None
+        due_on = s.last_done_on + timedelta(days=s.every_days) if s.every_days else None
+        if due_on is not None:
+            days_left = (due_on - day).days
+            states.append("overdue" if days_left < 0 else "due" if days_left <= settings.due_soon_days else "ok")
+        due_km = s.last_done_km + s.every_km if s.every_km and s.last_done_km is not None else None
+        km_state = None
+        if s.every_km:
+            if due_km is None:
+                km_state = "no_baseline"  # the reading when it was last done is unknown
+            elif reading is None:
+                km_state = "no_reading"  # the car was never read
+            else:
+                km_left = due_km - reading["km"]
+                km_state = "overdue" if km_left <= 0 else "due" if km_left <= settings.due_soon_km else "ok"
+                states.append(km_state)
+        out.append(
+            {
+                "id": str(s.public_id),
+                "vehicle": cards.get(s.vehicle_id, {}),
+                "company_id": s.company_id,
+                "kind": s.kind,
+                "title": s.title,
+                "every_days": s.every_days,
+                "every_km": s.every_km,
+                "last_done_on": s.last_done_on,
+                "last_done_km": s.last_done_km,
+                "due_on": due_on,
+                "due_km": due_km,
+                "days_left": days_left,
+                "km_left": km_left,
+                "current_km": reading["km"] if reading else None,
+                "current_km_at": reading["at"] if reading else None,
+                "reading_stale": reading is not None and now - reading["at"] > READING_STALE,
+                "km_state": km_state,
+                "state": _worst(states) if s.active else "inactive",
+                "open_request": open_requests.get(s.id),
+                "active": s.active,
+                "notes": s.notes,
+                "version": s.version,
+            }
+        )
+    return out
+
+
+def list_schedules(
+    db: Session, *, vehicle_public_id=None, state: str | None = None, active: bool = True, **scope
+) -> list[dict]:
+    q = _scoped(select(Schedule), scope["all_companies"], scope["company_ids"], Schedule.company_id)
+    if vehicle_public_id:
+        q = q.where(Schedule.vehicle_id == fleet.vehicle_ref_by_public_id(db, vehicle_public_id, **scope).id)
+    if active:
+        q = q.where(Schedule.active.is_(True))
+    rows = _schedules_out(db, list(db.scalars(q.order_by(Schedule.vehicle_id, Schedule.id))))
+    if state:
+        wanted = set(state.split(","))
+        rows = [x for x in rows if x["state"] in wanted]
+    order = {"overdue": 0, "due": 1, "unknown": 2, "ok": 3, "inactive": 4}
+    return sorted(rows, key=lambda x: (order[x["state"]], x["due_on"] or date.max, x["km_left"] or 0))
+
+
+def get_schedule(db: Session, public_id, **scope) -> dict:
+    return _schedules_out(db, [_schedule(db, public_id, **scope)])[0]
+
+
+def create_schedule(db: Session, data: dict, *, actor_user_id: int, **scope) -> dict:
+    """Every so many days and/or kilometres since it was last done. The last time it was done is given, or today at
+    the car's last reading (counting from now). With no reading at all, the distance waits for one (unknown)."""
+    vehicle = fleet.vehicle_ref_by_public_id(db, data["vehicle_id"], **scope)
+    if not data.get("every_days") and not data.get("every_km"):
+        raise AppError(422, "schedule_interval_required")
+    done_on = data.get("last_done_on") or today()
+    if done_on > today():
+        raise AppError(422, "time_in_future")
+    done_km = data.get("last_done_km")
+    if done_km is None and data.get("every_km"):
+        reading = fleet.last_readings(db, [vehicle.id]).get(vehicle.id)
+        done_km = reading["km"] if reading else None
+    s = Schedule(
+        vehicle_id=vehicle.id,
+        company_id=vehicle.company_id,
+        kind=data.get("kind") or "periodic",
+        title=data["title"],
+        every_days=data.get("every_days"),
+        every_km=data.get("every_km"),
+        last_done_on=done_on,
+        last_done_km=done_km,
+        notes=data.get("notes"),
+        created_by=actor_user_id,
+    )
+    db.add(s)
+    _flush(db, SCHEDULE_ERRORS)
+    db.refresh(s)
+    out = _schedules_out(db, [s])[0]
+    audit.record(
+        db,
+        action="maintenance.schedule_created",
+        entity_type="maintenance_schedule",
+        entity_id=s.public_id,
+        actor_user_id=actor_user_id,
+        company_id=s.company_id,
+        after={k: out[k] for k in ("title", "every_days", "every_km", "last_done_on", "last_done_km")},
+    )
+    db.commit()
+    return out
+
+
+SCHEDULE_FIELDS = ("kind", "title", "every_days", "every_km", "notes", "active")
+
+
+def update_schedule(db: Session, public_id, *, version: int, changes: dict, actor_user_id: int, **scope) -> dict:
+    s = _schedule(db, public_id, lock=True, **scope)
+    if s.version != version:
+        raise AppError(409, "version_conflict")
+    before = {f: getattr(s, f) for f in SCHEDULE_FIELDS}
+    for field in SCHEDULE_FIELDS:
+        if field in changes and not (field in ("title", "kind", "active") and changes[field] is None):
+            setattr(s, field, changes[field])
+    if not s.every_days and not s.every_km:
+        raise AppError(422, "schedule_interval_required")
+    s.version += 1
+    s.updated_at = func.now()
+    _flush(db, SCHEDULE_ERRORS)
+    _resolve_due(db, s)  # the next scan alerts again by the new terms
+    audit.record(
+        db,
+        action="maintenance.schedule_updated",
+        entity_type="maintenance_schedule",
+        entity_id=s.public_id,
+        actor_user_id=actor_user_id,
+        company_id=s.company_id,
+        before=before,
+        after={f: getattr(s, f) for f in SCHEDULE_FIELDS},
+    )
+    db.commit()
+    db.refresh(s)
+    return _schedules_out(db, [s])[0]
+
+
+def _resolve_due(db: Session, s: Schedule) -> None:
+    notifications.resolve(db, f"mnt_due:{s.id}:", prefix=True)
+    notifications.resolve(db, f"mnt_overdue:{s.id}:", prefix=True)
+
+
+def _mark_done(
+    db: Session, s: Schedule, *, on: date, km: int | None, actor_user_id: int | None, request: Request | None = None
+) -> bool:
+    """Done on that day at that reading: the next one counts from there. Never moves back in time or distance (a
+    late record of an older service changes nothing)."""
+    if on < s.last_done_on or (km is not None and s.last_done_km is not None and km < s.last_done_km):
+        return False
+    before = {"last_done_on": s.last_done_on, "last_done_km": s.last_done_km}
+    s.last_done_on, s.last_done_km = on, km if km is not None else s.last_done_km
+    s.version += 1
+    s.updated_at = func.now()
+    _resolve_due(db, s)
+    audit.record(
+        db,
+        action="maintenance.schedule_done",
+        entity_type="maintenance_schedule",
+        entity_id=s.public_id,
+        actor_user_id=actor_user_id,
+        actor_type=None if actor_user_id else "system",
+        company_id=s.company_id,
+        before=before,
+        after={"last_done_on": on, "last_done_km": s.last_done_km} | ({"request": request.number} if request else {}),
+    )
+    return True
+
+
+def schedule_done(
+    db: Session, public_id, *, done_on: date, done_km: int | None, note: str | None, actor_user_id: int, **scope
+) -> dict:
+    """Recorded by hand: done outside a request in the system (another workshop, the company's own)."""
+    s = _schedule(db, public_id, lock=True, **scope)
+    if done_on > today():
+        raise AppError(422, "time_in_future")
+    if not _mark_done(db, s, on=done_on, km=done_km, actor_user_id=actor_user_id):
+        raise AppError(422, "schedule_done_before_last")
+    if note:
+        s.notes = note
+    db.commit()
+    db.refresh(s)
+    return _schedules_out(db, [s])[0]
+
+
+def _schedule_from_pickup(db: Session, r: Request, at: datetime) -> None:
+    """The request carried out its schedule: done on the pickup day, at the reading the car left the center with."""
+    if r.schedule_id is None:
+        return
+    s = db.scalar(select(Schedule).where(Schedule.id == r.schedule_id).with_for_update())
+    reading = fleet.last_readings(db, [r.vehicle_id]).get(r.vehicle_id)
+    _mark_done(db, s, on=business_date(at), km=reading["km"] if reading else r.final_km, actor_user_id=None, request=r)
+
+
+def _due_text(x: dict) -> dict:
+    ar, en = [], []
+    if x["due_on"] is not None:
+        ar.append(f"تاريخ {x['due_on'].isoformat()}")
+        en.append(f"date {x['due_on'].isoformat()}")
+    if x["due_km"] is not None:
+        ar.append(f"عداد {x['due_km']:,} كم")
+        en.append(f"odometer {x['due_km']:,} km")
+    return {"ar": " أو ".join(ar) or "—", "en": " or ".join(en) or "—"}
+
+
+def scan_due(db: Session) -> int:
+    """Daily: schedules due soon or overdue (none while a request carries them out), and requests late or staying
+    long at the center (escalated as the settings say). Each alert once per situation; it closes by itself when the
+    schedule is done or the car is ready."""
+    settings = org.get_section(db, "maintenance")
+    raised = 0
+    for x in list_schedules(db, all_companies=True, company_ids=()):
+        if x["state"] not in ("due", "overdue") or x["open_request"] is not None:
+            continue
+        s = db.scalar(select(Schedule).where(Schedule.public_id == x["id"]))
+        cycle = f"{s.id}:{s.last_done_on.isoformat()}:{s.last_done_km}"
+        if x["state"] == "overdue":
+            notifications.resolve(db, f"mnt_due:{cycle}")
+        raised += notifications.raise_alert(
+            db,
+            "maintenance_overdue" if x["state"] == "overdue" else "maintenance_due",
+            company_id=s.company_id,
+            entity_type="maintenance_schedule",
+            entity_id=s.public_id,
+            params={"plate": x["vehicle"].get("plate_number", ""), "title": s.title, "due": _due_text(x)},
+            dedupe_key=f"mnt_{x['state']}:{cycle}",
+        )
+    for r in db.scalars(select(Request).where(Request.status.in_(NOT_READY)).with_for_update()):
+        raised += _alert_late(db, r, settings)
+    db.commit()
+    return raised

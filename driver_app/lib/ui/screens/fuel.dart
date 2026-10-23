@@ -11,6 +11,7 @@ import '../widgets/common.dart';
 import 'home.dart';
 
 final _amount = RegExp(r'^\d{1,9}(\.\d{1,3})?$');
+final _litres = RegExp(r'^\d{1,3}(\.\d{1,2})?$');
 
 /// Why the app offers him no fuel claim.
 String fuelOff(AppLocalizations l, String? reason) => switch (reason) {
@@ -35,6 +36,7 @@ class _FuelScreenState extends State<FuelScreen> {
   final _form = GlobalKey<FormState>();
   final _amountField = TextEditingController();
   final _km = TextEditingController();
+  final _litresField = TextEditingController();
   final _notes = TextEditingController();
   TakenPhoto? receipt;
   bool _receiptMissing = false;
@@ -49,6 +51,7 @@ class _FuelScreenState extends State<FuelScreen> {
   void dispose() {
     _amountField.dispose();
     _km.dispose();
+    _litresField.dispose();
     _notes.dispose();
     super.dispose();
   }
@@ -85,12 +88,14 @@ class _FuelScreenState extends State<FuelScreen> {
     setState(() => _receiptMissing = receipt == null);
     if (!ok || _receiptMissing) return;
     final km = _km.text.trim();
+    final litres = latinDigits(_litresField.text.trim());
     final notes = _notes.text.trim();
     try {
       final r = await widget.state.sendFuel(
         paidAt: receipt!.takenAt,
         amount: double.parse(latinDigits(_amountField.text.trim())).toStringAsFixed(3),
         odometerKm: km.isEmpty ? null : int.parse(latinDigits(km)),
+        litres: litres.isEmpty ? null : double.parse(litres).toStringAsFixed(2),
         notes: notes.isEmpty ? null : notes,
         receiptPath: receipt!.path,
       );
@@ -173,6 +178,29 @@ class _FuelScreenState extends State<FuelScreen> {
                         validator: (v) => _checkAmount(l, v),
                       ),
                       const SizedBox(height: 14),
+                      FieldLabel(l.fuelLitres),
+                      TextFormField(
+                        key: const Key('fuel-litres'),
+                        controller: _litresField,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        textDirection: TextDirection.ltr,
+                        inputFormatters: [
+                          const DecimalPoint(),
+                          FilteringTextInputFormatter.allow(RegExp('[0-9.٠-٩۰-۹]')),
+                        ],
+                        decoration: InputDecoration(
+                          hintText: '0.00',
+                          hintTextDirection: TextDirection.ltr,
+                          suffixText: '  ${l.fuelLitresUnit}',
+                        ),
+                        validator: (v) {
+                          final text = latinDigits((v ?? '').trim());
+                          if (text.isEmpty) return null;
+                          final n = double.tryParse(text);
+                          return !_litres.hasMatch(text) || n == null || n <= 0 || n > 500 ? l.fuelLitresInvalid : null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
                       FieldLabel(l.fuelOdometer),
                       TextFormField(
                         key: const Key('fuel-km'),
@@ -240,6 +268,7 @@ class _ClaimRow extends StatelessWidget {
       subtitle: [
         when(context, c.paidAt),
         if (c.plate != null) '\u2066${c.plate}\u2069',
+        if (c.litres != null) '\u2066${c.litres}\u2069 ${l.fuelLitresUnit}',
         if (c.odometerKm != null) '\u2066${c.odometerKm}\u2069 ${l.km}',
         ?c.decisionNote,
       ].join(' · '),

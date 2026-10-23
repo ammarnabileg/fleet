@@ -571,7 +571,27 @@
     "uncollected_carried_taken": "لا يُعاد فتح الكشف: خصم مُرحّل من خصوماته غير المحصلة ({month}) أُخذ منه في كشف معتمد",
     "deduction_partly_taken": "أُخذ من هذا الخصم في كشف معتمد",
     "rule_price_change_twice": "القاعدة رقم {position}: تغيير سعر ثانٍ يحسب من نفس السعر الأصلي مرتين؛ ضع تغييرات السعر في مجموعة أولوية واحدة (تُطبق أول واحدة يتحقق شرطها).",
-    "rule_exception_twice": "القاعدة رقم {position}: الاستثناءات حُسبت قبلها في «الاستثناءات المعتمدة»؛ لا تُحسب مرتين."
+    "rule_exception_twice": "القاعدة رقم {position}: الاستثناءات حُسبت قبلها في «الاستثناءات المعتمدة»؛ لا تُحسب مرتين.",
+    "driver_has_replacement": "السائق معه سيارة بديلة بالفعل: تُرجع الأولى قبل غيرها",
+    "replacement_custody": "السيارة البديلة لا تدخل في التسليم والتبديل: تنتهي عهدتها عند استلام السائق سيارته من المركز، أو بإرجاعها من طلب الصيانة",
+    "replacement_needs_holder": "لا يوجد سائق تبقى السيارة في عهدته أثناء الصيانة: لا سيارة بديلة",
+    "replacement_same_vehicle": "اختر سيارة غير السيارة الموجودة في المركز",
+    "replacement_not_at_center": "السيارة البديلة تُسلَّم بعد استلام المركز للسيارة وقبل تجهيزها للاستلام",
+    "no_replacement": "لا توجد سيارة بديلة مفتوحة لهذا الطلب",
+    "replacement_open": "أرجِع السيارة البديلة أولاً (من طلب الصيانة) ثم سجّل الاستلام",
+    "replacement_reading_required": "سجّل قراءة عداد السيارة البديلة {plate} وصورتها: تُرجعها وأنت تستلم سيارتك",
+    "request_finished": "الطلب منتهٍ: لا تتغير متابعته",
+    "expected_before_request": "موعد الإنجاز المتوقع قبل تاريخ الطلب",
+    "expected_in_past": "موعد الإنجاز المتوقع لا يكون في الماضي",
+    "assignee_not_allowed": "المسؤول لازم يكون مستخدماً نشطاً عنده صلاحية عرض الصيانة",
+    "schedule_not_found": "جدول الصيانة الدورية غير موجود",
+    "schedule_title_taken": "للسيارة جدول بنفس الاسم",
+    "schedule_interval_required": "حدد كل كم يوماً أو كل كم كيلومتراً (أو الاثنين)",
+    "schedule_other_vehicle": "الجدول لسيارة أخرى أو موقوف",
+    "schedule_has_request": "للجدول طلب صيانة مفتوح بالفعل",
+    "schedule_done_before_last": "التاريخ أو العداد قبل آخر مرة سُجّلت فيها",
+    "expense_odometer_needs_vehicle": "قراءة العداد تحتاج اختيار السيارة",
+    "fuel_price_implausible": "سعر اللتر {price} د.ك غير منطقي: راجع المبلغ أو عدد اللترات"
   },
   "settings": {
     "branding": "الهوية",
@@ -633,7 +653,11 @@
     "finance.books_start_date": "تاريخ بداية الدفاتر في النظام",
     "cash.treasury_deposit_limit": "حد إيداع الخزينة في البنك (د.ك، 0 = بلا تنبيه)",
     "cash.treasury_deposit_weekdays": "أيام إيداع الخزينة في البنك",
-    "payroll.live_approval_enabled": "اعتماد المسيرات الحقيقية (بعد اختبار المطابقة مع كشف شهر سابق؛ للمالك فقط)"
+    "payroll.live_approval_enabled": "اعتماد المسيرات الحقيقية (بعد اختبار المطابقة مع كشف شهر سابق؛ للمالك فقط)",
+    "maintenance.due_soon_days": "الصيانة الدورية «تستحق قريباً» قبل موعدها بـ (يوم)",
+    "maintenance.due_soon_km": "الصيانة الدورية «تستحق قريباً» قبل عدادها بـ (كم)",
+    "maintenance.escalate_after_days": "تصعيد الإصلاح المتأخر بعد (يوم) من موعده المتوقع (العاجل فوراً)",
+    "maintenance.long_stay_days": "تنبيه لسيارة في المركز بلا موعد متوقع بعد (يوم؛ 0 = بدون)"
   },
   "common": {
     "active": "نشط",
@@ -708,7 +732,12 @@
     "treasury_deposit_due": "خزينة {branch} بلغت {balance} د.ك (الحد {limit}): أودعها في البنك",
     "treasury_deposit_day": "اليوم يوم إيداع خزينة {branch} في البنك: فيها {balance} د.ك",
     "treasury_not_closed": "خزينة {branch}: يوم {day} عليه حركات ولم يُجرد ويُقفل",
-    "payroll_objection": "اعتراض جديد من {driver} على كشف راتب {month}"
+    "payroll_objection": "اعتراض جديد من {driver} على كشف راتب {month}",
+    "maintenance_due": "الصيانة الدورية «{title}» للسيارة {plate} تستحق قريباً: {due}",
+    "maintenance_overdue": "الصيانة الدورية «{title}» للسيارة {plate} متأخرة: كانت مستحقة {due}",
+    "maintenance_late": "السيارة {plate} (طلب #{number}) في {center} تجاوزت موعد الإنجاز المتوقع {date}",
+    "maintenance_long_stay": "السيارة {plate} (طلب #{number}) في {center} منذ {date} بلا موعد إنجاز متوقع",
+    "maintenance_escalated": "تصعيد: السيارة {plate} (طلب #{number}) في {center} متأخرة عن موعد {date} — المسؤول: {assignee}"
   },
   "alert_kind": {
     "device_replaced": "ربط جهاز جديد لسائق",
@@ -778,7 +807,8 @@
   },
   "custody_kind": {
     "normal": "عادي",
-    "emergency": "طارئ"
+    "emergency": "طارئ",
+    "replacement": "بديلة"
   },
   "reading_kind": {
     "handover": "تسليم",
@@ -1440,7 +1470,8 @@
     "fuel_claim": "طلب بنزين",
     "period": "شهر محاسبي",
     "uncollected": "خصومات غير محصلة",
-    "payroll_objection": "اعتراض على كشف راتب"
+    "payroll_objection": "اعتراض على كشف راتب",
+    "maintenance_schedule": "جدول صيانة دورية"
   },
   "audit_actor": {
     "user": "مستخدم",
@@ -1722,5 +1753,34 @@
     "accepted": "مقبول",
     "rejected": "مرفوض",
     "closed": "مغلق"
+  },
+  "maintenance_priority": {
+    "low": "منخفضة",
+    "normal": "عادية",
+    "high": "عالية",
+    "urgent": "عاجلة"
+  },
+  "schedule_state": {
+    "ok": "في موعدها",
+    "due": "تستحق قريباً",
+    "overdue": "متأخرة",
+    "unknown": "بيانات غير كافية",
+    "inactive": "موقوف",
+    "no_baseline": "عداد آخر مرة غير معروف",
+    "no_reading": "لا توجد قراءة عداد للسيارة"
+  },
+  "fuel_flag": {
+    "no_odometer": "بلا قراءة عداد",
+    "no_litres": "بلا لترات",
+    "odometer_conflict": "العداد يخالف قراءات السيارة المصوّرة",
+    "odometer_backwards": "العداد أقل من التعبئة السابقة",
+    "price_outlier": "سعر اللتر بعيد عن المعتاد",
+    "stretch_litres_missing": "تعبئة بينها بلا لترات: المسافة لا تُحسب",
+    "gap_too_long": "مسافة أطول من خزان: تعبئة ناقصة على الأرجح",
+    "implausible": "استهلاك غير منطقي",
+    "consumption_outlier": "استهلاك بعيد عن معدل السيارة",
+    "above_fleet": "استهلاك السيارة أعلى من متوسط الأسطول",
+    "few_stretches": "تعبئات متتالية قليلة",
+    "short_distance": "مسافة قليلة"
   }
 }

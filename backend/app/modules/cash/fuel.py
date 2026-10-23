@@ -34,6 +34,8 @@ from app.modules.payroll import service as payroll
 from app.modules.people import service as people
 
 CLOCK_SKEW = timedelta(minutes=5)
+# a price per litre outside this (KWD) is a typo in the amount or the litres, never a real fill
+PRICE_PER_LITRE = (Decimal("0.020"), Decimal("1.000"))
 OLDEST = timedelta(days=7)  # an older receipt is no longer claimed
 ERRORS = {"fuel_claims_client_ref_key": "fuel_exists", "fuel_claims_receipt_sha256_key": "fuel_receipt_used"}
 REFUSALS = {"fuel_card": "fuel_card_driver", "not_covered": "fuel_not_covered", "no_vehicle": "fuel_no_vehicle"}
@@ -67,12 +69,25 @@ def _driver_out(db: Session, rows: list[FuelClaim]) -> list[dict]:
             "status": c.status,
             "decision_note": c.decision_note,
             "odometer_km": c.odometer_km,
+            "litres": c.litres,
             "notes": c.notes,
             "vehicle_plate": plates.get(c.vehicle_id),
             "created_at": c.created_at,
         }
         for c in rows
     ]
+
+
+def price_per_litre(amount: Decimal | None, litres: Decimal | None) -> Decimal | None:
+    if amount is None or not litres:
+        return None
+    return (amount / litres).quantize(Decimal("0.001"))
+
+
+def _check_price(amount: Decimal, litres: Decimal | None) -> None:
+    price = price_per_litre(amount, litres)
+    if price is not None and not PRICE_PER_LITRE[0] <= price <= PRICE_PER_LITRE[1]:
+        raise AppError(422, "fuel_price_implausible", price=f"{price:.3f}")
 
 
 # ------------------------------------------------------------------ the driver
@@ -126,12 +141,13 @@ def driver_claim(db: Session, *, employee_id: int, device_id: int, data: dict) -
     reason = _refusal(db, driver, business_date(at))
     if reason is not None:
         raise AppError(409, REFUSALS[reason])
-    custody = next(iter(fleet.custodies_for_driver(db, employee_id, at, at)), None)
+    custody = fleet.custody_for_driver_at(db, employee_id, at)  # the car he drove then (a replacement too)
     if custody is None:
         raise AppError(409, "fuel_no_vehicle")
     limit = _max_amount(db)
     if data["amount"] > limit:
         raise AppError(422, "fuel_amount_too_high", max=f"{limit:.3f}")
+    _check_price(data["amount"], data.get("litres"))
     _check_receipt(db, data["receipt_sha256"], device_id)
     claim = FuelClaim(
         employee_id=employee_id,
@@ -142,6 +158,7 @@ def driver_claim(db: Session, *, employee_id: int, device_id: int, data: dict) -
         paid_at=at,
         amount=data["amount"],
         odometer_km=data.get("odometer_km"),
+        litres=data.get("litres"),
         receipt_sha256=data["receipt_sha256"],
         notes=data.get("notes") or None,
     )
@@ -258,6 +275,8 @@ def _office_out(db: Session, rows: list[FuelClaim]) -> list[dict]:
                 "amount": c.amount,
                 "approved_amount": c.approved_amount,
                 "odometer_km": c.odometer_km,
+                "litres": c.litres,
+                "price_per_litre": price_per_litre(c.approved_amount or c.amount, c.litres),
                 "notes": c.notes,
                 "status": c.status,
                 "decision_note": c.decision_note,
@@ -331,7 +350,18 @@ def _decided(db: Session, claim: FuelClaim, **values) -> None:
         raise AppError(409, "fuel_decided")
 
 
-def approve(db: Session, public_id, *, amount: Decimal | None, note: str | None, actor_user_id: int, **scope) -> dict:
+def approve(
+    db: Session,
+    public_id,
+    *,
+    amount: Decimal | None,
+    note: str | None,
+    actor_user_id: int,
+    litres: Decimal | None = None,
+    **scope,
+) -> dict:
+    """litres: read from the receipt by the accountant (the driver's, or none, otherwise); it feeds the fuel economy,
+    not the money."""
     claim = _get(db, public_id, lock=True, **scope)
     if claim.status != "pending":
         raise AppError(409, "fuel_decided", status=claim.status)
@@ -341,6 +371,9 @@ def approve(db: Session, public_id, *, amount: Decimal | None, note: str | None,
     limit = _max_amount(db)
     if amount > limit:
         raise AppError(422, "fuel_amount_too_high", max=f"{limit:.3f}")
+    litres_before = claim.litres
+    litres = claim.litres if litres is None else litres
+    _check_price(amount, litres)
     driver = people.ref(db, claim.employee_id)
     day = business_date(claim.paid_at)
     reason = _refusal(db, driver, day)
@@ -362,6 +395,7 @@ def approve(db: Session, public_id, *, amount: Decimal | None, note: str | None,
         db,
         claim,
         status="approved",
+        litres=litres,
         approved_amount=amount,
         decision_note=note,
         decided_by=actor_user_id,
@@ -385,8 +419,8 @@ def approve(db: Session, public_id, *, amount: Decimal | None, note: str | None,
         entity_id=claim.public_id,
         actor_user_id=actor_user_id,
         company_id=claim.company_id,
-        before={"amount": claim.amount},
-        after={"amount": amount, "journal": str(journal.public_id)},
+        before={"amount": claim.amount, "litres": litres_before},
+        after={"amount": amount, "litres": litres, "journal": str(journal.public_id)},
         comment=note,
     )
     db.commit()

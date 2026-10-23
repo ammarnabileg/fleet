@@ -184,6 +184,7 @@ class DriverCustody(BaseModel):
     last_odometer_km: int | None
     in_maintenance: bool = False  # at a center: still his, no day starts with it until he collects it
     maintenance_center: str | None = None  # the center it is at
+    replacement: bool = False  # a replacement car, while his own is at a center
 
 
 class DriverTodayOut(BaseModel):

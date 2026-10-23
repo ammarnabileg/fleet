@@ -57,13 +57,15 @@ class Vehicle(Base):
 
 
 class Custody(Base):
-    """Non-overlapping per vehicle and per driver: two exclusion constraints in the migration."""
+    """Non-overlapping per vehicle, and per driver for each of normal-or-emergency and replacement: exclusion
+    constraints in the migrations. A replacement is the car a driver holds while his own is at a maintenance center
+    (his own custody stays open meanwhile)."""
 
     __tablename__ = "custodies"
     __table_args__ = (
         CheckConstraint("ended_at IS NULL OR ended_at > started_at", name="period"),
         CheckConstraint("kind <> 'emergency' OR reason IS NOT NULL", name="reason"),
-        CheckConstraint("kind IN ('normal', 'emergency')", name="kind"),
+        CheckConstraint("kind IN ('normal', 'emergency', 'replacement')", name="kind"),
         SCHEMA,
     )
 

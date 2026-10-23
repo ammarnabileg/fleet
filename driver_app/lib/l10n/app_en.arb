@@ -534,5 +534,12 @@
   "objectionStatus_closed": "Closed",
   "objectionInstallment": "An installment",
   "vehicleChangeApprovedFor": "Your change to {plate} was approved: collect it from the office",
-  "receiptReversed": "Cancelled"
+  "receiptReversed": "Cancelled",
+  "pickupReplacementTitle": "The replacement car {plate}",
+  "pickupReplacementHint": "You hand it back as you collect your car: photograph its odometer and enter the reading.",
+  "pickupReplacementPhoto": "Photo of the replacement car odometer",
+  "fuelLitres": "Litres (optional)",
+  "fuelLitresInvalid": "Enter the litres as on the receipt (up to 500)",
+  "fuelLitresUnit": "L",
+  "replacementCar": "Replacement car — yours is at the center"
 }

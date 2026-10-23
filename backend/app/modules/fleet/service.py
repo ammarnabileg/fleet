@@ -1,8 +1,12 @@
 """Vehicles, custody (which driver had which vehicle, and when) and odometer readings.
 
-Custody periods never overlap per vehicle or per driver; the database enforces it (two exclusion constraints), so
-"who was responsible for the vehicle at time T" always has at most one answer. Every reading is checked against
-the previous one of the same vehicle; a suspicious reading is stored, flagged, raises an alert and waits for review.
+Custody periods never overlap per vehicle or per driver; the database enforces it (exclusion constraints), so "who
+was responsible for the vehicle at time T" always has at most one answer. The one exception is the replacement car a
+driver holds while his own is at a maintenance center: his own custody stays open, and the replacement is a custody of
+kind "replacement" (one at a time); while it is open it is the car he works with (his working custody).
+
+Every reading is checked against the previous one of the same vehicle; a suspicious reading is stored, flagged,
+raises an alert and waits for review.
 """
 
 import re
@@ -38,7 +42,13 @@ from app.modules.people import service as people
 MANUAL_STATUSES = ("available", "maintenance", "accident", "inactive")  # "assigned" follows custody
 VEHICLE_FIELDS = ("plate_number", "make", "model", "year", "color", "vin", "company_id", "branch_id", "status")
 UNIQUE_ERRORS = {"vehicles_plate_number_idx": "plate_taken", "vehicles_vin_key": "vin_taken"}
-OVERLAP_ERRORS = {"custodies_vehicle_overlap": "vehicle_has_custody", "custodies_driver_overlap": "driver_has_custody"}
+OVERLAP_ERRORS = {
+    "custodies_vehicle_overlap": "vehicle_has_custody",
+    "custodies_driver_overlap": "driver_has_custody",
+    "custodies_replacement_overlap": "driver_has_replacement",
+}
+# the car he works with first: a replacement, while his own is at the center
+WORKING_FIRST = (Custody.kind == "replacement").desc()
 PHOTO_POSITIONS = ("front", "back", "left", "right", "interior", "other")
 CLOCK_SKEW = timedelta(minutes=5)
 BACKDATE_LIMIT = timedelta(days=7)
@@ -584,11 +594,14 @@ def driver_reading(
     if not (now - DRIVER_READING_DELAY <= recorded_at <= now + CLOCK_SKEW):
         raise AppError(422, "invalid_recorded_at")
     custody = db.scalar(
-        select(Custody).where(
+        select(Custody)
+        .where(
             Custody.driver_id == employee_id,
             Custody.started_at <= recorded_at,
             or_(Custody.ended_at.is_(None), Custody.ended_at > recorded_at),
         )
+        .order_by(WORKING_FIRST)
+        .limit(1)
     )
     if custody is None:
         raise AppError(409, "no_open_custody")
@@ -825,6 +838,14 @@ def _start_custody(
 ) -> Custody:
     """The custody, its handover reading and photos, the vehicle assigned (vehicle locked, checks done). pair: the
     return reading taken at the same moment with the same photo, when the car passes from one driver to another."""
+    if kind != "replacement" and db.scalar(
+        select(Custody.id).where(
+            Custody.driver_id == driver.id,
+            Custody.kind == "replacement",
+            or_(Custody.ended_at.is_(None), Custody.ended_at > started_at),
+        )
+    ):
+        raise AppError(409, "driver_has_custody")  # his replacement car is returned first
     custody = Custody(
         vehicle_id=vehicle.id,
         driver_id=driver.id,
@@ -988,10 +1009,12 @@ def _end_custody(
     ended_at: datetime,
     odometer_km: int,
     photo_sha256: str,
-    actor_user_id: int,
+    actor_user_id: int | None,
     photos: list[dict] | None = None,
+    device_id: int | None = None,
 ) -> tuple[dict, OdometerReading]:
-    """The custody ended with its return reading and photos, the vehicle free: its output and the return reading."""
+    """The custody ended with its return reading and photos, the vehicle free: its output and the return reading.
+    device_id: returned from the driver's phone (his replacement car, when he collects his own from the center)."""
     custody.ended_at, custody.returned_by = ended_at, actor_user_id
     db.flush()
     reading = _add_reading(
@@ -1003,6 +1026,7 @@ def _end_custody(
         photo_sha256=photo_sha256,
         recorded_at=ended_at,
         by_user=actor_user_id,
+        by_device=device_id,
     )
     _add_photos(db, custody, "return", photos)
     if vehicle.status == "assigned":
@@ -1017,6 +1041,7 @@ def _end_custody(
         entity_type="custody",
         entity_id=custody.public_id,
         actor_user_id=actor_user_id,
+        actor_type="device" if device_id is not None else None,
         company_id=custody.company_id,
         after=out | {"odometer_km": odometer_km},
     )
@@ -1050,6 +1075,7 @@ def transfer_check(db: Session, *, vehicle_public_id, driver_public_id, **scope)
             Custody.driver_id == driver.id, Custody.ended_at.is_(None), Custody.vehicle_id != vehicle.id
         )
     )
+    _check_no_replacement(db, held, driver.id)
     if his is not None and not _in_scope(his.company_id, **scope):
         raise AppError(403, "company_out_of_scope")  # as transfer() refuses it
     names = people.names(db, [held.driver_id] if held else [])
@@ -1077,6 +1103,17 @@ def transfer_check(db: Session, *, vehicle_public_id, driver_public_id, **scope)
         },
         "modes_allowed": modes,
     }
+
+
+def _check_no_replacement(db: Session, held: Custody | None, driver_id: int) -> None:
+    """A replacement car, or a driver holding one, is not part of a transfer: the replacement ends when he collects
+    his own car from the center (or the office takes it back first)."""
+    if (held is not None and held.kind == "replacement") or db.scalar(
+        select(Custody.id).where(
+            Custody.driver_id == driver_id, Custody.kind == "replacement", Custody.ended_at.is_(None)
+        )
+    ):
+        raise AppError(409, "replacement_custody")
 
 
 def transfer(
@@ -1113,6 +1150,7 @@ def transfer(
             .with_for_update()
         )
     )
+    _check_no_replacement(db, next((c for c in held if c.vehicle_id == target.id), None), driver.id)
     on_x = next((c for c in held if c.vehicle_id == target.id), None)  # B's custody of X
     on_y = next((c for c in held if c.driver_id == driver.id and c.vehicle_id != target.id), None)  # A's of Y
     if on_x is not None and on_x.driver_id == driver.id:
@@ -1302,6 +1340,107 @@ def released_from_maintenance(db: Session, vehicle_id: int) -> None:
         vehicle.version += 1
 
 
+def start_replacement(
+    db: Session,
+    *,
+    own_vehicle_id: int,
+    vehicle_public_id,
+    odometer_km: int,
+    photo_sha256: str,
+    photos: list[dict] | None,
+    started_at: datetime | None,
+    actor_user_id: int,
+    **scope,
+) -> CustodyRef:
+    """A replacement car for the driver who keeps his own (own_vehicle_id) while it is at the center: a custody of
+    kind "replacement", with its handover reading and photos, the car assigned. The normal checks apply (the car
+    free, the driver working with a valid licence); he holds one replacement at a time, a car one custody at a time.
+    In the caller's transaction."""
+    started_at = started_at or utcnow()
+    _check_moment(started_at)
+    own = db.scalar(
+        select(Custody)
+        .where(Custody.vehicle_id == own_vehicle_id, Custody.ended_at.is_(None), Custody.kind != "replacement")
+        .with_for_update()
+    )
+    if own is None:
+        raise AppError(409, "replacement_needs_holder")  # nobody keeps a car at the center: nothing to replace
+    if started_at <= own.started_at:
+        raise AppError(422, "ended_before_start")
+    vehicle = _get_vehicle(db, vehicle_public_id, lock=True, **scope)
+    if vehicle.id == own_vehicle_id:
+        raise AppError(422, "replacement_same_vehicle")
+    driver = people.ref(db, own.driver_id)
+    _check_can_take(db, vehicle, driver, started_at)
+    _check_photo(db, photo_sha256)
+    for photo in photos or ():
+        _check_photo(db, photo["sha256"])
+    custody = _start_custody(
+        db,
+        vehicle,
+        driver,
+        started_at=started_at,
+        kind="replacement",
+        reason=None,
+        odometer_km=odometer_km,
+        photo_sha256=photo_sha256,
+        handed_over_by=actor_user_id,
+        by_user=actor_user_id,
+        photos=photos,
+    )
+    out = _custodies_out(db, [custody])[0]
+    audit.record(
+        db,
+        action="custody.started",
+        entity_type="custody",
+        entity_id=custody.public_id,
+        actor_user_id=actor_user_id,
+        company_id=vehicle.company_id,
+        after=out | {"odometer_km": odometer_km, "replacing": db.get(Vehicle, own_vehicle_id).plate_number},
+    )
+    notifications.notify_driver(db, driver.id, "vehicle_handed_over", params={"plate": vehicle.plate_number})
+    return _cref(custody)
+
+
+def end_replacement(
+    db: Session,
+    custody_id: int,
+    *,
+    odometer_km: int,
+    photo_sha256: str,
+    at: datetime | None,
+    actor_user_id: int | None = None,
+    device_id: int | None = None,
+    photos: list[dict] | None = None,
+) -> dict | None:
+    """The replacement car comes back (its return reading and photo): when the driver collects his own car from the
+    center (from his phone, device_id), or earlier through the office. Nothing when it was returned already.
+    In the caller's transaction."""
+    custody = db.scalar(select(Custody).where(Custody.id == custody_id).with_for_update())
+    if custody is None or custody.kind != "replacement":
+        raise AppError(404, "custody_not_found")
+    if custody.ended_at is not None:
+        return None
+    at = at or utcnow()
+    if device_id is None:
+        _check_moment(at)
+    if at <= custody.started_at:
+        raise AppError(422, "ended_before_start")
+    if device_id is not None:
+        photo = _check_photo(db, photo_sha256)
+        if photo.source != "camera" or photo.uploaded_by_device != device_id:
+            raise AppError(422, "photo_not_from_camera")
+    else:
+        _check_photo(db, photo_sha256)
+    for p in photos or ():
+        _check_photo(db, p["sha256"])
+    vehicle = _vehicle_for_update(db, custody.vehicle_id)
+    out, _ = _end_custody(
+        db, custody, vehicle, at, odometer_km, photo_sha256, actor_user_id, photos, device_id=device_id
+    )
+    return out
+
+
 def in_maintenance(db: Session, custody_ids: Iterable[int], at: datetime | None = None) -> set[int]:
     """The custodies whose car was at a center at `at` (now by default): the center's reception on the custody with
     no reading of it collected since. The driver keeps it, but does not work with it meanwhile."""
@@ -1352,7 +1491,27 @@ def _maintenance_spans(db: Session, driver_ids: list[int], start: datetime, end:
     for custody_id, t in opened.items():
         driver_id, ended = ends[custody_id]
         spans.append((driver_id, t, ended or utcnow()))
-    return [s for s in spans if s[2] > start and s[1] < end]
+    spans = [s for s in spans if s[2] > start and s[1] < end]
+    if not spans:
+        return spans
+    # while he held a replacement car he worked with it: those hours are not "his car at the center, no work"
+    covered: dict[int, list[tuple[datetime, datetime]]] = {}
+    for driver_id, a, b in db.execute(
+        select(Custody.driver_id, Custody.started_at, Custody.ended_at).where(
+            Custody.driver_id.in_({s[0] for s in spans}),
+            Custody.kind == "replacement",
+            Custody.started_at < end,
+            or_(Custody.ended_at.is_(None), Custody.ended_at > start),
+        )
+    ):
+        covered.setdefault(driver_id, []).append((a, b or utcnow() + CLOCK_SKEW))
+    out = []
+    for driver_id, a, b in spans:
+        pieces = [(a, b)]
+        for ra, rb in sorted(covered.get(driver_id, [])):
+            pieces = [p for x, y in pieces for p in ((x, min(y, ra)), (max(x, rb), y)) if p[1] > p[0]]
+        out.extend((driver_id, x, y) for x, y in pieces)
+    return out
 
 
 # ------------------------------------------------------------------ accidents (in the caller's transaction)
@@ -1470,19 +1629,20 @@ def review_custody(db: Session, public_id, *, note: str, actor_user_id: int, **s
 
 def flag_departed_driver(db: Session, employee: people.EmployeeRef) -> None:
     """Employment ended while the driver still holds a vehicle: someone must collect it."""
-    custody = db.scalar(select(Custody).where(Custody.driver_id == employee.id, Custody.ended_at.is_(None)))
-    if custody is None:
+    held = list(db.scalars(select(Custody).where(Custody.driver_id == employee.id, Custody.ended_at.is_(None))))
+    if not held:
         return
-    vehicle = db.get(Vehicle, custody.vehicle_id)
-    notifications.raise_alert(
-        db,
-        "driver_left_with_vehicle",
-        company_id=custody.company_id,
-        entity_type="custody",
-        entity_id=custody.public_id,
-        params={"driver": employee.name, "plate": vehicle.plate_number},
-        dedupe_key=f"driver_left:{custody.id}",
-    )
+    for custody in held:  # his own car, and a replacement while his is at a center
+        vehicle = db.get(Vehicle, custody.vehicle_id)
+        notifications.raise_alert(
+            db,
+            "driver_left_with_vehicle",
+            company_id=custody.company_id,
+            entity_type="custody",
+            entity_id=custody.public_id,
+            params={"driver": employee.name, "plate": vehicle.plate_number},
+            dedupe_key=f"driver_left:{custody.id}",
+        )
     db.commit()
 
 
@@ -1542,11 +1702,57 @@ def vehicle_cards(db: Session, ids: Iterable[int]) -> dict[int, dict]:
     }
 
 
+def last_readings(db: Session, ids: Iterable[int]) -> dict[int, dict]:
+    """Each vehicle's latest odometer reading (as corrected): {"km", "at"}; none for a vehicle never read."""
+    ids = list(set(ids))
+    if not ids:
+        return {}
+    rows = db.scalars(
+        select(OdometerReading)
+        .where(OdometerReading.vehicle_id.in_(ids))
+        .order_by(OdometerReading.vehicle_id, OdometerReading.recorded_at.desc(), OdometerReading.id.desc())
+        .distinct(OdometerReading.vehicle_id)
+    )
+    return {r.vehicle_id: {"km": r.effective_km, "at": r.recorded_at} for r in rows}
+
+
+def readings_between(db: Session, vehicle_ids: Iterable[int], start: datetime, end: datetime) -> dict[int, list]:
+    """The odometer readings (photographed, as corrected) of these vehicles in [start, end], oldest first, as
+    (recorded_at, km): what a fuel fill's odometer is checked against."""
+    out: dict[int, list] = {}
+    ids = list(set(vehicle_ids))
+    if not ids:
+        return out
+    rows = db.execute(
+        select(OdometerReading.vehicle_id, OdometerReading.recorded_at, OdometerReading.value_km,
+               OdometerReading.corrected_km)
+        .where(
+            OdometerReading.vehicle_id.in_(ids),
+            OdometerReading.recorded_at >= start,
+            OdometerReading.recorded_at <= end,
+            OdometerReading.review_status != "pending",  # a suspicious reading not reviewed yet is not a reference
+        )
+        .order_by(OdometerReading.vehicle_id, OdometerReading.recorded_at, OdometerReading.id)
+    )  # fmt: skip
+    for vehicle_id, at, value, corrected in rows:
+        out.setdefault(vehicle_id, []).append((at, corrected if corrected is not None else value))
+    return out
+
+
 def plate_numbers(db: Session, ids: Iterable[int]) -> dict[int, str]:
     ids = set(ids)
     if not ids:
         return {}
     return dict(db.execute(select(Vehicle.id, Vehicle.plate_number).where(Vehicle.id.in_(ids))).all())
+
+
+def custodies_brief(db: Session, ids: Iterable[int]) -> dict[int, dict]:
+    """Custodies as the screens list them (vehicle, driver, period, kind), by internal id."""
+    ids = list({i for i in ids if i is not None})
+    if not ids:
+        return {}
+    rows = list(db.scalars(select(Custody).where(Custody.id.in_(ids))))
+    return {c.id: out for c, out in zip(rows, _custodies_out(db, rows), strict=True)}
 
 
 def custody_ref_by_public_id(db: Session, public_id, **scope) -> CustodyRef:
@@ -1557,7 +1763,36 @@ def custody_ref_by_public_id(db: Session, public_id, **scope) -> CustodyRef:
 
 
 def open_custody_for_driver(db: Session, driver_id: int) -> CustodyRef | None:
-    custody = db.scalar(select(Custody).where(Custody.driver_id == driver_id, Custody.ended_at.is_(None)))
+    """The car he works with now: a replacement while his own is at a center, otherwise his custody."""
+    custody = db.scalar(
+        select(Custody)
+        .where(Custody.driver_id == driver_id, Custody.ended_at.is_(None))
+        .order_by(WORKING_FIRST)
+        .limit(1)
+    )
+    return None if custody is None else _cref(custody)
+
+
+def own_custody_for_driver(db: Session, driver_id: int) -> CustodyRef | None:
+    """His own car's custody (never a replacement), open now."""
+    custody = db.scalar(
+        select(Custody).where(Custody.driver_id == driver_id, Custody.ended_at.is_(None), Custody.kind != "replacement")
+    )
+    return None if custody is None else _cref(custody)
+
+
+def custody_for_driver_at(db: Session, driver_id: int, at: datetime) -> CustodyRef | None:
+    """The car he worked with at time `at`: a replacement he held then, otherwise his custody then."""
+    custody = db.scalar(
+        select(Custody)
+        .where(
+            Custody.driver_id == driver_id,
+            Custody.started_at <= at,
+            or_(Custody.ended_at.is_(None), Custody.ended_at > at),
+        )
+        .order_by(WORKING_FIRST)
+        .limit(1)
+    )
     return None if custody is None else _cref(custody)
 
 
@@ -1576,8 +1811,14 @@ def open_custodies(db: Session) -> list[CustodyRef]:
 
 
 def driver_today(db: Session, employee_id: int) -> dict:
-    """What the driver app shows on its home screen."""
-    custody = db.scalar(select(Custody).where(Custody.driver_id == employee_id, Custody.ended_at.is_(None)))
+    """What the driver app shows on its home screen: the car he works with (a replacement while his own is at a
+    center)."""
+    custody = db.scalar(
+        select(Custody)
+        .where(Custody.driver_id == employee_id, Custody.ended_at.is_(None))
+        .order_by(WORKING_FIRST)
+        .limit(1)
+    )
     if custody is None:
         return {"custody": None, "start_day_done": False, "end_day_done": False, "sessions": 0, "recent": {}}
     vehicle = db.get(Vehicle, custody.vehicle_id)
@@ -1602,6 +1843,7 @@ def driver_today(db: Session, employee_id: int) -> dict:
             "last_odometer_km": vehicle.last_odometer_km,
             # at a center: still his, but no day starts with it until he collects it
             "in_maintenance": custody.id in in_maintenance(db, [custody.id]),
+            "replacement": custody.kind == "replacement",  # his own car is at the center meanwhile
         },
         "start_day_done": started,
         "end_day_done": started and last["end"] is not None,
@@ -1922,7 +2164,11 @@ def _requested_vehicles(db: Session, rows: list[VehicleChangeRequest]) -> dict[i
 def driver_vehicle(db: Session, employee_id: int) -> dict:
     """ "My car" in the app: the vehicle held, its last odometer reading, its registration's expiry, and the change
     he asked for, if any; without a car, the one he registered (waiting for the office, or refused)."""
-    custody = db.scalar(select(Custody).where(Custody.driver_id == employee_id, Custody.ended_at.is_(None)))
+    custody = db.scalar(
+        select(Custody).where(
+            Custody.driver_id == employee_id, Custody.ended_at.is_(None), Custody.kind != "replacement"
+        )
+    )
     if custody is None:
         return {"vehicle": None, "change_request": None, "claim": _my_claim(db, employee_id)}
     vehicle = db.get(Vehicle, custody.vehicle_id)
@@ -1966,7 +2212,9 @@ def request_vehicle_change(db: Session, *, employee_id: int, device_id: int, req
     """The driver asks for another vehicle, naming it by its plate, with his reason; the supervisors see it
     (FR-ASG-04). The plate must be one of his company's vehicles: a plate not found is refused so he types it again."""
     custody = db.scalar(
-        select(Custody).where(Custody.driver_id == employee_id, Custody.ended_at.is_(None)).with_for_update()
+        select(Custody)
+        .where(Custody.driver_id == employee_id, Custody.ended_at.is_(None), Custody.kind != "replacement")
+        .with_for_update()
     )
     if custody is None:
         raise AppError(409, "no_open_custody")

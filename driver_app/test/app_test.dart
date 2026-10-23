@@ -2219,6 +2219,73 @@ void main() {
     expect(find.byKey(const Key('start-day')), findsOneWidget, reason: 'he works with it again: his day can start');
   });
 
+  testWidgets('with a replacement car: he hands it back, with its reading and photo, as he collects his own', (
+    tester,
+  ) async {
+    var collected = false;
+    Map<String, dynamic> request() => {
+      'id': 'm1',
+      'number': 41,
+      'vehicle_plate': '18/23456',
+      'kind': 'mechanical',
+      'description': 'Noise',
+      'status': collected ? 'picked_up' : 'ready',
+      'center': {'id': 'k1', 'name': 'مركز النور', 'phone': null, 'address': null},
+      'created_at': '2026-10-03T07:00:00Z',
+      'ready_at': '2026-10-04T09:00:00Z',
+      'picked_up_at': null,
+      'decision_note': null,
+      'direct': true,
+      'pickup_in_app': !collected,
+      'replacement_plate': collected ? null : '18/99999',
+    };
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on('GET', '/api/v1/driver/maintenance', (r) => (200, [request()]));
+    final img = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.utc(2026, 10, 4, 10, 5));
+    var n = 0;
+    w.server.on('POST', '/api/v1/driver/files', (r) {
+      n++;
+      return (201, {'sha256': '$n' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'});
+    });
+    w.server.on('POST', '/api/v1/driver/maintenance/m1/picked-up', (r) {
+      collected = true;
+      return (200, request());
+    });
+    await pumpApp(tester, w);
+    await tester.tap(find.byKey(const Key('mnt-picked-up-41')));
+    await settle(tester);
+    expect(find.byKey(const Key('pickup-replacement')), findsOneWidget);
+    expect(find.textContaining('18/99999'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('odo-photo')));
+    await idle(tester);
+    await tester.enterText(find.byKey(const Key('km')), '45300');
+    await reveal(tester, find.byKey(const Key('send-reading')));
+    await tester.tap(find.byKey(const Key('send-reading')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/maintenance/m1/picked-up'), isEmpty, reason: 'the replacement photo first');
+    expect(find.byType(SnackBar), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5)); // the snack bar over the button goes
+    await settle(tester);
+    await reveal(tester, find.byKey(const Key('spare-photo')));
+    await tester.tap(find.byKey(const Key('spare-photo')));
+    await idle(tester);
+    await tester.enterText(find.byKey(const Key('spare-km')), '5090');
+    await reveal(tester, find.byKey(const Key('send-reading')));
+    await tester.tap(find.byKey(const Key('send-reading')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/maintenance/m1/picked-up').single.body) as Map;
+    expect(
+      (
+        body['odometer_km'],
+        body['replacement_odometer_km'],
+        body['odometer_photo'] != body['replacement_odometer_photo'],
+      ),
+      (45300, 5090, true),
+    );
+    expect((body['replacement_odometer_photo'] as String).length, 64);
+  });
+
   Map<String, dynamic> accident({
     String stage = 'reported',
     bool police = false,
@@ -3489,6 +3556,60 @@ void main() {
       find.descendant(of: find.byKey(const Key('fuel-claim-fc1')), matching: find.text('بانتظار المراجعة')),
       findsOne,
     );
+  });
+
+  testWidgets('fuel litres: optional, checked, sent as on the receipt', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on('GET', '/api/v1/driver/fuel', (r) => (200, fuelView(claims: const [])));
+    final img = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.now().subtract(const Duration(minutes: 3)));
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'f' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on(
+      'POST',
+      '/api/v1/driver/fuel',
+      (r) => (
+        201,
+        {
+          'id': 'fc2',
+          'paid_at': '2026-10-08T08:00:00Z',
+          'amount': '4.200',
+          'approved_amount': null,
+          'status': 'pending',
+          'decision_note': null,
+          'odometer_km': null,
+          'litres': '40.00',
+          'notes': null,
+          'vehicle_plate': '18/23456',
+          'created_at': '2026-10-08T08:00:00Z',
+        },
+      ),
+    );
+    await pumpApp(tester, w);
+    await reveal(tester, find.byKey(const Key('fuel')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('fuel')));
+    await idle(tester);
+    await tester.enterText(find.byKey(const Key('fuel-amount')), '4.2');
+    await reveal(tester, find.byKey(const Key('fuel-photo')));
+    await tester.tap(find.byKey(const Key('fuel-photo')));
+    await idle(tester);
+    await reveal(tester, find.byKey(const Key('fuel-litres')));
+    await tester.enterText(find.byKey(const Key('fuel-litres')), '900');
+    await reveal(tester, find.byKey(const Key('fuel-send')));
+    await tester.tap(find.byKey(const Key('fuel-send')));
+    await idle(tester);
+    expect(w.server.calls('/api/v1/driver/fuel', method: 'POST'), isEmpty, reason: 'more than a tank');
+    await reveal(tester, find.byKey(const Key('fuel-litres')));
+    await tester.enterText(find.byKey(const Key('fuel-litres')), '٤٠');
+    await reveal(tester, find.byKey(const Key('fuel-send')));
+    await tester.tap(find.byKey(const Key('fuel-send')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/fuel', method: 'POST').single.body) as Map;
+    expect((body['amount'], body['litres']), ('4.200', '40.00'));
   });
 
   testWidgets('fuel decided: approved at its amount, rejected with the reason; in the cash tab as fuel', (

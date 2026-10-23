@@ -156,6 +156,7 @@ class FuelClaim(Base):
     __table_args__ = (
         CheckConstraint("amount > 0", name="amount"),
         CheckConstraint("odometer_km >= 0", name="odometer_km"),
+        CheckConstraint("litres > 0 AND litres <= 500", name="litres"),
         CheckConstraint("char_length(notes) <= 500", name="notes"),
         CheckConstraint("status IN ('pending', 'approved', 'rejected')", name="status"),
         CheckConstraint("approved_amount > 0", name="approved_amount"),
@@ -167,6 +168,7 @@ class FuelClaim(Base):
         Index("fuel_claims_employee_id_idx", "employee_id", "paid_at"),
         Index("fuel_claims_status_idx", "status", "created_at"),
         Index("fuel_claims_created_at_idx", "created_at"),
+        Index("fuel_claims_vehicle_id_idx", "vehicle_id", "paid_at"),
         SCHEMA,
     )
 
@@ -180,6 +182,7 @@ class FuelClaim(Base):
     paid_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 3))
     odometer_km: Mapped[int | None] = mapped_column(Integer)
+    litres: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))  # from the app, or the accountant (the receipt)
     receipt_sha256: Mapped[str] = mapped_column(Text, ForeignKey("files.files.sha256"), unique=True)
     notes: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))

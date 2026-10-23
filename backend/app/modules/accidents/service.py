@@ -411,7 +411,7 @@ def driver_report(db: Session, *, employee_id: int, device_id: int, data: dict) 
         raise AppError(409, "accident_exists")  # a retry: already recorded
     at = data.get("occurred_at") or utcnow()
     _check_time(at, DRIVER_DELAY)
-    custody = next(iter(fleet.custodies_for_driver(db, employee_id, at, at)), None)
+    custody = fleet.custody_for_driver_at(db, employee_id, at)  # the car he drove then (a replacement too)
     if custody is None:
         raise AppError(409, "no_vehicle_in_custody")
     photos = list(dict.fromkeys(data.get("photos") or []))

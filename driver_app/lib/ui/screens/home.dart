@@ -485,7 +485,11 @@ class _VehicleCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l.yourCar, style: const TextStyle(color: Color(0xC7FFFFFF), fontSize: 12)),
+                  Text(
+                    custody.replacement ? l.replacementCar : l.yourCar,
+                    key: custody.replacement ? const Key('replacement-car') : null,
+                    style: const TextStyle(color: Color(0xC7FFFFFF), fontSize: 12),
+                  ),
                   const SizedBox(height: 2),
                   Row(
                     children: [

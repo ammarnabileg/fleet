@@ -1669,4 +1669,27 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get receiptReversed => 'ملغي';
+
+  @override
+  String pickupReplacementTitle(String plate) {
+    return 'السيارة البديلة $plate';
+  }
+
+  @override
+  String get pickupReplacementHint => 'تُرجعها وأنت تستلم سيارتك: صوّر عدادها واكتب قراءتها.';
+
+  @override
+  String get pickupReplacementPhoto => 'صورة عداد السيارة البديلة';
+
+  @override
+  String get fuelLitres => 'اللترات (اختياري)';
+
+  @override
+  String get fuelLitresInvalid => 'اكتب اللترات كما في الفاتورة (حتى 500)';
+
+  @override
+  String get fuelLitresUnit => 'لتر';
+
+  @override
+  String get replacementCar => 'سيارة بديلة — سيارتك في الصيانة';
 }

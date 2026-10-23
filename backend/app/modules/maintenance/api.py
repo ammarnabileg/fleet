@@ -100,17 +100,23 @@ def list_requests(
     active: bool | None = None,
     vehicle_id: uuid.UUID | None = None,
     center_id: uuid.UUID | None = None,
+    custody_id: uuid.UUID | None = None,
+    late: bool = False,
     limit: Limit = 100,
     offset: Offset = 0,
     principal: Principal = Depends(require_permission("maintenance.view")),
     db: Session = Depends(get_session),
 ):
+    """custody_id: the requests of that custody's car while it held it, and those that gave it as a replacement;
+    late: not ready yet and past the expected date (or at the center too long with none)."""
     return service.list_requests(
         db,
         status=status,
         active=active,
         vehicle_public_id=vehicle_id,
         center_public_id=center_id,
+        custody_public_id=custody_id,
+        late=late,
         limit=limit,
         offset=offset,
         **principal.scope,
@@ -133,6 +139,105 @@ def get_request(
     db: Session = Depends(get_session),
 ):
     return service.get_request(db, public_id, **principal.scope)
+
+
+@router.put("/maintenance/requests/{public_id}/plan", response_model=schemas.RequestDetailOut)
+def set_plan(
+    public_id: uuid.UUID,
+    body: schemas.PlanIn,
+    principal: Principal = Depends(require_permission("maintenance.create")),
+    db: Session = Depends(get_session),
+):
+    changes = body.model_dump(exclude_unset=True, exclude={"version"})
+    return service.set_plan(
+        db, public_id, version=body.version, changes=changes, actor_user_id=principal.user_id, **principal.scope
+    )
+
+
+@router.get("/maintenance/assignees", response_model=list[schemas.AssigneeOut])
+def assignees(
+    principal: Principal = Depends(require_permission("maintenance.create")), db: Session = Depends(get_session)
+):
+    return service.assignees(db)
+
+
+@router.post("/maintenance/requests/{public_id}/replacement", response_model=schemas.RequestDetailOut)
+def give_replacement(
+    public_id: uuid.UUID,
+    body: schemas.ReplacementIn,
+    principal: Principal = Depends(require_permission("custody.assign")),
+    db: Session = Depends(get_session),
+):
+    return service.give_replacement(
+        db, public_id, data=body.model_dump(), actor_user_id=principal.user_id, **principal.scope
+    )
+
+
+@router.post("/maintenance/requests/{public_id}/replacement/return", response_model=schemas.RequestDetailOut)
+def return_replacement(
+    public_id: uuid.UUID,
+    body: schemas.ReplacementReturnIn,
+    principal: Principal = Depends(require_permission("custody.assign")),
+    db: Session = Depends(get_session),
+):
+    return service.return_replacement(
+        db, public_id, data=body.model_dump(), actor_user_id=principal.user_id, **principal.scope
+    )
+
+
+# ------------------------------------------------------------------ periodic schedules
+
+
+@router.get("/maintenance/schedules", response_model=list[schemas.ScheduleOut])
+def list_schedules(
+    vehicle_id: uuid.UUID | None = None,
+    state: str | None = None,
+    active: bool = True,
+    principal: Principal = Depends(require_permission("maintenance.view")),
+    db: Session = Depends(get_session),
+):
+    """state: ok, due, overdue, unknown (comma separated); the overdue first, then by due date."""
+    return service.list_schedules(db, vehicle_public_id=vehicle_id, state=state, active=active, **principal.scope)
+
+
+@router.post("/maintenance/schedules", response_model=schemas.ScheduleOut, status_code=201)
+def create_schedule(
+    body: schemas.ScheduleIn,
+    principal: Principal = Depends(require_permission("maintenance.create")),
+    db: Session = Depends(get_session),
+):
+    return service.create_schedule(db, body.model_dump(), actor_user_id=principal.user_id, **principal.scope)
+
+
+@router.put("/maintenance/schedules/{public_id}", response_model=schemas.ScheduleOut)
+def update_schedule(
+    public_id: uuid.UUID,
+    body: schemas.ScheduleUpdateIn,
+    principal: Principal = Depends(require_permission("maintenance.create")),
+    db: Session = Depends(get_session),
+):
+    changes = body.model_dump(exclude_unset=True, exclude={"version"})
+    return service.update_schedule(
+        db, public_id, version=body.version, changes=changes, actor_user_id=principal.user_id, **principal.scope
+    )
+
+
+@router.post("/maintenance/schedules/{public_id}/done", response_model=schemas.ScheduleOut)
+def schedule_done(
+    public_id: uuid.UUID,
+    body: schemas.ScheduleDoneIn,
+    principal: Principal = Depends(require_permission("maintenance.create")),
+    db: Session = Depends(get_session),
+):
+    return service.schedule_done(
+        db,
+        public_id,
+        done_on=body.done_on,
+        done_km=body.done_km,
+        note=body.note,
+        actor_user_id=principal.user_id,
+        **principal.scope,
+    )
 
 
 @router.get("/maintenance/requests/{public_id}/files/{sha256}")
@@ -358,6 +463,18 @@ def receive(
     db: Session = Depends(get_session),
 ):
     return service.receive(db, public_id, user_id=principal.user_id, data=body.model_dump())
+
+
+@router.post("/portal/requests/{public_id}/expected", response_model=schemas.RequestDetailOut)
+def portal_expected(
+    public_id: uuid.UUID,
+    body: schemas.ExpectedIn,
+    principal: Principal = Depends(require_permission("portal.vehicles")),
+    db: Session = Depends(get_session),
+):
+    return service.portal_expected(
+        db, public_id, user_id=principal.user_id, expected_ready_on=body.expected_ready_on, note=body.note
+    )
 
 
 @router.post("/portal/requests/{public_id}/status", response_model=schemas.RequestDetailOut)

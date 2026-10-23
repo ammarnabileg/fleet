@@ -5,7 +5,11 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints
 
+from app.modules.fleet.schemas import PhotoIn
+
 Kind = Literal["periodic", "mechanical", "electrical", "tyres", "battery", "ac", "bodywork", "other"]
+Priority = Literal["low", "normal", "high", "urgent"]
+Km = Annotated[int, Field(ge=0, le=5_000_000)]
 Sha = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
 Reason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
@@ -89,6 +93,50 @@ class RequestIn(_In):
     odometer_km: Annotated[int, Field(ge=0, le=5_000_000)] | None = None
     emergency: bool = False
     photos: list[Sha] = Field(default_factory=list, max_length=10)
+    # the follow-up (optional): how urgent (high for an emergency by default), who follows it, the expected date,
+    # and the periodic schedule it carries out
+    priority: Priority | None = None
+    assignee_id: uuid.UUID | None = None
+    expected_ready_on: date | None = None
+    schedule_id: uuid.UUID | None = None
+
+
+class PlanIn(_In):
+    """The office's follow-up of a request; a field left out is unchanged, null clears it."""
+
+    version: int
+    priority: Priority | None = None
+    assignee_id: uuid.UUID | None = None
+    expected_ready_on: date | None = None
+
+
+class ExpectedIn(_In):
+    """The center: when it expects the car to be ready."""
+
+    expected_ready_on: date
+    note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)] | None = None
+
+
+class ReplacementIn(_In):
+    """A replacement car for the driver while his own is at the center: its reading and photo at the handover."""
+
+    vehicle_id: uuid.UUID
+    odometer_km: Km
+    photo_sha256: Sha
+    started_at: AwareDatetime | None = None
+    photos: list[PhotoIn] = Field(default_factory=list, max_length=12)
+
+
+class ReplacementReturnIn(_In):
+    odometer_km: Km
+    photo_sha256: Sha
+    ended_at: AwareDatetime | None = None
+    photos: list[PhotoIn] = Field(default_factory=list, max_length=12)
+
+
+class AssigneeOut(BaseModel):
+    id: str
+    name: str
 
 
 class DriverRequestIn(_In):
@@ -122,6 +170,9 @@ class DriverPickupIn(_In):
     odometer_km: Annotated[int, Field(ge=0, le=5_000_000)]
     odometer_photo: Sha
     picked_up_at: AwareDatetime | None = None  # when the photo was taken (sent later from the queue)
+    # the replacement car he hands back at the same time, if he was given one: its reading and camera photo
+    replacement_odometer_km: Km | None = None
+    replacement_odometer_photo: Sha | None = None
 
 
 class NoteIn(_In):
@@ -306,6 +357,12 @@ class RequestOut(BaseModel):
     cancel_reason: str | None
     is_new: bool
     driver_collects: bool = False  # at the center, a driver holds the car: he confirms the pickup in the app
+    priority: str = "normal"
+    expected_ready_on: date | None = None
+    late: str | None = None  # expected (past the expected date) | long_stay (no date, at the center too long)
+    escalated: bool = False
+    assignee: dict | None = None
+    schedule: dict | None = None  # the periodic schedule it carries out
     version: int
 
 
@@ -320,6 +377,10 @@ class RequestDetailOut(RequestOut):
     durations: list[DurationOut]
     quotes: list[QuoteOut]
     invoices: list[InvoiceOut]
+    # the office's links (none in the center's portal): the custody the car was in, the replacement cars, the pickup
+    custody: dict | None = None
+    replacements: list[dict] = Field(default_factory=list)
+    pickup: dict | None = None
 
 
 class DriverRequestOut(BaseModel):
@@ -336,3 +397,61 @@ class DriverRequestOut(BaseModel):
     decision_note: str | None
     direct: bool = False  # sent straight to the center
     pickup_in_app: bool = False  # ready and his to collect: he confirms the pickup in the app
+    replacement_plate: str | None = None  # the replacement car he holds meanwhile: its reading too, at the pickup
+
+
+# ---- periodic schedules
+
+
+class ScheduleIn(_In):
+    """Every so many days and/or kilometres since it was last done (today at the last reading when not given)."""
+
+    vehicle_id: uuid.UUID
+    kind: Kind = "periodic"
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=120)]
+    every_days: Annotated[int, Field(ge=1, le=3650)] | None = None
+    every_km: Annotated[int, Field(ge=100, le=1_000_000)] | None = None
+    last_done_on: date | None = None
+    last_done_km: Km | None = None
+    notes: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
+
+
+class ScheduleUpdateIn(_In):
+    version: int
+    kind: Kind | None = None
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=120)] | None = None
+    every_days: Annotated[int, Field(ge=1, le=3650)] | None = None
+    every_km: Annotated[int, Field(ge=100, le=1_000_000)] | None = None
+    notes: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
+    active: bool | None = None
+
+
+class ScheduleDoneIn(_In):
+    done_on: date
+    done_km: Km | None = None
+    note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
+
+
+class ScheduleOut(BaseModel):
+    id: str
+    vehicle: dict
+    company_id: int
+    kind: str
+    title: str
+    every_days: int | None
+    every_km: int | None
+    last_done_on: date
+    last_done_km: int | None
+    due_on: date | None
+    due_km: int | None
+    days_left: int | None
+    km_left: int | None
+    current_km: int | None
+    current_km_at: datetime | None
+    reading_stale: bool
+    km_state: str | None  # ok | due | overdue | no_baseline | no_reading (unknown: never guessed)
+    state: str  # ok | due | overdue | unknown | inactive
+    open_request: dict | None
+    active: bool
+    notes: str | None
+    version: int

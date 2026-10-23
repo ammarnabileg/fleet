@@ -301,7 +301,12 @@ class ReadyBanner extends StatelessWidget {
           label: Text(l.mntPickedUp),
           onPressed: () => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => OdometerScreen(state: state, kind: 'pickup', requestId: request.id),
+              builder: (_) => OdometerScreen(
+                state: state,
+                kind: 'pickup',
+                requestId: request.id,
+                replacementPlate: request.replacementPlate,
+              ),
             ),
           ),
         ),
