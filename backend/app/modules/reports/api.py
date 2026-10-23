@@ -11,7 +11,7 @@ from app.modules.cash import service as cash
 from app.modules.i18n import service as i18n
 from app.modules.identity.service import Principal, require_permission
 from app.modules.people import service as people
-from app.modules.reports import cash_report, export, filters, kilometers, payroll_report, schemas, service
+from app.modules.reports import cash_report, drill, export, filters, kilometers, payroll_report, schemas, service
 
 router = APIRouter(prefix="/api/v1", tags=["reports"])
 
@@ -77,6 +77,16 @@ def _plate(v: dict | None) -> str:
 @router.get("/dashboard", response_model=schemas.Dashboard, response_model_exclude_none=True)
 def dashboard(principal: Principal = Depends(require_permission("dashboard.view")), db: Session = Depends(get_session)):
     return service.dashboard(db, permissions=principal.permissions, user_id=principal.user_id, **principal.scope)
+
+
+@router.get("/dashboard/details/{metric}")
+def dashboard_details(
+    metric: Literal[tuple(drill.METRICS)],
+    principal: Principal = Depends(require_permission("dashboard.view")),
+    db: Session = Depends(get_session),
+):
+    """The records a dashboard figure counts, when no list page filters by it: the drawer a click on it opens."""
+    return drill.details(db, metric, permissions=principal.permissions, **principal.scope)
 
 
 @router.get("/reports/daily-summary", response_model=schemas.SummaryOut)

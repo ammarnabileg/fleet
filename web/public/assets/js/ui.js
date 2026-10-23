@@ -510,31 +510,77 @@
 
   /* =================================================================
      Data table — BT.table(el, opts)
-     opts: { columns:[{key,label,num,sort,render,width,cls}], rows, pageSize,
+     opts: { columns:[{key,label,num,sort,render,width,cls,fixed}], rows, pageSize,
              search:{placeholder, text:(row)=>string}, chips:{key,options:[{v,t}],all},
              tools: Raw, rowClick, rowClass, rowMenu:(row)=>items, selectable, bulk:[{label,icon,cls,run}],
              empty:{icon,title,text}, foot:(rows)=>Raw, sort:{key,dir}, id:(row)=>key,
-             fetch:({q, chip, offset, limit})=>Promise<rows> }
+             fetch:({q, chip, offset, limit})=>Promise<rows>,
+             key, openLabel, keepPage, views }
      fetch: الصفوف من الخادم صفحةً صفحة (البحث والتصفية والترقيم على الخادم، بلا فرز محلي)
+     rowClick: الصف يُفتح بالنقر عليه، وبزر «فتح» صريح في آخره يصل إليه الكيبورد (openLabel يغيّر نصه، false يخفيه)
+     key (أو id العنصر): يحفظ حالة الجدول في سجل المتصفح، فيعود «رجوع» إلى نفس البحث والتصفية والصفحة والترتيب
+       (keepPage:false لجدول يتنقل بمؤشرات لا بأرقام صفحات)، ويحفظ الأعمدة الظاهرة والعروض المسماة على هذا الجهاز
      ================================================================= */
   BT.table = function (el, o) {
     var st = { q: '', chip: o.chips ? (o.chips.value || '') : '', page: 1, size: o.pageSize || (o.fetch ? 25 : 10), sort: o.fetch ? null : o.sort || null, sel: {}, selRows: {}, loaded: [], more: false, loading: !!o.fetch, error: null, ticket: 0 };
     var getRows = function () { return o.fetch ? st.loaded : typeof o.rows === 'function' ? o.rows() : o.rows; };
     var idOf = o.id || function (r, i) { return r.id != null ? r.id : i; };
+    var key = o.key || el.id || null;
+    var entry = location.hash; // the history entry this table belongs to
+    var path = entry.split('?')[0];
+    var prefKey = key ? 'table:' + path + ':' + key : null;
+    var prefs = prefKey ? BT.store.get(prefKey, {}) : {};
+    var hidden = prefs.hidden || {};
     var cols = o.columns.slice();
-    if (o.rowMenu) cols.push({ key: '_menu', label: '', cls: 'actions', render: function (r, i) { return h`<button type="button" class="icon-btn sm" data-row-menu="${i}" aria-label="إجراءات">${icon('ellipsis-vertical', 16)}</button>`; } });
+    var openLabel = o.rowClick && o.openLabel !== false ? (o.openLabel || 'فتح') : null;
+    if (o.rowMenu || openLabel) cols.push({ key: '_menu', label: '', cls: 'actions', render: function (r, i) {
+      return h`<span class="t-acts">${openLabel ? h`<button type="button" class="btn btn-sm btn-ghost t-open" data-row-open="${i}">${openLabel}${icon('chevron-left', 13)}</button>` : ''}${o.rowMenu ? h`<button type="button" class="icon-btn sm" data-row-menu="${i}" aria-label="إجراءات">${icon('ellipsis-vertical', 16)}</button>` : ''}</span>`;
+    } });
+    var hideable = cols.filter(function (c, i) { return i > 0 && c.key !== '_menu' && c.label && !c.fixed; });
+    var chooser = !!prefKey && o.views !== false && !o.foot && hideable.length >= 3;
     var searchId = BT.uid('tsearch');
+    // back to this page (the browser's «back»): the search, chip, page and order it was left with
+    var saved = key && history.state && history.state.bt ? history.state.bt[key] : null;
+    if (saved) {
+      st.q = saved.q || ''; st.size = saved.size || st.size; st.sort = saved.sort || st.sort;
+      if (saved.chip != null && o.chips) st.chip = saved.chip;
+      if (o.keepPage !== false) st.page = saved.page || 1;
+    }
     BT.render(el, h`
-      ${(o.search || o.chips || o.tools) ? h`<div class="toolbar">
-        ${o.search ? h`<div class="search-box">${icon('search', 16)}<input id="${searchId}" class="input" type="search" placeholder="${o.search.placeholder || 'بحث…'}" aria-label="بحث"></div>` : ''}
+      ${(o.search || o.chips || o.tools || chooser) ? h`<div class="toolbar">
+        ${o.search ? h`<div class="search-box">${icon('search', 16)}<input id="${searchId}" class="input" type="search" placeholder="${o.search.placeholder || 'بحث…'}" aria-label="${o.search.placeholder || 'بحث'}"></div>` : ''}
         ${o.chips ? h`<div class="chips" data-chips></div>` : ''}
-        ${o.tools ? h`<div class="page-actions ms-auto">${o.tools}</div>` : ''}
+        ${o.tools ? h`<div class="page-actions ms-auto" data-tools>${o.tools}</div>` : ''}
+        ${chooser ? h`<button type="button" class="btn btn-sm btn-outline t-view-btn${o.tools ? '' : ' ms-auto'}" data-t-view aria-haspopup="dialog" aria-expanded="false">${icon('settings', 14)} الأعمدة والعروض</button>` : ''}
       </div>` : ''}
-      ${o.selectable ? raw('<div class="banner info hidden" data-bulk style="align-items:center;margin-bottom:10px"></div>') : ''}
+      ${o.selectable ? raw('<div class="banner info hidden t-bulk" data-bulk role="status"></div>') : ''}
       <div class="table-wrap" data-wrap></div>
       ${o.pageSize === 0 ? '' : raw('<div class="pager" data-pager></div>')}`);
     var wrapEl = el.querySelector('[data-wrap]'), pager = el.querySelector('[data-pager]'), chipsEl = el.querySelector('[data-chips]'), bulkEl = el.querySelector('[data-bulk]');
+    var toolsEl = el.querySelector('[data-tools]'), searchEl = o.search ? el.querySelector('#' + searchId) : null;
+    if (searchEl && st.q) searchEl.value = st.q;
     var current = [], pageRows = [];
+
+    function toolInputs() { return toolsEl ? BT.$$('select, input:not([type=search]):not([type=checkbox])', toolsEl) : []; }
+    function snapshot() { return { q: st.q, chip: st.chip, page: st.page, size: st.size, sort: st.sort, tools: toolInputs().map(function (x) { return x.value; }) }; }
+    // the state rides on this history entry (not on a later one, nor after the page was left)
+    function remember() {
+      if (!key || location.hash !== entry || !document.contains(el)) return;
+      try {
+        var s = Object.assign({}, history.state || {}), bt = Object.assign({}, s.bt || {});
+        bt[key] = snapshot(); s.bt = bt;
+        history.replaceState(s, '');
+      } catch (e) { /* a browser refusing the state: the table works, it just starts afresh */ }
+    }
+    // a page's own filters (its selects and dates beside the table): put back, and the page told as if picked again
+    function applyTools(values) {
+      if (!values) return;
+      toolInputs().forEach(function (x, i) {
+        if (values[i] == null || x.value === values[i]) return;
+        x.value = values[i];
+        if (x.value === values[i]) x.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
 
     var typing = false;
     function load() {
@@ -567,38 +613,45 @@
       var items = (o.chips.all === false ? [] : [{ v: '', t: o.chips.all || 'الكل' }]).concat(o.chips.options);
       BT.render(chipsEl, h`${items.map(function (it) {
         var n = o.fetch ? (o.chips.counts ? o.chips.counts[it.v] : null) : it.v === '' ? all.length : all.filter(function (r) { return o.chips.match ? o.chips.match(r, it.v) : String(r[o.chips.key]) === String(it.v); }).length;
-        return h`<button type="button" class="chip${String(st.chip) === String(it.v) ? ' active' : ''}" data-chip="${it.v}">${it.t}${n != null ? h` <span class="n">${BT.fmt.int(n)}</span>` : ''}</button>`;
+        var on = String(st.chip) === String(it.v);
+        return h`<button type="button" class="chip${on ? ' active' : ''}" data-chip="${it.v}" aria-pressed="${on ? 'true' : 'false'}">${it.t}${n != null ? h` <span class="n">${BT.fmt.int(n)}</span>` : ''}</button>`;
       })}`);
+    }
+    function sortLabel(c, sorted) {
+      if (!sorted) return 'ترتيب حسب ' + c.label;
+      return 'مرتب حسب ' + c.label + (st.sort.dir === 'desc' ? ' تنازلياً' : ' تصاعدياً') + '، اضغط لتغيير الترتيب';
     }
     function draw() {
       current = filtered();
+      var shown = cols.filter(function (c) { return !hidden[c.key]; });
       var pages = o.fetch ? st.page + (st.more ? 1 : 0) : st.size ? Math.max(1, Math.ceil(current.length / st.size)) : 1;
       if (!o.fetch) st.page = Math.min(st.page, pages);
       var start = o.fetch ? 0 : st.size ? (st.page - 1) * st.size : 0;
       pageRows = o.fetch || !st.size ? current : current.slice(start, start + st.size);
       var allSel = pageRows.length && pageRows.every(function (r, i) { return st.sel[idOf(r, start + i)]; });
       var html = h`<table class="t${o.compact ? ' compact' : ''}"><thead><tr>
-        ${o.selectable ? h`<th class="cell-check"><label class="check"><input type="checkbox" data-sel-all${allSel ? raw(' checked') : ''} aria-label="تحديد الكل"></label></th>` : ''}
-        ${cols.map(function (c) {
+        ${o.selectable ? h`<th class="cell-check"><label class="check"><input type="checkbox" data-sel-all${allSel ? raw(' checked') : ''} aria-label="تحديد كل صفوف هذه الصفحة"></label></th>` : ''}
+        ${shown.map(function (c) {
           var sortable = !o.fetch && c.sort !== false && c.key !== '_menu' && c.label;
           var sorted = st.sort && st.sort.key === c.key;
-          return h`<th class="${c.num ? 'num ' : ''}${sortable ? 'sortable ' : ''}${sorted ? 'sorted' : ''}"${c.width ? raw(' style="width:' + c.width + '"') : ''}${sortable ? h` data-sort="${c.key}"` : ''}${sorted ? raw(' aria-sort="' + (st.sort.dir === 'desc' ? 'descending' : 'ascending') + '"') : ''}>${c.label}${sortable ? icon(sorted ? (st.sort.dir === 'desc' ? 'arrow-down' : 'arrow-up') : 'arrow-up-down', 12, 'sort-ic') : ''}</th>`;
+          var aria = sortable ? raw(' aria-sort="' + (sorted ? (st.sort.dir === 'desc' ? 'descending' : 'ascending') : 'none') + '"') : '';
+          return h`<th class="${c.num ? 'num ' : ''}${sortable ? 'sortable ' : ''}${sorted ? 'sorted' : ''}"${c.width ? raw(' style="width:' + c.width + '"') : ''}${aria}>${sortable ? h`<button type="button" class="th-sort" data-sort="${c.key}" aria-label="${sortLabel(c, sorted)}">${c.label}${icon(sorted ? (st.sort.dir === 'desc' ? 'arrow-down' : 'arrow-up') : 'arrow-up-down', 12, 'sort-ic')}</button>` : c.label}</th>`;
         })}</tr></thead><tbody>
         ${pageRows.length ? pageRows.map(function (r, i) {
           var id = idOf(r, start + i);
           var rc = (o.rowClass ? o.rowClass(r) || '' : '') + (o.rowClick ? ' clickable' : '') + (st.sel[id] ? ' selected' : '');
-          return h`<tr data-i="${i}" class="${rc}">${o.selectable ? h`<td class="cell-check"><label class="check"><input type="checkbox" data-sel="${id}"${st.sel[id] ? raw(' checked') : ''} aria-label="تحديد"></label></td>` : ''}${cols.map(function (c) {
+          return h`<tr data-i="${i}" class="${rc}">${o.selectable ? h`<td class="cell-check"><label class="check"><input type="checkbox" data-sel="${id}"${st.sel[id] ? raw(' checked') : ''} aria-label="تحديد"></label></td>` : ''}${shown.map(function (c) {
             var v = c.render ? c.render(r, i) : r[c.key];
             return h`<td class="${c.num ? 'num ' : ''}${c.cls || ''}">${v == null || v === '' ? '—' : v}</td>`;
           })}</tr>`;
-        }) : h`<tr><td class="t-empty" colspan="${cols.length + (o.selectable ? 1 : 0)}">${st.loading ? raw('<div class="t-loading"><span class="spinner"></span> جاري التحميل…</div>') : st.error ? BT.empty('wifi-off', 'تعذر تحميل البيانات', st.error, raw('<button type="button" class="btn btn-sm btn-secondary mt-8" data-t-retry>إعادة المحاولة</button>')) : BT.empty((o.empty || {}).icon || 'search-x', (o.empty || {}).title || 'لا توجد نتائج', (o.empty || {}).text || (st.q ? 'جرّب كلمة بحث أخرى' : ''))}</td></tr>`}
+        }) : h`<tr><td class="t-empty" colspan="${shown.length + (o.selectable ? 1 : 0)}">${st.loading ? raw('<div class="t-loading"><span class="spinner"></span> جاري التحميل…</div>') : st.error ? BT.empty('wifi-off', 'تعذر تحميل البيانات', st.error, raw('<button type="button" class="btn btn-sm btn-secondary mt-8" data-t-retry>إعادة المحاولة</button>')) : BT.empty((o.empty || {}).icon || 'search-x', (o.empty || {}).title || 'لا توجد نتائج', (o.empty || {}).text || (st.q ? 'جرّب كلمة بحث أخرى' : ''))}</td></tr>`}
         </tbody>${o.foot && current.length ? h`<tfoot>${o.foot(current)}</tfoot>` : ''}</table>`;
       BT.render(wrapEl, html);
       if (pager && o.fetch) {
         BT.render(pager, h`<span>صفحة <span class="num">${BT.fmt.int(st.page)}</span>${pageRows.length ? h` · <span class="num">${BT.fmt.int(pageRows.length)}</span> صف` : ''}</span>
           <div class="flex items-center gap-8"><select class="select" data-size aria-label="عدد الصفوف">${[25, 50, 100, 200].map(function (n) { return h`<option value="${n}"${n === st.size ? raw(' selected') : ''}>${n} صف</option>`; })}</select>
           <div class="pages"><button type="button" data-page="${st.page - 1}"${st.page <= 1 || st.loading ? raw(' disabled') : ''} aria-label="السابق">${icon('chevron-right', 16)}</button>
-          <button type="button" class="active" disabled>${st.page}</button>
+          <button type="button" class="active" disabled aria-current="page">${st.page}</button>
           <button type="button" data-page="${st.page + 1}"${!st.more || st.loading ? raw(' disabled') : ''} aria-label="التالي">${icon('chevron-left', 16)}</button></div></div>`);
       } else if (pager) {
         var from = current.length ? start + 1 : 0, to = start + pageRows.length;
@@ -607,34 +660,90 @@
         BT.render(pager, h`<span>عرض <span class="num">${BT.fmt.int(from)}–${BT.fmt.int(to)}</span> من <span class="num">${BT.fmt.int(current.length)}</span></span>
           <div class="flex items-center gap-8"><select class="select" data-size aria-label="عدد الصفوف">${[10, 25, 50, 100].map(function (n) { return h`<option value="${n}"${n === st.size ? raw(' selected') : ''}>${n} صف</option>`; })}</select>
           <div class="pages"><button type="button" data-page="${st.page - 1}"${st.page <= 1 ? raw(' disabled') : ''} aria-label="السابق">${icon('chevron-right', 16)}</button>
-          ${nums.map(function (n) { return n === '…' ? raw('<button type="button" disabled>…</button>') : h`<button type="button" data-page="${n}" class="${n === st.page ? 'active' : ''}">${n}</button>`; })}
+          ${nums.map(function (n) { return n === '…' ? raw('<button type="button" disabled>…</button>') : h`<button type="button" data-page="${n}" class="${n === st.page ? 'active' : ''}"${n === st.page ? raw(' aria-current="page"') : ''}>${n}</button>`; })}
           <button type="button" data-page="${st.page + 1}"${st.page >= pages ? raw(' disabled') : ''} aria-label="التالي">${icon('chevron-left', 16)}</button></div></div>`);
       }
       drawBulk();
       if (typing || st.loading) el.setAttribute('aria-busy', 'true'); else el.removeAttribute('aria-busy');
+      remember();
     }
+    function selectedKeys() { return Object.keys(st.sel).filter(function (k) { return st.sel[k]; }); }
     function selectedRows() {
-      if (o.fetch) return Object.keys(st.sel).filter(function (k) { return st.sel[k]; }).map(function (k) { return st.selRows[k]; });
+      if (o.fetch) return selectedKeys().map(function (k) { return st.selRows[k]; });
       var all = getRows(); return all.filter(function (r, i) { return st.sel[idOf(r, i)]; });
     }
+    // what a bulk action will act on, said plainly: this page, other pages, rows the filter now hides
     function drawBulk() {
       if (!bulkEl) return;
-      var n = Object.keys(st.sel).filter(function (k) { return st.sel[k]; }).length;
+      var n = selectedKeys().length;
       bulkEl.classList.toggle('hidden', !n);
       if (!n) return;
-      BT.render(bulkEl, h`${icon('list-checks', 16)}<span>تم تحديد <b class="num">${n}</b></span><div class="btn-group ms-auto">${(o.bulk || []).map(function (b, i) { return h`<button type="button" class="btn btn-sm ${b.cls || 'btn-outline'}" data-bulk-i="${i}">${b.icon ? icon(b.icon, 14) : ''}${b.label}</button>`; })}<button type="button" class="btn btn-sm btn-ghost" data-bulk-clear>إلغاء التحديد</button></div>`);
+      var notes = [], extra = '';
+      if (o.fetch) {
+        var here = {}; pageRows.forEach(function (r, i) { here[String(idOf(r, i))] = true; });
+        var elsewhere = selectedKeys().filter(function (k) { return !here[k]; }).length;
+        if (elsewhere) notes.push(BT.fmt.int(elsewhere) + ' منها من صفحات أخرى');
+        else notes.push('من هذه الصفحة');
+      } else {
+        var all = getRows(), visible = {};
+        current.forEach(function (r) { visible[String(idOf(r, all.indexOf(r)))] = true; });
+        var hiddenSel = selectedKeys().filter(function (k) { return !visible[k]; }).length;
+        if (hiddenSel) notes.push(BT.fmt.int(hiddenSel) + ' منها لا يظهر في البحث أو التصفية الحالية');
+        var unselected = current.filter(function (r) { return !st.sel[idOf(r, all.indexOf(r))]; }).length;
+        if (unselected && current.length > pageRows.length) extra = h`<button type="button" class="btn btn-sm btn-link" data-sel-matching>تحديد كل النتائج المطابقة (${BT.fmt.int(current.length)})</button>`;
+      }
+      BT.render(bulkEl, h`${icon('list-checks', 16)}<span>تم تحديد <b class="num">${BT.fmt.int(n)}</b>${notes.length ? h` <span class="t-scope">(${notes.join('، ')})</span>` : ''} — الإجراء يشمل المحدد كله</span>${extra}<div class="btn-group ms-auto">${(o.bulk || []).map(function (b, i) { return h`<button type="button" class="btn btn-sm ${b.cls || 'btn-outline'}" data-bulk-i="${i}">${b.icon ? icon(b.icon, 14) : ''}${b.label}</button>`; })}<button type="button" class="btn btn-sm btn-ghost" data-bulk-clear>إلغاء التحديد</button></div>`);
+    }
+
+    /* الأعمدة الظاهرة والعروض المسماة (على هذا الجهاز) */
+    function savePrefs() { if (prefKey) { prefs.hidden = hidden; BT.store.set(prefKey, prefs); } }
+    function openViews(btn) {
+      var views = prefs.views || [];
+      var pop = BT.popover(btn, h`<div class="t-views" dir="rtl">
+        <div class="menu-head">الأعمدة الظاهرة</div>
+        <div class="t-cols">${hideable.map(function (c) { return h`<label class="check"><input type="checkbox" data-col="${c.key}"${hidden[c.key] ? '' : raw(' checked')}> <span>${c.label}</span></label>`; })}</div>
+        <div class="menu-sep"></div>
+        <div class="menu-head">العروض المحفوظة</div>
+        ${views.length ? h`<div class="t-view-list">${views.map(function (vw, i) { return h`<div class="t-view-row"><button type="button" class="btn btn-sm btn-ghost flex-1" data-view-apply="${i}">${vw.name}</button><button type="button" class="icon-btn sm" data-view-del="${i}" aria-label="${'حذف العرض ' + vw.name}">${icon('trash-2', 14)}</button></div>`; })}</div>` : h`<div class="muted fs-sm t-view-none">لا عروض محفوظة بعد</div>`}
+        <form class="t-view-save" data-view-save><input class="input" name="name" maxlength="40" required placeholder="اسم للعرض الحالي" aria-label="اسم العرض"><button type="submit" class="btn btn-sm btn-primary">حفظ</button></form>
+        <div class="hint fs-sm">العرض يحفظ البحث والتصفية والترتيب والأعمدة، على هذا الجهاز.</div>
+      </div>`, { cls: 'wide', align: 'start' });
+      if (!pop) return;
+      pop.addEventListener('change', function (e) {
+        var k = e.target.getAttribute('data-col'); if (!k) return;
+        if (e.target.checked) delete hidden[k]; else hidden[k] = true;
+        savePrefs(); draw();
+      });
+      BT.on(pop, 'click', '[data-view-apply]', function (e, b) { var vw = views[+b.getAttribute('data-view-apply')]; BT.closeMenu(); applyView(vw); });
+      BT.on(pop, 'click', '[data-view-del]', function (e, b) { views.splice(+b.getAttribute('data-view-del'), 1); prefs.views = views; savePrefs(); BT.closeMenu(); });
+      pop.querySelector('[data-view-save]').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var name = e.target.name.value.trim(); if (!name) return;
+        views = views.filter(function (x) { return x.name !== name; }).concat([Object.assign(snapshot(), { name: name, hidden: Object.assign({}, hidden), page: 1 })]);
+        prefs.views = views; savePrefs(); BT.closeMenu();
+        if (BT.toast) BT.toast('حُفظ العرض «' + name + '»');
+      });
+    }
+    function applyView(vw) {
+      st.q = vw.q || ''; st.chip = vw.chip != null && o.chips ? vw.chip : st.chip; st.sort = vw.sort || null; st.size = vw.size || st.size; st.page = 1;
+      hidden = Object.assign({}, vw.hidden || {}); savePrefs();
+      if (searchEl) searchEl.value = st.q;
+      drawChips(); reload(); applyTools(vw.tools);
+      if (o.onChip && o.chips) o.onChip(st.chip);
     }
 
     var reload = function () { if (o.fetch) load(); else draw(); };
     // aria-busy from the first key until the rows found are drawn: a row clicked meanwhile may be gone the next moment
-    if (o.search) el.querySelector('#' + searchId).addEventListener('input', function () { typing = true; el.setAttribute('aria-busy', 'true'); });
-    if (o.search) el.querySelector('#' + searchId).addEventListener('input', BT.debounce(function (e) { typing = false; st.q = e.target.value; st.page = 1; reload(); }, o.fetch ? 350 : 150));
+    if (searchEl) searchEl.addEventListener('input', function () { typing = true; el.setAttribute('aria-busy', 'true'); });
+    if (searchEl) searchEl.addEventListener('input', BT.debounce(function (e) { typing = false; st.q = e.target.value; st.page = 1; reload(); }, o.fetch ? 350 : 150));
     BT.on(el, 'click', '[data-chip]', function (e, b) { st.chip = b.getAttribute('data-chip'); st.page = 1; drawChips(); reload(); if (o.onChip) o.onChip(st.chip); });
     BT.on(el, 'click', '[data-t-retry]', function () { load(); });
-    BT.on(el, 'click', '[data-sort]', function (e, th) {
-      var k = th.getAttribute('data-sort');
+    BT.on(el, 'click', '[data-t-view]', function (e, b) { openViews(b); });
+    BT.on(el, 'click', '[data-sort]', function (e, b) {
+      var k = b.getAttribute('data-sort');
       st.sort = st.sort && st.sort.key === k ? (st.sort.dir === 'asc' ? { key: k, dir: 'desc' } : null) : { key: k, dir: 'asc' };
       draw();
+      var again = wrapEl.querySelector('[data-sort="' + k + '"]'); if (again) again.focus(); // the keyboard stays where it was
     });
     BT.on(el, 'click', '[data-page]', function (e, b) { st.page = +b.getAttribute('data-page'); reload(); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
     el.addEventListener('change', function (e) {
@@ -646,15 +755,21 @@
         draw();
       }
       if (e.target.matches('[data-sel-all]')) { var start = o.fetch ? 0 : (st.page - 1) * st.size; pageRows.forEach(function (r, i) { var id = idOf(r, start + i); st.sel[id] = e.target.checked; st.selRows[id] = r; }); draw(); }
+      if (toolsEl && toolsEl.contains(e.target)) remember();
     });
+    BT.on(el, 'click', '[data-sel-matching]', function () { var all = getRows(); current.forEach(function (r) { st.sel[idOf(r, all.indexOf(r))] = true; }); draw(); });
     BT.on(el, 'click', '[data-bulk-i]', function (e, b) { var cfg = o.bulk[+b.getAttribute('data-bulk-i')]; cfg.run(selectedRows(), function () { st.sel = {}; st.selRows = {}; draw(); }); });
     BT.on(el, 'click', '[data-bulk-clear]', function () { st.sel = {}; st.selRows = {}; draw(); });
     BT.on(el, 'click', '[data-row-menu]', function (e, b) { e.stopPropagation(); BT.menu(b, o.rowMenu(pageRows[+b.getAttribute('data-row-menu')]), { align: 'start' }); });
-    if (o.rowClick) BT.on(el, 'click', 'tbody tr[data-i]', function (e, tr) {
-      if (e.target.closest('button,a,input,label,select')) return;
-      o.rowClick(pageRows[+tr.getAttribute('data-i')]);
-    });
+    if (o.rowClick) {
+      BT.on(el, 'click', '[data-row-open]', function (e, b) { e.stopPropagation(); o.rowClick(pageRows[+b.getAttribute('data-row-open')]); });
+      BT.on(el, 'click', 'tbody tr[data-i]', function (e, tr) {
+        if (e.target.closest('button,a,input,label,select')) return;
+        o.rowClick(pageRows[+tr.getAttribute('data-i')]);
+      });
+    }
     drawChips(); draw(); if (o.fetch) load();
+    if (saved && saved.tools) setTimeout(function () { if (document.contains(el)) applyTools(saved.tools); }, 0); // after the page's listeners
     return {
       refresh: function () { drawChips(); reload(); },
       setChip: function (v) { st.chip = v; st.page = 1; drawChips(); reload(); },

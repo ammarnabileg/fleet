@@ -67,7 +67,7 @@
     function show(t) {
       if (drawn[t]) return;
       drawn[t] = true;
-      if (t === 'list') listTable(q.status);
+      if (t === 'list') listTable(q.status, q);
       if (t === 'docs') {
         docsPanel(document.getElementById('doc-panel'), +q.days || null);
         if (api.can('documents.manage')) renewals(document.getElementById('doc-renewals'));
@@ -79,13 +79,15 @@
     show(tab);
   };
 
-  function listTable(status) {
+  function listTable(status, q) {
+    q = q || {};
     var el = document.getElementById('emp-table');
     var facets = api.get('/employees/facets').then(null, function () { return { departments: [], job_titles: [] }; });
     Promise.all([loadStatuses().then(null, function () { return []; }), facets]).then(function (r) {
       var f = r[1];
       // FR-HR-03: status, company, branch, department, job, driver or not, with a vehicle or without
-      var filters = { status: status || '', company: '', branch: '', department: '', job: '', vehicle: '' }; // from the dashboard: one status at a time (FR-DSH-06)
+      // from the dashboard: one status at a time (FR-DSH-06), the drivers, those with no vehicle
+      var filters = { status: status || '', company: '', branch: '', department: '', job: '', vehicle: q.vehicle === 'true' || q.vehicle === 'false' ? q.vehicle : '' };
       var select = function (key, label, all, options) { return h`<select class="select" data-f="${key}" aria-label="${label}"><option value="">${all}</option>${options.map(function (o) { return h`<option value="${o.v}" ${String(o.v) === filters[key] ? raw('selected') : ''}>${o.t}</option>`; })}</select>`; };
       var plain = function (list) { return list.map(function (x) { return { v: x, t: x }; }); };
       var tools = h`${select('status', 'الحالة', 'كل الحالات', (statuses || []).map(function (s) { return { v: s.code, t: api.name(s.name) }; }))}
@@ -103,7 +105,7 @@
           });
         },
         search: { placeholder: 'الاسم أو الرقم الوظيفي أو الجوال أو رقم المنصة…' },
-        chips: { options: [{ v: 'true', t: 'السائقون' }, { v: 'false', t: 'الإداريون' }, { v: 'no_phone', t: 'سائقون بلا هاتف' }] },
+        chips: { value: q.driver === 'true' || q.driver === 'false' ? q.driver : '', options: [{ v: 'true', t: 'السائقون' }, { v: 'false', t: 'الإداريون' }, { v: 'no_phone', t: 'سائقون بلا هاتف' }] },
         tools: tools,
         selectable: api.can('devices.manage') || api.can('payroll.schemes') || api.can('employees.update'),
         bulk: [
