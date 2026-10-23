@@ -10,6 +10,7 @@ const driverKeys = [
   'tracking_state',
   'last_upload_at',
   'fuel',
+  'leaves',
   'report_form',
   'maintenance_form',
   'push_token',

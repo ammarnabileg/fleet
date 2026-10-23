@@ -111,6 +111,7 @@ class AppState extends ChangeNotifier {
   List<Payslip> payslips = [];
   List<Objection> objections = [];
   DriverSchemes? schemes;
+  Leaves? leaves; // null until loaded, or when the screen is hidden: the app offers no absence request
   Fuel? fuel; // null until loaded, or when the server has no fuel for him: the app offers none
   Notices? notices;
   List<OutboxItem> queued = [];
@@ -257,6 +258,7 @@ class AppState extends ChangeNotifier {
     _applyReportForm(await db.get('report_form'));
     _applyMaintenanceForm(await db.get('maintenance_form'));
     _applyFuel(await db.get('fuel'));
+    _applyLeaves(await db.get('leaves'));
     await _showSplash();
     unawaited(catalog.load(api, lang).catchError((Object e, StackTrace st) => errors.record('catalog', e, st)));
     if (!await tokens.hasSession()) {
@@ -507,6 +509,7 @@ class AppState extends ChangeNotifier {
     objections = [];
     schemes = null;
     fuel = null;
+    leaves = null;
     notices = null;
     queued = [];
     tracking = {};
@@ -533,6 +536,7 @@ class AppState extends ChangeNotifier {
         if (shows('maintenance')) _quietly(loadMaintenance),
         if (shows('accidents')) _quietly(loadAccidents),
         if (shows('fuel')) _quietly(loadFuel),
+        if (shows('leaves')) _quietly(loadLeaves),
         _quietly(loadNotices),
         _quietly(loadProfile),
         loadLiveStatus(),
@@ -816,6 +820,74 @@ class AppState extends ChangeNotifier {
       fuel = null;
       await db.put('fuel', null);
     }
+  }
+
+  /// The leave types he may request (with what is left of each) and his requests. Kept for the form offline.
+  Future<void> loadLeaves() async {
+    try {
+      final raw = await api.get('/driver/leaves') as Map<String, dynamic>;
+      leaves = Leaves.fromJson(raw);
+      await db.put('leaves', jsonEncode(raw));
+    } on ApiError catch (e) {
+      if (e.isTransient) rethrow;
+      leaves = null;
+      await db.put('leaves', null);
+    }
+  }
+
+  void _applyLeaves(String? raw) {
+    if (raw == null || leaves != null) return;
+    try {
+      leaves = Leaves.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      // an older shape: the next load replaces it
+    }
+  }
+
+  /// What the request would count and pay, from the server (needs the network: offline, null).
+  Future<LeavePreview?> previewLeave({required String kind, required DateTime from, required DateTime to}) async {
+    try {
+      final raw = await api.post(
+        '/driver/leaves/preview',
+        body: {'kind': kind, 'date_from': _day(from), 'date_to': _day(to)},
+      );
+      return LeavePreview.fromJson(raw as Map<String, dynamic>);
+    } on ApiError catch (e) {
+      if (e.isTransient) return null;
+      rethrow;
+    }
+  }
+
+  static String _day(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// An absence request: through the outbox (sent now, or queued offline; a resend is recognised by its client_ref).
+  Future<SendResult> sendLeave({
+    required String kind,
+    required DateTime from,
+    required DateTime to,
+    required DateTime followupFrom,
+    String? reason,
+    String? attachmentPath,
+  }) async {
+    final id = await outbox.add(
+      'leave',
+      {
+        'client_ref': const Uuid().v4(),
+        'kind': kind,
+        'date_from': _day(from),
+        'date_to': _day(to),
+        'followup_from': _day(followupFrom),
+        'reason': ?reason,
+      },
+      {'file_sha256': ?attachmentPath},
+    );
+    return _sendNow(id, after: loadLeaves);
+  }
+
+  Future<SendResult> cancelLeave(String leaveId) async {
+    final id = await outbox.add('leave_cancel', {'leave_id': leaveId}, {});
+    return _sendNow(id, after: loadLeaves);
   }
 
   void _applyFuel(String? raw) {

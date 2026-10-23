@@ -613,7 +613,23 @@
     "language_required": "العربية والإنجليزية لغتا التطبيق الأساسيتان ولا يمكن تعطيلهما",
     "invalid_translation": "ترجمة {key} غير صالحة: {reason}",
     "translation_sheet_invalid": "يجب أن يحتوي الملف على الأعمدة scope وkey وtranslation (صدّر اللغة أولاً)",
-    "translation_import_invalid": "{count} صفوف في الملف غير صالحة، ولم يُحفظ شيء"
+    "translation_import_invalid": "{count} صفوف في الملف غير صالحة، ولم يُحفظ شيء",
+    "leave_type_not_found": "نوع الإجازة غير موجود",
+    "leave_type_inactive": "نوع الإجازة هذا موقوف",
+    "leave_no_working_days": "لا توجد أيام عمل في هذه الفترة",
+    "leave_gender": "هذا النوع من الإجازات لا ينطبق على هذا الموظف",
+    "hire_date_unknown": "تاريخ الالتحاق غير مسجّل: راجع المكتب",
+    "leave_service_too_short": "يُستحق بعد {months} شهراً من الخدمة",
+    "leave_once_per_service": "هذه الإجازة مرة واحدة طوال الخدمة، وقد أُخذت",
+    "leave_too_long": "أقصى مدة لهذه الإجازة {max} يوماً",
+    "leave_year_limit": "تجاوزت حد السنة ({max} يوماً)، المتبقي {left}",
+    "leave_service_limit": "تجاوزت حد مدة الخدمة ({max} يوماً)، المتبقي {left}",
+    "leave_balance": "الرصيد غير كافٍ: المتاح {available} يوماً",
+    "leave_attachment_required": "هذا النوع يحتاج مرفقاً (مثل الشهادة الطبية)",
+    "leave_exists": "هذا الطلب مسجّل من قبل",
+    "followup_out_of_range": "تاريخ بداية المتابعة يجب أن يكون في حدود سنة من اليوم",
+    "leave_tiers_open_end": "الشريحة الأخيرة وحدها يمكن أن تكون بلا عدد أيام",
+    "leave_followed_up": "تمت متابعة هذا الطلب من قبل"
   },
   "settings": {
     "branding": "الهوية",
@@ -679,7 +695,13 @@
     "maintenance.due_soon_days": "الصيانة الدورية «تستحق قريباً» قبل موعدها بـ (يوم)",
     "maintenance.due_soon_km": "الصيانة الدورية «تستحق قريباً» قبل عدادها بـ (كم)",
     "maintenance.escalate_after_days": "تصعيد الإصلاح المتأخر بعد (يوم) من موعده المتوقع (العاجل فوراً)",
-    "maintenance.long_stay_days": "تنبيه لسيارة في المركز بلا موعد متوقع بعد (يوم؛ 0 = بدون)"
+    "maintenance.long_stay_days": "تنبيه لسيارة في المركز بلا موعد متوقع بعد (يوم؛ 0 = بدون)",
+    "leaves": "الإجازات والتغيب",
+    "leaves.absence_followup_days": "تنبيه متابعة التغيب بعد (أيام)",
+    "leaves.absence_alert_consecutive_days": "تنبيه الغياب المتتالي بعد (أيام، المادة 41)",
+    "leaves.absence_alert_year_days": "تنبيه الغياب السنوي بعد (أيام، المادة 41)",
+    "leaves.annual_carry_over_years": "ترحيل رصيد الإجازة السنوية (سنوات)",
+    "leaves.weekend_days": "أيام الراحة الأسبوعية (0 الاثنين … 6 الأحد)"
   },
   "common": {
     "active": "نشط",
@@ -761,7 +783,11 @@
     "maintenance_late": "السيارة {plate} (طلب #{number}) في {center} تجاوزت موعد الإنجاز المتوقع {date}",
     "maintenance_long_stay": "السيارة {plate} (طلب #{number}) في {center} منذ {date} بلا موعد إنجاز متوقع",
     "maintenance_escalated": "تصعيد: السيارة {plate} (طلب #{number}) في {center} متأخرة عن موعد {date} — المسؤول: {assignee}",
-    "contact_acknowledged": "{driver} اطّلع على طلب التواصل"
+    "contact_acknowledged": "{driver} اطّلع على طلب التواصل",
+    "leave_requested": "طلب تغيب ({kind}) من {driver}: {days} يوم من {from} إلى {to}",
+    "absence_consecutive": "غياب بدون إذن {days} يوماً متتالية لـ {driver} ({from} - {to}): قد يبرر الفصل بدون مكافأة — راجع الإجراءات القانونية (إنذار مسبق)",
+    "absence_yearly": "غياب بدون إذن {days} يوماً في سنة {year} لـ {driver}: قد يبرر الفصل بدون مكافأة — راجع الإجراءات القانونية (إنذار مسبق)",
+    "absence_followup": "متابعة طلب تغيب ({kind}) لـ {driver} من {from} إلى {to}: مضى {days} يوماً"
   },
   "alert_kind": {
     "device_replaced": "ربط جهاز جديد لسائق",
@@ -816,7 +842,11 @@
     "maintenance_late": "سيارة تأخرت في المركز",
     "maintenance_long_stay": "إقامة طويلة في المركز",
     "maintenance_escalated": "تأخر صيانة مُصعَّد",
-    "contact_acknowledged": "طلب تواصل: تم الاطلاع"
+    "contact_acknowledged": "طلب تواصل: تم الاطلاع",
+    "leave_requested": "طلب تغيب",
+    "absence_consecutive": "غياب متتالٍ (المادة 41)",
+    "absence_yearly": "غياب سنوي (المادة 41)",
+    "absence_followup": "متابعة طلب تغيب"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
@@ -1123,7 +1153,8 @@
     "onboarding": "التسجيل الذاتي (يُضبط من إعدادات التسجيل الذاتي)",
     "permissions": "أذونات الهاتف (الموقع والكاميرا)",
     "schemes": "أنظمة الدفع وطلب التغيير",
-    "fuel": "البنزين المدفوع من الكاش"
+    "fuel": "البنزين المدفوع من الكاش",
+    "leaves": "طلب التغيب"
   },
   "daily_field": {
     "orders": "عدد الطلبات",
@@ -1445,7 +1476,12 @@
     "sick": "مرضية",
     "emergency": "طارئة",
     "unpaid": "بدون راتب",
-    "other": "أخرى"
+    "other": "أخرى",
+    "maternity": "أمومة",
+    "hajj": "حج",
+    "bereavement": "وفاة قريب",
+    "iddah_muslim": "عدة (أرملة مسلمة)",
+    "iddah_other": "عدة (أرملة غير مسلمة)"
   },
   "leave_status": {
     "pending": "بانتظار الاعتماد",
@@ -1502,7 +1538,8 @@
     "period": "شهر محاسبي",
     "uncollected": "خصومات غير محصلة",
     "payroll_objection": "اعتراض على كشف راتب",
-    "maintenance_schedule": "جدول صيانة دورية"
+    "maintenance_schedule": "جدول صيانة دورية",
+    "leave_type": "نوع إجازة"
   },
   "audit_actor": {
     "user": "مستخدم",
@@ -1701,7 +1738,9 @@
     "report_missing": "بدأت يومك {date} ولم ترسل تقريرك بعد. أرسله الآن من التطبيق.",
     "fuel_approved": "قُبلت فاتورة البنزين بمبلغ {amount} د.ك وخُصمت من رصيد الكاش لديك",
     "fuel_rejected": "رُفضت فاتورة البنزين: {reason}",
-    "objection_updated": "اعتراضك على كشف راتب {month}: {status}. رد المكتب: {response}"
+    "objection_updated": "اعتراضك على كشف راتب {month}: {status}. رد المكتب: {response}",
+    "leave_approved": "اعتُمد طلب التغيب ({kind}) من {from} إلى {to}",
+    "leave_rejected": "رُفض طلب التغيب ({kind}) من {from} إلى {to}: {reason}"
   },
   "cash_account": {
     "driver": "كاش السائق",

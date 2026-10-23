@@ -210,7 +210,8 @@ def compute(
     gross += items["bonus"] + items["tips"]
 
     # absence and unpaid leave: a day's wage each when the settings say so, for pay made of the basic salary
-    absent = system.get("absence_days", 0) + system.get("unpaid_leave_days", 0)
+    # a leave day paid in part (sick days along the law's tiers) loses its unpaid share of a day's wage
+    absent = system.get("absence_days", 0) + system.get("unpaid_leave_days", 0) + system.get("leave_part_unpaid", ZERO)
     absence = ZERO
     if absence_rule == "daily_wage" and absent and pay_basic and not on_scheme:
         absence = money(absent * money(basic / (platform.day_divisor if platform else 30)))

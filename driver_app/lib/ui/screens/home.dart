@@ -16,6 +16,7 @@ import 'accident.dart';
 import 'claim.dart';
 import 'fines.dart';
 import 'fuel.dart';
+import 'leave.dart';
 import 'maintenance.dart';
 import 'me.dart';
 import 'notifications.dart';
@@ -240,6 +241,7 @@ class HomeTab extends StatelessWidget {
         if (state.shows('maintenance')) state.loadMaintenance(),
         if (state.shows('accidents')) state.loadAccidents(),
         if (state.shows('fuel')) state.loadFuel(),
+        if (state.shows('leaves')) state.loadLeaves(),
         state.loadNotices(),
       ]);
       await state.loadProfile();
@@ -333,6 +335,14 @@ class HomeTab extends StatelessWidget {
           title: l.fuel,
           subtitle: l.qaFuelSub,
           onTap: () => _push(context, FuelScreen(state: state)),
+        ),
+      if (state.shows('leaves') && state.leaves != null)
+        QuickAction(
+          key: const Key('leaves'),
+          icon: Icons.event_busy,
+          title: l.leaves,
+          subtitle: l.qaLeavesSub,
+          onTap: () => _push(context, LeaveScreen(state: state)),
         ),
       if (state.shows('cash') && cash != null && cash.receipts.isNotEmpty)
         QuickAction(

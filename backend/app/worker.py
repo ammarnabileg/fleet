@@ -21,6 +21,7 @@ celery = Celery(
         "app.modules.finance.tasks",
         "app.modules.approvals.tasks",
         "app.modules.notifications.tasks",
+        "app.modules.attendance.tasks",
     ],
 )
 
@@ -50,6 +51,7 @@ celery.conf.beat_schedule = {
     "treasury-deposit-day": {"task": "cash.scan_treasury", "schedule": crontab(hour=7, minute=0), "args": ("morning",)},
     "treasury-day-end": {"task": "cash.scan_treasury", "schedule": crontab(hour=23, minute=55), "args": ("night",)},
     "police-reports": {"task": "accidents.scan_police_reports", "schedule": crontab(hour=9, minute=15)},
+    "absence-followup": {"task": "attendance.scan_followups", "schedule": crontab(hour=7, minute=25)},
     "maintenance-due": {"task": "maintenance.scan_due", "schedule": crontab(hour=7, minute=20)},
     "finance-entries": {"task": "finance.post_entries", "schedule": crontab(hour=3, minute=30)},
     "approval-escalation": {"task": "approvals.escalate", "schedule": crontab(minute="*/15")},

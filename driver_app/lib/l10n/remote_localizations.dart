@@ -1120,4 +1120,66 @@ class RemoteLocalizations extends AppLocalizations {
   String get statusContactSent => _remote.text('statusContactSent') ?? _base.statusContactSent;
   @override
   String get statusDialFailed => _remote.text('statusDialFailed') ?? _base.statusDialFailed;
+  @override
+  String get leaves => _remote.text('leaves') ?? _base.leaves;
+  @override
+  String get qaLeavesSub => _remote.text('qaLeavesSub') ?? _base.qaLeavesSub;
+  @override
+  String get leaveType => _remote.text('leaveType') ?? _base.leaveType;
+  @override
+  String leaveLeft(String days) => _remote.format('leaveLeft', {'days': days}) ?? _base.leaveLeft(days);
+  @override
+  String get leaveFrom => _remote.text('leaveFrom') ?? _base.leaveFrom;
+  @override
+  String get leaveTo => _remote.text('leaveTo') ?? _base.leaveTo;
+  @override
+  String get leaveOneDay => _remote.text('leaveOneDay') ?? _base.leaveOneDay;
+  @override
+  String get leaveReason => _remote.text('leaveReason') ?? _base.leaveReason;
+  @override
+  String get leaveFollowupFrom => _remote.text('leaveFollowupFrom') ?? _base.leaveFollowupFrom;
+  @override
+  String get leaveAttachment => _remote.text('leaveAttachment') ?? _base.leaveAttachment;
+  @override
+  String get leaveAttachmentRequired => _remote.text('leaveAttachmentRequired') ?? _base.leaveAttachmentRequired;
+  @override
+  String get leaveCamera => _remote.text('leaveCamera') ?? _base.leaveCamera;
+  @override
+  String get leaveGallery => _remote.text('leaveGallery') ?? _base.leaveGallery;
+  @override
+  String leavePreviewDays(String days) =>
+      _remote.format('leavePreviewDays', {'days': days}) ?? _base.leavePreviewDays(days);
+  @override
+  String leavePaidPart(String days, String percent) =>
+      _remote.format('leavePaidPart', {'days': days, 'percent': percent}) ?? _base.leavePaidPart(days, percent);
+  @override
+  String leaveUnpaidPart(String days) =>
+      _remote.format('leaveUnpaidPart', {'days': days}) ?? _base.leaveUnpaidPart(days);
+  @override
+  String get leavePreviewOffline => _remote.text('leavePreviewOffline') ?? _base.leavePreviewOffline;
+  @override
+  String get leaveSend => _remote.text('leaveSend') ?? _base.leaveSend;
+  @override
+  String get leaveMine => _remote.text('leaveMine') ?? _base.leaveMine;
+  @override
+  String get leaveNone => _remote.text('leaveNone') ?? _base.leaveNone;
+  @override
+  String get leaveCancel => _remote.text('leaveCancel') ?? _base.leaveCancel;
+  @override
+  String get leaveStatus_pending => _remote.text('leaveStatus_pending') ?? _base.leaveStatus_pending;
+  @override
+  String get leaveStatus_approved => _remote.text('leaveStatus_approved') ?? _base.leaveStatus_approved;
+  @override
+  String get leaveStatus_rejected => _remote.text('leaveStatus_rejected') ?? _base.leaveStatus_rejected;
+  @override
+  String get leaveStatus_cancelled => _remote.text('leaveStatus_cancelled') ?? _base.leaveStatus_cancelled;
+  @override
+  String leaveOfficeSays(String reason) =>
+      _remote.format('leaveOfficeSays', {'reason': reason}) ?? _base.leaveOfficeSays(reason);
+  @override
+  String get leaveNoTypes => _remote.text('leaveNoTypes') ?? _base.leaveNoTypes;
+  @override
+  String get leaveDatesInvalid => _remote.text('leaveDatesInvalid') ?? _base.leaveDatesInvalid;
+  @override
+  String get leaveTypeMissing => _remote.text('leaveTypeMissing') ?? _base.leaveTypeMissing;
 }

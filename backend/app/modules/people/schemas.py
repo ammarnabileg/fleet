@@ -63,6 +63,7 @@ class EmployeeIn(BaseModel):
     is_driver: bool = False
     phone: Phone | None = None
     hire_date: date | None = None
+    gender: Literal["male", "female"] | None = None  # for the leave types that apply to one gender
     status_code: Code | None = None  # "active" when omitted
     basic_salary: Salary | None = None
     iban: Iban | None = None
@@ -88,6 +89,7 @@ class EmployeeUpdateIn(BaseModel):
     is_driver: bool | None = None
     phone: Phone | None = None
     hire_date: date | None = None
+    gender: Literal["male", "female"] | None = None  # for the leave types that apply to one gender
     basic_salary: Salary | None = None
     iban: Iban | None = None
     bank_name: Short | None = None
@@ -125,6 +127,7 @@ class EmployeeOut(BaseModel):
     is_driver: bool
     phone: str | None
     hire_date: date | None
+    gender: str | None = None
     status_code: str
     status_name: dict[str, str]
     is_terminal: bool

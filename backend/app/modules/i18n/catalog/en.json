@@ -613,7 +613,23 @@
     "language_required": "Arabic and English are the app's own languages and cannot be turned off",
     "invalid_translation": "The translation of {key} is not valid: {reason}",
     "translation_sheet_invalid": "The sheet must have the columns scope, key and translation (export the language first)",
-    "translation_import_invalid": "{count} rows in the sheet are not valid; nothing was saved"
+    "translation_import_invalid": "{count} rows in the sheet are not valid; nothing was saved",
+    "leave_type_not_found": "Leave type not found",
+    "leave_type_inactive": "This leave type is switched off",
+    "leave_no_working_days": "There are no working days in this period",
+    "leave_gender": "This leave type does not apply to this employee",
+    "hire_date_unknown": "The hire date is not recorded: contact the office",
+    "leave_service_too_short": "Available after {months} months of service",
+    "leave_once_per_service": "This leave is once per service and was already taken",
+    "leave_too_long": "This leave is at most {max} days",
+    "leave_year_limit": "Over the yearly limit ({max} days); {left} left",
+    "leave_service_limit": "Over the limit for the whole service ({max} days); {left} left",
+    "leave_balance": "Not enough balance: {available} days available",
+    "leave_attachment_required": "This type needs an attachment (such as a medical certificate)",
+    "leave_exists": "This request is already recorded",
+    "followup_out_of_range": "The follow-up start date must be within a year of today",
+    "leave_tiers_open_end": "Only the last tier may have no number of days",
+    "leave_followed_up": "This request was already followed up"
   },
   "settings": {
     "branding": "Branding",
@@ -679,7 +695,13 @@
     "maintenance.due_soon_days": "Periodic maintenance is “due soon” this many days before",
     "maintenance.due_soon_km": "Periodic maintenance is “due soon” this many km before",
     "maintenance.escalate_after_days": "Escalate a late repair this many days after its expected date (urgent at once)",
-    "maintenance.long_stay_days": "Alert a car at the center with no expected date after (days; 0 = off)"
+    "maintenance.long_stay_days": "Alert a car at the center with no expected date after (days; 0 = off)",
+    "leaves": "Leaves and absence",
+    "leaves.absence_followup_days": "Absence follow-up alert after (days)",
+    "leaves.absence_alert_consecutive_days": "Consecutive absence alert above (days, Art. 41)",
+    "leaves.absence_alert_year_days": "Yearly absence alert above (days, Art. 41)",
+    "leaves.annual_carry_over_years": "Annual leave carry-over (years)",
+    "leaves.weekend_days": "Weekly rest days (0 Monday … 6 Sunday)"
   },
   "common": {
     "active": "Active",
@@ -761,7 +783,11 @@
     "maintenance_late": "{plate} (request #{number}) at {center} is past its expected date {date}",
     "maintenance_long_stay": "{plate} (request #{number}) has been at {center} since {date} with no expected date",
     "maintenance_escalated": "Escalated: {plate} (request #{number}) at {center} is late since {date} — responsible: {assignee}",
-    "contact_acknowledged": "{driver} acknowledged the contact request"
+    "contact_acknowledged": "{driver} acknowledged the contact request",
+    "leave_requested": "Absence request ({kind}) from {driver}: {days} days, {from} to {to}",
+    "absence_consecutive": "{driver} absent without permission {days} consecutive days ({from} - {to}): may justify dismissal without indemnity — review the legal procedure (prior warning)",
+    "absence_yearly": "{driver} absent without permission {days} days in {year}: may justify dismissal without indemnity — review the legal procedure (prior warning)",
+    "absence_followup": "Follow up the absence request ({kind}) of {driver}, {from} to {to}: {days} days passed"
   },
   "alert_kind": {
     "device_replaced": "Driver's phone replaced",
@@ -816,7 +842,11 @@
     "maintenance_late": "Car late at the center",
     "maintenance_long_stay": "Long stay at the center",
     "maintenance_escalated": "Late repair escalated",
-    "contact_acknowledged": "Contact request acknowledged"
+    "contact_acknowledged": "Contact request acknowledged",
+    "leave_requested": "Absence request",
+    "absence_consecutive": "Consecutive absence (Art. 41)",
+    "absence_yearly": "Yearly absence (Art. 41)",
+    "absence_followup": "Absence request follow-up"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -1123,7 +1153,8 @@
     "onboarding": "Self-registration (set in the self-registration settings)",
     "permissions": "Phone permissions (location, camera)",
     "schemes": "Pay schemes and change requests",
-    "fuel": "Fuel paid from cash"
+    "fuel": "Fuel paid from cash",
+    "leaves": "Absence request"
   },
   "daily_field": {
     "orders": "Orders",
@@ -1445,7 +1476,12 @@
     "sick": "Sick",
     "emergency": "Emergency",
     "unpaid": "Unpaid",
-    "other": "Other"
+    "other": "Other",
+    "maternity": "Maternity",
+    "hajj": "Hajj",
+    "bereavement": "Bereavement",
+    "iddah_muslim": "Iddah (Muslim widow)",
+    "iddah_other": "Iddah (non-Muslim widow)"
   },
   "leave_status": {
     "pending": "Waiting for approval",
@@ -1502,7 +1538,8 @@
     "period": "Month of the books",
     "uncollected": "Uncollected deductions",
     "payroll_objection": "Payslip objection",
-    "maintenance_schedule": "Maintenance schedule"
+    "maintenance_schedule": "Maintenance schedule",
+    "leave_type": "Leave type"
   },
   "audit_actor": {
     "user": "User",
@@ -1701,7 +1738,9 @@
     "report_missing": "You started your day {date} but have not sent your report yet. Send it now from the app.",
     "fuel_approved": "Your fuel claim was approved for {amount} KWD and taken off the cash you hold",
     "fuel_rejected": "Your fuel claim was rejected: {reason}",
-    "objection_updated": "Your objection to the {month} payslip: {status}. The office says: {response}"
+    "objection_updated": "Your objection to the {month} payslip: {status}. The office says: {response}",
+    "leave_approved": "Your absence request ({kind}) from {from} to {to} was approved",
+    "leave_rejected": "Your absence request ({kind}) from {from} to {to} was rejected: {reason}"
   },
   "cash_account": {
     "driver": "Driver's cash",

@@ -79,6 +79,10 @@ KINDS: dict[str, Kind] = {
     "fine_no_driver": Kind("warning", "fines.manage", ("plate", "number", "at")),
     "approval_escalated": Kind("warning", "approvals.view", ("ref", "hours")),
     "payroll_objection": Kind("info", "payroll.view", ("driver", "month")),
+    "leave_requested": Kind("info", "leaves.approve", ("driver", "kind", "from", "to", "days")),
+    "absence_consecutive": Kind("warning", "leaves.approve", ("driver", "days", "from", "to")),
+    "absence_yearly": Kind("warning", "leaves.approve", ("driver", "days", "year")),
+    "absence_followup": Kind("warning", "leaves.view", ("driver", "kind", "from", "to", "days")),
 }
 
 
@@ -506,6 +510,8 @@ DRIVER_KINDS: dict[str, tuple[str, ...]] = {  # kind: the params its text uses
     "fuel_approved": ("amount",),
     "fuel_rejected": ("reason",),
     "objection_updated": ("month", "status", "response"),
+    "leave_approved": ("kind", "from", "to"),
+    "leave_rejected": ("kind", "from", "to", "reason"),
 }
 
 

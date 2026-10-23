@@ -176,7 +176,10 @@ def test_leaves_never_overlap_and_an_approved_leave_covers_its_days(admin_client
     r = admin_client.post(f"{L}/{leave['id']}/cancel", json={"reason": "entered for the wrong driver"})
     assert r.json()["status"] == "cancelled" and r.json()["cancel_reason"] == "entered for the wrong driver"
     assert len(days(admin_client, d)) == 3
-    second = admin_client.post(L, json=body | {"kind": "annual", "approve": True}).json()
+    # annual leave six days after his hire: the law's nine months are not served, the office registers it anyway
+    r = admin_client.post(L, json=body | {"kind": "annual", "approve": True})
+    assert r.status_code == 422 and r.json()["code"] == "leave_service_too_short"
+    second = admin_client.post(L, json=body | {"kind": "annual", "approve": True, "override": True}).json()
     assert second["status"] == "approved" and second["decided_by"] is not None
     rejected = admin_client.post(L, json=body | {"date_from": ago(6), "date_to": ago(6)}).json()
     assert (

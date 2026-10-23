@@ -181,6 +181,7 @@
       if (docs) tabs.push(['docs', 'المستندات', docs.length || null]);
       if (e.is_driver) tabs.push(['device', 'التطبيق والهاتف']);
       if (custodies && e.is_driver) tabs.push(['custody', 'العُهد']);
+      if (api.can('leaves.view')) tabs.push(['leaves', 'الإجازات']);
       tabs.push(['log', 'سجل الحالة']);
       var active = tab && tabs.some(function (t) { return t[0] === tab; }) ? tab : 'info';
       dlg.setBody(h`<div class="flex items-center gap-12 mb-16">${BT.avatar(title, 'xl')}<div class="flex-1"><div class="flex gap-8 items-center" style="flex-wrap:wrap">${BT.pill(api.name(e.status_name), e.is_terminal ? 'n' : e.status_code === 'active' ? 'g' : 'o', true)}${e.is_driver ? A.pill('app_access', e.app_access) : ''}${openCustody ? BT.pill('العهدة: ' + openCustody.vehicle.plate_number, 'b') : ''}</div><div class="muted fs-sm mt-4"><span class="num">${e.employee_number}</span> · ${api.company(e.company_id)} · ${api.branch(e.branch_id)}</div></div></div>
@@ -191,6 +192,7 @@
             ['الجوال', A.phoneShow(e.phone)], ['الرقم المدني', e.civil_id ? h`<span class="num">${e.civil_id}</span>` : '—'],
             ['الجنسية', e.nationality || '—'], ['القسم / الوظيفة', [e.department, e.job_title].filter(Boolean).join(' · ') || '—'],
             ['تاريخ الالتحاق', e.hire_date ? h`<span class="num">${fmt.date(e.hire_date)}</span>` : '—'],
+            ['الجنس', e.gender === 'female' ? 'أنثى' : e.gender === 'male' ? 'ذكر' : '—'],
             ['سائق', e.is_driver ? 'نعم' : 'لا'],
             e.is_driver ? ['كارت بنزين', e.fuel_card ? 'عنده كارت بنزين من الشركة' : 'لا'] : null,
             ['الراتب الأساسي', e.basic_salary != null ? BT.amt(Number(e.basic_salary)) : raw('<span class="muted">محجوب (صلاحية الرواتب)</span>')],
@@ -202,11 +204,14 @@
           ${docs ? h`<div data-panel="docs" data-group="empd" class="${active === 'docs' ? 'active' : ''}">${docsList(docs, 'employee', e.id)}</div>` : ''}
           ${e.is_driver ? h`<div data-panel="device" data-group="empd" class="${active === 'device' ? 'active' : ''}">${devicePanel(e, devices)}</div>` : ''}
           ${custodies && e.is_driver ? h`<div data-panel="custody" data-group="empd" class="${active === 'custody' ? 'active' : ''}">${custodies.length ? h`<div class="list">${custodies.map(function (c) { return h`<button type="button" class="li" data-custody="${c.id}" style="width:100%;text-align:start"><span class="li-ic">${icon('key-round', 16)}</span><div class="li-main"><div class="li-t"><span class="plate">${c.vehicle.plate_number}</span> ${c.kind === 'emergency' ? A.pill('custody_kind', 'emergency') : ''}</div><div class="li-d">${fmt.dt(c.started_at)} ← ${c.ended_at ? fmt.dt(c.ended_at) : 'مستمرة'}</div></div>${c.needs_review ? BT.pill('تحتاج مراجعة', 'o') : ''}</button>`; })}</div>` : BT.empty('key-round', 'لا توجد عُهد', '')}<div data-emp-changes></div></div>` : ''}
+          ${api.can('leaves.view') ? h`<div data-panel="leaves" data-group="empd" class="${active === 'leaves' ? 'active' : ''}"><div data-leave-balances>${A.spinner()}</div></div>` : ''}
           <div data-panel="log" data-group="empd" class="${active === 'log' ? 'active' : ''}">${history.length ? h`<div class="timeline">${history.map(function (x, i) { var s = (statuses || []).find(function (y) { return y.code === x.status_code; }); return h`<div class="tl-item"><span class="tl-ic ${i ? '' : 'g'}">${icon(i ? 'history' : 'check', 13)}</span><div><div class="tl-t">${s ? api.name(s.name) : x.status_code}</div><div class="tl-d">${fmt.dt(x.changed_at)}${x.note ? ' · ' + x.note : ''}</div></div></div>`; })}</div>` : BT.empty('history', 'لا يوجد سجل', '')}</div>
         </div>`);
       var foot = dlg.panel.querySelector('.modal-f');
       BT.render(foot, h`<span class="spacer"></span>${api.can('employees.update') && !e.is_terminal ? h`<button type="button" class="btn btn-outline" data-x="status">${icon('repeat', 15)}تغيير الحالة</button>` : ''}${api.can('employees.update') ? h`<button type="button" class="btn btn-outline" data-x="edit">${icon('pencil', 15)}تعديل</button>` : ''}<button type="button" class="btn btn-secondary" data-close>إغلاق</button>`);
       var reopen = function (t) { dlg.close(); A.employee(id, t); if (A.refreshEmployees) A.refreshEmployees(); };
+      var balBox = dlg.panel.querySelector('[data-leave-balances]');
+      if (balBox && A.leaveBalances) A.leaveBalances(e.id).then(function (t) { BT.render(balBox, t); }, function () { BT.render(balBox, ''); });
       var claimBox = dlg.panel.querySelector('[data-claim]');
       if (claimBox) A.claimBox(claimBox, e, function () { reopen('device'); });
       var schemeBox = dlg.panel.querySelector('[data-scheme-box]');
@@ -455,7 +460,8 @@
           ${BT.f.select({ name: 'company_id', label: 'الشركة (على أوراقها)', required: true, value: e.company_id, options: api.companyOptions(), placeholder: false })}
           ${BT.f.select({ name: 'branch_id', label: 'الفرع', required: true, value: e.branch_id, options: api.branchOptions(), placeholder: false })}
           ${A.picker({ name: 'nationality', label: 'الجنسية', optional: true, value: e.nationality, items: nationalityItems(e.nationality), placeholder: 'اكتب للبحث: الهند أو India…' })}
-          ${BT.f.date({ name: 'hire_date', label: 'تاريخ الالتحاق', optional: true, value: e.hire_date })}
+          ${BT.f.date({ name: 'hire_date', label: 'تاريخ الالتحاق', optional: true, value: e.hire_date, hint: 'تُحسب منه أهلية الإجازات ورصيد السنوية' })}
+          ${BT.f.select({ name: 'gender', label: 'الجنس', optional: true, value: e.gender || '', placeholder: '— غير مسجّل —', options: [{ v: 'male', t: 'ذكر' }, { v: 'female', t: 'أنثى' }], hint: 'لأنواع الإجازات الخاصة بجنس (الأمومة، العدة)' })}
           ${BT.f.input({ name: 'department', label: 'القسم', optional: true, value: e.department })}
           ${BT.f.input({ name: 'job_title', label: 'الوظيفة', optional: true, value: e.job_title })}
           ${editing ? '' : BT.f.select({ name: 'status_code', label: 'الحالة', required: true, value: 'active', placeholder: false, options: statuses.filter(function (s) { return s.is_active && !s.is_terminal; }).map(function (s) { return { v: s.code, t: api.name(s.name) }; }) })}
@@ -468,7 +474,7 @@
           var body = {
             employee_number: v.employee_number.trim(), name: Object.assign({}, e.name, { ar: v.name_ar.trim(), en: v.name_en.trim() }),
             is_driver: !!v.is_driver, phone: A.phoneE164(v.phone), civil_id: v.civil_id || null,
-            company_id: +v.company_id, branch_id: +v.branch_id, nationality: v.nationality ? A.picked('nationality', v.nationality) : null, hire_date: v.hire_date || null,
+            company_id: +v.company_id, branch_id: +v.branch_id, nationality: v.nationality ? A.picked('nationality', v.nationality) : null, hire_date: v.hire_date || null, gender: v.gender || null,
             department: v.department || null, job_title: v.job_title || null,
             platform_id: v.platform_id ? +v.platform_id : null, platform_driver_id: v.platform_driver_id ? v.platform_driver_id.trim() : null,
             fuel_card: !!v.fuel_card

@@ -9,37 +9,60 @@ A leave covers a range of days: registered, then approved or rejected (with a no
 approved leave covers its days: they are not listed, and a mark on one of them does not count. Two leaves of the
 same employee never overlap (pending or approved). Nothing in a month whose payroll is approved can change.
 
-Payroll reads each month's absence days, unpaid leave days, all leave days, and the days still unmarked.
+Payroll reads each month's absence days, unpaid leave days, the share of pay lost on leave days paid in part, all leave
+days, and the days still unmarked.
+
+Absence without permission (غياب بدون إذن) is never a request: it is the office's mark. Labour law Art. 41: more than
+7 consecutive days, or more than 20 days in a year, without a legitimate reason may justify dismissal without
+indemnity; marking such days raises an office alert to review the legal procedure (prior warning). Nothing is ever
+done automatically. The thresholds are in the leaves settings.
 """
 
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import date, timedelta
+from decimal import Decimal
 
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.core.clock import today, utcnow
+from app.core.clock import today
 from app.core.errors import AppError
-from app.modules.attendance.models import MARK_KINDS, DayMark, Leave
+from app.modules.attendance import leaves
+from app.modules.attendance.models import MARK_KINDS, DayMark
 from app.modules.audit import service as audit
 from app.modules.daily_ops import service as daily_ops
 from app.modules.files import service as files
 from app.modules.fleet import service as fleet
 from app.modules.identity import service as identity
+from app.modules.notifications import service as notifications
 from app.modules.people import service as people
 
 MAX_LIST_DAYS = 62  # the days to classify, at a time
-MAX_LEAVE_DAYS = 120
 LIST_LIMIT = 3000
 
-
-def _span(first: date, last: date, limit: int) -> None:
-    if last < first:
-        raise AppError(422, "invalid_range")
-    if (last - first).days >= limit:
-        raise AppError(422, "range_too_long_days", days=limit)
+# the leaves and absence requests, with their types and rules (leaves.py)
+_span, _unlocked, _scoped = leaves.span, leaves.unlocked, leaves.scoped
+list_types, update_type, preview, create_leave = (
+    leaves.list_types,
+    leaves.update_type,
+    leaves.preview,
+    leaves.create_leave,
+)
+decide_leave, cancel_leave, list_leaves = leaves.decide_leave, leaves.cancel_leave, leaves.list_leaves
+set_followup_from, mark_followed_up, scan_followups = (
+    leaves.set_followup_from,
+    leaves.mark_followed_up,
+    leaves.scan_followups,
+)
+employee_balances, pending_count = leaves.employee_balances, leaves.pending_count
+driver_view, driver_preview, driver_request, driver_cancel = (
+    leaves.driver_view,
+    leaves.driver_preview,
+    leaves.driver_request,
+    leaves.driver_cancel,
+)
 
 
 def _days(first: date, last: date):
@@ -49,192 +72,15 @@ def _days(first: date, last: date):
         d += timedelta(days=1)
 
 
-def _unlocked(db: Session, company_id: int, days: Iterable[date]) -> None:
-    """Refuses a change touching a month whose payroll is approved or paid."""
-    from app.modules.payroll import service as payroll  # payroll reads this module: imported when used
-
-    for month in sorted({d.replace(day=1) for d in days}):
-        if payroll.month_locked(db, company_id, month):
-            raise AppError(409, "payroll_locked")
-
-
-def _scoped(q, column, all_companies: bool, company_ids: Iterable[int]):
-    return q if all_companies else q.where(column.in_(list(company_ids)))
-
-
-# ------------------------------------------------------------------ leaves
-
-
-def _leave_out(db: Session, rows: list[Leave]) -> list[dict]:
-    names = people.names(db, {r.employee_id for r in rows})
-    users = identity.user_names(db, {u for r in rows for u in (r.created_by, r.decided_by) if u})
-    return [
-        {
-            "id": str(r.public_id),
-            "employee": names.get(r.employee_id),
-            "company_id": r.company_id,
-            "kind": r.kind,
-            "date_from": r.date_from,
-            "date_to": r.date_to,
-            "days": (r.date_to - r.date_from).days + 1,
-            "status": r.status,
-            "note": r.note,
-            "has_file": r.file_sha256 is not None,
-            "file_sha256": r.file_sha256,
-            "created_by": users.get(r.created_by),
-            "created_at": r.created_at,
-            "decided_by": users.get(r.decided_by),
-            "decided_at": r.decided_at,
-            "decision_note": r.decision_note,
-            "cancel_reason": r.cancel_reason,
-            "version": r.version,
-        }
-        for r in rows
-    ]
-
-
-def _get(db: Session, public_id, *, lock=False, all_companies: bool, company_ids: Iterable[int]) -> Leave:
-    q = _scoped(select(Leave).where(Leave.public_id == public_id), Leave.company_id, all_companies, company_ids)
-    leave = db.scalar(q.with_for_update() if lock else q)
-    if leave is None:
-        raise AppError(404, "leave_not_found")
-    return leave
-
-
-def _audit(db: Session, action: str, leave: Leave, *, actor_user_id: int, after: dict | None = None) -> None:
-    audit.record(
-        db,
-        action=action,
-        entity_type="leave",
-        entity_id=leave.public_id,
-        actor_user_id=actor_user_id,
-        company_id=leave.company_id,
-        after={"kind": leave.kind, "from": leave.date_from, "to": leave.date_to, "status": leave.status}
-        | (after or {}),
-    )
-
-
-def create_leave(db: Session, data: dict, *, approve: bool, actor_user_id: int, **scope) -> dict:
-    """Registered by the office; approved at once when the user may approve leaves and asks to."""
-    employee = people.ref_by_public_id(db, data["employee_id"], **scope)
-    first, last = data["date_from"], data["date_to"]
-    _span(first, last, MAX_LEAVE_DAYS)
-    if data.get("file_sha256"):
-        files.get(db, data["file_sha256"])  # a medical certificate, a ticket
-    # one registration at a time per employee, so two overlapping leaves cannot both pass the check
-    db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended('attendance.leave:' || :e, 0))"), {"e": employee.id})
-    clash = db.scalar(
-        select(Leave.public_id).where(
-            Leave.employee_id == employee.id,
-            Leave.status.in_(("pending", "approved")),
-            Leave.date_from <= last,
-            Leave.date_to >= first,
-        )
-    )
-    if clash is not None:
-        raise AppError(409, "leave_overlaps", leave_id=str(clash))
-    if approve:
-        _unlocked(db, employee.company_id, _days(first, last))
-    leave = Leave(
-        employee_id=employee.id,
-        company_id=employee.company_id,
-        kind=data["kind"],
-        date_from=first,
-        date_to=last,
-        note=data.get("note"),
-        file_sha256=data.get("file_sha256"),
-        created_by=actor_user_id,
-        status="approved" if approve else "pending",
-        decided_by=actor_user_id if approve else None,
-        decided_at=utcnow() if approve else None,
-    )
-    db.add(leave)
-    db.flush()
-    _audit(db, "leave.approved" if approve else "leave.registered", leave, actor_user_id=actor_user_id)
-    db.commit()
-    db.refresh(leave)
-    return _leave_out(db, [leave])[0]
-
-
-def decide_leave(db: Session, public_id, *, approve: bool, note: str | None, actor_user_id: int, **scope) -> dict:
-    leave = _get(db, public_id, lock=True, **scope)
-    if leave.status != "pending":
-        raise AppError(409, "leave_not_pending", status=leave.status)
-    if approve:
-        _unlocked(db, leave.company_id, _days(leave.date_from, leave.date_to))
-    elif not note:
-        raise AppError(422, "reason_required")
-    leave.status = "approved" if approve else "rejected"
-    leave.decided_by, leave.decided_at, leave.decision_note = actor_user_id, utcnow(), note
-    leave.version += 1
-    _audit(db, f"leave.{leave.status}", leave, actor_user_id=actor_user_id, after={"note": note})
-    db.commit()
-    return _leave_out(db, [leave])[0]
-
-
-def cancel_leave(db: Session, public_id, *, reason: str, actor_user_id: int, **scope) -> dict:
-    leave = _get(db, public_id, lock=True, **scope)
-    if leave.status not in ("pending", "approved"):
-        raise AppError(409, "leave_not_open", status=leave.status)
-    if leave.status == "approved":  # its days counted in an approved payroll stay counted
-        _unlocked(db, leave.company_id, _days(leave.date_from, leave.date_to))
-    leave.status, leave.cancel_reason = "cancelled", reason
-    leave.version += 1
-    _audit(db, "leave.cancelled", leave, actor_user_id=actor_user_id, after={"reason": reason})
-    db.commit()
-    return _leave_out(db, [leave])[0]
-
-
-def list_leaves(
-    db: Session,
-    *,
-    status: str | None = None,
-    employee_id=None,
-    date_from: date | None = None,
-    date_to: date | None = None,
-    limit: int = 100,
-    offset: int = 0,
-    **scope,
-) -> list[dict]:
-    q = _scoped(select(Leave), Leave.company_id, **scope)
-    if status:
-        q = q.where(Leave.status.in_(status.split(",")))
-    if employee_id is not None:
-        q = q.where(Leave.employee_id == people.ref_by_public_id(db, employee_id, **scope).id)
-    if date_from is not None:
-        q = q.where(Leave.date_to >= date_from)
-    if date_to is not None:
-        q = q.where(Leave.date_from <= date_to)
-    rows = db.scalars(q.order_by(Leave.date_from.desc(), Leave.id.desc()).limit(min(limit, 500)).offset(offset))
-    return _leave_out(db, list(rows))
-
-
 def get_leave(db: Session, public_id, **scope) -> dict:
-    return _leave_out(db, [_get(db, public_id, **scope)])[0]
+    return leaves.leave_out(db, [leaves.get_row(db, public_id, **scope)])[0]
 
 
 def leave_file(db: Session, public_id, **scope) -> files.FileInfo:
-    leave = _get(db, public_id, **scope)
+    leave = leaves.get_row(db, public_id, **scope)
     if leave.file_sha256 is None:
         raise AppError(404, "file_not_found")
     return files.get(db, leave.file_sha256)
-
-
-def _leave_days(db: Session, ids: list[int], first: date, last: date) -> tuple[dict, dict]:
-    """The days covered by approved leaves, each employee's, first to last; and those of unpaid leaves."""
-    covered: dict[int, set] = defaultdict(set)
-    unpaid: dict[int, set] = defaultdict(set)
-    if not ids:
-        return covered, unpaid
-    q = select(Leave.employee_id, Leave.kind, Leave.date_from, Leave.date_to).where(
-        Leave.employee_id.in_(ids), Leave.status == "approved", Leave.date_from <= last, Leave.date_to >= first
-    )
-    for employee_id, kind, a, b in db.execute(q):
-        days = set(_days(max(a, first), min(b, last)))
-        covered[employee_id] |= days
-        if kind == "unpaid":
-            unpaid[employee_id] |= days
-    return covered, unpaid
 
 
 # ------------------------------------------------------------------ the days to classify, and their marks
@@ -256,7 +102,7 @@ def _unmarked(db: Session, drivers: list[dict], first: date, last: date) -> list
         .tuples()
         .all()
     )
-    covered, _ = _leave_days(db, ids, first, last)
+    covered, _, _ = leaves.leave_days(db, ids, first, last)
     rows = []
     for d in drivers:
         i = d["id"]
@@ -327,8 +173,63 @@ def mark_days(db: Session, *, items: list[tuple], kind: str, note: str | None, a
             company_id=employee.company_id,
             after={"kind": kind, "days": sorted(days), "note": note},
         )
+        if kind == "absence":
+            _art41(db, employee, days)
     db.commit()
     return count
+
+
+def _absences(db: Session, employee_id: int, first: date, last: date) -> set[date]:
+    """His days marked absence first..last, less those an approved leave covers."""
+    marked = set(
+        db.scalars(
+            select(DayMark.day).where(
+                DayMark.employee_id == employee_id, DayMark.kind == "absence", DayMark.day.between(first, last)
+            )
+        )
+    )
+    covered, _, _ = leaves.leave_days(db, [employee_id], first, last)
+    return marked - covered[employee_id]
+
+
+def _art41(db: Session, employee, days: Iterable[date]) -> None:
+    """Art. 41 thresholds: an alert (once per run of days, and once per year) for the office to review the legal
+    procedure. Never an action."""
+    p = leaves.policy(db)
+    for year in sorted({d.year for d in days}):
+        absent = _absences(db, employee.id, date(year, 1, 1), date(year, 12, 31))
+        if len(absent) > p.absence_alert_year_days:
+            notifications.raise_alert(
+                db,
+                "absence_yearly",
+                company_id=employee.company_id,
+                entity_type="employee",
+                entity_id=employee.public_id,
+                params={"driver": employee.name, "days": len(absent), "year": year},
+                dedupe_key=f"absence_yearly:{employee.id}:{year}",
+                once=True,
+            )
+    lo, hi = min(days) - timedelta(days=60), max(days) + timedelta(days=60)
+    absent = _absences(db, employee.id, lo, hi)
+    for d in sorted(set(days) & absent):
+        start = d
+        while start - timedelta(days=1) in absent:
+            start -= timedelta(days=1)
+        end = d
+        while end + timedelta(days=1) in absent:
+            end += timedelta(days=1)
+        run = (end - start).days + 1
+        if run > p.absence_alert_consecutive_days:
+            notifications.raise_alert(
+                db,
+                "absence_consecutive",
+                company_id=employee.company_id,
+                entity_type="employee",
+                entity_id=employee.public_id,
+                params={"driver": employee.name, "days": run, "from": start.isoformat(), "to": end.isoformat()},
+                dedupe_key=f"absence_consecutive:{employee.id}:{start}",
+                refresh=True,
+            )
 
 
 def unmark_day(db: Session, *, employee_id, day: date, actor_user_id: int, **scope) -> None:
@@ -385,10 +286,19 @@ def month_counts(db: Session, employee_ids: Iterable[int], first: date, last: da
     """Per employee, first to last: the days marked absence (not on an approved leave), the days of unpaid approved
     leaves, every leave day (approved leaves and days marked leave), and the days still to classify (to yesterday)."""
     ids = list(employee_ids)
-    out = {i: {"absence_days": 0, "unpaid_leave_days": 0, "leave_days": 0, "unclassified_days": 0} for i in ids}
+    out = {
+        i: {
+            "absence_days": 0,
+            "unpaid_leave_days": 0,
+            "leave_part_unpaid": Decimal(0),
+            "leave_days": 0,
+            "unclassified_days": 0,
+        }
+        for i in ids
+    }
     if not ids:
         return out
-    covered, unpaid = _leave_days(db, ids, first, last)
+    covered, unpaid, partial = leaves.leave_days(db, ids, first, last)
     q = select(DayMark.employee_id, DayMark.day, DayMark.kind).where(
         DayMark.employee_id.in_(ids), DayMark.day.between(first, last)
     )
@@ -402,6 +312,7 @@ def month_counts(db: Session, employee_ids: Iterable[int], first: date, last: da
     for i in ids:
         out[i]["leave_days"] += len(covered[i])
         out[i]["unpaid_leave_days"] = len(unpaid[i])
+        out[i]["leave_part_unpaid"] = partial[i]  # a day's pay lost in part (sick days at 75%, 50%, 25%)
     until = min(last, today() - timedelta(days=1))
     drivers = (
         people.drivers_at_work(db, first, until, all_companies=True, company_ids=(), ids=ids) if until >= first else []

@@ -976,3 +976,114 @@ class Fuel {
   final String maxAmount;
   final List<FuelClaim> claims;
 }
+
+/// A part of a leave's days at one pay percent (the law's tiers: sick days at 100%, then 75%, ...).
+typedef PayPart = ({int days, int payPercent});
+
+List<PayPart> _parts(Object? raw) => [
+  for (final p in raw as List? ?? const []) (days: (p as Map)['days'] as int, payPercent: p['pay_percent'] as int),
+];
+
+/// A leave type he may request now, with what is left of it (annual: earned and available).
+class LeaveType {
+  LeaveType({
+    required this.code,
+    required this.name,
+    required this.requiresAttachment,
+    this.maxPerOccurrence,
+    this.leftYear,
+    this.leftService,
+    this.available,
+  });
+
+  factory LeaveType.fromJson(Map<String, dynamic> j) => LeaveType(
+    code: j['code'] as String,
+    name: Map<String, String>.from(j['name'] as Map),
+    requiresAttachment: j['requires_attachment'] == true,
+    maxPerOccurrence: j['max_per_occurrence'] as int?,
+    leftYear: j['left_year'] as int?,
+    leftService: j['left_service'] as int?,
+    available: j['available'] as int?,
+  );
+
+  final String code;
+  final Map<String, String> name;
+  final bool requiresAttachment;
+  final int? maxPerOccurrence;
+  final int? leftYear;
+  final int? leftService;
+  final int? available;
+
+  /// The days left to take, where a limit applies.
+  int? get left => available ?? leftYear ?? leftService;
+}
+
+/// His absence request, as the office decided it.
+class LeaveRequest {
+  LeaveRequest({
+    required this.id,
+    required this.kind,
+    required this.kindName,
+    required this.from,
+    required this.to,
+    required this.days,
+    required this.split,
+    required this.status,
+    this.reason,
+    this.decisionNote,
+  });
+
+  factory LeaveRequest.fromJson(Map<String, dynamic> j) => LeaveRequest(
+    id: j['id'] as String,
+    kind: j['kind'] as String,
+    kindName: Map<String, String>.from(j['kind_name'] as Map),
+    from: DateTime.parse(j['date_from'] as String),
+    to: DateTime.parse(j['date_to'] as String),
+    days: j['days'] as int,
+    split: _parts(j['split']),
+    status: j['status'] as String,
+    reason: j['reason'] as String?,
+    decisionNote: j['decision_note'] as String?,
+  );
+
+  final String id;
+  final String kind;
+  final Map<String, String> kindName;
+  final DateTime from;
+  final DateTime to;
+  final int days;
+  final List<PayPart> split;
+  final String status; // pending | approved | rejected | cancelled
+  final String? reason;
+  final String? decisionNote; // the office's reason
+}
+
+class Leaves {
+  Leaves({required this.types, required this.requests});
+
+  factory Leaves.fromJson(Map<String, dynamic> j) => Leaves(
+    types: [for (final t in j['types'] as List) LeaveType.fromJson(t as Map<String, dynamic>)],
+    requests: [for (final r in j['requests'] as List) LeaveRequest.fromJson(r as Map<String, dynamic>)],
+  );
+
+  final List<LeaveType> types;
+  final List<LeaveRequest> requests;
+}
+
+/// What a request would count and pay, and why it would be refused (the server's error codes).
+class LeavePreview {
+  LeavePreview({required this.days, required this.split, required this.problems});
+
+  factory LeavePreview.fromJson(Map<String, dynamic> j) => LeavePreview(
+    days: j['days'] as int,
+    split: _parts(j['split']),
+    problems: [
+      for (final p in j['problems'] as List)
+        (code: (p as Map)['code'] as String, params: Map<String, dynamic>.from(p['params'] as Map)),
+    ],
+  );
+
+  final int days;
+  final List<PayPart> split;
+  final List<({String code, Map<String, dynamic> params})> problems;
+}

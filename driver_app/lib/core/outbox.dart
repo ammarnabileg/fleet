@@ -36,7 +36,7 @@ class OutboxItem {
   );
 
   final int id;
-  final String kind; // odometer | report | report_edit | report_change | maintenance | accident | police_report | statement | fuel | objection | contact_ack
+  final String kind; // odometer | report | report_edit | report_change | maintenance | accident | police_report | statement | fuel | objection | contact_ack | leave | leave_cancel
   final Map<String, dynamic> payload;
   final Map<String, String> files; // payload field -> local file still to upload
   final DateTime createdAt;
@@ -108,6 +108,10 @@ class Outbox {
     'vehicle_claim': ('/driver/vehicle-claims', 'camera', {'vehicle_claim_exists'}, 'POST'),
     // an objection to a payslip, with a photo from the camera or the gallery if any (a resend: its client_ref)
     'objection': ('/driver/payslips/{run_id}/objections', 'upload', {'objection_exists'}, 'POST'),
+    // an absence request, with a certificate from the camera or the gallery if any (a resend: its client_ref)
+    'leave': ('/driver/leaves', 'upload', {'leave_exists'}, 'POST'),
+    // he withdraws a request still waiting (a resend finds it withdrawn)
+    'leave_cancel': ('/driver/leaves/{leave_id}/cancel', 'upload', <String>{}, 'POST'),
     // «Done» on the office's contact request: the server answers the same to a resend (its client_ref)
     'contact_ack': ('/driver/contact-requests/{request_id}/ack', 'upload', <String>{}, 'POST'),
   };

@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 from app.core.db import get_session
 from app.modules.attendance import schemas, service
 from app.modules.files import service as files
-from app.modules.identity.service import Principal, require_permission
+from app.modules.identity.service import DevicePrincipal, Principal, require_device, require_permission
+from app.modules.org import service as org
 
 router = APIRouter(prefix="/api/v1", tags=["attendance"])
 
@@ -68,9 +69,59 @@ def marks(
     )
 
 
+# ------------------------------------------------------------------ leave types
+
+
+@router.get("/leave-types", response_model=list[schemas.LeaveTypeOut])
+def leave_types(_: Principal = Depends(require_permission("leaves.view")), db: Session = Depends(get_session)):
+    """The leave types and their rules: defaults read from the labour law, to review with HR/legal counsel."""
+    return service.list_types(db)
+
+
+@router.put("/leave-types/{code}", response_model=schemas.LeaveTypeOut)
+def update_leave_type(
+    code: str,
+    body: schemas.LeaveTypeIn,
+    principal: Principal = Depends(require_permission("settings.update")),
+    db: Session = Depends(get_session),
+):
+    changes = {
+        k: v
+        for k, v in body.model_dump(exclude={"version"}).items()
+        if k in body.model_fields_set and (v is not None or k in schemas.NULLABLE_TYPE_FIELDS)
+    }
+    return service.update_type(db, code, changes, version=body.version, actor_user_id=principal.user_id)
+
+
+@router.post("/leaves/preview", response_model=schemas.PreviewOut)
+def preview(
+    body: schemas.PreviewIn,
+    principal: Principal = Depends(require_permission("leaves.view")),
+    db: Session = Depends(get_session),
+):
+    """What the leave would count and pay, and the rules it breaks, before it is registered."""
+    return service.preview(db, body.model_dump(), **principal.scope)
+
+
+@router.get("/employees/{public_id}/leave-balances", response_model=list[schemas.BalanceOut])
+def balances(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("leaves.view")),
+    db: Session = Depends(get_session),
+):
+    return service.employee_balances(db, public_id, **principal.scope)
+
+
+@router.get("/leaves/counts")
+def counts(principal: Principal = Depends(require_permission("leaves.view")), db: Session = Depends(get_session)):
+    return {"pending": service.pending_count(db, **principal.scope)}
+
+
 @router.get("/leaves", response_model=list[schemas.LeaveOut])
 def leaves(
     status: str | None = None,
+    kind: str | None = None,
+    source: str | None = None,
     employee_id: uuid.UUID | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
@@ -82,6 +133,8 @@ def leaves(
     return service.list_leaves(
         db,
         status=status,
+        kind=kind,
+        source=source,
         employee_id=employee_id,
         date_from=date_from,
         date_to=date_to,
@@ -127,7 +180,7 @@ def approve(
     db: Session = Depends(get_session),
 ):
     return service.decide_leave(
-        db, public_id, approve=True, note=body.note, actor_user_id=principal.user_id, **principal.scope
+        db, public_id, approve=True, note=body.note, paid=body.paid, actor_user_id=principal.user_id, **principal.scope
     )
 
 
@@ -151,3 +204,64 @@ def cancel(
     db: Session = Depends(get_session),
 ):
     return service.cancel_leave(db, public_id, reason=body.reason, actor_user_id=principal.user_id, **principal.scope)
+
+
+@router.put("/leaves/{public_id}/followup-from", response_model=schemas.LeaveOut)
+def followup_from(
+    public_id: uuid.UUID,
+    body: schemas.FollowupIn,
+    principal: Principal = Depends(require_permission("leaves.approve")),
+    db: Session = Depends(get_session),
+):
+    return service.set_followup_from(
+        db, public_id, day=body.followup_from, actor_user_id=principal.user_id, **principal.scope
+    )
+
+
+@router.post("/leaves/{public_id}/followed-up", response_model=schemas.LeaveOut)
+def followed_up(
+    public_id: uuid.UUID,
+    body: schemas.FollowedUpIn,
+    principal: Principal = Depends(require_permission("leaves.view")),
+    db: Session = Depends(get_session),
+):
+    """«تمت المتابعة»: the follow-up alert closes, and is not raised again for this request."""
+    return service.mark_followed_up(db, public_id, note=body.note, actor_user_id=principal.user_id, **principal.scope)
+
+
+# ------------------------------------------------------------------ the driver app
+
+SCREEN = [Depends(org.screen("leaves"))]
+
+
+@router.get("/driver/leaves", response_model=schemas.DriverLeavesOut, dependencies=SCREEN)
+def my_leaves(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
+    """The types he may request now (with what is left of each) and his last requests."""
+    return service.driver_view(db, device.employee_id)
+
+
+@router.post("/driver/leaves/preview", response_model=schemas.PreviewOut, dependencies=SCREEN)
+def driver_preview(
+    body: schemas.DriverPreviewIn,
+    device: DevicePrincipal = Depends(require_device),
+    db: Session = Depends(get_session),
+):
+    return service.driver_preview(db, device.employee_id, body.model_dump())
+
+
+@router.post("/driver/leaves", response_model=schemas.DriverLeaveOut, status_code=201, dependencies=SCREEN)
+def driver_request(
+    body: schemas.DriverLeaveIn,
+    device: DevicePrincipal = Depends(require_device),
+    db: Session = Depends(get_session),
+):
+    return service.driver_request(
+        db, employee_id=device.employee_id, device_id=device.device_id, data=body.model_dump()
+    )
+
+
+@router.post("/driver/leaves/{public_id}/cancel", response_model=schemas.DriverLeaveOut, dependencies=SCREEN)
+def driver_cancel(
+    public_id: uuid.UUID, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
+):
+    return service.driver_cancel(db, public_id, employee_id=device.employee_id)

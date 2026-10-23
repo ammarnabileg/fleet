@@ -35,6 +35,7 @@ FIELDS = (
     "is_driver",
     "phone",
     "hire_date",
+    "gender",
     "platform_id",
     "platform_driver_id",
     "fuel_card",
@@ -71,6 +72,8 @@ class EmployeeRef:
     civil_id: str | None = None
     platform_id: int | None = None
     fuel_card: bool = False  # his fuel is on a company card: nothing to claim from his cash
+    hire_date: date | None = None
+    gender: str | None = None  # male | female, when known
 
     @property
     def can_use_app(self) -> bool:
@@ -605,6 +608,8 @@ def _ref(e: Employee, s: EmploymentStatus) -> EmployeeRef:
         e.civil_id,
         e.platform_id,
         e.fuel_card,
+        e.hire_date,
+        e.gender,
     )
 
 

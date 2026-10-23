@@ -45,6 +45,7 @@ class Employee(Base):
         CheckConstraint("basic_salary >= 0", name="basic_salary"),
         CheckConstraint("app_access IN ('none', 'active', 'suspended', 'disabled')", name="app_access"),
         CheckConstraint("payment_method IN ('bank', 'cash')", name="payment_method"),
+        CheckConstraint("gender IN ('male', 'female')", name="gender"),
         CheckConstraint("platform_driver_id IS NULL OR platform_id IS NOT NULL", name="platform_driver"),
         Index(
             "employees_platform_driver_id_idx",
@@ -71,6 +72,7 @@ class Employee(Base):
     is_driver: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     phone: Mapped[str | None] = mapped_column(Text)
     hire_date: Mapped[date | None] = mapped_column(Date)
+    gender: Mapped[str | None] = mapped_column(Text)  # male | female, when known
     basic_salary: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
     iban: Mapped[str | None] = mapped_column(Text)
     bank_name: Mapped[str | None] = mapped_column(Text)

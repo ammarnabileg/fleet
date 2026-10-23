@@ -66,8 +66,7 @@ import 'app_localizations_sw.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale)
-    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -75,8 +74,7 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate =
-      _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -88,13 +86,12 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
-      <LocalizationsDelegate<dynamic>>[
-        delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-      ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
+    delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+  ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
@@ -3291,10 +3288,183 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'تعذر فتح الاتصال على هذا الهاتف'**
   String get statusDialFailed;
+
+  /// No description provided for @leaves.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلب تغيب'**
+  String get leaves;
+
+  /// No description provided for @qaLeavesSub.
+  ///
+  /// In ar, this message translates to:
+  /// **'إجازة أو غياب بعذر'**
+  String get qaLeavesSub;
+
+  /// No description provided for @leaveType.
+  ///
+  /// In ar, this message translates to:
+  /// **'نوع الإجازة'**
+  String get leaveType;
+
+  /// No description provided for @leaveLeft.
+  ///
+  /// In ar, this message translates to:
+  /// **'المتبقي {days} يوم'**
+  String leaveLeft(String days);
+
+  /// No description provided for @leaveFrom.
+  ///
+  /// In ar, this message translates to:
+  /// **'من'**
+  String get leaveFrom;
+
+  /// No description provided for @leaveTo.
+  ///
+  /// In ar, this message translates to:
+  /// **'إلى'**
+  String get leaveTo;
+
+  /// No description provided for @leaveOneDay.
+  ///
+  /// In ar, this message translates to:
+  /// **'يوم واحد'**
+  String get leaveOneDay;
+
+  /// No description provided for @leaveReason.
+  ///
+  /// In ar, this message translates to:
+  /// **'السبب'**
+  String get leaveReason;
+
+  /// No description provided for @leaveFollowupFrom.
+  ///
+  /// In ar, this message translates to:
+  /// **'تاريخ بداية احتساب المتابعة'**
+  String get leaveFollowupFrom;
+
+  /// No description provided for @leaveAttachment.
+  ///
+  /// In ar, this message translates to:
+  /// **'المرفق (مثل الشهادة الطبية)'**
+  String get leaveAttachment;
+
+  /// No description provided for @leaveAttachmentRequired.
+  ///
+  /// In ar, this message translates to:
+  /// **'هذا النوع يحتاج مرفقاً'**
+  String get leaveAttachmentRequired;
+
+  /// No description provided for @leaveCamera.
+  ///
+  /// In ar, this message translates to:
+  /// **'تصوير'**
+  String get leaveCamera;
+
+  /// No description provided for @leaveGallery.
+  ///
+  /// In ar, this message translates to:
+  /// **'من المعرض'**
+  String get leaveGallery;
+
+  /// No description provided for @leavePreviewDays.
+  ///
+  /// In ar, this message translates to:
+  /// **'{days} يوم محسوب'**
+  String leavePreviewDays(String days);
+
+  /// No description provided for @leavePaidPart.
+  ///
+  /// In ar, this message translates to:
+  /// **'{days} يوم بأجر {percent}%'**
+  String leavePaidPart(String days, String percent);
+
+  /// No description provided for @leaveUnpaidPart.
+  ///
+  /// In ar, this message translates to:
+  /// **'{days} يوم بدون راتب'**
+  String leaveUnpaidPart(String days);
+
+  /// No description provided for @leavePreviewOffline.
+  ///
+  /// In ar, this message translates to:
+  /// **'الحساب يحتاج اتصالاً: يُرسل الطلب ويُراجع في المكتب'**
+  String get leavePreviewOffline;
+
+  /// No description provided for @leaveSend.
+  ///
+  /// In ar, this message translates to:
+  /// **'إرسال الطلب'**
+  String get leaveSend;
+
+  /// No description provided for @leaveMine.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلباتي'**
+  String get leaveMine;
+
+  /// No description provided for @leaveNone.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد طلبات'**
+  String get leaveNone;
+
+  /// No description provided for @leaveCancel.
+  ///
+  /// In ar, this message translates to:
+  /// **'سحب الطلب'**
+  String get leaveCancel;
+
+  /// No description provided for @leaveStatus_pending.
+  ///
+  /// In ar, this message translates to:
+  /// **'بانتظار الاعتماد'**
+  String get leaveStatus_pending;
+
+  /// No description provided for @leaveStatus_approved.
+  ///
+  /// In ar, this message translates to:
+  /// **'معتمد'**
+  String get leaveStatus_approved;
+
+  /// No description provided for @leaveStatus_rejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'مرفوض'**
+  String get leaveStatus_rejected;
+
+  /// No description provided for @leaveStatus_cancelled.
+  ///
+  /// In ar, this message translates to:
+  /// **'ملغى'**
+  String get leaveStatus_cancelled;
+
+  /// No description provided for @leaveOfficeSays.
+  ///
+  /// In ar, this message translates to:
+  /// **'المكتب: {reason}'**
+  String leaveOfficeSays(String reason);
+
+  /// No description provided for @leaveNoTypes.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد أنواع إجازات متاحة لك الآن'**
+  String get leaveNoTypes;
+
+  /// No description provided for @leaveDatesInvalid.
+  ///
+  /// In ar, this message translates to:
+  /// **'تاريخ النهاية قبل البداية'**
+  String get leaveDatesInvalid;
+
+  /// No description provided for @leaveTypeMissing.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختر نوع الإجازة'**
+  String get leaveTypeMissing;
 }
 
-class _AppLocalizationsDelegate
-    extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -3303,14 +3473,7 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) => <String>[
-    'ar',
-    'en',
-    'fil',
-    'fr',
-    'hi',
-    'sw',
-  ].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>['ar', 'en', 'fil', 'fr', 'hi', 'sw'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;

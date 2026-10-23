@@ -96,6 +96,7 @@ APP_SCREENS = (
     "payslips",
     "schemes",
     "fuel",
+    "leaves",
 )
 LOCKED_SCREENS = ("sign_in", "day", "onboarding", "permissions")
 
@@ -162,6 +163,28 @@ class DailyReportSettings(_Section):
     deviation_percent: int = Field(50, ge=10, le=500)  # orders or cash this far from the driver's average (FR-DWR-08)
 
 
+class LeaveSettings(_Section):
+    """Leaves and absence. Defaults following the Kuwait private-sector labour law (Law 6/2010) as read for this
+    system: to be reviewed with HR or legal counsel, they are the client's decision."""
+
+    # a follow-up alert this many days after a leave request was made (pending or approved, never decided away)
+    absence_followup_days: int = Field(55, ge=1, le=365)
+    # Art. 41: absence without a legitimate reason beyond these may justify dismissal; only an alert, never an action
+    absence_alert_consecutive_days: int = Field(7, ge=1, le=60)
+    absence_alert_year_days: int = Field(20, ge=1, le=365)
+    # annual leave left unused carries over at most this many years' entitlement (a setting, not the law's text)
+    annual_carry_over_years: int = Field(2, ge=0, le=10)
+    # the weekly rest days (Monday 0 .. Sunday 6) left out of the leave types counted in working days
+    weekend_days: list[int] = Field(default_factory=lambda: [4], max_length=6)
+
+    @model_validator(mode="after")
+    def _days(self):
+        if any(d < 0 or d > 6 for d in self.weekend_days):
+            raise ValueError("weekend_days: 0 (Monday) to 6 (Sunday)")
+        self.weekend_days = sorted(set(self.weekend_days))
+        return self
+
+
 class FinanceSettings(_Section):
     """How the books are kept. entry_approval "auto": every entry the system makes (and a manual one) is approved as
     it is made; "manual": drafts wait for finance.approve. books_start_date: the first day of the books in this system
@@ -197,6 +220,7 @@ SECTIONS: dict[str, type[_Section]] = {
     "payroll": PayrollSettings,
     "daily_report": DailyReportSettings,
     "finance": FinanceSettings,
+    "leaves": LeaveSettings,
     "branding": BrandingSettings,
 }
 

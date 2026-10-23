@@ -44,7 +44,7 @@ test('days classified, a leave approved, an overlap refused, a classification ta
   ]);
 
   // ---- a sick leave from tomorrow, registered pending, then approved from its drawer
-  await admin.locator('#view [role=tab]', { hasText: 'الإجازات' }).click();
+  await admin.locator('#view [role=tab]', { hasText: 'طلبات التغيب' }).click();
   await settled(admin);
   await admin.getByRole('button', { name: 'تسجيل إجازة' }).click();
   const m = top();

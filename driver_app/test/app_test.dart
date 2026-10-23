@@ -3842,4 +3842,184 @@ void reviewWidgetTests() {
     expect(w.state.queued, isEmpty);
     expect(find.byKey(const Key('outbox-attention')), findsNothing);
   });
+
+  Map<String, dynamic> leaveType(String code, String ar, {bool attachment = false, int? leftYear, int? available}) => {
+    'code': code,
+    'name': {'ar': ar, 'en': code},
+    'eligible': true,
+    'reason': null,
+    'requires_attachment': attachment,
+    'tiers': <Map>[],
+    'counts': 'calendar',
+    'max_per_occurrence': null,
+    'used_year': 0,
+    'used_service': 0,
+    'pending': 0,
+    'service_year': {'from': '2026-01-01', 'to': '2026-12-31'},
+    'left_year': leftYear,
+    'left_service': null,
+    'accrued': available,
+    'available': available,
+  };
+
+  Map<String, dynamic> leaveRequest(String id, String status, {String? note}) => {
+    'id': id,
+    'kind': 'sick',
+    'kind_name': {'ar': 'مرضية', 'en': 'Sick leave'},
+    'date_from': '2026-10-20',
+    'date_to': '2026-10-21',
+    'days': 2,
+    'split': [
+      {'days': 2, 'pay_percent': 100},
+    ],
+    'status': status,
+    'reason': null,
+    'decision_note': note,
+    'cancel_reason': null,
+    'followup_from': '2026-10-19',
+    'has_file': true,
+    'created_at': '2026-10-19T08:00:00Z',
+  };
+
+  testWidgets('absence request: eligible types with what is left, the pay split, the certificate required for sick', (
+    tester,
+  ) async {
+    final requests = <Map<String, dynamic>>[
+      leaveRequest('r-ok', 'approved'),
+      leaveRequest('r-no', 'rejected', note: 'لا يوجد مستند'),
+    ];
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/leaves',
+      (r) => (
+        200,
+        {
+          'types': [
+            leaveType('annual', 'سنوية', available: 12),
+            leaveType('sick', 'مرضية', attachment: true, leftYear: 75),
+          ],
+          'requests': requests,
+        },
+      ),
+    );
+    w.server.on(
+      'POST',
+      '/api/v1/driver/leaves/preview',
+      (r) => (
+        200,
+        {
+          'kind': 'sick',
+          'date_from': '2026-10-23',
+          'date_to': '2026-10-23',
+          'calendar_days': 20,
+          'days': 20,
+          'split': [
+            {'days': 15, 'pay_percent': 100},
+            {'days': 5, 'pay_percent': 75},
+          ],
+          'paid_days': 20,
+          'unpaid_days': 0,
+          'pay_days': '18.75',
+          'tier_days_before': 0,
+          'balance': null,
+          'problems': [],
+          'warnings': [],
+        },
+      ),
+    );
+    final img = await tester.runAsync(testImage);
+    Photos.gallery = () async => TakenPhoto(img!, DateTime.now());
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'c' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('POST', '/api/v1/driver/leaves', (r) {
+      final b = jsonDecode(r.body) as Map<String, dynamic>;
+      final made = leaveRequest('r-new', 'pending')..['kind'] = b['kind'];
+      requests.insert(0, made);
+      return (201, made);
+    });
+    await pumpApp(tester, w);
+    await reveal(tester, find.byKey(const Key('leaves')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('leaves')));
+    await idle(tester);
+    // the office's reason on a refused request; nothing to withdraw on a decided one
+    await reveal(tester, find.byKey(const Key('leave-request-r-no')));
+    expect(find.textContaining('لا يوجد مستند'), findsOneWidget);
+    expect(find.byKey(const Key('leave-cancel-r-ok')), findsNothing);
+
+    await reveal(tester, find.byKey(const Key('leave-type')));
+    await tester.tap(find.byKey(const Key('leave-type')));
+    await settle(tester);
+    expect(find.textContaining('المتبقي'), findsWidgets);
+    await tester.tap(find.textContaining('مرضية').last);
+    await idle(tester);
+    expect(find.byKey(const Key('leave-preview')), findsOneWidget);
+    expect(find.textContaining('بأجر'), findsWidgets);
+    expect(find.textContaining('\u206675\u2069%'), findsOneWidget);
+
+    // sick without the certificate: not sent
+    await reveal(tester, find.byKey(const Key('leave-send')));
+    await tester.tap(find.byKey(const Key('leave-send')));
+    await idle(tester);
+    expect(find.byKey(const Key('leave-attachment-missing')), findsOneWidget);
+    expect(w.server.calls('/api/v1/driver/leaves', method: 'POST'), isEmpty);
+
+    await reveal(tester, find.byKey(const Key('leave-gallery')));
+    await tester.tap(find.byKey(const Key('leave-gallery')));
+    await idle(tester);
+    await reveal(tester, find.byKey(const Key('leave-send')));
+    await tester.tap(find.byKey(const Key('leave-send')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/leaves', method: 'POST').single.body) as Map;
+    expect((body['kind'], body['file_sha256']), ('sick', 'c' * 64));
+    expect((body['client_ref'] as String).length, 36);
+    expect(body['followup_from'], body['date_from'], reason: 'the follow-up counts from today by default');
+    expect(find.text('تم الإرسال'), findsOneWidget);
+
+    // back: the new request waits, and he may withdraw it
+    await tester.tap(find.text('تم'));
+    await settle(tester);
+    await reveal(tester, find.byKey(const Key('leaves')));
+    await tester.tap(find.byKey(const Key('leaves')));
+    await idle(tester);
+    await reveal(tester, find.byKey(const Key('leave-cancel-r-new')));
+    expect(find.byKey(const Key('leave-cancel-r-new')), findsOneWidget);
+  });
+
+  testWidgets('absence request offline: no preview, the request queued on the phone', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/leaves',
+      (r) => (
+        200,
+        {
+          'types': [leaveType('unpaid', 'بدون راتب')],
+          'requests': <Map>[],
+        },
+      ),
+    );
+    await pumpApp(tester, w);
+    w.server.on('POST', '/api/v1/driver/leaves/preview', (r) => throw const SocketException('offline'));
+    w.server.on('POST', '/api/v1/driver/leaves', (r) => throw const SocketException('offline'));
+    await reveal(tester, find.byKey(const Key('leaves')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('leaves')));
+    await idle(tester);
+    expect(find.byKey(const Key('leave-none')), findsNothing);
+    await tester.tap(find.byKey(const Key('leave-type')));
+    await settle(tester);
+    await tester.tap(find.text('بدون راتب').last);
+    await idle(tester);
+    expect(find.byKey(const Key('leave-preview-offline')), findsOneWidget);
+    await reveal(tester, find.byKey(const Key('leave-send')));
+    await tester.tap(find.byKey(const Key('leave-send')));
+    await idle(tester);
+    expect(find.text('حُفظ على الهاتف'), findsOneWidget);
+    expect(w.state.queued.single.kind, 'leave');
+  });
 }

@@ -221,6 +221,7 @@ def test_the_driver_sends_the_month_and_the_office_reviews_it(admin_client, clie
         "pending_reports": 0,
         "absence_days": 0,
         "unpaid_leave_days": 0,
+        "leave_part_unpaid": "0",
         "leave_days": 0,
         "unclassified_days": 0,
     }
