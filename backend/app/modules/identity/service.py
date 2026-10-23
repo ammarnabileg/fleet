@@ -825,6 +825,12 @@ def user_refs(db: Session, ids: Iterable[int]) -> dict[int, dict]:
     }
 
 
+def user_contact(db: Session, user_id: int) -> dict | None:
+    """The office user's name and phone, as a driver sees them (a contact request)."""
+    u = db.get(User, user_id)
+    return None if u is None else {"name": u.full_name, "phone": u.phone}
+
+
 def users_who_can(db: Session, permission: str, company_id: int | None) -> dict[int, dict]:
     """The active office users holding the permission within the company (an alert's possible handlers), by id."""
     holds = or_(

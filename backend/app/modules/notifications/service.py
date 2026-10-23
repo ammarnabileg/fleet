@@ -32,6 +32,7 @@ KINDS: dict[str, Kind] = {
     "location_permission_off": Kind("warning", "tracking.live", ("driver", "plate")),
     "gps_off": Kind("warning", "tracking.live", ("driver", "plate")),
     "tracking_stopped": Kind("warning", "tracking.live", ("driver", "plate")),
+    "contact_acknowledged": Kind("info", "tracking.live", ("driver",)),
     "odometer_lower": Kind("warning", "odometer.review", ("plate", "driver", "value", "previous")),
     "odometer_higher_than_next": Kind("warning", "odometer.review", ("plate", "driver", "value", "next")),
     "odometer_daily_limit": Kind("warning", "odometer.review", ("plate", "driver", "km", "limit")),

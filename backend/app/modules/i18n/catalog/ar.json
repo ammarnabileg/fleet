@@ -591,7 +591,25 @@
     "schedule_has_request": "للجدول طلب صيانة مفتوح بالفعل",
     "schedule_done_before_last": "التاريخ أو العداد قبل آخر مرة سُجّلت فيها",
     "expense_odometer_needs_vehicle": "قراءة العداد تحتاج اختيار السيارة",
-    "fuel_price_implausible": "سعر اللتر {price} د.ك غير منطقي: راجع المبلغ أو عدد اللترات"
+    "fuel_price_implausible": "سعر اللتر {price} د.ك غير منطقي: راجع المبلغ أو عدد اللترات",
+    "status_config_changed": "غيّر شخص آخر قوالب الحالة للتو. حدّث الصفحة ثم أعد التعديل",
+    "status_config_no_previous": "لا يوجد إعداد سابق للرجوع إليه",
+    "contact_not_a_driver": "طلب التواصل للسائقين فقط",
+    "contact_request_not_found": "طلب التواصل غير موجود",
+    "template_code_unknown": "حالة غير معروفة",
+    "template_kind_unknown": "نوع القالب غير مدعوم في التطبيق",
+    "template_icon_unknown": "الأيقونة ليست من أيقونات التطبيق",
+    "template_color_invalid": "اللون يجب أن يكون بصيغة ‎#RRGGBB",
+    "template_text_invalid": "النص غير صالح: الاسم والعنوان مطلوبان بالعربية والإنجليزية، والأقواس للمتغيرات فقط",
+    "template_text_too_long": "النص أطول من {max} حرفاً",
+    "template_variable_unknown": "المتغير {variable} غير معروف",
+    "template_priority_invalid": "الأولوية من 0 إلى 100",
+    "template_visibility_unknown": "شرط الظهور غير معروف",
+    "template_ttl_invalid": "مدة الصلاحية من دقيقة إلى 30 يوماً",
+    "template_audience_unknown": "الجمهور غير معروف",
+    "template_audience_companies": "اختر شركة واحدة على الأقل من شركاتك",
+    "template_actions_too_many": "أزرار أكثر من {max}",
+    "template_action_unknown": "زر غير مدعوم في التطبيق أو مكرر"
   },
   "settings": {
     "branding": "الهوية",
@@ -738,7 +756,8 @@
     "maintenance_overdue": "الصيانة الدورية «{title}» للسيارة {plate} متأخرة: كانت مستحقة {due}",
     "maintenance_late": "السيارة {plate} (طلب #{number}) في {center} تجاوزت موعد الإنجاز المتوقع {date}",
     "maintenance_long_stay": "السيارة {plate} (طلب #{number}) في {center} منذ {date} بلا موعد إنجاز متوقع",
-    "maintenance_escalated": "تصعيد: السيارة {plate} (طلب #{number}) في {center} متأخرة عن موعد {date} — المسؤول: {assignee}"
+    "maintenance_escalated": "تصعيد: السيارة {plate} (طلب #{number}) في {center} متأخرة عن موعد {date} — المسؤول: {assignee}",
+    "contact_acknowledged": "{driver} اطّلع على طلب التواصل"
   },
   "alert_kind": {
     "device_replaced": "ربط جهاز جديد لسائق",
@@ -792,7 +811,8 @@
     "maintenance_overdue": "صيانة دورية متأخرة",
     "maintenance_late": "سيارة تأخرت في المركز",
     "maintenance_long_stay": "إقامة طويلة في المركز",
-    "maintenance_escalated": "تأخر صيانة مُصعَّد"
+    "maintenance_escalated": "تأخر صيانة مُصعَّد",
+    "contact_acknowledged": "طلب تواصل: تم الاطلاع"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",

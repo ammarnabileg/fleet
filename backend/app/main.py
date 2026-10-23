@@ -14,6 +14,7 @@ from app.modules.audit.api import router as audit_router
 from app.modules.cash.api import router as cash_router
 from app.modules.daily_ops.api import router as daily_ops_router
 from app.modules.documents.api import router as documents_router
+from app.modules.driver_status.api import router as driver_status_router
 from app.modules.files.api import router as files_router
 from app.modules.finance.api import router as finance_router
 from app.modules.fines.api import router as fines_router
@@ -74,6 +75,7 @@ def create_app() -> FastAPI:
         documents_router,
         fleet_router,
         tracking_router,
+        driver_status_router,
         notifications_router,
         onboarding_router,
         imports_router,

@@ -311,11 +311,25 @@ async def live_events(
             yield ": keep-alive\n\n"
         elif not see_off_duty and json.loads(message).get("on_duty") is False:
             continue
+        elif message.startswith('{"event": '):  # another kind of live update (a driver's status changed)
+            event = json.loads(message)
+            yield f"event: {event['event']}\ndata: {json.dumps(event.get('data') or {}, default=str)}\n\n"
         else:
             yield f"event: position\ndata: {message}\n\n"
             sent += 1
         if time.monotonic() > deadline or (max_events is not None and sent >= max_events):
             return
+
+
+def last_fix_at(db: Session, vehicle_id: int, custody_id: int) -> datetime | None:
+    """When the last point of this custody reached the vehicle's last position (a point of an earlier custody is not
+    his)."""
+    p = db.get(LastPosition, vehicle_id)
+    return p.recorded_at if p is not None and p.custody_id == custody_id else None
+
+
+def signal_loss_after(db: Session) -> timedelta:
+    return timedelta(minutes=org.get_section(db, "tracking").signal_loss_minutes)
 
 
 # ------------------------------------------------------------------ route history

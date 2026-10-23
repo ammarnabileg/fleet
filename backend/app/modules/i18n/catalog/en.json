@@ -591,7 +591,25 @@
     "schedule_has_request": "The schedule already has an open maintenance request",
     "schedule_done_before_last": "The date or reading is before the last time it was done",
     "expense_odometer_needs_vehicle": "An odometer reading needs the vehicle",
-    "fuel_price_implausible": "A price of {price} KWD per litre is not plausible: check the amount or the litres"
+    "fuel_price_implausible": "A price of {price} KWD per litre is not plausible: check the amount or the litres",
+    "status_config_changed": "Someone else just changed the status templates. Refresh and edit again",
+    "status_config_no_previous": "There is no previous setting to go back to",
+    "contact_not_a_driver": "Contact requests are for drivers only",
+    "contact_request_not_found": "Contact request not found",
+    "template_code_unknown": "Unknown state",
+    "template_kind_unknown": "This template kind is not supported by the app",
+    "template_icon_unknown": "The icon is not one the app ships",
+    "template_color_invalid": "The color must be #RRGGBB",
+    "template_text_invalid": "Invalid text: the name and title are required in Arabic and English, and braces only mark variables",
+    "template_text_too_long": "The text is longer than {max} characters",
+    "template_variable_unknown": "Unknown variable {variable}",
+    "template_priority_invalid": "Priority is from 0 to 100",
+    "template_visibility_unknown": "Unknown visibility condition",
+    "template_ttl_invalid": "Expiry is from one minute to 30 days",
+    "template_audience_unknown": "Unknown audience",
+    "template_audience_companies": "Choose at least one of your companies",
+    "template_actions_too_many": "More than {max} actions",
+    "template_action_unknown": "An action the app does not support, or repeated"
   },
   "settings": {
     "branding": "Branding",
@@ -738,7 +756,8 @@
     "maintenance_overdue": "Periodic maintenance “{title}” of {plate} is overdue: it was due at {due}",
     "maintenance_late": "{plate} (request #{number}) at {center} is past its expected date {date}",
     "maintenance_long_stay": "{plate} (request #{number}) has been at {center} since {date} with no expected date",
-    "maintenance_escalated": "Escalated: {plate} (request #{number}) at {center} is late since {date} — responsible: {assignee}"
+    "maintenance_escalated": "Escalated: {plate} (request #{number}) at {center} is late since {date} — responsible: {assignee}",
+    "contact_acknowledged": "{driver} acknowledged the contact request"
   },
   "alert_kind": {
     "device_replaced": "Driver's phone replaced",
@@ -792,7 +811,8 @@
     "maintenance_overdue": "Periodic maintenance overdue",
     "maintenance_late": "Car late at the center",
     "maintenance_long_stay": "Long stay at the center",
-    "maintenance_escalated": "Late repair escalated"
+    "maintenance_escalated": "Late repair escalated",
+    "contact_acknowledged": "Contact request acknowledged"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
