@@ -81,6 +81,8 @@ class SecretOut(BaseModel):
 
 class ConnectionOut(BaseModel):
     kind: str
+    # not_configured | disabled | untested | working | failed (the last test: a connection, never a message sent)
+    state: str
     version: int
     config: dict
     secrets: dict[str, SecretOut]

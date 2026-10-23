@@ -7,6 +7,7 @@ from app.modules.files import service as files
 from app.modules.identity import service as identity
 from app.modules.identity.service import Principal, require_permission
 from app.modules.integrations import schemas, service
+from app.modules.notifications import service as notifications
 
 router = APIRouter(prefix="/api/v1", tags=["integrations"])
 MANAGE = "integrations.manage"
@@ -16,8 +17,21 @@ def _status(db: Session, kind: str) -> dict:
     if kind == "storage":
         return {"files": files.counts(db)}  # files on the disk are copied to R2 in the background once it is on
     if kind == "push":
-        return {"phones": identity.push_phones(db)}  # drivers' phones registered for push
-    return {"server_mode": get_settings().messaging_provider}  # what is used while WhatsApp is off here
+        messages = service.messages_summary(db, "push")
+        read = notifications.notices_read(db, [m["ref"] for m in messages["recent"]])
+        for m in messages["recent"]:
+            m["read"] = read.get(m.pop("ref"))  # opened in the app: the only proof the notice reached the driver
+        return {
+            "phones": identity.push_phones(db),  # drivers' phones registered for push
+            "active_phones": identity.active_phones(db),  # signed in: the most that can register
+            "notices": notifications.push_summary(db),
+            "messages": messages,
+        }
+    messages = service.messages_summary(db, "whatsapp")
+    for m in messages["recent"]:
+        m.pop("ref")
+    # what is used while WhatsApp is off here, and what was sent lately (accepted by the provider, or failed)
+    return {"server_mode": get_settings().messaging_provider, "messages": messages}
 
 
 @router.get("/integrations/connections", response_model=list[schemas.ConnectionOut])

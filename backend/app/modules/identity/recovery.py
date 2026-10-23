@@ -78,7 +78,7 @@ def request_code(db: Session, username: str, *, ip: str | None) -> None:
         lang = user.locale or i18n.default_language(db).code
         text = i18n.t(db, lang, "messages.password_reset", code=code, minutes=int(RESET_TTL.total_seconds() // 60))
         try:
-            integrations.messenger(db).send(user.phone, text)
+            integrations.messenger(db, "password_reset").send(user.phone, text)
         except messaging.DeliveryError as exc:  # the same answer on the page: the user asks an administrator
             log.warning("password reset code not delivered: %s", exc)
 

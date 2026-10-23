@@ -1,19 +1,22 @@
 import logging
 import time
 from dataclasses import dataclass
+from datetime import timedelta
 
 from cryptography.fernet import InvalidToken
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import func, text
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.core import crypto, messaging, push
+from app.core.clock import utcnow
 from app.core.config import get_settings
+from app.core.db import new_session
 from app.core.errors import AppError
 from app.core.storage import LocalStorage, R2Storage, StorageError
 from app.modules.audit import service as audit
 from app.modules.integrations import schemas
-from app.modules.integrations.models import Connection
+from app.modules.integrations.models import Connection, MessageLog
 
 log = logging.getLogger("fleet.integrations")
 
@@ -160,9 +163,10 @@ def _fcm(loaded: Loaded) -> push.FcmSender:
     return push.FcmSender(loaded.secrets["service_account"], transport=_fcm_transport(loaded))
 
 
-def _try(kind: str, loaded: Loaded) -> str | None:
-    """None when the service answers as it should; otherwise what went wrong, for the administrator."""
-    if not _on(kind, loaded.config):
+def _try(kind: str, loaded: Loaded, *, even_off: bool = False) -> str | None:
+    """None when the service answers as it should; otherwise what went wrong, for the administrator.
+    even_off: try the saved settings of a service that is switched off too (the panel's test button)."""
+    if not (even_off or _on(kind, loaded.config)):
         return None
     try:
         if kind == "storage":
@@ -170,7 +174,11 @@ def _try(kind: str, loaded: Loaded) -> str | None:
         elif kind == "push":
             _fcm(loaded).check()
         else:
-            _evolution(loaded).connection_state()
+            # the Evolution API answering is not enough: its WhatsApp session must be connected ("open"), or no
+            # message goes out (a dropped session needs its QR code scanned again in Evolution)
+            state = _evolution(loaded).connection_state()
+            if state != "open":
+                return f"whatsapp session is {state}, not open: scan the QR code again in Evolution API"
     except (StorageError, messaging.DeliveryError, push.PushError) as exc:
         return str(exc)[:300]
     return None
@@ -186,6 +194,7 @@ def connection_out(db: Session, kind: str, status: dict | None = None) -> dict:
     loaded = _read(db, kind)
     return {
         "kind": kind,
+        "state": state_of(kind, loaded, row),
         "version": loaded.version,
         "config": loaded.config.model_dump(mode="json"),
         "secrets": {
@@ -274,16 +283,44 @@ def save(
 
 
 def check(db: Session, kind: str) -> None:
-    """Tries the saved settings again (the panel's "test" button) and records the answer."""
+    """Tries the saved settings again (the panel's "test" button) and records the answer. WhatsApp and push are tried
+    even while switched off (a test that tried nothing would read "works"); the test sends no message to anyone."""
     _kind(kind)
     loaded = _read(db, kind)
     row = db.get(Connection, kind, with_for_update=True)
     if row is None:
         raise AppError(422, "connection_incomplete", fields="config")
-    missing = _missing(kind, loaded)
-    error = f"missing: {', '.join(missing)}" if missing else _try(kind, loaded)
+    even_off = kind in ("whatsapp", "push")
+    missing = _missing(kind, loaded, always=even_off)
+    error = f"missing: {', '.join(missing)}" if missing else _try(kind, loaded, even_off=even_off)
     row.checked_at, row.check_ok, row.check_error = func.now(), error is None, error
     db.commit()
+    _cache.pop(kind, None)
+
+
+def record_channel_state(db: Session, state: str) -> None:
+    """The scheduler's check of the WhatsApp channel (every few minutes), kept as the connection's last test while
+    WhatsApp is switched on here: the panel then shows a current answer, not the one from the day it was saved."""
+    row = db.get(Connection, "whatsapp")
+    if row is None or not row.config.get("enabled"):
+        return
+    ok = state == "open"
+    row.checked_at, row.check_ok = func.now(), ok
+    row.check_error = None if ok else f"whatsapp session is {state}, not open"[:300]
+
+
+def state_of(kind: str, loaded: Loaded, row: Connection | None) -> str:
+    """The channel's readiness as the panel shows it: not_configured (settings or key missing), disabled (complete
+    but switched off), untested, working (its last test passed), failed (its last test failed)."""
+    if kind == "storage" and not _on(kind, loaded.config):
+        return "disabled"  # R2 off: files on the server's disk
+    if row is None or _missing(kind, loaded, always=True):
+        return "not_configured"
+    if not _on(kind, loaded.config):
+        return "disabled"
+    if row.checked_at is None:
+        return "untested"
+    return "working" if row.check_ok else "failed"
 
 
 def _cached_build(kind: str, loaded: Loaded, build):
@@ -306,12 +343,146 @@ def storage(db: Session, name: str | None = None) -> LocalStorage | R2Storage:
     return _cached_build("storage", loaded, _r2)
 
 
-def messenger(db: Session) -> messaging.LogProvider | messaging.EvolutionProvider | messaging.PanelProvider:
-    """WhatsApp as set up in the control panel; until it is switched on there, the server's configuration."""
+def messenger(db: Session, purpose: str | None = None) -> "Recorded":
+    """WhatsApp as set up in the control panel; until it is switched on there, the server's configuration. Every send
+    is kept in the message log (purpose: why it is sent, e.g. "otp"), whatever the caller does with its transaction."""
     loaded = load(db, "whatsapp")
     if loaded.config.enabled and not _missing("whatsapp", loaded):
-        return _cached_build("whatsapp", loaded, _evolution)
-    return messaging.provider()
+        return Recorded(_cached_build("whatsapp", loaded, _evolution), purpose)
+    return Recorded(messaging.provider(), purpose)
+
+
+def _provider_name(provider) -> str:
+    if isinstance(provider, messaging.EvolutionProvider):
+        return "evolution"
+    if isinstance(provider, messaging.LogProvider):
+        return "log"
+    if isinstance(provider, messaging.PanelProvider):
+        return "none"
+    return type(provider).__name__.lower()[:30]
+
+
+def _masked(to: str | None) -> str | None:
+    digits = "".join(ch for ch in (to or "") if ch.isdigit())
+    return "…" + digits[-4:] if digits else None
+
+
+class Recorded:
+    """A messaging provider whose sends are written to the message log, in a session of their own: callers roll back
+    on a failed send, and the failure is exactly what the log must keep. The text is never written."""
+
+    def __init__(self, provider, purpose: str | None) -> None:
+        self.provider = provider
+        self.purpose = purpose
+
+    def connection_state(self) -> str:
+        return self.provider.connection_state()
+
+    def send(self, to: str, text: str) -> None:
+        try:
+            ref = self.provider.send(to, text)
+        except messaging.DeliveryError as exc:
+            reason = "not_on_whatsapp" if isinstance(exc, messaging.NotOnWhatsApp) else str(exc)
+            _log_message("whatsapp", _provider_name(self.provider), self.purpose, to, "failed", error=reason)
+            raise
+        _log_message("whatsapp", _provider_name(self.provider), self.purpose, to, "accepted", provider_ref=ref)
+
+
+def _log_message(channel, provider, purpose, to, status, *, error=None, provider_ref=None) -> None:
+    try:
+        with new_session() as s:
+            s.add(
+                MessageLog(
+                    channel=channel,
+                    provider=provider,
+                    purpose=purpose,
+                    recipient=_masked(to),
+                    status=status,
+                    error=(error or None) and str(error)[:300],
+                    provider_ref=provider_ref if isinstance(provider_ref, str) else None,
+                )
+            )
+            s.commit()
+    except Exception:  # noqa: BLE001 (the log must never stop a message or its caller)
+        log.exception("message log not written")
+
+
+def log_push(db: Session, *, status: str, notice_id: str, device_id: int, error: str | None = None) -> None:
+    """A push to a driver's phone (in the caller's transaction): accepted by Firebase, or failed and why. A notice
+    tried again counts its attempts."""
+    tried = select(func.count()).where(MessageLog.channel == "push", MessageLog.ref == notice_id)
+    attempt = 1 + (db.scalar(tried) or 0)
+    db.add(
+        MessageLog(
+            channel="push",
+            provider="fcm",
+            purpose="notice",
+            recipient=f"device {device_id}",
+            status=status,
+            error=error and error[:300],
+            ref=notice_id,
+            attempt=attempt,
+        )
+    )
+
+
+MESSAGE_LOG_DAYS = 90
+
+
+def messages_summary(db: Session, channel: str, *, days: int = 7, recent: int = 20) -> dict:
+    """What the integrations page shows under a channel: messages accepted and failed lately, the last of each, and
+    the latest messages one by one (no text, the recipient's last digits only)."""
+    since = utcnow() - timedelta(days=days)
+    counts = dict(
+        db.execute(
+            select(MessageLog.status, func.count())
+            .where(MessageLog.channel == channel, MessageLog.created_at >= since)
+            .group_by(MessageLog.status)
+        ).all()
+    )
+    last = {
+        status: db.scalar(
+            select(MessageLog)
+            .where(MessageLog.channel == channel, MessageLog.status == status)
+            .order_by(MessageLog.id.desc())
+            .limit(1)
+        )
+        for status in ("accepted", "failed")
+    }
+    rows = db.scalars(
+        select(MessageLog).where(MessageLog.channel == channel).order_by(MessageLog.id.desc()).limit(recent)
+    ).all()
+    return {
+        "days": days,
+        "accepted": counts.get("accepted", 0),
+        "failed": counts.get("failed", 0),
+        "last_accepted_at": last["accepted"].created_at if last["accepted"] else None,
+        "last_failed_at": last["failed"].created_at if last["failed"] else None,
+        "last_error": last["failed"].error if last["failed"] else None,
+        "recent": [
+            {
+                "at": m.created_at,
+                "provider": m.provider,
+                "purpose": m.purpose,
+                "recipient": m.recipient,
+                "status": m.status,
+                "error": m.error,
+                "attempt": m.attempt,
+                "ref": m.ref,
+            }
+            for m in rows
+        ],
+    }
+
+
+def purge_message_log(db: Session) -> int:
+    """Daily: messages older than MESSAGE_LOG_DAYS are deleted."""
+    n = db.execute(
+        text("DELETE FROM integrations.message_log WHERE created_at < now() - make_interval(days => :d)"),
+        {"d": MESSAGE_LOG_DAYS},
+    ).rowcount
+    db.commit()
+    return n
 
 
 def pusher(db: Session) -> push.FcmSender | None:
