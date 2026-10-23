@@ -25,6 +25,7 @@
     ] },
     { sec: 'السيارات والتشغيل', id: 'fleet', icon: 'car', items: [
       { key: 'tracking', icon: 'map', label: 'التتبع الحي', any: ['tracking.live'], count: 'signal_lost', hot: true },
+      { key: 'driver-status', icon: 'signal', label: 'حالة السائقين', any: ['tracking.live', 'settings.view'] },
       { key: 'vehicles', icon: 'car', label: 'السيارات', any: ['vehicles.view'] },
       { key: 'custody', icon: 'key-round', label: 'تسليم واستلام السيارات', any: ['custody.view'], count: 'custody' },
       { key: 'odometer', icon: 'gauge', label: 'العداد', any: ['odometer.view'], count: 'odometer' },
