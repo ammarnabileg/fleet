@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:path_provider/path_provider.dart';
@@ -15,6 +16,7 @@ import 'core/device.dart';
 import 'core/error_log.dart';
 import 'core/translations.dart';
 import 'l10n/app_localizations.dart';
+import 'tracking/notice.dart';
 import 'tracking/service.dart';
 import 'ui/screens/home.dart';
 import 'ui/screens/onboarding.dart';
@@ -72,8 +74,29 @@ Future<void> _main(AppDb db) async {
     ),
   );
   final links = AppLinks();
+  // the buttons of the alerts' notifications that open the app («Call», «Open location settings»)
+  Future<void> tapped(NotificationResponse r) => runNoticeTap(
+    noticeTap(r.actionId, r.payload),
+    dial: state.platform.dial,
+    openLocationSettings: state.platform.openLocationSettings,
+    acknowledge: state.acknowledgeContact,
+  );
+  final notices = FlutterLocalNotificationsPlugin();
+  NotificationResponse? launched;
+  try {
+    await notices.initialize(
+      settings: const InitializationSettings(android: AndroidInitializationSettings('ic_bg_service_small')),
+      onDidReceiveNotificationResponse: (r) => unawaited(tapped(r)),
+      onDidReceiveBackgroundNotificationResponse: noticeBackgroundTap,
+    );
+    final launch = await notices.getNotificationAppLaunchDetails();
+    if (launch?.didNotificationLaunchApp == true) launched = launch!.notificationResponse;
+  } catch (_) {
+    // no notifications on this phone (or none set up): the cards in the app say the same
+  }
   runApp(DriverApp(state: state, links: links.uriLinkStream, initialLink: links.getInitialLink()));
   await state.boot(deviceLang: WidgetsBinding.instance.platformDispatcher.locale.languageCode);
+  if (launched != null) await tapped(launched);
 }
 
 class DriverApp extends StatefulWidget {

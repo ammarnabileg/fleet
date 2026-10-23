@@ -21,9 +21,11 @@ from sqlalchemy.orm import Session
 
 from app.core import live
 from app.core.clock import KUWAIT, utcnow
+from app.core.clock import today as clock_today
 from app.core.errors import AppError
 from app.modules.audit import service as audit
 from app.modules.cash import service as cash
+from app.modules.daily_ops import service as daily_ops
 from app.modules.documents import service as documents
 from app.modules.driver_status import templates as tpl
 from app.modules.driver_status.models import ConfigVersion, ContactRequest
@@ -201,14 +203,18 @@ def _duration(since: datetime, now: datetime) -> str:
 
 
 def _shift(db: Session, employee_id: int, custody) -> dict:
+    """day_ended: off duty after ending today's day (not before starting it); orders_today: what his reports of today
+    counted, once one did."""
     if custody is None:
-        return {"state": "off_duty", "started_at": None, "sessions_today": 0}
+        return {"state": "off_duty", "started_at": None, "sessions_today": 0, "day_ended": False, "orders_today": None}
     working = custody.id in fleet.on_duty_now(db, [custody.id])
     today = fleet.driver_today(db, employee_id)
     return {
         "state": "working" if working else "off_duty",
         "started_at": today.get("day_started_at") if working else None,
         "sessions_today": today.get("sessions", 0),
+        "day_ended": not working and bool(today.get("end_day_done")),
+        "orders_today": daily_ops.orders_on(db, employee_id, clock_today()),
     }
 
 

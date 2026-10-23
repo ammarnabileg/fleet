@@ -560,7 +560,27 @@
     "leaveOfficeSays": "Bureau : {reason}",
     "leaveNoTypes": "Aucun type de congé ne vous est disponible pour le moment",
     "leaveDatesInvalid": "La date de fin est avant le début",
-    "leaveTypeMissing": "Choisissez le type de congé"
+    "leaveTypeMissing": "Choisissez le type de congé",
+    "noticeAtWork": "Au travail",
+    "noticeOffDuty": "Hors service",
+    "noticeInMaintenance": "Voiture en maintenance",
+    "noticeAwaitingFirst": "En attente de la première position",
+    "noticeLocating": "Recherche de votre position…",
+    "noticeShiftFrom": "Service depuis {time}",
+    "noticeDayEnded": "Journée terminée · {count} commandes",
+    "noticeDayEndedNoCount": "Journée terminée",
+    "noticeDayNotStarted": "La journée de travail n'a pas commencé",
+    "noticeLastConfirmed": "Dernier envoi confirmé {time}",
+    "noticeNoneConfirmed": "Aucun envoi confirmé",
+    "headsUpContact": "Demande de contact",
+    "headsUpLocationBody": "Dernière mise à jour {time} · ouvrez l'application et vérifiez les paramètres de localisation.",
+    "headsUpLocationBodyNever": "Ouvrez l'application et vérifiez les paramètres de localisation.",
+    "actionOpenLocationSettings": "Ouvrir les paramètres de localisation",
+    "noticeCatAlerts": "Alertes",
+    "noticeCatCash": "Espèces et rapports",
+    "noticeCatCar": "Voiture et garde",
+    "noticeCatMaintenance": "Maintenance et retenues",
+    "noticeCatDocuments": "Documents et fiche de paie"
   },
   "server": {
     "deduction_source": {
@@ -1186,7 +1206,7 @@
     "vehicle_breakdown.subtitle": "Accident ouvert · contactez le bureau",
     "custody_settlement.name": "Règlement des espèces",
     "custody_settlement.title": "Vous détenez {amount} KWD à régler",
-    "custody_settlement.subtitle": "À régler avant {due}",
+    "custody_settlement.subtitle": "Remettez-le au bureau",
     "contact_request.name": "Demande de contact",
     "contact_request.title": "{supervisor} vous demande de le contacter",
     "contact_request.subtitle": "Touchez Appeler ou Terminé",
@@ -1195,6 +1215,9 @@
     "document_missing.subtitle": "Manquant ou expiré : renouvelez-le dans Mes documents",
     "location_problem.name": "Problème de localisation",
     "location_problem.title": "Votre position n'arrive pas",
-    "location_problem.subtitle": "Dernière mise à jour {last_update}"
+    "location_problem.subtitle": "Dernière mise à jour {last_update}",
+    "shift_ended.name": "Hors service : journée terminée",
+    "shift_ended.title": "Hors service",
+    "shift_ended.subtitle": "Journée terminée · {orders} commandes"
   }
 }

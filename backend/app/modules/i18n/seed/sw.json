@@ -560,7 +560,27 @@
     "leaveOfficeSays": "Ofisi: {reason}",
     "leaveNoTypes": "Hakuna aina ya likizo inayopatikana kwako sasa",
     "leaveDatesInvalid": "Tarehe ya mwisho iko kabla ya mwanzo",
-    "leaveTypeMissing": "Chagua aina ya likizo"
+    "leaveTypeMissing": "Chagua aina ya likizo",
+    "noticeAtWork": "Kazini",
+    "noticeOffDuty": "Nje ya zamu",
+    "noticeInMaintenance": "Gari liko matengenezoni",
+    "noticeAwaitingFirst": "Inasubiri eneo la kwanza",
+    "noticeLocating": "Inatafuta eneo lako…",
+    "noticeShiftFrom": "Zamu tangu {time}",
+    "noticeDayEnded": "Siku imeisha · oda {count}",
+    "noticeDayEndedNoCount": "Siku imeisha",
+    "noticeDayNotStarted": "Siku ya kazi haijaanza",
+    "noticeLastConfirmed": "Utumaji wa mwisho uliothibitishwa {time}",
+    "noticeNoneConfirmed": "Hakuna utumaji uliothibitishwa",
+    "headsUpContact": "Ombi la mawasiliano",
+    "headsUpLocationBody": "Sasisho la mwisho {time} · fungua programu na uangalie mipangilio ya eneo.",
+    "headsUpLocationBodyNever": "Fungua programu na uangalie mipangilio ya eneo.",
+    "actionOpenLocationSettings": "Fungua mipangilio ya eneo",
+    "noticeCatAlerts": "Arifa",
+    "noticeCatCash": "Pesa taslimu na ripoti",
+    "noticeCatCar": "Gari na dhamana",
+    "noticeCatMaintenance": "Matengenezo na makato",
+    "noticeCatDocuments": "Hati na hati ya mshahara"
   },
   "server": {
     "deduction_source": {
@@ -1186,7 +1206,7 @@
     "vehicle_breakdown.subtitle": "Ajali iliyo wazi · wasiliana na ofisi",
     "custody_settlement.name": "Malipo ya pesa taslimu",
     "custody_settlement.title": "Una {amount} KWD za kulipa",
-    "custody_settlement.subtitle": "Lipa kabla ya {due}",
+    "custody_settlement.subtitle": "Kabidhi ofisini",
     "contact_request.name": "Ombi la mawasiliano",
     "contact_request.title": "{supervisor} anakuomba uwasiliane naye",
     "contact_request.subtitle": "Gusa Piga simu au Imekamilika",
@@ -1195,6 +1215,9 @@
     "document_missing.subtitle": "Inakosekana au imeisha muda: ifanye upya kwenye Hati zangu",
     "location_problem.name": "Tatizo la eneo",
     "location_problem.title": "Eneo lako halifiki",
-    "location_problem.subtitle": "Ilisasishwa mwisho {last_update}"
+    "location_problem.subtitle": "Ilisasishwa mwisho {last_update}",
+    "shift_ended.name": "Nje ya zamu: siku imeisha",
+    "shift_ended.title": "Nje ya zamu",
+    "shift_ended.subtitle": "Siku imeisha · oda {orders}"
   }
 }

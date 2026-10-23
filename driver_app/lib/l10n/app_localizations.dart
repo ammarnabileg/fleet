@@ -66,7 +66,8 @@ import 'app_localizations_sw.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale)
+    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -74,7 +75,8 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate =
+      _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -86,12 +88,13 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
-    delegate,
-    GlobalMaterialLocalizations.delegate,
-    GlobalCupertinoLocalizations.delegate,
-    GlobalWidgetsLocalizations.delegate,
-  ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
+      <LocalizationsDelegate<dynamic>>[
+        delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
@@ -3462,9 +3465,130 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'اختر نوع الإجازة'**
   String get leaveTypeMissing;
+
+  /// No description provided for @noticeAtWork.
+  ///
+  /// In ar, this message translates to:
+  /// **'في العمل'**
+  String get noticeAtWork;
+
+  /// No description provided for @noticeOffDuty.
+  ///
+  /// In ar, this message translates to:
+  /// **'خارج الدوام'**
+  String get noticeOffDuty;
+
+  /// No description provided for @noticeInMaintenance.
+  ///
+  /// In ar, this message translates to:
+  /// **'السيارة في الصيانة'**
+  String get noticeInMaintenance;
+
+  /// No description provided for @noticeAwaitingFirst.
+  ///
+  /// In ar, this message translates to:
+  /// **'بانتظار أول موقع'**
+  String get noticeAwaitingFirst;
+
+  /// No description provided for @noticeLocating.
+  ///
+  /// In ar, this message translates to:
+  /// **'جارٍ تحديد موقعك…'**
+  String get noticeLocating;
+
+  /// No description provided for @noticeShiftFrom.
+  ///
+  /// In ar, this message translates to:
+  /// **'الوردية من {time}'**
+  String noticeShiftFrom(String time);
+
+  /// No description provided for @noticeDayEnded.
+  ///
+  /// In ar, this message translates to:
+  /// **'أنهيت يومك · {count} طلب'**
+  String noticeDayEnded(String count);
+
+  /// No description provided for @noticeDayEndedNoCount.
+  ///
+  /// In ar, this message translates to:
+  /// **'أنهيت يومك'**
+  String get noticeDayEndedNoCount;
+
+  /// No description provided for @noticeDayNotStarted.
+  ///
+  /// In ar, this message translates to:
+  /// **'لم يبدأ يوم العمل'**
+  String get noticeDayNotStarted;
+
+  /// No description provided for @noticeLastConfirmed.
+  ///
+  /// In ar, this message translates to:
+  /// **'آخر إرسال مؤكد {time}'**
+  String noticeLastConfirmed(String time);
+
+  /// No description provided for @noticeNoneConfirmed.
+  ///
+  /// In ar, this message translates to:
+  /// **'لم يتم تأكيد أي إرسال'**
+  String get noticeNoneConfirmed;
+
+  /// No description provided for @headsUpContact.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلب تواصل'**
+  String get headsUpContact;
+
+  /// No description provided for @headsUpLocationBody.
+  ///
+  /// In ar, this message translates to:
+  /// **'آخر تحديث {time} · افتح التطبيق وتحقق من إعدادات الموقع.'**
+  String headsUpLocationBody(String time);
+
+  /// No description provided for @headsUpLocationBodyNever.
+  ///
+  /// In ar, this message translates to:
+  /// **'افتح التطبيق وتحقق من إعدادات الموقع.'**
+  String get headsUpLocationBodyNever;
+
+  /// No description provided for @actionOpenLocationSettings.
+  ///
+  /// In ar, this message translates to:
+  /// **'فتح إعدادات الموقع'**
+  String get actionOpenLocationSettings;
+
+  /// No description provided for @noticeCatAlerts.
+  ///
+  /// In ar, this message translates to:
+  /// **'التنبيهات'**
+  String get noticeCatAlerts;
+
+  /// No description provided for @noticeCatCash.
+  ///
+  /// In ar, this message translates to:
+  /// **'الكاش والتقارير'**
+  String get noticeCatCash;
+
+  /// No description provided for @noticeCatCar.
+  ///
+  /// In ar, this message translates to:
+  /// **'السيارة والعهدة'**
+  String get noticeCatCar;
+
+  /// No description provided for @noticeCatMaintenance.
+  ///
+  /// In ar, this message translates to:
+  /// **'الصيانة والخصومات'**
+  String get noticeCatMaintenance;
+
+  /// No description provided for @noticeCatDocuments.
+  ///
+  /// In ar, this message translates to:
+  /// **'المستندات والراتب'**
+  String get noticeCatDocuments;
 }
 
-class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -3473,7 +3597,14 @@ class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> 
   }
 
   @override
-  bool isSupported(Locale locale) => <String>['ar', 'en', 'fil', 'fr', 'hi', 'sw'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>[
+    'ar',
+    'en',
+    'fil',
+    'fr',
+    'hi',
+    'sw',
+  ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;

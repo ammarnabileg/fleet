@@ -560,7 +560,27 @@
     "leaveOfficeSays": "कार्यालय: {reason}",
     "leaveNoTypes": "अभी आपके लिए कोई अवकाश प्रकार उपलब्ध नहीं है",
     "leaveDatesInvalid": "समाप्ति तिथि आरंभ से पहले है",
-    "leaveTypeMissing": "अवकाश का प्रकार चुनें"
+    "leaveTypeMissing": "अवकाश का प्रकार चुनें",
+    "noticeAtWork": "काम पर",
+    "noticeOffDuty": "ड्यूटी से बाहर",
+    "noticeInMaintenance": "कार मरम्मत में है",
+    "noticeAwaitingFirst": "पहले स्थान की प्रतीक्षा",
+    "noticeLocating": "आपका स्थान खोजा जा रहा है…",
+    "noticeShiftFrom": "शिफ्ट {time} से",
+    "noticeDayEnded": "दिन समाप्त · {count} ऑर्डर",
+    "noticeDayEndedNoCount": "दिन समाप्त",
+    "noticeDayNotStarted": "काम का दिन शुरू नहीं हुआ है",
+    "noticeLastConfirmed": "अंतिम पुष्ट भेजना {time}",
+    "noticeNoneConfirmed": "अभी तक कोई भेजना पुष्ट नहीं हुआ",
+    "headsUpContact": "संपर्क अनुरोध",
+    "headsUpLocationBody": "अंतिम अपडेट {time} · ऐप खोलें और स्थान सेटिंग जांचें।",
+    "headsUpLocationBodyNever": "ऐप खोलें और स्थान सेटिंग जांचें।",
+    "actionOpenLocationSettings": "स्थान सेटिंग खोलें",
+    "noticeCatAlerts": "अलर्ट",
+    "noticeCatCash": "नकद और रिपोर्ट",
+    "noticeCatCar": "कार और कस्टडी",
+    "noticeCatMaintenance": "मरम्मत और कटौतियाँ",
+    "noticeCatDocuments": "दस्तावेज़ और वेतन पर्ची"
   },
   "server": {
     "deduction_source": {
@@ -1186,7 +1206,7 @@
     "vehicle_breakdown.subtitle": "खुली दुर्घटना · दफ़्तर से संपर्क करें",
     "custody_settlement.name": "कैश निपटान",
     "custody_settlement.title": "आपके पास निपटाने के लिए {amount} KWD हैं",
-    "custody_settlement.subtitle": "{due} तक निपटाएँ",
+    "custody_settlement.subtitle": "इसे कार्यालय में जमा करें",
     "contact_request.name": "संपर्क अनुरोध",
     "contact_request.title": "{supervisor} आपसे संपर्क करने को कह रहे हैं",
     "contact_request.subtitle": "कॉल करें या हो गया पर टैप करें",
@@ -1195,6 +1215,9 @@
     "document_missing.subtitle": "गायब या समाप्त: मेरे दस्तावेज़ में इसे नवीनीकृत करें",
     "location_problem.name": "लोकेशन की समस्या",
     "location_problem.title": "आपकी लोकेशन नहीं पहुँच रही",
-    "location_problem.subtitle": "आख़िरी अपडेट {last_update}"
+    "location_problem.subtitle": "आख़िरी अपडेट {last_update}",
+    "shift_ended.name": "ड्यूटी से बाहर: दिन समाप्त",
+    "shift_ended.title": "ड्यूटी से बाहर",
+    "shift_ended.subtitle": "दिन समाप्त · {orders} ऑर्डर"
   }
 }

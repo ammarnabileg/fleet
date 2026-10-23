@@ -32,14 +32,52 @@ class Fix {
   final bool isMock;
 }
 
+/// What the ongoing notification adds from the driver's live status (the service keeps it after each heartbeat):
+/// when the shift started, whether he ended his day and the orders he reported, the car at a center.
+class NoticeInfo {
+  const NoticeInfo({
+    this.shiftStartedAt,
+    this.dayEnded = false,
+    this.ordersToday,
+    this.inMaintenance = false,
+    this.center,
+    this.stage,
+  });
+
+  final DateTime? shiftStartedAt;
+  final bool dayEnded;
+  final int? ordersToday;
+  final bool inMaintenance;
+  final String? center;
+  final String? stage;
+
+  List<Object?> get key => [
+    shiftStartedAt?.toUtc().toIso8601String(),
+    dayEnded,
+    ordersToday,
+    inMaintenance,
+    center,
+    stage,
+  ];
+}
+
 /// What the ongoing notification shows.
 class WorkState {
-  const WorkState({required this.company, required this.working, required this.tracking, this.lastFixAt});
+  const WorkState({
+    required this.company,
+    required this.working,
+    required this.tracking,
+    this.lastFixAt,
+    this.lastSentAt,
+    this.info,
+  });
 
   final Map<String, dynamic>? company;
   final bool working;
   final String tracking; // active / stale / off
   final DateTime? lastFixAt;
+  final DateTime? lastSentAt; // the last upload the server confirmed
+  final NoticeInfo? info;
 }
 
 typedef FixStream = Stream<Fix> Function(Duration interval);
@@ -106,7 +144,10 @@ class Tracker {
   DateTime? lastFixAt;
   DateTime? _fixSeenAt;
   DateTime? _listeningSince;
-  String? _shown; // what the notification shows now
+  String? _shown; // the state the notification shows now (without its times)
+  DateTime? _shownAt;
+  String? _times;
+  NoticeInfo? _info;
   Timer? _beat;
   Timer? _sync;
   bool _stopped = false;
@@ -119,6 +160,10 @@ class Tracker {
 
   /// No fix for this long while tracking is wanted: the notification says the location is not coming through.
   static const staleAfter = Duration(minutes: 10);
+
+  /// The notification is shown again at once when its state changes; only its times ("last sent 10:42") wait this
+  /// long, so it is not redrawn with every point.
+  static const noticeTimesEvery = Duration(minutes: 5);
 
   /// What the phone itself can tell: off when nothing is to be tracked, active while fixes come, stale otherwise.
   String get trackingState {
@@ -370,6 +415,18 @@ class Tracker {
     onSessionEnded?.call();
   }
 
+  /// What the notification adds from the live status: shown again when it changes ([publish] false: kept for the
+  /// first showing, before [start]).
+  Future<void> setInfo(NoticeInfo info, {bool publish = true}) async {
+    _info = info;
+    if (!publish || _stopped) return;
+    try {
+      await _publish();
+    } catch (e, st) {
+      await errors.record('tracker.publish', e, st);
+    }
+  }
+
   /// The state the UI shows (it runs in the other engine, so it reads it from the database).
   Future<void> _publish() async {
     final size = await queue.size();
@@ -393,12 +450,32 @@ class Tracker {
       }),
     );
     final tracking = trackingState;
-    // the driver changed language: shown again in it; the tracking state only when it changes (not every minute)
-    final shown = jsonEncode([company, onDuty, api.lang, if (notifyState != null) tracking]);
-    if (shown != _shown) {
+    final sentAt = last == null ? null : DateTime.tryParse(last);
+    // the driver changed language: shown again in it; the state at once when it changes, its times now and then
+    final shown = jsonEncode([
+      company,
+      onDuty,
+      api.lang,
+      if (notifyState != null) ...[tracking, lastFixAt == null, _info?.key],
+    ]);
+    final times = jsonEncode([lastFixAt?.toIso8601String(), last]);
+    final now = _now();
+    final due = _shownAt == null || now.difference(_shownAt!) >= noticeTimesEvery;
+    if (shown != _shown || (notifyState != null && times != _times && due)) {
+      if (shown != _shown) notify?.call(company, onDuty);
       _shown = shown;
-      notify?.call(company, onDuty);
-      notifyState?.call(WorkState(company: company, working: onDuty, tracking: tracking, lastFixAt: lastFixAt));
+      _times = times;
+      _shownAt = now;
+      notifyState?.call(
+        WorkState(
+          company: company,
+          working: onDuty,
+          tracking: tracking,
+          lastFixAt: lastFixAt,
+          lastSentAt: sentAt,
+          info: _info,
+        ),
+      );
     }
   }
 }

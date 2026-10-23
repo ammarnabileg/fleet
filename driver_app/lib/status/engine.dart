@@ -48,11 +48,30 @@ class StatusEngine {
   static const empty = '—';
   static final _placeholder = RegExp(r'\{([^{}]*)\}');
 
-  /// The server's rule: a variable takes its value, or "—" when there is none.
-  static String fill(String text, Map<String, String?> values) => text.replaceAllMapped(_placeholder, (m) {
-    final v = values[m.group(1)];
-    return v == null || v.isEmpty ? empty : v;
-  });
+  static const separator = ' · ';
+
+  /// The server's rule: a variable takes its value, or "—" when there is none; but a part of a line (between " · ")
+  /// whose every variable is without a value is left out, and the line with it when nothing is left: no "—" stands
+  /// for an undefined date.
+  static String fill(String text, Map<String, String?> values) {
+    bool none(String? v) => v == null || v.isEmpty;
+    String? part(String p) {
+      final names = [for (final m in _placeholder.allMatches(p)) m.group(1)];
+      if (names.isNotEmpty && names.every((n) => none(values[n]))) return null;
+      return p.replaceAllMapped(_placeholder, (m) => none(values[m.group(1)]) ? empty : values[m.group(1)]!);
+    }
+
+    final lines = <String>[];
+    for (final line in text.split('\n')) {
+      final parts = [for (final p in line.split(separator)) ?part(p)];
+      if (parts.isNotEmpty) {
+        lines.add(parts.join(separator));
+      } else if (!_placeholder.hasMatch(line)) {
+        lines.add(line);
+      }
+    }
+    return lines.join('\n');
+  }
 
   static String kindOf(String? kind) => kinds.contains(kind) ? kind! : 'generic';
   static String iconOf(String? icon) => icons.contains(icon) ? icon! : defaultIcon;
@@ -183,6 +202,17 @@ class StatusConfig {
       'The work day has not started',
       10,
     ),
+    'shift_ended': _t(
+      'shift_ended',
+      'shift_off',
+      'check',
+      '#1D4ED8',
+      'خارج الدوام',
+      'Off duty',
+      'أنهيت يومك · {orders} طلب',
+      'Day ended · {orders} orders',
+      10,
+    ),
     'vehicle_maintenance': _t(
       'vehicle_maintenance',
       'vehicle_maintenance',
@@ -213,8 +243,8 @@ class StatusConfig {
       '#B45309',
       'معك {amount} د.ك للتسوية',
       'You hold {amount} KWD to settle',
-      'التسوية قبل {due}',
-      'Settle by {due}',
+      'سلّم المبلغ للمكتب',
+      'Hand it in at the office',
       60,
       ['open_cash'],
     ),
@@ -315,6 +345,8 @@ class LiveStatus {
     required this.lastUpdate,
     required this.alerts,
     required this.sessionsToday,
+    this.dayEnded = false,
+    this.ordersToday,
   });
 
   static DateTime? _time(Object? v) => v is String ? DateTime.tryParse(v) : null;
@@ -330,6 +362,8 @@ class LiveStatus {
       shift: shift['state'] == 'working' ? 'working' : 'off_duty',
       shiftStartedAt: _time(shift['started_at']),
       sessionsToday: shift['sessions_today'] is num ? (shift['sessions_today'] as num).toInt() : 0,
+      dayEnded: shift['day_ended'] == true, // an older server: as before the day
+      ordersToday: shift['orders_today'] is num ? (shift['orders_today'] as num).toInt() : null,
       vehicle: const {'available', 'maintenance', 'breakdown', 'none'}.contains(vehicle['state'])
           ? vehicle['state'] as String
           : 'none',
@@ -347,6 +381,10 @@ class LiveStatus {
   final String shift;
   final DateTime? shiftStartedAt;
   final int sessionsToday;
+
+  /// Off duty after ending today's day (not before starting it), and the orders his reports of today counted.
+  final bool dayEnded;
+  final int? ordersToday;
   final String vehicle;
   final String? plate;
   final String? stage;
@@ -450,8 +488,14 @@ StatusView compose(
     'last_update': s.lastUpdate == null ? null : _hm(s.lastUpdate!),
     'center': s.center,
     'stage': s.stage,
+    'orders': s.ordersToday?.toString(),
   };
-  final shift = renderCard(c.template(s.shift == 'working' ? 'shift_working' : 'shift_off'), values, lang);
+  final shiftCode = s.shift == 'working'
+      ? 'shift_working'
+      : s.dayEnded
+      ? 'shift_ended'
+      : 'shift_off';
+  final shift = renderCard(c.template(shiftCode), values, lang);
   final vehicle = switch (s.vehicle) {
     'maintenance' => renderCard(c.template('vehicle_maintenance'), values, lang),
     'breakdown' => renderCard(c.template('vehicle_breakdown'), values, lang),

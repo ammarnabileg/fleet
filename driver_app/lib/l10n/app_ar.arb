@@ -1137,15 +1137,33 @@
   "trackingStale": "الموقع لا يصل",
   "trackingUnknown": "حالة التتبع غير معروفة",
   "noticeBigActive": "آخر موقع أُرسل {time}",
-  "@noticeBigActive": {"placeholders": {"time": {"type": "String"}}},
+  "@noticeBigActive": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "noticeBigStale": "لم يصل موقع منذ {time}. افتح التطبيق وتحقق من إعدادات الموقع",
-  "@noticeBigStale": {"placeholders": {"time": {"type": "String"}}},
+  "@noticeBigStale": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "noticeBigStaleNever": "لم يُرسل أي موقع بعد. افتح التطبيق وتحقق من إعدادات الموقع",
   "noticeBigOff": "لا يُتتبَّع موقعك الآن",
   "openApp": "فتح التطبيق",
   "alertsChannel": "تنبيهات مهمة",
   "offlineSince": "غير متصل · آخر تحديث {time}",
-  "@offlineSince": {"placeholders": {"time": {"type": "String"}}},
+  "@offlineSince": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "statusCall": "اتصل",
   "statusDone": "تم",
   "statusCheckSettings": "فحص الإعدادات",
@@ -1155,16 +1173,34 @@
   "statusOpenDocuments": "مستنداتي",
   "statusOpenContact": "التفاصيل",
   "statusMore": "و{count} تنبيهات أخرى",
-  "@statusMore": {"placeholders": {"count": {"type": "String"}}},
+  "@statusMore": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "statusDaySummary": "جلسات اليوم: {count}",
-  "@statusDaySummary": {"placeholders": {"count": {"type": "String"}}},
+  "@statusDaySummary": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "statusContactSent": "تم إبلاغ المشرف",
   "statusDialFailed": "تعذر فتح الاتصال على هذا الهاتف",
   "leaves": "طلب تغيب",
   "qaLeavesSub": "إجازة أو غياب بعذر",
   "leaveType": "نوع الإجازة",
   "leaveLeft": "المتبقي {days} يوم",
-  "@leaveLeft": {"placeholders": {"days": {"type": "String"}}},
+  "@leaveLeft": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
   "leaveFrom": "من",
   "leaveTo": "إلى",
   "leaveOneDay": "يوم واحد",
@@ -1175,11 +1211,32 @@
   "leaveCamera": "تصوير",
   "leaveGallery": "من المعرض",
   "leavePreviewDays": "{days} يوم محسوب",
-  "@leavePreviewDays": {"placeholders": {"days": {"type": "String"}}},
+  "@leavePreviewDays": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
   "leavePaidPart": "{days} يوم بأجر {percent}%",
-  "@leavePaidPart": {"placeholders": {"days": {"type": "String"}, "percent": {"type": "String"}}},
+  "@leavePaidPart": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
   "leaveUnpaidPart": "{days} يوم بدون راتب",
-  "@leaveUnpaidPart": {"placeholders": {"days": {"type": "String"}}},
+  "@leaveUnpaidPart": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
   "leavePreviewOffline": "الحساب يحتاج اتصالاً: يُرسل الطلب ويُراجع في المكتب",
   "leaveSend": "إرسال الطلب",
   "leaveMine": "طلباتي",
@@ -1190,8 +1247,62 @@
   "leaveStatus_rejected": "مرفوض",
   "leaveStatus_cancelled": "ملغى",
   "leaveOfficeSays": "المكتب: {reason}",
-  "@leaveOfficeSays": {"placeholders": {"reason": {"type": "String"}}},
+  "@leaveOfficeSays": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "leaveNoTypes": "لا توجد أنواع إجازات متاحة لك الآن",
   "leaveDatesInvalid": "تاريخ النهاية قبل البداية",
-  "leaveTypeMissing": "اختر نوع الإجازة"
+  "leaveTypeMissing": "اختر نوع الإجازة",
+  "noticeAtWork": "في العمل",
+  "noticeOffDuty": "خارج الدوام",
+  "noticeInMaintenance": "السيارة في الصيانة",
+  "noticeAwaitingFirst": "بانتظار أول موقع",
+  "noticeLocating": "جارٍ تحديد موقعك…",
+  "noticeShiftFrom": "الوردية من {time}",
+  "@noticeShiftFrom": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "noticeDayEnded": "أنهيت يومك · {count} طلب",
+  "@noticeDayEnded": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "noticeDayEndedNoCount": "أنهيت يومك",
+  "noticeDayNotStarted": "لم يبدأ يوم العمل",
+  "noticeLastConfirmed": "آخر إرسال مؤكد {time}",
+  "@noticeLastConfirmed": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "noticeNoneConfirmed": "لم يتم تأكيد أي إرسال",
+  "headsUpContact": "طلب تواصل",
+  "headsUpLocationBody": "آخر تحديث {time} · افتح التطبيق وتحقق من إعدادات الموقع.",
+  "@headsUpLocationBody": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "headsUpLocationBodyNever": "افتح التطبيق وتحقق من إعدادات الموقع.",
+  "actionOpenLocationSettings": "فتح إعدادات الموقع",
+  "noticeCatAlerts": "التنبيهات",
+  "noticeCatCash": "الكاش والتقارير",
+  "noticeCatCar": "السيارة والعهدة",
+  "noticeCatMaintenance": "الصيانة والخصومات",
+  "noticeCatDocuments": "المستندات والراتب"
 }

@@ -2,7 +2,8 @@
 
 A template is data, never code: its kind picks one of the card layouts built into the app, its icon and actions come
 from the lists the app ships with, its texts may only use the known variables. The app renders the same way as
-`render` here (the panel's preview): a variable is replaced by its value, or by "—" when there is none.
+`render` here (the panel's preview): a variable is replaced by its value, or by "—" when there is none; but a part of a
+line (between " · ") or a line whose every variable has no value is left out, so no "—" stands for an undefined date.
 An app that does not know a kind, an icon or an action falls back to the generic card, the default icon, or hides it.
 """
 
@@ -39,7 +40,7 @@ ACTIONS = (
     "open_documents",
     "acknowledge",
 )
-VARIABLES = ("amount", "due", "shift_duration", "supervisor", "last_update", "center", "stage", "document")
+VARIABLES = ("amount", "due", "shift_duration", "orders", "supervisor", "last_update", "center", "stage", "document")
 VISIBILITY = ("always", "working", "off_duty", "has_vehicle")
 AUDIENCES = ("all", "company")
 PALETTE = ("#15803D", "#6B7280", "#B45309", "#B91C1C", "#1D4ED8", "#7C3AED", "#0F766E", "#374151")
@@ -93,6 +94,16 @@ DEFAULTS: dict[str, dict] = {
         _t("لم يبدأ يوم العمل", "The work day has not started"),
         10,
     ),
+    # off duty after ending the day (shift_off: before starting it)
+    "shift_ended": _tpl(
+        "shift_off",
+        _t("خارج الدوام: أنهيت يومك", "Off duty: day ended"),
+        "check",
+        "#1D4ED8",
+        _t("خارج الدوام", "Off duty"),
+        _t("أنهيت يومك · {orders} طلب", "Day ended · {orders} orders"),
+        10,
+    ),
     "vehicle_maintenance": _tpl(
         "vehicle_maintenance",
         _t("السيارة في الصيانة", "Car in maintenance"),
@@ -121,7 +132,7 @@ DEFAULTS: dict[str, dict] = {
         "wallet",
         "#B45309",
         _t("معك {amount} د.ك للتسوية", "You hold {amount} KWD to settle"),
-        _t("التسوية قبل {due}", "Settle by {due}"),
+        _t("سلّم المبلغ للمكتب", "Hand it in at the office"),
         60,
         ("open_cash",),
     ),
@@ -164,6 +175,7 @@ SAMPLES = {
     "amount": "125.500",
     "due": "15:00",
     "shift_duration": "3:25",
+    "orders": "18",
     "supervisor": "Supervisor",
     "last_update": "10:42",
     "center": "Center",
@@ -247,14 +259,35 @@ def validate(code: str, data: dict, company_ids: set[int] | None = None) -> dict
     }
 
 
+SEPARATOR = " · "
+
+
+def _empty(v) -> bool:
+    return v is None or v == ""
+
+
 def fill(text: str, values: dict) -> str:
-    """The app's rule: a known variable takes its value; one without a value shows "—"."""
+    """The app's rule: a known variable takes its value; one without a value shows "—", unless every variable of its
+    part (the text between " · ") is without a value: that part is left out, and a line left empty with it."""
 
     def one(m: re.Match) -> str:
         v = values.get(m.group(1))
-        return EMPTY if v is None or v == "" else str(v)
+        return EMPTY if _empty(v) else str(v)
 
-    return PLACEHOLDER.sub(one, text)
+    def part(p: str) -> str | None:
+        names = variables_in(p)
+        if names and all(_empty(values.get(n)) for n in names):
+            return None
+        return PLACEHOLDER.sub(one, p)
+
+    lines = []
+    for line in text.split("\n"):
+        parts = [x for x in (part(p) for p in line.split(SEPARATOR)) if x is not None]
+        if parts:
+            lines.append(SEPARATOR.join(parts))
+        elif not variables_in(line):
+            lines.append(line)  # a line without variables stays, even empty
+    return "\n".join(lines)
 
 
 def text_in(value: dict, lang: str) -> str:

@@ -4,6 +4,7 @@ templates (validated, versioned, rolled back) and contact requests (acknowledged
 import uuid
 from datetime import timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import text
@@ -11,6 +12,8 @@ from sqlalchemy import text
 from tests.conftest import bearer, bind_device, hand_over, login, make_driver, make_user, make_vehicle, upload
 from tests.test_reports_more import _id, reading
 from tests.test_tracking import now, point, send
+
+KUWAIT = ZoneInfo("Asia/Kuwait")
 
 LIVE = "/api/v1/driver/live-status"
 
@@ -25,8 +28,9 @@ def driver(admin_client, client, company, db):
     return {"vehicle": v, "driver": d, "custody": c, "headers": headers, "ids": ids}
 
 
-def start_day(admin_client, db, driver, hours_ago=2):
-    reading(db, *driver["ids"], "start_day", 10_010, now() - timedelta(hours=hours_ago), upload(admin_client))
+def start_day(admin_client, db, driver, hours_ago=2, at=None):
+    at = at or now() - timedelta(hours=hours_ago)
+    reading(db, *driver["ids"], "start_day", 10_010, at, upload(admin_client))
     db.commit()
 
 
@@ -299,3 +303,58 @@ def test_the_live_stream_carries_driver_status_events(admin_client, driver, monk
     monkeypatch.setattr(live.broker(), "publish", lambda company, message: published.append(message))
     ask(admin_client, driver["driver"]["id"])
     assert published and published[-1]["event"] == "driver_status"
+
+
+def test_off_duty_before_the_day_differs_from_after_ending_it(admin_client, client, db, driver, company):
+    """The design's rule: «خارج الدوام» before the shift is not the same card as after ending the day."""
+    before = client.get(LIVE, headers=driver["headers"]).json()["shift"]
+    assert before["state"] == "off_duty" and before["day_ended"] is False and before["orders_today"] is None
+    # both inside today's Kuwait day, whatever the hour the suite runs at (just after midnight, "3 hours ago" is
+    # yesterday)
+    since_midnight = now() - now().astimezone(KUWAIT).replace(hour=0, minute=0, second=0, microsecond=0)
+    start_day(admin_client, db, driver, at=now() - min(timedelta(hours=3), since_midnight * 0.6))
+    reading(
+        db,
+        *driver["ids"],
+        "end_day",
+        10_060,
+        now() - min(timedelta(hours=1), since_midnight * 0.3),
+        upload(admin_client),
+    )
+    db.commit()
+    after = client.get(LIVE, headers=driver["headers"]).json()
+    assert after["shift"]["state"] == "off_duty" and after["shift"]["day_ended"] is True
+    assert after["shift"]["orders_today"] is None  # no report yet: the count is not known
+    _, custody, employee = driver["ids"]
+    for session, orders in ((1, 11), (2, 7)):
+        db.execute(
+            text(
+                "INSERT INTO daily_ops.reports (employee_id, company_id, custody_id, business_date, session, "
+                "orders_count) VALUES (:e, :c, :cu, (now() AT TIME ZONE 'Asia/Kuwait')::date, :s, :o)"
+            ),
+            {"e": employee, "c": company["id"], "cu": custody, "s": session, "o": orders},
+        )
+    db.commit()
+    assert client.get(LIVE, headers=driver["headers"]).json()["shift"]["orders_today"] == 18
+    ended = next(t for t in after["config"]["templates"] if t["code"] == "shift_ended")
+    assert ended["kind"] == "shift_off" and "{orders}" in ended["subtitle"]["ar"]
+
+
+def test_a_part_whose_every_variable_is_empty_is_left_out():
+    from app.modules.driver_status import templates as tpl
+
+    assert tpl.fill("التسوية قبل {due}", {"due": None}) == ""
+    assert tpl.fill("معك {amount}\nالتسوية قبل {due}", {"amount": "5.000"}) == "معك 5.000"
+    assert tpl.fill("{center} · {stage}", {"stage": "Quote"}) == "Quote"
+    assert tpl.fill("{center} · {stage}", {}) == ""
+    assert tpl.fill("أنهيت يومك · {orders} طلب", {}) == "أنهيت يومك"
+    assert tpl.fill("أنهيت يومك · {orders} طلب", {"orders": "18"}) == "أنهيت يومك · 18 طلب"
+    assert tpl.fill("{amount} قبل {due}", {"amount": "5"}) == "5 قبل —"  # one of two: the dash stays
+    assert tpl.fill("ناقص", {}) == "ناقص"
+
+
+def test_the_default_settlement_card_shows_no_undefined_date():
+    from app.modules.driver_status import templates as tpl
+
+    shown = tpl.render(tpl.DEFAULTS["custody_settlement"], {"amount": "125.500", "due": None}, "ar")
+    assert "—" not in shown["title"] + shown["subtitle"] and "{due}" not in str(tpl.DEFAULTS["custody_settlement"])

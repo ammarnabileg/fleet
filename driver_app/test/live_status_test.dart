@@ -1,10 +1,12 @@
 import 'dart:convert';
 
+import 'package:fleet_driver/core/outbox.dart';
 import 'package:fleet_driver/l10n/app_localizations.dart';
 import 'package:fleet_driver/status/engine.dart';
 import 'package:fleet_driver/tracking/alerts.dart';
 import 'package:fleet_driver/tracking/notice.dart';
 import 'package:fleet_driver/tracking/tracker.dart';
+import 'package:fleet_driver/ui/screens/notifications.dart';
 import 'package:fleet_driver/ui/widgets/live_status.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -88,7 +90,7 @@ void main() {
       expect(view.top!.icon, 'info');
       expect(view.top!.actions, ['open_cash']);
       expect(view.top!.title, 'سلّم 12.500');
-      expect(view.top!.subtitle, 'قبل —', reason: 'a variable without a value shows a dash, as on the server');
+      expect(view.top!.subtitle, '', reason: 'its only variable without a value: left out, as on the server');
     });
 
     test('a state this app does not know shows the server text on the generic card', () {
@@ -176,6 +178,43 @@ void main() {
       expect(compose(status(body()), null, now: now, lang: 'en').vehicle, isNull);
     });
 
+    test('the settlement card shows no undefined date: a part whose variables are all empty is left out', () {
+      final view = compose(
+        status(
+          body(
+            alerts: [
+              alert('custody_settlement', 60, values: {'amount': '125.500'}),
+            ],
+          ),
+        ),
+        null,
+        now: now,
+        lang: 'ar',
+      );
+      expect(view.top!.title, 'معك 125.500 د.ك للتسوية');
+      expect(view.top!.subtitle, 'سلّم المبلغ للمكتب');
+      expect('${view.top!.title}${view.top!.subtitle}', isNot(contains('—')));
+      expect(StatusEngine.fill('التسوية قبل {due}', {'due': null}), '');
+      expect(StatusEngine.fill('معك {amount}\nالتسوية قبل {due}', {'amount': '5'}), 'معك 5');
+      expect(StatusEngine.fill('{center} · {stage}', {'stage': 'Quote'}), 'Quote');
+      expect(StatusEngine.fill('{amount} قبل {due}', {'amount': '5'}), '5 قبل —');
+    });
+
+    test('off duty before the day is not off duty after ending it', () {
+      Map<String, dynamic> off({bool? ended, int? orders}) => {
+        ...body(shift: 'off_duty'),
+        'shift': {'state': 'off_duty', 'day_ended': ?ended, 'orders_today': ?orders},
+      };
+      final before = compose(status(off()), null, now: now, lang: 'ar').shift;
+      expect([before.code, before.subtitle], ['shift_off', 'لم يبدأ يوم العمل']);
+      final after = compose(status(off(ended: true, orders: 18)), null, now: now, lang: 'ar').shift;
+      expect(
+        [after.code, after.kind, after.title, after.subtitle],
+        ['shift_ended', 'shift_off', 'خارج الدوام', 'أنهيت يومك · 18 طلب'],
+      );
+      expect(compose(status(off(ended: true)), null, now: now, lang: 'en').shift.subtitle, 'Day ended');
+    });
+
     test('offline or an old answer: tracking is never shown as live', () {
       final s = status(body(), at: now.subtract(const Duration(minutes: 10)));
       final view = compose(s, null, now: now, lang: 'ar');
@@ -213,26 +252,198 @@ void main() {
     final en = lookupAppLocalizations(const Locale('en'));
     const company = {'ar': 'شركة المثال', 'en': 'Example Co'};
 
-    test('the text follows the real tracking state', () {
-      final active = workNoticeContent(
-        en,
-        lang: 'en',
-        company: company,
-        working: true,
-        tracking: 'active',
-        lastFixAt: now,
+    final at = DateTime(2026, 10, 23, 10, 42); // local times: the notification shows the phone's clock
+    String t(String hhmm) => '\u2066$hhmm\u2069';
+
+    NoticeContent content(
+      AppLocalizations l, {
+      bool working = true,
+      String tracking = 'active',
+      DateTime? fix,
+      DateTime? sent,
+      NoticeInfo? info,
+    }) => workNoticeContent(
+      l,
+      lang: l.localeName,
+      company: company,
+      working: working,
+      tracking: tracking,
+      lastFixAt: fix,
+      lastSentAt: sent,
+      info: info,
+    );
+
+    test('1. at work, location sent: the last send, the shift start; green; the company in the header', () {
+      final c = content(
+        ar,
+        fix: at,
+        sent: at,
+        info: NoticeInfo(shiftStartedAt: DateTime(2026, 10, 23, 7, 15)),
       );
-      expect(active.title, 'Example Co');
-      expect(active.body, '● ${en.driverWorking} · ${en.trackingActive}');
-      expect(active.colorized, isTrue);
-      final stale = workNoticeContent(en, lang: 'en', company: company, working: true, tracking: 'stale');
-      expect(stale.body, contains(en.trackingStale));
-      expect(stale.big, contains(en.noticeBigStaleNever));
-      expect(stale.colorized, isFalse);
-      final off = workNoticeContent(ar, lang: 'ar', company: company, working: false, tracking: 'off');
-      expect(off.title, 'شركة المثال');
-      expect(off.body, '● ${ar.driverNotWorking} · ${ar.trackingOff}');
-      expect(off.big, contains(ar.noticeBigOff));
+      expect(c.state, 'working_active');
+      expect(c.title, 'في العمل · الموقع يُرسل');
+      expect(c.body, 'آخر موقع أُرسل ${t('10:42')}');
+      expect(c.big, 'آخر موقع أُرسل ${t('10:42')}\nالوردية من ${t('07:15')}');
+      expect(c.header, 'شركة المثال');
+      expect(c.color, green);
+      expect(content(en, fix: at, sent: at).header, 'Example Co');
+      expect(
+        content(en, fix: at, sent: at).big,
+        content(en, fix: at, sent: at).body,
+        reason: 'no start known',
+      );
+    });
+
+    test('2. off duty, location still sent (the car with him): before the day vs after ending it; blue', () {
+      final before = content(ar, working: false, fix: at, sent: at);
+      expect(before.state, 'off_active');
+      expect(before.title, 'خارج الدوام · الموقع يُرسل');
+      expect(before.big, endsWith('لم يبدأ يوم العمل'));
+      expect(before.color, blue);
+      final ended = content(
+        ar,
+        working: false,
+        fix: at,
+        sent: at,
+        info: const NoticeInfo(dayEnded: true, ordersToday: 18),
+      );
+      expect(ended.big, endsWith('أنهيت يومك · ${t('18')} طلب'));
+      final noCount = content(ar, working: false, fix: at, sent: at, info: const NoticeInfo(dayEnded: true));
+      expect(noCount.big, endsWith('\nأنهيت يومك'));
+    });
+
+    test('3. location not coming through: since when, the last confirmed send; amber', () {
+      final c = content(ar, tracking: 'stale', fix: at, sent: at.subtract(const Duration(minutes: 1)));
+      expect(c.state, 'stale');
+      expect(c.title, 'في العمل · الموقع لا يصل');
+      expect(c.body, 'لم يصل موقع منذ ${t('10:42')}. افتح التطبيق وتحقق من إعدادات الموقع');
+      expect(c.big, endsWith('آخر إرسال مؤكد ${t('10:41')}'));
+      expect(c.color, amber);
+      expect(content(en, working: false, tracking: 'stale', fix: at).title, 'Off duty · ${en.trackingStale}');
+    });
+
+    test('4. no location sent yet after the grace: waiting for the first; amber', () {
+      final c = content(ar, tracking: 'stale');
+      expect(c.state, 'waiting_first');
+      expect(c.title, 'في العمل · بانتظار أول موقع');
+      expect(c.body, ar.noticeBigStaleNever);
+      expect(c.big, endsWith('لم يتم تأكيد أي إرسال'));
+      expect(c.color, amber);
+      // within the grace: not a problem yet
+      expect(content(ar).body, ar.noticeLocating);
+      expect(content(ar).color, green);
+    });
+
+    test('5. off duty, no car: tracking stopped; grey', () {
+      final c = content(ar, working: false, tracking: 'off');
+      expect(c.state, 'off');
+      expect(c.title, 'خارج الدوام · التتبع متوقف');
+      expect(c.body, 'لا يُتتبَّع موقعك الآن');
+      expect(c.big, endsWith('لم يبدأ يوم العمل'));
+      expect(c.color, grey);
+    });
+
+    test('6. the car at a center: tracking stopped, the center and stage when known; purple', () {
+      final c = content(
+        ar,
+        working: false,
+        tracking: 'off',
+        info: const NoticeInfo(inMaintenance: true, center: 'المركز', stage: 'الفحص'),
+      );
+      expect(c.state, 'maintenance');
+      expect(c.title, 'السيارة في الصيانة · التتبع متوقف');
+      expect(c.big, '${ar.noticeBigOff}\nالمركز · الفحص');
+      expect(c.color, purple);
+      final unknown = content(ar, working: false, tracking: 'off', info: const NoticeInfo(inMaintenance: true));
+      expect(unknown.big, ar.noticeBigOff, reason: 'no "— · —"');
+      final some = content(
+        ar,
+        working: false,
+        tracking: 'off',
+        info: const NoticeInfo(inMaintenance: true, stage: 'x'),
+      );
+      expect(some.big, endsWith('\nx'));
+    });
+
+    test('the live status gives the notification its shift and car', () {
+      final s = status({
+        ...body(shift: 'off_duty', vehicle: 'maintenance', tracking: 'off'),
+        'shift': {'state': 'off_duty', 'day_ended': true, 'orders_today': 18},
+      });
+      final info = noticeInfo(s);
+      expect(
+        [info.dayEnded, info.ordersToday, info.inMaintenance, info.center, info.stage],
+        [true, 18, true, 'Center', 'Quote'],
+      );
+      final old = noticeInfo(status(body(shift: 'off_duty')));
+      expect([old.dayEnded, old.ordersToday], [false, null], reason: 'an older server: as before the day');
+    });
+
+    test('heads-up: the design\'s title, text, accent and working buttons', () {
+      final contact = headsUpContent(
+        ar,
+        StatusAlert.fromJson(
+          alert(
+            'contact_request',
+            90,
+            id: 'contact:1',
+            data: {'request_id': 'r1', 'phone': '+96550000000', 'message': 'كلمني'},
+          ),
+        )!,
+      );
+      expect(contact.title, 'طلب تواصل');
+      expect(contact.body, 'server title contact_request');
+      expect(contact.big, 'server title contact_request\n«كلمني»');
+      expect(contact.color, blue);
+      expect(
+        [for (final a in contact.actions) (a.id, a.label, a.opensApp)],
+        [('call', ar.statusCall, true), ('ack', ar.statusDone, false)],
+      );
+      expect(noticeTap('ack', contact.payload).requestId, 'r1');
+      expect(noticeTap('call', contact.payload).phone, '+96550000000');
+      expect(noticeTap(null, contact.payload).kind, 'open');
+      final noPhone = headsUpContent(
+        ar,
+        StatusAlert.fromJson(alert('contact_request', 90, data: {'request_id': 'r1'}))!,
+      );
+      expect([for (final a in noPhone.actions) a.id], ['ack']);
+      final location = headsUpContent(
+        en,
+        StatusAlert.fromJson(alert('location_problem', 80, values: {'last_update': '10:42'}))!,
+      );
+      expect(location.title, 'server title location_problem');
+      expect(location.body, en.headsUpLocationBody(t('10:42')));
+      expect(location.color, amber);
+      expect([for (final a in location.actions) (a.id, a.opensApp)], [('location_settings', true)]);
+      expect(noticeTap('location_settings', location.payload).kind, 'location_settings');
+      expect(
+        headsUpContent(en, StatusAlert.fromJson(alert('location_problem', 80))!).body,
+        en.headsUpLocationBodyNever,
+      );
+      expect(noticeTap('ack', 'not json').kind, 'open', reason: 'a damaged payload only opens the app');
+    });
+
+    test('a tap does what its button says; «Done» goes through the outbox', () async {
+      final done = <String>[];
+      Future<void> run(NoticeTap tap) => runNoticeTap(
+        tap,
+        dial: (p) async {
+          done.add('dial $p');
+          return true;
+        },
+        openLocationSettings: () async => done.add('settings'),
+        acknowledge: (r) async => done.add('ack $r'),
+      );
+      await run(const NoticeTap('call', phone: '1'));
+      await run(const NoticeTap('location_settings'));
+      await run(const NoticeTap('ack', requestId: 'r1'));
+      await run(const NoticeTap('open'));
+      expect(done, ['dial 1', 'settings', 'ack r1']);
+      final db = await testDb();
+      await queueContactAck(Outbox(db), 'r1');
+      final rows = await db.raw.query('outbox');
+      expect(rows.single['kind'], 'contact_ack');
+      expect(jsonDecode(rows.single['payload'] as String)['request_id'], 'r1');
     });
 
     test('heads-up: only contact and location alerts, once each; none when notifications are refused', () {
@@ -424,5 +635,89 @@ void main() {
   test('json round trip of an answer keeps the alerts', () {
     final s = status(jsonDecode(jsonEncode(body(alerts: [alert('location_problem', 80)]))) as Map<String, dynamic>);
     expect(s.alerts.single.kind, 'location');
+  });
+
+  group('inbox', () {
+    test('every message kind of the catalog falls in one of the design\'s groups', () {
+      const groups = {
+        'cash': [
+          'receipt_issued',
+          'receipt_reversed',
+          'report_corrected',
+          'report_returned',
+          'report_change_approved',
+          'report_change_rejected',
+          'report_rejected',
+          'report_missing',
+          'fuel_approved',
+          'fuel_rejected',
+        ],
+        'car': [
+          'vehicle_change_approved',
+          'vehicle_change_done',
+          'vehicle_change_rejected',
+          'vehicle_change_closed',
+          'vehicle_handed_over',
+          'vehicle_returned',
+          'vehicle_taken',
+          'vehicle_swapped',
+          'vehicle_claim_approved',
+          'vehicle_claim_rejected',
+          'vehicle_claim_superseded',
+        ],
+        'maintenance': [
+          'maintenance_approved',
+          'maintenance_rejected',
+          'maintenance_ready',
+          'accident_no_liability',
+          'accident_charged',
+          'fine_charged',
+          'deduction_added',
+        ],
+        'documents': [
+          'document_renewal_approved',
+          'document_renewal_rejected',
+          'document_expiring',
+          'document_expired',
+          'payslip_ready',
+          'scheme_request_approved',
+          'scheme_request_rejected',
+          'objection_updated',
+        ],
+        'alerts': ['something_new'],
+      };
+      for (final e in groups.entries) {
+        for (final kind in e.value) {
+          expect(noticeCategory(kind), e.key, reason: kind);
+        }
+      }
+      final accents = {for (final g in groups.keys) categoryStyle(g).$1};
+      expect(accents, hasLength(5), reason: 'each group its own accent');
+      final ar = lookupAppLocalizations(const Locale('ar'));
+      expect(
+        [for (final g in groups.keys) categoryLabel(ar, g)],
+        ['الكاش والتقارير', 'السيارة والعهدة', 'الصيانة والخصومات', 'المستندات والراتب', 'التنبيهات'],
+      );
+      expect(noticeIcon('vehicle_swapped'), categoryStyle('car').$2, reason: 'no icon of its own: the group\'s');
+    });
+
+    testWidgets('the card enters with motion only when the phone allows it', (tester) async {
+      Future<void> pump(bool still) => tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(disableAnimations: still),
+            child: const Scaffold(
+              body: AccentCard(accent: Color(0xFF1D4ED8), icon: Icons.info_outline, title: 't', subtitle: 's'),
+            ),
+          ),
+        ),
+      );
+      await pump(true);
+      expect(find.byType(TweenAnimationBuilder<double>), findsNothing);
+      await pump(false);
+      expect(find.byType(TweenAnimationBuilder<double>), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.text('s'), findsOneWidget);
+    });
   });
 }

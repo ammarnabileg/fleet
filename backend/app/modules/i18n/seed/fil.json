@@ -560,7 +560,27 @@
     "leaveOfficeSays": "Opisina: {reason}",
     "leaveNoTypes": "Walang uri ng bakasyon na makukuha mo ngayon",
     "leaveDatesInvalid": "Nauna ang petsa ng pagtatapos sa simula",
-    "leaveTypeMissing": "Piliin ang uri ng bakasyon"
+    "leaveTypeMissing": "Piliin ang uri ng bakasyon",
+    "noticeAtWork": "Nasa trabaho",
+    "noticeOffDuty": "Off duty",
+    "noticeInMaintenance": "Nasa maintenance ang sasakyan",
+    "noticeAwaitingFirst": "Hinihintay ang unang lokasyon",
+    "noticeLocating": "Hinahanap ang iyong lokasyon…",
+    "noticeShiftFrom": "Shift mula {time}",
+    "noticeDayEnded": "Tapos na ang araw · {count} order",
+    "noticeDayEndedNoCount": "Tapos na ang araw",
+    "noticeDayNotStarted": "Hindi pa nagsisimula ang araw ng trabaho",
+    "noticeLastConfirmed": "Huling kumpirmadong pagpapadala {time}",
+    "noticeNoneConfirmed": "Wala pang kumpirmadong pagpapadala",
+    "headsUpContact": "Kahilingan sa pakikipag-ugnayan",
+    "headsUpLocationBody": "Huling update {time} · buksan ang app at tingnan ang location settings.",
+    "headsUpLocationBodyNever": "Buksan ang app at tingnan ang location settings.",
+    "actionOpenLocationSettings": "Buksan ang location settings",
+    "noticeCatAlerts": "Mga alerto",
+    "noticeCatCash": "Cash at mga ulat",
+    "noticeCatCar": "Sasakyan at kustodiya",
+    "noticeCatMaintenance": "Maintenance at mga kaltas",
+    "noticeCatDocuments": "Mga dokumento at payslip"
   },
   "server": {
     "deduction_source": {
@@ -1186,7 +1206,7 @@
     "vehicle_breakdown.subtitle": "Bukas na aksidente · kontakin ang opisina",
     "custody_settlement.name": "Settlement ng cash",
     "custody_settlement.title": "May hawak kang {amount} KWD na ise-settle",
-    "custody_settlement.subtitle": "I-settle bago mag-{due}",
+    "custody_settlement.subtitle": "Ibigay ito sa opisina",
     "contact_request.name": "Request na makipag-ugnayan",
     "contact_request.title": "Hinihiling ni {supervisor} na makipag-ugnayan ka",
     "contact_request.subtitle": "I-tap ang Tumawag o Tapos na",
@@ -1195,6 +1215,9 @@
     "document_missing.subtitle": "Kulang o expired: i-renew ito sa Mga dokumento ko",
     "location_problem.name": "Problema sa lokasyon",
     "location_problem.title": "Hindi dumarating ang lokasyon mo",
-    "location_problem.subtitle": "Huling update {last_update}"
+    "location_problem.subtitle": "Huling update {last_update}",
+    "shift_ended.name": "Off duty: tapos na ang araw",
+    "shift_ended.title": "Off duty",
+    "shift_ended.subtitle": "Tapos na ang araw · {orders} order"
   }
 }

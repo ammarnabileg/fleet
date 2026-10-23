@@ -11,7 +11,7 @@
   var VEHICLE = { available: ['متاحة', 'g'], maintenance: ['في الصيانة', 'o'], breakdown: ['معطلة (حادث مفتوح)', 'r'], none: ['بلا سيارة', 'n'] };
   var TRACKING = { active: ['يُرسل', 'g'], stale: ['لا يصل', 'r'], off: ['متوقف', 'n'] };
   var CODES = {
-    shift_working: 'في العمل', shift_off: 'خارج الدوام', vehicle_maintenance: 'السيارة في الصيانة', vehicle_breakdown: 'السيارة معطلة',
+    shift_working: 'في العمل', shift_off: 'خارج الدوام', shift_ended: 'خارج الدوام: أنهيت يومك', vehicle_maintenance: 'السيارة في الصيانة', vehicle_breakdown: 'السيارة معطلة',
     custody_settlement: 'تسوية العهدة النقدية', contact_request: 'طلب تواصل', document_missing: 'مستند ناقص أو منتهٍ', location_problem: 'مشكلة في الموقع'
   };
   var KINDS = { shift_working: 'دوام: في العمل', shift_off: 'دوام: خارج الدوام', vehicle_maintenance: 'سيارة: صيانة', custody: 'عهدة نقدية', contact: 'تواصل', location: 'الموقع', generic: 'عام' };
