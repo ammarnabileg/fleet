@@ -16,6 +16,7 @@ import '../core/errors.dart';
 import '../core/models.dart';
 import '../core/outbox.dart';
 import '../core/tokens.dart';
+import '../core/translations.dart';
 import '../status/engine.dart';
 import '../tracking/positions.dart';
 
@@ -61,13 +62,30 @@ class AppState extends ChangeNotifier {
     Api? api,
     String? baseUrl,
     this.pollEvery = const Duration(seconds: 15),
+    Future<Directory?> Function()? stringsDir,
+    this.updateStringsAtStart = true,
   }) : tokens = TokenStore(db),
        outbox = Outbox(db),
        catalog = Catalog(db),
        errors = ErrorLog(db) {
     this.api = api ?? Api(baseUrl: baseUrl ?? AppConfig.apiUrl, tokens: tokens);
     this.api.onSessionEnded = _sessionEnded;
+    translations = Translations(
+      db,
+      BundleStore(stringsDir ?? () async => null, appBuild: AppConfig.appBuild),
+      onError: (where, e, st) => errors.record(where, e, st),
+    );
   }
+
+  /// Look for newer published strings in the background (after the first screen, on resume, on a language change);
+  /// tests that script every request turn it off.
+  final bool updateStringsAtStart;
+
+  /// The app's strings: built in, and the dashboard's published versions kept on the phone (see Translations).
+  late final Translations translations;
+
+  /// The direction of the app's language (right to left for Arabic only, as the server's language list says).
+  bool get rtl => translations.language(lang).rtl;
 
   final AppDb db;
   final PhoneHooks platform;
@@ -223,8 +241,12 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _boot(String deviceLang) async {
-    lang = await db.get('lang') ?? (deviceLang == 'ar' ? 'ar' : 'en');
+    lang = await db.get('lang') ?? _firstLang(deviceLang);
     api.lang = lang;
+    // the strings kept on the phone, read now (local files only); the update check runs after the first screen
+    await translations.loadLanguages();
+    await translations.use(lang);
+    if (updateStringsAtStart) unawaited(Future(() => translations.check(api, lang)));
     try {
       final m = await DeviceIdentity.meta();
       api.userAgent = 'FleetDriver/${m['app_version']} (${m['model'] ?? m['platform']})';
@@ -250,12 +272,20 @@ class AppState extends ChangeNotifier {
     if (pollEvery != null) _poll ??= Timer.periodic(pollEvery!, (_) => pollLocal());
   }
 
+  /// The phone's language at the first launch when the app has it (Arabic, French, Hindi, ...), else English.
+  String _firstLang(String deviceLang) => AppLanguage.builtIn.any((l) => l.code == deviceLang) ? deviceLang : 'en';
+
+  /// The driver picks a language: it applies at once from what the phone has (built in, or the kept bundle), offline
+  /// too; the server is told separately (his notifications) and a newer bundle is looked for in the background.
   Future<void> setLang(String value) async {
     lang = value;
     api.lang = value;
     await db.put('lang', value);
-    await catalog.load(api, value);
+    await translations.use(value);
     notifyListeners();
+    unawaited(catalog.load(api, value).catchError((Object e, StackTrace st) => errors.record('catalog', e, st)));
+    if (updateStringsAtStart) unawaited(translations.check(api, value, force: true).then((_) => atRootScreen()));
+    unawaited(_tellLanguage(value));
     unawaited(registerPush()); // pushes are written in the app's language
     // the tracking notification too: the service reads the language again and redraws it
     if (phase == Phase.ready) unawaited(platform.startTracking().catchError((Object _) {}));
@@ -510,6 +540,7 @@ class AppState extends ChangeNotifier {
       await _readLocal();
       _set(Phase.ready);
       unawaited(registerPush());
+      if (await db.get('lang_told') != lang) await _tellLanguage(lang); // never throws
     } on SessionEnded {
       // already sent to sign-in
     } on ApiError catch (e) {
@@ -581,8 +612,26 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The driver's language for his notifications, told on purpose (never guessed from a request's header). Offline
+  /// or signed out: told again at the next start.
+  Future<void> _tellLanguage(String value) async {
+    try {
+      if (!await tokens.hasSession()) return;
+      await api.put('/driver/preferred-language', body: {'lang': value});
+      await db.put('lang_told', value);
+    } catch (_) {
+      // next time
+    }
+  }
+
+  /// A root screen shows (a tab, the start): a newer bundle downloaded meanwhile is used from now on.
+  Future<void> atRootScreen() async {
+    if (await translations.activatePending()) notifyListeners();
+  }
+
   /// Back to the app: his car and day as they are now, and what he was told meanwhile.
   Future<void> resumed() async {
+    if (updateStringsAtStart) unawaited(translations.check(api, lang)); // at most every 15 minutes
     if (phase != Phase.ready) return;
     await _quietly(loadToday);
     await _quietly(loadNotices);
@@ -603,6 +652,7 @@ class AppState extends ChangeNotifier {
       final version = await store.version();
       final body = await api.get('/driver/live-status', query: {if (version != null) 'config_version': '$version'});
       await store.save(body, DateTime.now());
+      if (!liveOnline && updateStringsAtStart) unawaited(translations.check(api, lang)); // the network is back
       liveOnline = true;
     } on ApiError {
       liveOnline = false;
@@ -1198,8 +1248,10 @@ class AppState extends ChangeNotifier {
       catalog.message(error, network: network, generic: generic);
 
   void _set(Phase p) {
+    final root = phase != p;
     phase = p;
     notifyListeners();
+    if (root) unawaited(atRootScreen()); // a new root screen: a safe point for newer strings
   }
 
   @override

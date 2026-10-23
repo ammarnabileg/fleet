@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/state.dart';
+import '../../core/models.dart' show inLang;
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/language_picker.dart';
 
 /// Phone number, then the 6-digit code that arrives on WhatsApp. The activation link (no code) is handled by the
 /// app as soon as it is opened. A company without phone codes signs drivers in with the civil ID and a password only.
@@ -156,15 +158,7 @@ class _Brand extends StatelessWidget {
       const SizedBox(height: 12),
       Text(context.l.appTitle, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700)),
       const SizedBox(height: 14),
-      SegmentedButton<String>(
-        showSelectedIcon: false,
-        segments: const [
-          ButtonSegment(value: 'ar', label: Text('العربية')),
-          ButtonSegment(value: 'en', label: Text('English')),
-        ],
-        selected: {state.lang},
-        onSelectionChanged: (s) => state.setLang(s.first),
-      ),
+      LanguagePicker(state: state),
     ],
   );
 }
@@ -216,7 +210,7 @@ class _CivilIdSignInScreenState extends State<CivilIdSignInScreen> {
     if (r.next == 'done') return _signedIn();
     _token = r.token;
     _next = r.next;
-    _name = (r.name[widget.state.lang] ?? r.name['ar'] ?? r.name.values.first) as String;
+    _name = (inLang(r.name, widget.state.lang) ?? r.name.values.first) as String;
   });
 
   Future<void> _choose() => _run(() async {

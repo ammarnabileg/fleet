@@ -80,6 +80,7 @@ Future<Admin> signedInAdmin() async {
 }
 
 AppState appAgainstBackend(AppDb db) => AppState(
+  updateStringsAtStart: false,
   db: db,
   baseUrl: backend,
   pollEvery: null,

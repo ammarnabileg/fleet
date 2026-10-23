@@ -112,7 +112,8 @@ class StatusTemplate {
   final int priority;
   final List<String> actions;
 
-  String text(Map<String, String> t, String lang) => t[lang] ?? t['ar'] ?? t['en'] ?? '';
+  String text(Map<String, String> t, String lang) =>
+      t[lang] ?? (lang == 'ar' ? null : t['en']) ?? t['ar'] ?? t['en'] ?? '';
 }
 
 /// The templates in force (cached with their version) and the ones built into the app, used when the server sent

@@ -42,7 +42,7 @@ def test_application_role_has_least_privilege(database_url, admin_client):
         assert c.execute(text("SHOW statement_timeout")).scalar() == "30s"
         c.execute(text("INSERT INTO audit.events (actor_type, action, entity_type) VALUES ('system', 't', 't')"))
         c.commit()
-        assert c.execute(text("SELECT count(*) FROM i18n.languages")).scalar() == 2  # later schemas are granted too
+        assert c.execute(text("SELECT count(*) FROM i18n.languages")).scalar() == 6  # later schemas are granted too
         with pytest.raises(DBAPIError, match="permission denied"):
             c.execute(text("UPDATE audit.events SET action = 'x'"))
         c.rollback()

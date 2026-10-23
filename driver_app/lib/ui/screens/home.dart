@@ -10,6 +10,7 @@ import '../../l10n/app_localizations.dart';
 import '../../status/engine.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/language_picker.dart';
 import '../widgets/live_status.dart';
 import 'accident.dart';
 import 'claim.dart';
@@ -37,14 +38,17 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String tab = 'home';
 
-  void _go(String name) => setState(() => tab = name);
+  void _go(String name) {
+    setState(() => tab = name);
+    widget.state.atRootScreen(); // a root screen: newer strings, if any, from here
+  }
 
   @override
   Widget build(BuildContext context) {
     final l = context.l;
     final s = widget.state;
     final name = s.profile?.name;
-    final first = name == null ? null : '${name[s.lang] ?? name['ar'] ?? ''}'.trim().split(RegExp(r'\s+')).first;
+    final first = name == null ? null : '${inLang(name, s.lang) ?? ''}'.trim().split(RegExp(r'\s+')).first;
     final tabs = [
       (
         'home',
@@ -1176,7 +1180,7 @@ class AccountTab extends StatelessWidget {
     final t = state.tracking;
     final last = t['last_upload_at'] as String?;
     final p = state.profile;
-    String named(Map<String, dynamic>? n) => n == null ? '—' : '${n[state.lang] ?? n['ar'] ?? '—'}';
+    String named(Map<String, dynamic>? n) => n == null ? '—' : '${inLang(n, state.lang) ?? '—'}';
     final details = p == null
         ? const <(IconData, String, String)>[]
         : [
@@ -1279,15 +1283,7 @@ class AccountTab extends StatelessWidget {
               DRow(
                 leading: const Icon(Icons.translate_rounded, size: 19, color: AppColors.text3),
                 title: l.language,
-                trailing: SegmentedButton<String>(
-                  showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(value: 'ar', label: Text('العربية')),
-                    ButtonSegment(value: 'en', label: Text('English')),
-                  ],
-                  selected: {state.lang},
-                  onSelectionChanged: (s) => state.setLang(s.first),
-                ),
+                trailing: LanguagePicker(state: state),
               ),
               DRow(
                 divider: false,

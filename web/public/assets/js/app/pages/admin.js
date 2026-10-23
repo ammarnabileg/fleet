@@ -168,7 +168,7 @@
   /* ================= الإعدادات والصلاحيات ================= */
   var TABS = [
     ['users', 'المستخدمون', 'users.view'], ['roles', 'الأدوار والصلاحيات', 'roles.view'], ['companies', 'الشركات', 'companies.view'],
-    ['branches', 'الفروع', null], ['system', 'إعدادات النظام', 'settings.view'], ['app', 'تطبيق السائق', 'settings.view'], ['statuses', 'الحالات الوظيفية', null], ['i18n', 'اللغات والترجمة', 'i18n.manage']
+    ['branches', 'الفروع', null], ['system', 'إعدادات النظام', 'settings.view'], ['app', 'تطبيق السائق', 'settings.view'], ['statuses', 'الحالات الوظيفية', null], ['languages', 'اللغات والترجمة', 'settings.view'], ['i18n', 'نصوص النظام', 'i18n.manage']
   ];
   BT.pages['settings'] = function (p, q) {
     A.setTitle('الإعدادات والصلاحيات');
@@ -180,7 +180,7 @@
     function show(t) {
       if (drawn[t]) return; drawn[t] = true;
       var el = v.querySelector('[data-p="' + t + '"]');
-      ({ users: usersPanel, roles: rolesPanel, companies: companiesPanel, branches: branchesPanel, system: systemPanel, app: appPanel, statuses: statusesPanel, i18n: i18nPanel })[t](el);
+      ({ users: usersPanel, roles: rolesPanel, companies: companiesPanel, branches: branchesPanel, system: systemPanel, app: appPanel, statuses: statusesPanel, languages: languagesPanel, i18n: i18nPanel })[t](el);
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/settings?tab=' + e.detail); });
     show(tab);
@@ -528,6 +528,116 @@
       return h`<div class="card"><div class="card-h"><div class="card-t">الحالات الوظيفية</div>${canEdit ? h`<button type="button" class="btn btn-sm btn-primary ms-auto" data-add>${icon('plus', 14)} حالة جديدة</button>` : ''}</div>
         <div class="table-wrap"><table class="t compact"><thead><tr><th>الحالة</th><th>الرمز</th><th>النوع</th><th>نشطة</th><th></th></tr></thead><tbody>${rows.map(function (s) { return h`<tr><td>${api.name(s.name)}</td><td class="ltr">${s.code}</td><td>${s.is_terminal ? BT.pill('تنهي الخدمة', 'r') : s.is_working ? BT.pill('على رأس العمل', 'g') : BT.pill('متوقف', 'o')}</td><td>${s.is_active ? 'نعم' : 'لا'}</td><td class="actions">${canEdit ? h`<button type="button" class="btn btn-sm btn-ghost" data-toggle="${s.code}">${s.is_active ? 'إيقاف' : 'تفعيل'}</button>` : ''}</td></tr>`; })}</tbody></table></div></div>`;
     }).catch(function () {});
+  }
+
+  /* ---------- اللغات والترجمة (تطبيق السائق) ---------- */
+  /* لغات تطبيق السائق وترجمة نصوصه: التعديل مسودة حتى «نشر» اللغة، فيصل للتطبيقات إصداراً جديداً ثابتاً */
+  var STATUS_T = { needs_review: ['تحتاج مراجعة', 'o'], machine: ['آلية', 'o'], reviewed: ['تمت المراجعة', 'g'], missing: ['بلا ترجمة', 'r'] };
+  var SCOPE_T = { app: 'التطبيق', server: 'رسائل الخادم', status_templates: 'بطاقات الحالة' };
+  function languagesPanel(el) {
+    var canEdit = api.can('settings.update'), current = null, filters = { scope: '', status: '', q: '' };
+    function draw() {
+      A.load(el, api.get('/i18n/translations/languages'), function (langs) {
+        if (!current || !langs.some(function (l) { return l.code === current; })) current = (langs.find(function (l) { return l.code === 'fr'; }) || langs[0]).code;
+        setTimeout(function () {
+          el.querySelectorAll('[data-toggle-lang]').forEach(function (b) {
+            b.onclick = function () {
+              var l = langs.find(function (x) { return x.code === b.getAttribute('data-toggle-lang'); });
+              api.patch('/i18n/translations/languages/' + l.code, { version: l.version, is_active: !l.is_active }).then(function () { BT.toast(l.is_active ? 'أُوقفت اللغة' : 'فُعّلت اللغة'); draw(); }, api.fail).catch(function () {});
+            };
+          });
+          el.querySelectorAll('[data-pick-lang]').forEach(function (b) { b.onclick = function () { current = b.getAttribute('data-pick-lang'); draw(); }; });
+          el.querySelectorAll('[data-publish]').forEach(function (b) {
+            b.onclick = function () {
+              b.disabled = true;
+              api.post('/i18n/translations/' + b.getAttribute('data-publish') + '/publish').then(function (r) { BT.toast('نُشر الإصدار ' + r.version + ': يصل للتطبيقات في التحديث التالي'); draw(); }, function (err) { b.disabled = false; api.fail(err); }).catch(function () {});
+            };
+          });
+          rows();
+        });
+        var lang = langs.find(function (l) { return l.code === current; });
+        return h`<div class="card mb-16"><div class="card-h"><div class="card-t">لغات تطبيق السائق</div></div>
+          <div class="hint mb-8">يختار السائق لغته من التطبيق. التعديلات مسودة لا تصل للسائقين حتى تضغط «نشر» فيصدر إصدار جديد للغة؛ التطبيق يعمل دون شبكة بالنصوص المضمّنة فيه ويحمّل الإصدار المنشور في الخلفية.</div>
+          <div class="table-wrap"><table class="t compact" data-langs><thead><tr><th>اللغة</th><th>الرمز</th><th>الاتجاه</th><th>المراجعة</th><th>الإصدار المنشور</th><th>مسودة</th><th>الحالة</th><th></th></tr></thead><tbody>${langs.map(function (l) {
+            var p = l.progress;
+            return h`<tr data-lang-row="${l.code}" class="${l.code === current ? 'is-selected' : ''}"><td><b>${l.name_native}</b> <span class="muted fs-sm">${l.name_en}</span></td><td class="ltr">${l.code}</td><td>${l.direction === 'rtl' ? 'من اليمين' : 'من اليسار'}</td>
+              <td><span data-progress="${l.code}">${p.percent}%</span> <span class="muted fs-sm">(${p.reviewed} من ${p.total})</span></td><td class="num" data-published="${l.code}">${l.published_version || '—'}</td><td class="num" data-unpublished="${l.code}">${l.unpublished || '—'}</td>
+              <td>${l.is_active ? BT.pill('مفعّلة', 'g') : BT.pill('موقوفة', 'r')}${l.required ? h` ${BT.pill('أساسية', 'b')}` : ''}</td>
+              <td class="actions"><button type="button" class="btn btn-sm btn-ghost" data-pick-lang="${l.code}">الترجمة</button>${canEdit ? h`<button type="button" class="btn btn-sm btn-primary" data-publish="${l.code}"${l.unpublished ? '' : raw(' disabled')}>نشر</button>${l.required ? '' : h`<button type="button" class="btn btn-sm btn-ghost" data-toggle-lang="${l.code}">${l.is_active ? 'إيقاف' : 'تفعيل'}</button>`}` : ''}</td></tr>`;
+          })}</tbody></table></div></div>
+          <div class="card"><div class="card-h"><div class="card-t">ترجمة ${lang.name_native} <span class="muted fs-sm ltr">(${lang.code})</span></div>
+            <div class="ms-auto flex gap-8"><button type="button" class="btn btn-sm btn-outline" data-export>${icon('download', 14)} تصدير Excel</button>${canEdit ? h`<label class="btn btn-sm btn-outline">${icon('upload', 14)} استيراد Excel<input type="file" accept=".xlsx" class="hidden" data-import></label>` : ''}</div></div>
+            <div class="flex gap-8 mb-8 wrap"><select class="select" data-f="scope" aria-label="النطاق"><option value="">كل النصوص</option>${Object.keys(SCOPE_T).map(function (k) { return h`<option value="${k}"${filters.scope === k ? raw(' selected') : ''}>${SCOPE_T[k]}</option>`; })}</select>
+              <select class="select" data-f="status" aria-label="الحالة"><option value="">كل الحالات</option>${['needs_review', 'reviewed', 'missing'].map(function (k) { return h`<option value="${k}"${filters.status === k ? raw(' selected') : ''}>${STATUS_T[k][0]}</option>`; })}</select>
+              <input type="search" class="input" data-f="q" placeholder="ابحث في المفتاح أو النص…" value="${filters.q}" style="max-width:260px">
+              ${canEdit ? h`<button type="button" class="btn btn-sm btn-success ms-auto" data-review-all>${icon('check', 14)} تمت مراجعة الظاهرة</button>` : ''}</div>
+            <div data-rows></div></div>`;
+      }).catch(function () {});
+    }
+    function rows() {
+      var box = el.querySelector('[data-rows]');
+      el.querySelectorAll('[data-f]').forEach(function (f) {
+        f.onchange = function () { filters[f.getAttribute('data-f')] = f.value; rows(); }; // a search: on Enter
+      });
+      var q = {}; Object.keys(filters).forEach(function (k) { if (filters[k]) q[k] = filters[k]; });
+      el.querySelector('[data-export]').onclick = function () { A.downloadFile('/i18n/translations/' + current + '/export', {}, 'translations-' + current + '.xlsx'); };
+      var imp = el.querySelector('[data-import]');
+      if (imp) imp.onchange = function () {
+        var file = imp.files[0]; if (!file) return;
+        api.uploadForm('/i18n/translations/' + current + '/import', file).then(function (r) { BT.toast('استُورد ' + r.saved + ' نص (مسودة حتى النشر)'); imp.value = ''; draw(); }, function (err) {
+          imp.value = '';
+          var bad = err.body && err.body.params && err.body.params.rows;
+          BT.toast(api.message(err) + (bad ? ': ' + bad.slice(0, 5).map(function (b) { return 'صف ' + b.row + ' (' + b.key + ')'; }).join('، ') : ''), { type: 'error', timeout: 9000 });
+        }).catch(function () {});
+      };
+      A.load(box, api.get('/i18n/translations/' + current, q), function (list) {
+        setTimeout(function () {
+          var all = el.querySelector('[data-review-all]');
+          if (all) all.onclick = function () {
+            var items = list.filter(function (r) { return r.status !== 'reviewed' && r.text; }).slice(0, 2000).map(function (r) { return { scope: r.scope, key: r.key }; });
+            if (!items.length) { BT.toast('لا شيء للمراجعة هنا'); return; }
+            api.post('/i18n/translations/' + current + '/review', { items: items }).then(function (r) { BT.toast('تمت مراجعة ' + r.reviewed + ' نص'); draw(); }, api.fail).catch(function () {});
+          };
+          var tableEl = box.querySelector('[data-t]');
+          if (!tableEl || tableEl.dataset.bound) return; // a later answer drew its own table
+          tableEl.dataset.bound = '1';
+          BT.table(tableEl, {
+            rows: list, pageSize: 25, id: function (r) { return r.scope + ':' + r.key; },
+            columns: [
+              { key: 'key', label: 'المفتاح', render: function (r) { return h`<span class="ltr fs-sm muted">${r.key}</span><div class="fs-sm muted">${SCOPE_T[r.scope]}</div>`; } },
+              { key: 'en', label: 'الإنجليزية (المصدر)', render: function (r) { return h`<span class="ltr" style="white-space:normal">${r.en}</span>`; } },
+              { key: 'ar', label: 'العربية', render: function (r) { return h`<span style="white-space:normal">${r.ar}</span>`; } },
+              { key: 'text', label: 'الترجمة', render: function (r) { return h`<span style="white-space:normal" data-text>${r.text || '—'}</span>`; } },
+              { key: 'status', label: 'الحالة', render: function (r) { var t = STATUS_T[r.status] || [r.status, 'o']; return h`<span data-status>${BT.pill(t[0], t[1])}</span>${r.edited ? h` ${BT.pill('معدّل', 'b')}` : ''}`; } },
+              { key: 'act', label: '', sort: false, render: function (r) { return canEdit && r.status !== 'reviewed' && r.text ? h`<button type="button" class="btn btn-sm btn-ghost" data-review="${r.scope}:${r.key}">تمت المراجعة</button>` : ''; } }
+            ],
+            rowClick: canEdit ? edit : null
+          });
+          if (canEdit && !box.dataset.bound) box.dataset.bound = '1';
+          else return;
+          BT.on(box, 'click', '[data-review]', function (e, b) {
+            var parts = b.getAttribute('data-review').split(':');
+            api.post('/i18n/translations/' + current + '/review', { items: [{ scope: parts[0], key: parts.slice(1).join(':') }] }).then(function () { BT.toast('تمت المراجعة'); draw(); }, api.fail).catch(function () {});
+          });
+        });
+        return h`<div data-t></div>`;
+      }).catch(function () {});
+    }
+    function edit(r) {
+      A.formModal({ title: 'تعديل ترجمة', subtitle: r.key, icon: 'languages', done: 'حُفظت مسودة: انشر اللغة لتصل للتطبيقات', after: function () { draw(); },
+        body: h`<div class="form">${BT.kv([['الإنجليزية', h`<span class="ltr">${r.en}</span>`], ['العربية', r.ar || '—'], ['الأصلي', r.base || '—']])}
+          ${BT.f.textarea({ name: 'text', label: 'الترجمة', required: true, value: r.text || '', rows: 3, hint: 'احتفظ بالمتغيرات بين { } كما هي، وصيغ الجمع plural/select صحيحة' })}
+          ${BT.f.check({ name: 'reviewed', label: 'تمت المراجعة', checked: r.status === 'reviewed' })}
+          <div class="banner danger hidden" data-err></div></div>`,
+        submit: function (v, dlg) {
+          var errBox = (dlg && dlg.el ? dlg.el : document).querySelector('[data-err]');
+          return api.put('/i18n/translations/' + current, { items: [{ scope: r.scope, key: r.key, text: v.text, reviewed: v.reviewed === true }] }).catch(function (err) {
+            if (errBox) { errBox.textContent = api.message(err); errBox.classList.remove('hidden'); }
+            throw err;
+          });
+        } });
+    }
+    draw();
   }
 
   /* ---------- اللغات والترجمة ---------- */

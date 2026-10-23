@@ -67,7 +67,7 @@ def test_role_validation_localized_names_and_versioning(admin_client):
     assert r.status_code == 422 and r.json()["code"] == "unknown_permission"
     r = admin_client.post("/api/v1/roles", json={"code": "x_role", "name": {"en": "Only English"}})
     assert r.status_code == 422 and r.json()["code"] == "default_language_required"
-    r = admin_client.post("/api/v1/roles", json={"code": "x_role", "name": {"ar": "دور", "fr": "Rôle"}})
+    r = admin_client.post("/api/v1/roles", json={"code": "x_role", "name": {"ar": "دور", "xx": "Rôle"}})
     assert r.status_code == 422 and r.json()["code"] == "unknown_language"
     role = admin_client.post(
         "/api/v1/roles", json={"code": "auditor", "name": name("مدقق", "Auditor"), "permissions": ["audit.view"]}

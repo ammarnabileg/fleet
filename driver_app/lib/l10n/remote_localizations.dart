@@ -178,7 +178,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get trackingOff => _remote.text('trackingOff') ?? _base.trackingOff;
   @override
-  String trackingWaiting(String count) => _remote.format('trackingWaiting', {'count': count}) ?? _base.trackingWaiting(count);
+  String trackingWaiting(String count) =>
+      _remote.format('trackingWaiting', {'count': count}) ?? _base.trackingWaiting(count);
   @override
   String get startDay => _remote.text('startDay') ?? _base.startDay;
   @override
@@ -192,7 +193,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get outboxQueued => _remote.text('outboxQueued') ?? _base.outboxQueued;
   @override
-  String outboxFailed(String reason) => _remote.format('outboxFailed', {'reason': reason}) ?? _base.outboxFailed(reason);
+  String outboxFailed(String reason) =>
+      _remote.format('outboxFailed', {'reason': reason}) ?? _base.outboxFailed(reason);
   @override
   String get outboxDiscard => _remote.text('outboxDiscard') ?? _base.outboxDiscard;
   @override
@@ -206,7 +208,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get startAgain => _remote.text('startAgain') ?? _base.startAgain;
   @override
-  String reportAddsToDay(String orders) => _remote.format('reportAddsToDay', {'orders': orders}) ?? _base.reportAddsToDay(orders);
+  String reportAddsToDay(String orders) =>
+      _remote.format('reportAddsToDay', {'orders': orders}) ?? _base.reportAddsToDay(orders);
   @override
   String reportSession(String n) => _remote.format('reportSession', {'n': n}) ?? _base.reportSession(n);
   @override
@@ -246,7 +249,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get vehicleChangePending => _remote.text('vehicleChangePending') ?? _base.vehicleChangePending;
   @override
-  String vehicleChangeRejected(Object note) => _remote.format('vehicleChangeRejected', {'note': note}) ?? _base.vehicleChangeRejected(note);
+  String vehicleChangeRejected(Object note) =>
+      _remote.format('vehicleChangeRejected', {'note': note}) ?? _base.vehicleChangeRejected(note);
   @override
   String get profileTitle => _remote.text('profileTitle') ?? _base.profileTitle;
   @override
@@ -274,7 +278,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get renewalPending => _remote.text('renewalPending') ?? _base.renewalPending;
   @override
-  String renewalRejected(Object note) => _remote.format('renewalRejected', {'note': note}) ?? _base.renewalRejected(note);
+  String renewalRejected(Object note) =>
+      _remote.format('renewalRejected', {'note': note}) ?? _base.renewalRejected(note);
   @override
   String get newExpiry => _remote.text('newExpiry') ?? _base.newExpiry;
   @override
@@ -350,7 +355,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get status_rejected => _remote.text('status_rejected') ?? _base.status_rejected;
   @override
-  String approvedCash(String amount) => _remote.format('approvedCash', {'amount': amount}) ?? _base.approvedCash(amount);
+  String approvedCash(String amount) =>
+      _remote.format('approvedCash', {'amount': amount}) ?? _base.approvedCash(amount);
   @override
   String get cashTitle => _remote.text('cashTitle') ?? _base.cashTitle;
   @override
@@ -370,7 +376,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get receiptConfirmed => _remote.text('receiptConfirmed') ?? _base.receiptConfirmed;
   @override
-  String confirmReceiptQ(String amount) => _remote.format('confirmReceiptQ', {'amount': amount}) ?? _base.confirmReceiptQ(amount);
+  String confirmReceiptQ(String amount) =>
+      _remote.format('confirmReceiptQ', {'amount': amount}) ?? _base.confirmReceiptQ(amount);
   @override
   String get noReceipts => _remote.text('noReceipts') ?? _base.noReceipts;
   @override
@@ -430,11 +437,13 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get mntNone => _remote.text('mntNone') ?? _base.mntNone;
   @override
-  String mntRequestNo(String number) => _remote.format('mntRequestNo', {'number': number}) ?? _base.mntRequestNo(number);
+  String mntRequestNo(String number) =>
+      _remote.format('mntRequestNo', {'number': number}) ?? _base.mntRequestNo(number);
   @override
   String mntAtCenter(String center) => _remote.format('mntAtCenter', {'center': center}) ?? _base.mntAtCenter(center);
   @override
-  String mntReadyBanner(String plate, String center) => _remote.format('mntReadyBanner', {'plate': plate, 'center': center}) ?? _base.mntReadyBanner(plate, center);
+  String mntReadyBanner(String plate, String center) =>
+      _remote.format('mntReadyBanner', {'plate': plate, 'center': center}) ?? _base.mntReadyBanner(plate, center);
   @override
   String mntRejected(String reason) => _remote.format('mntRejected', {'reason': reason}) ?? _base.mntRejected(reason);
   @override
@@ -528,13 +537,17 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get accLiability_driver => _remote.text('accLiability_driver') ?? _base.accLiability_driver;
   @override
-  String accLiability_shared(String percent) => _remote.format('accLiability_shared', {'percent': percent}) ?? _base.accLiability_shared(percent);
+  String accLiability_shared(String percent) =>
+      _remote.format('accLiability_shared', {'percent': percent}) ?? _base.accLiability_shared(percent);
   @override
-  String accDeduction(String total, String count) => _remote.format('accDeduction', {'total': total, 'count': count}) ?? _base.accDeduction(total, count);
+  String accDeduction(String total, String count) =>
+      _remote.format('accDeduction', {'total': total, 'count': count}) ?? _base.accDeduction(total, count);
   @override
-  String accInstallment(String month, String amount) => _remote.format('accInstallment', {'month': month, 'amount': amount}) ?? _base.accInstallment(month, amount);
+  String accInstallment(String month, String amount) =>
+      _remote.format('accInstallment', {'month': month, 'amount': amount}) ?? _base.accInstallment(month, amount);
   @override
-  String accAwaitingPolice(String number) => _remote.format('accAwaitingPolice', {'number': number}) ?? _base.accAwaitingPolice(number);
+  String accAwaitingPolice(String number) =>
+      _remote.format('accAwaitingPolice', {'number': number}) ?? _base.accAwaitingPolice(number);
   @override
   String get fines => _remote.text('fines') ?? _base.fines;
   @override
@@ -556,7 +569,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get statementTitle => _remote.text('statementTitle') ?? _base.statementTitle;
   @override
-  String statementIntro(String platform) => _remote.format('statementIntro', {'platform': platform}) ?? _base.statementIntro(platform);
+  String statementIntro(String platform) =>
+      _remote.format('statementIntro', {'platform': platform}) ?? _base.statementIntro(platform);
   @override
   String get statementNoPlatform => _remote.text('statementNoPlatform') ?? _base.statementNoPlatform;
   @override
@@ -570,9 +584,11 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get statementHistory => _remote.text('statementHistory') ?? _base.statementHistory;
   @override
-  String statementSentDays(String days) => _remote.format('statementSentDays', {'days': days}) ?? _base.statementSentDays(days);
+  String statementSentDays(String days) =>
+      _remote.format('statementSentDays', {'days': days}) ?? _base.statementSentDays(days);
   @override
-  String statementApprovedDays(String days) => _remote.format('statementApprovedDays', {'days': days}) ?? _base.statementApprovedDays(days);
+  String statementApprovedDays(String days) =>
+      _remote.format('statementApprovedDays', {'days': days}) ?? _base.statementApprovedDays(days);
   @override
   String get statementStatus_submitted => _remote.text('statementStatus_submitted') ?? _base.statementStatus_submitted;
   @override
@@ -648,13 +664,15 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get schemeNone => _remote.text('schemeNone') ?? _base.schemeNone;
   @override
-  String schemeNextMonth(String name) => _remote.format('schemeNextMonth', {'name': name}) ?? _base.schemeNextMonth(name);
+  String schemeNextMonth(String name) =>
+      _remote.format('schemeNextMonth', {'name': name}) ?? _base.schemeNextMonth(name);
   @override
   String get schemeOthers => _remote.text('schemeOthers') ?? _base.schemeOthers;
   @override
   String get schemeAsk => _remote.text('schemeAsk') ?? _base.schemeAsk;
   @override
-  String schemeAskBody(String name, String month) => _remote.format('schemeAskBody', {'name': name, 'month': month}) ?? _base.schemeAskBody(name, month);
+  String schemeAskBody(String name, String month) =>
+      _remote.format('schemeAskBody', {'name': name, 'month': month}) ?? _base.schemeAskBody(name, month);
   @override
   String get schemeNoteHint => _remote.text('schemeNoteHint') ?? _base.schemeNoteHint;
   @override
@@ -662,11 +680,14 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get schemeSent => _remote.text('schemeSent') ?? _base.schemeSent;
   @override
-  String schemePending(String name, String month) => _remote.format('schemePending', {'name': name, 'month': month}) ?? _base.schemePending(name, month);
+  String schemePending(String name, String month) =>
+      _remote.format('schemePending', {'name': name, 'month': month}) ?? _base.schemePending(name, month);
   @override
-  String schemeApproved(String name, String month) => _remote.format('schemeApproved', {'name': name, 'month': month}) ?? _base.schemeApproved(name, month);
+  String schemeApproved(String name, String month) =>
+      _remote.format('schemeApproved', {'name': name, 'month': month}) ?? _base.schemeApproved(name, month);
   @override
-  String schemeRejected(String name, String note) => _remote.format('schemeRejected', {'name': name, 'note': note}) ?? _base.schemeRejected(name, note);
+  String schemeRejected(String name, String note) =>
+      _remote.format('schemeRejected', {'name': name, 'note': note}) ?? _base.schemeRejected(name, note);
   @override
   String get schemeCancel => _remote.text('schemeCancel') ?? _base.schemeCancel;
   @override
@@ -674,23 +695,29 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get schemeBatchRates => _remote.text('schemeBatchRates') ?? _base.schemeBatchRates;
   @override
-  String schemeBatchRow(String level, String rate) => _remote.format('schemeBatchRow', {'level': level, 'rate': rate}) ?? _base.schemeBatchRow(level, rate);
+  String schemeBatchRow(String level, String rate) =>
+      _remote.format('schemeBatchRow', {'level': level, 'rate': rate}) ?? _base.schemeBatchRow(level, rate);
   @override
-  String schemeReduced(String rate, String marks) => _remote.format('schemeReduced', {'rate': rate, 'marks': marks}) ?? _base.schemeReduced(rate, marks);
+  String schemeReduced(String rate, String marks) =>
+      _remote.format('schemeReduced', {'rate': rate, 'marks': marks}) ?? _base.schemeReduced(rate, marks);
   @override
-  String schemeReducedStar(String rate) => _remote.format('schemeReducedStar', {'rate': rate}) ?? _base.schemeReducedStar(rate);
+  String schemeReducedStar(String rate) =>
+      _remote.format('schemeReducedStar', {'rate': rate}) ?? _base.schemeReducedStar(rate);
   @override
   String get schemeReducedLoses => _remote.text('schemeReducedLoses') ?? _base.schemeReducedLoses;
   @override
   String get schemeTiers => _remote.text('schemeTiers') ?? _base.schemeTiers;
   @override
-  String schemeTierRow(String orders, String amount) => _remote.format('schemeTierRow', {'orders': orders, 'amount': amount}) ?? _base.schemeTierRow(orders, amount);
+  String schemeTierRow(String orders, String amount) =>
+      _remote.format('schemeTierRow', {'orders': orders, 'amount': amount}) ?? _base.schemeTierRow(orders, amount);
   @override
   String get schemeMarks => _remote.text('schemeMarks') ?? _base.schemeMarks;
   @override
-  String schemeMarkRow(String marks, String amount) => _remote.format('schemeMarkRow', {'marks': marks, 'amount': amount}) ?? _base.schemeMarkRow(marks, amount);
+  String schemeMarkRow(String marks, String amount) =>
+      _remote.format('schemeMarkRow', {'marks': marks, 'amount': amount}) ?? _base.schemeMarkRow(marks, amount);
   @override
-  String schemeTarget(String orders, String days) => _remote.format('schemeTarget', {'orders': orders, 'days': days}) ?? _base.schemeTarget(orders, days);
+  String schemeTarget(String orders, String days) =>
+      _remote.format('schemeTarget', {'orders': orders, 'days': days}) ?? _base.schemeTarget(orders, days);
   @override
   String schemeMissing(String rate) => _remote.format('schemeMissing', {'rate': rate}) ?? _base.schemeMissing(rate);
   @override
@@ -726,7 +753,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get payItem_uncovered_penalty => _remote.text('payItem_uncovered_penalty') ?? _base.payItem_uncovered_penalty;
   @override
-  String payWhyOrders(String orders, String rate) => _remote.format('payWhyOrders', {'orders': orders, 'rate': rate}) ?? _base.payWhyOrders(orders, rate);
+  String payWhyOrders(String orders, String rate) =>
+      _remote.format('payWhyOrders', {'orders': orders, 'rate': rate}) ?? _base.payWhyOrders(orders, rate);
   @override
   String payWhyBatch(String level) => _remote.format('payWhyBatch', {'level': level}) ?? _base.payWhyBatch(level);
   @override
@@ -734,9 +762,12 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get payWhyReducedMarks => _remote.text('payWhyReducedMarks') ?? _base.payWhyReducedMarks;
   @override
-  String payWhyTier(String orders, String from) => _remote.format('payWhyTier', {'orders': orders, 'from': from}) ?? _base.payWhyTier(orders, from);
+  String payWhyTier(String orders, String from) =>
+      _remote.format('payWhyTier', {'orders': orders, 'from': from}) ?? _base.payWhyTier(orders, from);
   @override
-  String payWhyMissing(String missing, String target, String rate) => _remote.format('payWhyMissing', {'missing': missing, 'target': target, 'rate': rate}) ?? _base.payWhyMissing(missing, target, rate);
+  String payWhyMissing(String missing, String target, String rate) =>
+      _remote.format('payWhyMissing', {'missing': missing, 'target': target, 'rate': rate}) ??
+      _base.payWhyMissing(missing, target, rate);
   @override
   String payWhyMarks(String marks) => _remote.format('payWhyMarks', {'marks': marks}) ?? _base.payWhyMarks(marks);
   @override
@@ -758,7 +789,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get ibanInvalid => _remote.text('ibanInvalid') ?? _base.ibanInvalid;
   @override
-  String obFieldsInvalid(String fields) => _remote.format('obFieldsInvalid', {'fields': fields}) ?? _base.obFieldsInvalid(fields);
+  String obFieldsInvalid(String fields) =>
+      _remote.format('obFieldsInvalid', {'fields': fields}) ?? _base.obFieldsInvalid(fields);
   @override
   String ibanLengthKw(int count) => _remote.format('ibanLengthKw', {'count': count}) ?? _base.ibanLengthKw(count);
   @override
@@ -826,17 +858,20 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get sendDailyReport => _remote.text('sendDailyReport') ?? _base.sendDailyReport;
   @override
-  String ordersCash(String orders, String cash) => _remote.format('ordersCash', {'orders': orders, 'cash': cash}) ?? _base.ordersCash(orders, cash);
+  String ordersCash(String orders, String cash) =>
+      _remote.format('ordersCash', {'orders': orders, 'cash': cash}) ?? _base.ordersCash(orders, cash);
   @override
   String get myRequests => _remote.text('myRequests') ?? _base.myRequests;
   @override
   String get cashBalanceTitle => _remote.text('cashBalanceTitle') ?? _base.cashBalanceTitle;
   @override
-  String cashPendingPart(String amount) => _remote.format('cashPendingPart', {'amount': amount}) ?? _base.cashPendingPart(amount);
+  String cashPendingPart(String amount) =>
+      _remote.format('cashPendingPart', {'amount': amount}) ?? _base.cashPendingPart(amount);
   @override
   String cashLimit(String amount) => _remote.format('cashLimit', {'amount': amount}) ?? _base.cashLimit(amount);
   @override
-  String employeeAt(String number, String company) => _remote.format('employeeAt', {'number': number, 'company': company}) ?? _base.employeeAt(number, company);
+  String employeeAt(String number, String company) =>
+      _remote.format('employeeAt', {'number': number, 'company': company}) ?? _base.employeeAt(number, company);
   @override
   String get thisPhone => _remote.text('thisPhone') ?? _base.thisPhone;
   @override
@@ -896,7 +931,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get fuelPending => _remote.text('fuelPending') ?? _base.fuelPending;
   @override
-  String fuelApproved(String amount) => _remote.format('fuelApproved', {'amount': amount}) ?? _base.fuelApproved(amount);
+  String fuelApproved(String amount) =>
+      _remote.format('fuelApproved', {'amount': amount}) ?? _base.fuelApproved(amount);
   @override
   String get fuelRejected => _remote.text('fuelRejected') ?? _base.fuelRejected;
   @override
@@ -914,7 +950,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get vehicleChangePlateHint => _remote.text('vehicleChangePlateHint') ?? _base.vehicleChangePlateHint;
   @override
-  String vehicleChangePendingFor(String plate) => _remote.format('vehicleChangePendingFor', {'plate': plate}) ?? _base.vehicleChangePendingFor(plate);
+  String vehicleChangePendingFor(String plate) =>
+      _remote.format('vehicleChangePendingFor', {'plate': plate}) ?? _base.vehicleChangePendingFor(plate);
   @override
   String get claimVehicle => _remote.text('claimVehicle') ?? _base.claimVehicle;
   @override
@@ -932,13 +969,15 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String claimPending(String plate) => _remote.format('claimPending', {'plate': plate}) ?? _base.claimPending(plate);
   @override
-  String claimRejected(String plate, String reason) => _remote.format('claimRejected', {'plate': plate, 'reason': reason}) ?? _base.claimRejected(plate, reason);
+  String claimRejected(String plate, String reason) =>
+      _remote.format('claimRejected', {'plate': plate, 'reason': reason}) ?? _base.claimRejected(plate, reason);
   @override
   String get kind_vehicle_claim => _remote.text('kind_vehicle_claim') ?? _base.kind_vehicle_claim;
   @override
   String get mntNoCenter => _remote.text('mntNoCenter') ?? _base.mntNoCenter;
   @override
-  String mntInMaintenance(String center) => _remote.format('mntInMaintenance', {'center': center}) ?? _base.mntInMaintenance(center);
+  String mntInMaintenance(String center) =>
+      _remote.format('mntInMaintenance', {'center': center}) ?? _base.mntInMaintenance(center);
   @override
   String get mntInMaintenanceAny => _remote.text('mntInMaintenanceAny') ?? _base.mntInMaintenanceAny;
   @override
@@ -978,9 +1017,11 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get myObjections => _remote.text('myObjections') ?? _base.myObjections;
   @override
-  String objectionResponse(String text) => _remote.format('objectionResponse', {'text': text}) ?? _base.objectionResponse(text);
+  String objectionResponse(String text) =>
+      _remote.format('objectionResponse', {'text': text}) ?? _base.objectionResponse(text);
   @override
-  String objectionAction(String text) => _remote.format('objectionAction', {'text': text}) ?? _base.objectionAction(text);
+  String objectionAction(String text) =>
+      _remote.format('objectionAction', {'text': text}) ?? _base.objectionAction(text);
   @override
   String get objectionStatus_open => _remote.text('objectionStatus_open') ?? _base.objectionStatus_open;
   @override
@@ -994,11 +1035,13 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get objectionInstallment => _remote.text('objectionInstallment') ?? _base.objectionInstallment;
   @override
-  String vehicleChangeApprovedFor(String plate) => _remote.format('vehicleChangeApprovedFor', {'plate': plate}) ?? _base.vehicleChangeApprovedFor(plate);
+  String vehicleChangeApprovedFor(String plate) =>
+      _remote.format('vehicleChangeApprovedFor', {'plate': plate}) ?? _base.vehicleChangeApprovedFor(plate);
   @override
   String get receiptReversed => _remote.text('receiptReversed') ?? _base.receiptReversed;
   @override
-  String pickupReplacementTitle(String plate) => _remote.format('pickupReplacementTitle', {'plate': plate}) ?? _base.pickupReplacementTitle(plate);
+  String pickupReplacementTitle(String plate) =>
+      _remote.format('pickupReplacementTitle', {'plate': plate}) ?? _base.pickupReplacementTitle(plate);
   @override
   String get pickupReplacementHint => _remote.text('pickupReplacementHint') ?? _base.pickupReplacementHint;
   @override
@@ -1012,13 +1055,15 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get replacementCar => _remote.text('replacementCar') ?? _base.replacementCar;
   @override
-  String outboxAttention(String reason) => _remote.format('outboxAttention', {'reason': reason}) ?? _base.outboxAttention(reason);
+  String outboxAttention(String reason) =>
+      _remote.format('outboxAttention', {'reason': reason}) ?? _base.outboxAttention(reason);
   @override
   String get outboxTooOld => _remote.text('outboxTooOld') ?? _base.outboxTooOld;
   @override
   String get outboxKeptFailing => _remote.text('outboxKeptFailing') ?? _base.outboxKeptFailing;
   @override
-  String outboxAttentionCount(int n) => _remote.format('outboxAttentionCount', {'n': n}) ?? _base.outboxAttentionCount(n);
+  String outboxAttentionCount(int n) =>
+      _remote.format('outboxAttentionCount', {'n': n}) ?? _base.outboxAttentionCount(n);
   @override
   String get startFailedTitle => _remote.text('startFailedTitle') ?? _base.startFailedTitle;
   @override
@@ -1036,7 +1081,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get trackingUnknown => _remote.text('trackingUnknown') ?? _base.trackingUnknown;
   @override
-  String noticeBigActive(String time) => _remote.format('noticeBigActive', {'time': time}) ?? _base.noticeBigActive(time);
+  String noticeBigActive(String time) =>
+      _remote.format('noticeBigActive', {'time': time}) ?? _base.noticeBigActive(time);
   @override
   String noticeBigStale(String time) => _remote.format('noticeBigStale', {'time': time}) ?? _base.noticeBigStale(time);
   @override
@@ -1068,7 +1114,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String statusMore(String count) => _remote.format('statusMore', {'count': count}) ?? _base.statusMore(count);
   @override
-  String statusDaySummary(String count) => _remote.format('statusDaySummary', {'count': count}) ?? _base.statusDaySummary(count);
+  String statusDaySummary(String count) =>
+      _remote.format('statusDaySummary', {'count': count}) ?? _base.statusDaySummary(count);
   @override
   String get statusContactSent => _remote.text('statusContactSent') ?? _base.statusContactSent;
   @override
