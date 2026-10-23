@@ -70,6 +70,23 @@ def test_separate_states_working_with_active_tracking(admin_client, client, db, 
     assert again["config"] is None
 
 
+def test_while_in_use_permission_with_points_arriving_is_no_problem(admin_client, client, db, driver):
+    """The foreground service tracks with "while in use": points coming in means the location reaches the office."""
+    start_day(admin_client, db, driver)
+    send(client, driver["headers"], [point(1, now() - timedelta(minutes=1))])
+    heartbeat(
+        client, driver["headers"], location_permission="while_in_use", gps_enabled=True, tracking_service_running=True
+    )
+    body = client.get(LIVE, headers=driver["headers"]).json()
+    assert body["tracking"]["state"] == "active"
+    assert "location_problem" not in codes(body)
+    heartbeat(client, driver["headers"], location_permission="denied", gps_enabled=True, tracking_service_running=True)
+    problem = next(
+        a for a in client.get(LIVE, headers=driver["headers"]).json()["alerts"] if a["code"] == "location_problem"
+    )
+    assert problem["data"]["reasons"] == ["permission_denied"]
+
+
 def test_off_duty_and_stale_tracking_raise_a_location_problem(client, db, driver):
     # holding the car three hours, no point ever: stale, not live, whatever the notification says
     heartbeat(client, driver["headers"], location_permission="while_in_use", gps_enabled=False)
@@ -77,7 +94,7 @@ def test_off_duty_and_stale_tracking_raise_a_location_problem(client, db, driver
     assert body["shift"]["state"] == "off_duty" and body["shift"]["started_at"] is None
     assert body["tracking"]["state"] == "stale"
     problem = next(a for a in body["alerts"] if a["code"] == "location_problem")
-    assert set(problem["data"]["reasons"]) == {"permission_denied", "gps_off", "stale"}
+    assert set(problem["data"]["reasons"]) == {"gps_off", "stale", "permission_limited"}
     assert problem["kind"] == "location" and problem["actions"] == ["open_location_settings"]
 
 

@@ -692,7 +692,11 @@ class _DayCard extends StatelessWidget {
               key: const Key('end-day'),
               icon: const Icon(Icons.nightlight_outlined),
               label: Text(l.endDay),
-              onPressed: () => _push(context, reading('end_day')),
+              // the day's report (orders, cash or valid day, as the platform asks) with the end reading, in one screen
+              onPressed: () => _push(
+                context,
+                state.shows('daily_report') && state.endReadingDue ? ReportScreen(state: state) : reading('end_day'),
+              ),
             ),
           ],
         ),

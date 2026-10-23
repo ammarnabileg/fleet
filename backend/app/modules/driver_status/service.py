@@ -239,7 +239,8 @@ def _tracking(db: Session, custody) -> dict:
 
 
 HEALTH_PROBLEMS = (
-    ("permission_denied", lambda s: s.get("location_permission") not in (None, "always")),
+    # "while in use" still tracks through the foreground service: only a real refusal is a problem by itself
+    ("permission_denied", lambda s: s.get("location_permission") == "denied"),
     ("gps_off", lambda s: s.get("gps_enabled") is False),
     ("service_stopped", lambda s: s.get("tracking_service_running") is False),
 )
@@ -337,6 +338,8 @@ def compute(
         reasons = [name for name, failing in HEALTH_PROBLEMS if failing(health)]
         if track["state"] == "stale":
             reasons.append("stale")
+            if health.get("location_permission") == "while_in_use":
+                reasons.append("permission_limited")  # the points stopped: "always" is the likely fix
         if reasons:
             raw.append(
                 (

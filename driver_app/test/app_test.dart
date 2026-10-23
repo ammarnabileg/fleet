@@ -548,6 +548,7 @@ void main() {
       (reading['kind'], reading['value_km'], reading['photo_sha256'], reading['recorded_at']),
       ('end_day', 45390, 'c' * 64, '2026-10-04T18:30:00.000Z'),
     );
+    expect((jsonDecode(w.server.calls('/api/v1/driver/odometer').last.body) as Map)['kind'], 'end_day');
     final report = jsonDecode(w.server.calls('/api/v1/driver/reports', method: 'POST').single.body) as Map;
     expect((report['orders_count'], report['screenshot_sha256']), (30, 'd' * 64));
     await tester.tap(find.text('تم'));
@@ -644,20 +645,10 @@ void main() {
     await tester.tap(find.text('تم'));
     await settle(tester);
     expect(find.byKey(const Key('start-again')), findsNothing);
+    // ending the day opens the day's report: the end reading and what the platform asks, in one screen
     await tester.tap(find.byKey(const Key('end-day')));
     await settle(tester);
-    await tester.tap(find.byKey(const Key('odo-photo')));
-    await idle(tester);
-    await tester.enterText(find.byKey(const Key('km')), '45360');
-    await tester.tap(find.byKey(const Key('send-reading')));
-    await idle(tester);
-    await tester.tap(find.text('تم'));
-    await settle(tester);
-    expect(find.byKey(const Key('start-again')), findsOneWidget);
-
-    // the new session's report: the form, with what today already holds
-    await tester.tap(find.byKey(const Key('daily-report')));
-    await settle(tester);
+    expect(find.byKey(const Key('end-reading')), findsOneWidget);
     expect(find.byKey(const Key('report-exists')), findsNothing);
     expect(find.byKey(const Key('report-adds')), findsOneWidget);
     expect(find.textContaining('24'), findsWidgets);
@@ -667,6 +658,11 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    await reach('end-photo');
+    await tester.tap(find.byKey(const Key('end-photo')));
+    await idle(tester);
+    await reach('end-km');
+    await tester.enterText(find.byKey(const Key('end-km')), '45360');
     await reach('orders');
     await tester.enterText(find.byKey(const Key('orders')), '6');
     await reach('cash');
