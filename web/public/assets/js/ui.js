@@ -192,12 +192,16 @@
     if (top + mh > vh - 8 && r.top - mh - 6 > 8) top = r.top - mh - 6;
     menu.style.left = left + 'px'; menu.style.top = Math.max(8, top) + 'px';
   }
-  function closeMenu() { if (openMenu) { var m = openMenu; openMenu = null; m.el.classList.remove('show'); m.anchor.setAttribute('aria-expanded', 'false'); setTimeout(function () { m.el.remove(); }, 130); if (m.onClose) m.onClose(); } }
+  function closeMenu() { if (openMenu) { var m = openMenu; openMenu = null; m.el.classList.remove('show'); m.anchor.setAttribute('aria-expanded', 'false'); m.el.setAttribute('inert', ''); closing.push(m.el); setTimeout(function () { dropClosed(m.el); }, 130); if (m.onClose) m.onClose(); } }
+  // a menu still fading out leaves the page as soon as another opens: two copies of the same popover, inputs and all, never coexist
+  var closing = [];
+  function dropClosed(el) { var i = closing.indexOf(el); if (i >= 0) closing.splice(i, 1); el.remove(); }
   BT.closeMenu = closeMenu;
   function showFloating(anchor, html, o) {
     o = o || {};
     if (openMenu && openMenu.anchor === anchor) { closeMenu(); return null; }
     closeMenu();
+    closing.slice().forEach(dropClosed);
     var el = BT.el(String(html));
     document.body.appendChild(el);
     place(el, anchor, o.align);
