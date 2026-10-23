@@ -49,8 +49,11 @@ test('the live map ages every position, follows the stream and switches list/map
   const tools = admin.locator('.trk-tools');
   if (await tools.count()) { // the map loaded (WebGL): its own buttons
     await expect(tools.locator('[data-follow]')).toBeDisabled(); // nothing selected yet
-    await item(fresh).click();
+    await item(fresh).click(); // choosing a vehicle flies to it and follows it
+    await expect(tools.locator('[data-follow]')).toHaveAttribute('aria-pressed', 'true');
     await tools.locator('[data-follow]').click();
+    await expect(tools.locator('[data-follow]')).toHaveAttribute('aria-pressed', 'false');
+    await admin.locator('[data-veh-mark]').last().click(); // and so does a car on the map (the top one)
     await expect(tools.locator('[data-follow]')).toHaveAttribute('aria-pressed', 'true');
     await tools.locator('[data-fit]').click();
     await expect(tools.locator('[data-follow]')).toHaveAttribute('aria-pressed', 'false');

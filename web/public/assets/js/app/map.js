@@ -124,10 +124,21 @@
         if (opts.title) el.title = opts.title;
         // بعد انتهاء النقرة: لو أعاد onClick رسم العلامة أثناءها لما فتحت الخريطة النافذة المنبثقة
         if (opts.onClick) el.addEventListener('click', function () { setTimeout(opts.onClick, 0); });
-        var mk = new ml.Marker({ element: el, anchor: 'center' }).setLngLat(lngLat(pos)).addTo(map);
+        var mk = new ml.Marker({ element: el, anchor: 'center' }).setLngLat(lngLat(pos)).addTo(map), anim = 0;
         return {
           el: el,
-          move: function (p) { mk.setLngLat(lngLat(p)); },
+          /* ms: انزلاق من الموضع الحالي للجديد بدل القفز (البث المباشر)؛ قفزة كبيرة (أكثر من 3 كم) تُنقل فوراً */
+          move: function (p, ms) {
+            cancelAnimationFrame(anim);
+            var to = lngLat(p), from = mk.getLngLat();
+            if (!ms || from.distanceTo(new ml.LngLat(to[0], to[1])) > 3000 || document.hidden) { mk.setLngLat(to); return; }
+            var t0 = performance.now();
+            (function step(now) {
+              var k = Math.min(1, (now - t0) / ms), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+              mk.setLngLat([from.lng + (to[0] - from.lng) * e, from.lat + (to[1] - from.lat) * e]);
+              if (k < 1) anim = requestAnimationFrame(step);
+            })(t0);
+          },
           html: function (x) { if (x !== last) el.innerHTML = last = x; },
           title: function (x) { el.title = x; },
           /* مخفية: داخل مجموعة، أو خارج التصفية */
@@ -153,7 +164,8 @@
         points.forEach(function (p) { b.extend(lngLat(p)); });
         map.fitBounds(b, { padding: 60, maxZoom: maxZoom || 15 });
       },
-      view: function (p, zoom) { map.easeTo({ center: lngLat(p), zoom: zoom }); },
+      view: function (p, zoom, ms) { map.easeTo({ center: lngLat(p), zoom: zoom, duration: ms == null ? 800 : ms, easing: function (t) { return t * (2 - t); } }); },
+      fly: function (p, zoom) { map.flyTo({ center: lngLat(p), zoom: zoom, speed: 1.4, curve: 1.3, essential: true }); },
       zoom: function () { return map.getZoom(); },
       /* موضع النقطة على الشاشة بالبكسل (لتجميع العلامات المتقاربة) */
       project: function (p) { return map.project(lngLat(p)); },
@@ -184,8 +196,10 @@
   }
 
   /* stale: موقع قديم (آخر موقع معروف، لا الموقع الحالي) يُرسم باهتاً بإطار متقطع */
-  BT.map.carHtml = function (tone, selected, stale) {
-    return String(h`<div class="veh-mark ${tone}${selected ? ' sel' : ''}${stale ? ' stale' : ''}">${BT.icon('car', 15)}</div>`);
+  /* heading: اتجاه الحركة بالدرجات (سهم حول العلامة)، يظهر فقط والسيارة ماشية */
+  BT.map.carHtml = function (tone, selected, stale, heading) {
+    var arrow = heading != null && !stale ? h`<span class="veh-dir" style="transform:rotate(${Math.round(heading)}deg)"></span>` : '';
+    return String(h`<div class="veh-mark ${tone}${selected ? ' sel' : ''}${stale ? ' stale' : ''}">${arrow}${BT.icon('car', 15)}</div>`);
   };
   /* مجموعة سيارات متقاربة على الشاشة: العدد، ونقطة حمراء بعدد المنقطعة منها */
   BT.map.clusterHtml = function (n, lost) {

@@ -9,6 +9,7 @@
 
   function mapFailed(el) { BT.render(el, BT.empty('map', 'تعذر تحميل الخريطة', 'حدّث الصفحة. إن تكرر: المتصفح لا يدعم WebGL أو ملفات الخريطة غير منشورة على الخادم')); }
 
+  var GLIDE_MS = 1200, FOCUS_ZOOM = 16; // انزلاق العلامة للموقع الجديد، والتقريب عند اختيار سيارة
   var CLUSTER_FROM = 25, CLUSTER_PX = 56, CLUSTER_UNTIL_ZOOM = 15; // من 25 سيارة ظاهرة: المتقاربة على الشاشة مجموعة واحدة
 
   /* حالة السيارة كما تُعرض: لا يظهر موقع قديم كأنه حالي، عمره بجانبه دائماً */
@@ -80,9 +81,9 @@
       state.rows.forEach(function (r) {
         var m = state.markers[r.vehicle.id];
         if (!r.position) { if (m) { m.remove(); delete state.markers[r.vehicle.id]; } return; }
-        var st = vehicleState(r), ll = [r.position.lat, r.position.lng], html = BT.map.carHtml(st.tone, state.selected === r.vehicle.id, st.stale);
-        if (!m) m = state.markers[r.vehicle.id] = map.marker(ll, html, { onClick: function () { select(r.vehicle.id, false); } });
-        else { m.move(ll); m.html(html); }
+        var st = vehicleState(r), ll = [r.position.lat, r.position.lng], moving = r.position.speed_kmh != null && r.position.speed_kmh >= 3, html = BT.map.carHtml(st.tone, state.selected === r.vehicle.id, st.stale, moving ? r.position.heading : null);
+        if (!m) m = state.markers[r.vehicle.id] = map.marker(ll, html, { onClick: function () { select(r.vehicle.id, true); } });
+        else { m.move(ll, GLIDE_MS); m.html(html); }
         m.title(r.vehicle.plate_number + ' — ' + st.text);
         m.el.setAttribute('data-veh-mark', r.vehicle.id);
         m.shown = !!shown[r.vehicle.id];
@@ -140,8 +141,8 @@
       drawList(); drawMarkers();
       var m = state.markers[id];
       if (pan && narrow()) setPane('map');
-      // من القائمة: تحريك الخريطة وفتح النافذة. من العلامة نفسها: الخريطة تفتحها
-      if (m && pan) { map.view(m.pos(), Math.max(map.zoom(), 13)); m.open(); }
+      // من القائمة أو العلامة: الخريطة تطير إليها وتقرّب وتتابعها مع كل موقع جديد (سحب الخريطة يوقف المتابعة)
+      if (m && pan) { state.follow = !!(r && r.position); map.fly(m.pos(), Math.max(map.zoom(), FOCUS_ZOOM)); m.open(); drawTools(); }
       if (r && !r.position) BT.toast('لا يوجد موقع لهذه السيارة خلال العهدة', { type: 'info' });
     }
     function drawLive() {
@@ -175,9 +176,9 @@
         r.position = { lat: m.lat, lng: m.lng, speed_kmh: m.speed_kmh, heading: m.heading, recorded_at: m.recorded_at };
         r.signal_lost = false; r.on_duty = m.on_duty; r.position_hidden = false; // الحداثة من وقت الموقع نفسه (vehicleState)
         drawMarkers(); drawList();
-        if (map && state.follow && r.vehicle.id === state.selected) map.view([m.lat, m.lng], map.zoom());
+        if (map && state.follow && r.vehicle.id === state.selected) map.view([m.lat, m.lng], map.zoom(), GLIDE_MS);
       });
-      var poll = setInterval(function () { if (!document.hidden) refresh(); }, 60000); // الانقطاع والسيارات الجديدة من الخادم
+      var poll = setInterval(function () { if (!document.hidden) refresh(); }, 30000); // الانقطاع والسيارات الجديدة من الخادم
       var tick = setInterval(function () { if (!document.hidden) { drawList(); drawMarkers(); } }, 15000); // عمر كل موقع يتقدم
       A.onLeave(function () { es.close(); clearInterval(poll); clearInterval(tick); });
     }

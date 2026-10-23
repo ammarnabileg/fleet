@@ -508,7 +508,12 @@ button.li:hover, a.li:hover { background: var(--surface-hover); text-decoration:
 .route-end.start { background: #16a34a; } .route-end.end { background: #dc2626; }
 .veh-mark { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .3); }
 .veh-mark.g { background: var(--success); } .veh-mark.o { background: var(--warning); } .veh-mark.r { background: var(--danger); } .veh-mark.n { background: var(--muted); }
-.veh-mark.sel { outline: 3px solid var(--primary); outline-offset: 1px; }
+.veh-mark.sel { outline: 3px solid var(--primary); outline-offset: 1px; z-index: 2; transform: scale(1.15); }
+.veh-mark { position: relative; transition: transform .25s ease, background-color .3s ease; }
+.veh-dir { position: absolute; inset: -9px; pointer-events: none; }
+.veh-dir::before { content: ''; position: absolute; top: 0; left: 50%; margin-left: -5px; border: 5px solid transparent; border-bottom: 7px solid currentColor; border-top: 0; color: var(--primary); }
+.veh-mark.g .veh-dir::before { color: var(--success); }
+@media (prefers-reduced-motion: reduce) { .veh-mark { transition: none; } }
 .side-list { max-height: calc(100vh - 230px); overflow: auto; }
 .toolbar .page-actions .select, .toolbar .page-actions .input { width: auto; min-width: 150px; }
 
