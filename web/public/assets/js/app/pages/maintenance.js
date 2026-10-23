@@ -413,6 +413,7 @@
       body: h`<div class="mb-12">${M.invStatus(i)} ${M.flags(i.flags)}</div>
         ${i.flags.indexOf('differs_from_quote') > -1 ? h`<div class="banner warn mb-12">${icon('triangle-alert', 16)}<div>الإجمالي ${fmt.money(i.total)} يختلف عن العرض المعتمد ${fmt.money(i.quote_amount)} د.ك.</div></div>` : ''}
         ${i.flags.indexOf('duplicate_number') > -1 ? h`<div class="banner warn mb-12">${icon('copy', 16)}<div>رقم الفاتورة مسجّل من قبل لنفس المركز: تأكد أنها ليست مكررة.</div></div>` : ''}
+        ${i.flags.indexOf('duplicate_file') > -1 ? h`<div class="banner warn mb-12">${icon('copy', 16)}<div>نفس صورة الفاتورة اترفعت قبل كده لفاتورة تانية: تأكد إنها مش مكررة.</div></div>` : ''}
         ${BT.kv([['الإجمالي', BT.amt(Number(i.total)), 'total'], ['الشركة', api.company(i.company_id)], ['أدخلها', i.created_by || '—'], i.decided_by ? ['قرار', i.decided_by + ' · ' + fmt.dt(i.decided_at)] : null, i.reason ? ['السبب', i.reason] : null, i.paid_at ? ['الدفع', fmt.dt(i.paid_at) + (i.payment_ref ? ' · ' + i.payment_ref : '')] : null].filter(Boolean))}
         <div class="section-t mt-16">البنود</div>${M.itemsTable(i.items)}
         <div class="mt-16"><a class="btn btn-outline" href="${api.url('/maintenance/invoices/' + i.id + '/file')}" target="_blank" rel="noopener">${icon('file-text', 15)} فتح ملف الفاتورة</a></div>`,

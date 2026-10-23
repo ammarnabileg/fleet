@@ -331,7 +331,6 @@ def test_uat22_ready_needs_the_invoice_file_number_and_total(admin_client, clien
     receive(s, rid)
     for missing, code in (
         ("file_sha256", "invoice_file_required"),
-        ("number", "invoice_number_required"),
         ("total", "invoice_total_required"),
     ):
         r = ready(s, rid, **{missing: None})
@@ -351,7 +350,6 @@ def test_uat22_ready_needs_the_invoice_file_number_and_total(admin_client, clien
     alerts = [a["kind"] for a in admin_client.get("/api/v1/alerts").json()]
     assert "maintenance_invoice_pending" in alerts
     # another invoice for it, from the invoices page, is checked the same way
-    assert invoice(s, rid, number=None).json()["code"] == "invoice_number_required"
     assert invoice(s, rid, number="INV-101").status_code == 201
 
 
@@ -679,3 +677,19 @@ def test_a_center_account_is_made_from_its_center_and_an_unlinked_one_can_be_lin
     assert r.status_code == 200 and [x["username"] for x in r.json()] == ["desk2"]
     assert orphan.get(f"{P}/me").json()["name"] == c["name"]
     assert admin_client.post(link, json={"username": "desk2"}).json()["code"] == "center_user_linked"
+
+
+def test_ready_with_only_the_image_and_the_amount(admin_client, client, setup):
+    """No invoice number: the request's number stands in; the same image sent again is flagged for the office."""
+    s = setup
+    rid = sent(client, s)
+    receive(s, rid)
+    body = invoice_body(s["portal"], number=None)
+    r = s["portal"].post(f"{P}/requests/{rid}/ready", json=body)
+    assert r.status_code == 200, r.text
+    detail = s["portal"].get(f"{P}/requests/{rid}").json()
+    inv = detail["invoices"][0]
+    assert inv["number"] == f"MNT-{detail['number']}" and inv["flags"] == []
+    again = s["portal"].post(f"{P}/invoices", json={"request_id": rid} | body | {"number": "X-1"})
+    assert again.status_code == 201 and again.json()["flags"] == ["duplicate_file"], again.text
+    assert "maintenance_invoice_same_file" in [a["kind"] for a in admin_client.get("/api/v1/alerts").json()]

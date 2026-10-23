@@ -297,7 +297,7 @@
       form({
         title: 'جاهزة للاستلام', subtitle: r.vehicle.plate_number + ' · طلب #' + r.number, icon: 'bell-ring', size: 'lg',
         body: h`${hasInvoice ? h`<p>الفاتورة مُدخلة من قبل. يُبلَّغ السائق أن سيارته جاهزة.</p>` : h`<div class="form-grid">
-          ${BT.f.input({ name: 'number', label: 'رقم الفاتورة', required: true })}
+          ${BT.f.input({ name: 'number', label: 'رقم الفاتورة', optional: true })}
           ${BT.f.input({ name: 'total', label: 'المبلغ الإجمالي (د.ك)', required: true, num: true })}
           ${BT.f.date({ name: 'date', label: 'تاريخ الفاتورة', required: true, value: BT.config.today, max: BT.config.today })}
           ${BT.f.upload({ name: 'file', label: 'ملف الفاتورة (صورة أو PDF)', required: true, full: true, accept: 'image/*,application/pdf' })}
@@ -309,7 +309,7 @@
         submitText: 'جاهزة', submitIcon: 'send', done: r.driver_collects ? 'أُبلغ السائق' : 'أُبلغت الإدارة',
         submit: function (f) {
           return Promise.all([hasInvoice ? null : upload(f.file[0]), reading ? upload(f.odo[0]) : null]).then(function (up) {
-            var body = hasInvoice ? {} : { number: f.number, total: Number(f.total).toFixed(3), invoice_date: f.date, file_sha256: up[0], notes: f.notes || null };
+            var body = hasInvoice ? {} : { number: f.number || null, total: Number(f.total).toFixed(3), invoice_date: f.date, file_sha256: up[0], notes: f.notes || null };
             if (reading) { body.final_odometer_km = Math.round(f.km); body.final_odometer_photo = up[1]; }
             return api.post('/portal/requests/' + r.id + '/ready', body);
           });
@@ -338,7 +338,7 @@
       title: 'إدخال الفاتورة', subtitle: r ? r.vehicle.plate_number + ' · طلب #' + r.number + (approved ? ' · العرض المعتمد ' + fmt.money(approved.amount) + ' د.ك' : '') : 'للسيارات التي اكتمل إصلاحها', icon: 'receipt-text', size: 'lg',
       body: h`<div class="form-grid">
         ${r ? '' : BT.f.select({ name: 'req', label: 'الطلب', required: true, full: true, options: choices.map(function (c) { return { v: c.id, t: '#' + c.number + ' · ' + c.vehicle.plate_number + ' · ' + api.t('maintenance_status', c.status) }; }) })}
-        ${BT.f.input({ name: 'number', label: 'رقم الفاتورة', required: true })}
+        ${BT.f.input({ name: 'number', label: 'رقم الفاتورة', optional: true })}
         ${BT.f.date({ name: 'date', label: 'تاريخ الفاتورة', required: true, value: BT.config.today, max: BT.config.today })}
         ${BT.f.upload({ name: 'file', label: 'ملف الفاتورة (صورة أو PDF)', required: true, full: true, accept: 'image/*,application/pdf' })}</div>
         <div class="mt-16">${M.itemsHtml}</div><div data-diff></div>
@@ -353,7 +353,7 @@
       submit: function (f) {
         if (!ed.valid() || ed.total() <= 0) { BT.toast('أكمل بنود الفاتورة', { type: 'error' }); return false; }
         return upload(f.file[0]).then(function (sha) {
-          return api.post('/portal/invoices', { request_id: r ? r.id : f.req, number: f.number, invoice_date: f.date, total: ed.total().toFixed(3), items: ed.read(), file_sha256: sha, notes: f.notes || null });
+          return api.post('/portal/invoices', { request_id: r ? r.id : f.req, number: f.number || null, invoice_date: f.date, total: ed.total().toFixed(3), items: ed.read(), file_sha256: sha, notes: f.notes || null });
         });
       }
     });

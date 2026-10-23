@@ -1419,12 +1419,16 @@ def _request_file(db: Session, r: Request, sha256: str) -> files.FileInfo:
 def _new_invoice(
     db: Session, *, center: Center, r: Request | None, company_id: int, data: dict, actor: int, own_file: bool
 ) -> Invoice:
-    """UAT-22: a missing file, number or total is refused and named. UAT-23: a number already used by the same
-    center is accepted, flagged and alerted. FR-INV-04: a total different from the approved quote too."""
+    """UAT-22: a missing file or total is refused and named; a missing number only without a request (the request's
+    number stands in otherwise). UAT-23: a number already used by the same center, or an image already sent, is
+    accepted, flagged and alerted. FR-INV-04: a total different from the approved quote too."""
     if not data.get("file_sha256"):
         raise AppError(422, "invoice_file_required")
-    if not data.get("number"):
-        raise AppError(422, "invoice_number_required")
+    number = data.get("number")
+    if not number:  # a center may send only the photo and the amount: the request's number stands in for it
+        if r is None:
+            raise AppError(422, "invoice_number_required")
+        number = f"MNT-{r.number}"
     if data.get("total") is None or Decimal(data["total"]) <= 0:
         raise AppError(422, "invoice_total_required")
     if data.get("invoice_date") is None:
@@ -1439,17 +1443,24 @@ def _new_invoice(
         raise AppError(422, "invoice_items_mismatch", total=str(total), items=str(_items_total(items)))
     _check_document(db, data["file_sha256"], user_id=actor if own_file else None)  # a center sends its own scans
     flags = []
-    repeated = db.scalar(
+    repeated = data.get("number") and db.scalar(
         select(func.count())
         .select_from(Invoice)
         .where(
             Invoice.center_id == center.id,
-            func.lower(Invoice.number) == data["number"].lower(),
+            func.lower(Invoice.number) == number.lower(),
             Invoice.status != "rejected",
         )
     )
     if repeated:
         flags.append("duplicate_number")
+    same_file = db.scalar(
+        select(func.count())
+        .select_from(Invoice)
+        .where(Invoice.file_sha256 == data["file_sha256"], Invoice.status != "rejected")
+    )
+    if same_file:
+        flags.append("duplicate_file")
     quote = _approved_quote(db, r.id) if r is not None else None
     if quote is not None and quote.amount != total:
         flags.append("differs_from_quote")
@@ -1457,7 +1468,7 @@ def _new_invoice(
         center_id=center.id,
         request_id=r.id if r else None,
         company_id=company_id,
-        number=data["number"],
+        number=number,
         invoice_date=data["invoice_date"],
         total=total,
         file_sha256=data["file_sha256"],
@@ -1499,6 +1510,16 @@ def _new_invoice(
             entity_id=inv.public_id,
             params=base,
             dedupe_key=f"mnt_invoice_dup:{inv.id}",
+        )
+    if "duplicate_file" in flags:
+        notifications.raise_alert(
+            db,
+            "maintenance_invoice_same_file",
+            company_id=company_id,
+            entity_type="maintenance_invoice",
+            entity_id=inv.public_id,
+            params=base,
+            dedupe_key=f"mnt_invoice_file:{inv.id}",
         )
     if "differs_from_quote" in flags:
         notifications.raise_alert(
@@ -1610,7 +1631,7 @@ def decide_invoice(db: Session, public_id, *, approve: bool, reason: str | None,
     inv.decided_by, inv.decided_at, inv.reason = actor_user_id, utcnow(), reason
     inv.version += 1
     db.flush()
-    for key in ("mnt_invoice", "mnt_invoice_dup", "mnt_invoice_diff"):
+    for key in ("mnt_invoice", "mnt_invoice_dup", "mnt_invoice_file", "mnt_invoice_diff"):
         notifications.resolve(db, f"{key}:{inv.id}")
     if r is not None:
         _maybe_close(db, r, actor_user_id)
