@@ -350,6 +350,12 @@ class ClaimStatusOut(BaseModel):
     own_password_set_at: datetime | None  # without phone codes: he chose his own password then
 
 
+class PreferredLanguageIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lang: Annotated[str, StringConstraints(pattern=r"^[a-z]{2,3}$")]
+
+
 class PushTokenIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

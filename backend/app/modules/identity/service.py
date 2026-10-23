@@ -41,6 +41,7 @@ from app.modules.identity.devices import (  # noqa: F401  (driver devices, used 
     require_device,
     revoke_device,
     revoke_employee_devices,
+    set_preferred_language,
     set_push_token,
     verify_otp,
 )

@@ -648,7 +648,7 @@ def push_pending(db: Session, *, limit: int = 200) -> int:
         if target is None:
             continue  # not registered (yet): it waits
         device_id, token, lang = target
-        lang = lang or default
+        lang = i18n.usable(db, lang) if lang else default
         try:
             sender.send(
                 token,

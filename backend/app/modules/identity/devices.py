@@ -556,6 +556,16 @@ def set_push_token(db: Session, device_id: int, token: str, lang: str | None) ->
     db.commit()
 
 
+def set_preferred_language(db: Session, device_id: int, lang: str) -> str:
+    """The language the driver chose in the app: his notifications are written in it (set on purpose when he
+    changes it, never guessed from a request's header). A language not enabled is refused."""
+    if lang not in {x.code for x in i18n.list_languages(db)}:
+        raise AppError(422, "unknown_language", code=lang)
+    db.execute(update(Device).where(Device.id == device_id).values(push_lang=lang))
+    db.commit()
+    return lang
+
+
 def push_targets(db: Session, employee_ids) -> dict[int, tuple[int, str, str | None]]:
     """For each employee with a phone that registered for push: (device id, token, language)."""
     ids = list(employee_ids)

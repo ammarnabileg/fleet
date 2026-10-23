@@ -21,7 +21,7 @@ def live_status(
 ):
     """The driver's shift, car, tracking and alerts, as separate states; the templates when the app's cached
     config_version is not the current one."""
-    return service.for_driver(db, device, lang=i18n.negotiate(db, None, accept_language), config_version=config_version)
+    return service.for_driver(db, device, lang=i18n.driver_lang(db, accept_language), config_version=config_version)
 
 
 @router.post("/driver/contact-requests/{public_id}/ack")

@@ -39,6 +39,7 @@ def rules() -> dict[str, tuple[int, int]]:
         "otp_send": (s.rate_otp_send_per_hour, 60),  # each one is a WhatsApp message
         "otp_check": (s.rate_otp_check_per_15min, 15),
         "upload": (s.rate_uploads_per_hour, 60),  # per user or device, not per address
+        "public_texts": (s.rate_public_texts_per_15min, 15),  # the app's strings before sign-in
     }
 
 

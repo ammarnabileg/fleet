@@ -19,6 +19,7 @@ from app.modules.files.api import router as files_router
 from app.modules.finance.api import router as finance_router
 from app.modules.fines.api import router as fines_router
 from app.modules.fleet.api import router as fleet_router
+from app.modules.i18n.api import driver_router as i18n_driver_router
 from app.modules.i18n.api import router as i18n_router
 from app.modules.identity.api import router as identity_router
 from app.modules.imports.api import router as imports_router
@@ -69,6 +70,7 @@ def create_app() -> FastAPI:
         identity_router,
         org_router,
         i18n_router,
+        i18n_driver_router,
         audit_router,
         files_router,
         people_router,
