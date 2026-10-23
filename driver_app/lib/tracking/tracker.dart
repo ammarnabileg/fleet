@@ -94,6 +94,7 @@ class Tracker {
   static const stillSpeedKmh = 3.0;
   static const movingSpeedKmh = 8.0;
   static const stillFor = Duration(minutes: 2);
+  static const wakeEvery = Duration(seconds: 30);
 
   Future<void> start() async {
     // what the last run knew: an offline restart (the phone rebooted, Android killed the service) during a custody
@@ -166,7 +167,16 @@ class Tracker {
     }
   }
 
-  Duration get _wanted => _parked ? stationary : moving;
+  /// How often a point is kept: the stationary interval only while parked.
+  Duration get _keepEvery => _parked ? stationary : moving;
+
+  /// How often the GPS is asked: parked, still often enough to see the car leave within [wakeEvery] (the points in
+  /// between are not kept), so the live map never waits the whole stationary interval for a car that drove off.
+  Duration get _wanted {
+    if (!_parked) return moving;
+    final w = moving > wakeEvery ? moving : wakeEvery;
+    return w < stationary ? w : stationary;
+  }
 
   Future<void> _apply() async {
     if (!required) {
@@ -197,8 +207,11 @@ class Tracker {
     // parked, the fixes are far apart: a clear move away from the last one wakes the tracker whatever the speed
     final moved = _parked && _prev != null && _farFrom(_prev!, f);
     _prev = f;
-    // the platform may deliver faster than asked: keep one point per interval
-    if (_lastKept != null && f.at.difference(_lastKept!) < (_interval ?? moving) * 0.8) return;
+    final wasParked = _parked;
+    _adapt(f, moved ? movingSpeedKmh : speed); // before the throttle: a parked car that drives off wakes at once
+    final woke = wasParked && !_parked;
+    // the platform may deliver faster than asked, and parked fixes come more often than kept: one point per interval
+    if (!woke && _lastKept != null && f.at.difference(_lastKept!) < _keepEvery * 0.8) return;
     _lastKept = f.at;
     try {
       await queue.add(
@@ -215,7 +228,6 @@ class Tracker {
       await errors.record('tracker.fix', e, st);
       return;
     }
-    _adapt(f, moved ? movingSpeedKmh : speed);
     unawaited(sync()); // each point goes at once (the live map moves with it); offline it waits in the queue
   }
 

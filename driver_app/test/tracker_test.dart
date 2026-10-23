@@ -91,18 +91,20 @@ void main() {
     await t.stop();
   });
 
-  test('parked for two minutes: fewer fixes; moving again: back to the moving interval', () async {
-    final (t, _) = await make();
+  test('parked for two minutes: one point kept per parked interval; driving off is seen at the next fix', () async {
+    final (t, server) = await make();
     await t.start();
     final t0 = DateTime.utc(2026, 10, 4, 9);
-    for (var s = 0; s <= 150; s += 30) {
+    for (var s = 0; s <= 450; s += 30) {
       gps.add(fix(t0.add(Duration(seconds: s)), speed: 0));
+      await settle();
     }
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    expect(asked.last, const Duration(seconds: 300));
-    gps.add(fix(t0.add(const Duration(seconds: 500)), speed: 35));
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    expect(asked.last, const Duration(seconds: 30));
+    // kept every 30 s up to 90 s; parked at 120 s, the next is kept 0.8 of 300 s after the last (at 330 s)
+    expect(sentPoints(server), hasLength(5));
+    expect(asked, [const Duration(seconds: 30)], reason: 'the GPS still asked every 30 s to see the car leave');
+    gps.add(fix(t0.add(const Duration(seconds: 480)), speed: 35));
+    await settle();
+    expect(sentPoints(server), hasLength(6), reason: 'driving off: kept at once, not 5 minutes later');
     await t.stop();
   });
 
@@ -159,7 +161,7 @@ void main() {
   test(
     'parked with a long interval: a clear move away wakes it, though the gap is too long to work out a speed',
     () async {
-      final (t, _) = await make();
+      final (t, server) = await make();
       status = {...status, 'interval_stationary_s': 900};
       await t.start();
       final t0 = DateTime.utc(2026, 10, 4, 9);
@@ -167,11 +169,14 @@ void main() {
         gps.add(fix(t0.add(Duration(seconds: s)), speed: 0));
         await settle();
       }
-      expect(asked.last, const Duration(seconds: 900));
-      // fifteen minutes later, 3 km away, the phone measured no speed
-      gps.add(fix(t0.add(const Duration(seconds: 1050)), speed: null, lat: 29.327));
+      final kept = sentPoints(server).length;
+      gps.add(fix(t0.add(const Duration(seconds: 180)), speed: 0));
       await settle();
-      expect(asked.last, const Duration(seconds: 30));
+      expect(sentPoints(server), hasLength(kept), reason: 'parked: not kept before 15 minutes');
+      // a fix with no gap at all, 3 km away, the phone measured no speed
+      gps.add(fix(t0.add(const Duration(seconds: 210)), speed: null, lat: 29.327));
+      await settle();
+      expect(sentPoints(server), hasLength(kept + 1), reason: 'the move wakes it at once');
       await t.stop();
     },
   );
@@ -225,10 +230,10 @@ void main() {
       gps.add(fix(t0.add(Duration(seconds: s)), speed: 0));
       await settle();
     }
-    expect(asked.last, const Duration(seconds: 300), reason: 'parked');
-    status = {...status, 'interval_stationary_s': 120};
+    expect(asked.last, const Duration(seconds: 30), reason: 'parked: the GPS asked every 30 s to see it leave');
+    status = {...status, 'interval_stationary_s': 20};
     await t.heartbeat();
-    expect(asked.last, const Duration(seconds: 120), reason: 'still parked, at the new parked interval');
+    expect(asked.last, const Duration(seconds: 20), reason: 'a parked interval under 30 s is used as it is');
     gps.add(fix(t0.add(const Duration(seconds: 400)), speed: 35));
     await settle();
     expect(asked.last, const Duration(seconds: 10), reason: 'moving again, at the new moving interval');
