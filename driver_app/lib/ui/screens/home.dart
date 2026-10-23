@@ -7,8 +7,10 @@ import '../../core/errors.dart';
 import '../../core/models.dart';
 import '../../core/outbox.dart';
 import '../../l10n/app_localizations.dart';
+import '../../status/engine.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/live_status.dart';
 import 'accident.dart';
 import 'claim.dart';
 import 'fines.dart';
@@ -243,6 +245,35 @@ class HomeTab extends StatelessWidget {
     await state.reloadLocal();
   }
 
+  /// What a status card's button does: only the actions built into the app (the engine hides any other).
+  Future<void> _statusAction(BuildContext context, String action, StatusCard card) async {
+    final l = context.l;
+    final messenger = ScaffoldMessenger.of(context);
+    switch (action) {
+      case 'open_cash':
+        onTab(state.shows('cash') ? 'cash' : 'home');
+      case 'open_custody' || 'open_documents':
+        onTab('account');
+      case 'open_maintenance':
+        if (state.shows('maintenance')) _push(context, MaintenanceScreen(state: state));
+      case 'open_location_settings':
+        await state.platform.openLocationSettings?.call();
+      case 'call_supervisor':
+        final phone = card.alert?.data['phone'];
+        final ok = phone is String && await (state.platform.dial?.call(phone) ?? Future.value(false));
+        if (!ok) messenger.showSnackBar(SnackBar(content: Text(l.statusDialFailed)));
+      case 'acknowledge':
+        final id = card.alert?.data['request_id'];
+        if (id is String) {
+          await state.acknowledgeContact(id);
+          messenger.showSnackBar(SnackBar(content: Text(l.statusContactSent)));
+        }
+      case 'open_contact':
+        final message = card.alert?.data['message'];
+        if (message is String) messenger.showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = context.l;
@@ -345,6 +376,20 @@ class HomeTab extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
         children: [
+          if (state.liveStatus != null) ...[
+            LiveStatusPanel(
+              view: compose(
+                state.liveStatus!,
+                state.statusConfig,
+                now: DateTime.now(),
+                lang: state.lang,
+                online: state.liveOnline,
+              ),
+              sessionsToday: state.liveStatus!.sessionsToday,
+              onAction: (action, card) => _statusAction(context, action, card),
+            ),
+            const SizedBox(height: 12),
+          ],
           for (final r in state.maintenance.where((r) => r.isReady && state.shows('maintenance'))) ...[
             ReadyBanner(request: r, state: state),
             const SizedBox(height: 12),

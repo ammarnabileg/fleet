@@ -16,6 +16,7 @@ import '../core/errors.dart';
 import '../core/models.dart';
 import '../core/outbox.dart';
 import '../core/tokens.dart';
+import '../status/engine.dart';
 import '../tracking/positions.dart';
 
 /// [failed]: the start itself failed in a way no retry inside could fix (an answer it could not read, a database
@@ -30,7 +31,13 @@ class PhoneHooks {
     required this.stopTracking,
     required this.deviceMeta,
     this.pushToken,
+    this.dial,
+    this.openLocationSettings,
   });
+
+  /// Opens the phone's dialer on the number (the driver presses call himself); false when it cannot.
+  final Future<bool> Function(String phone)? dial;
+  final Future<void> Function()? openLocationSettings;
 
   final Future<bool> Function() permissionsOk;
   final Future<void> Function() startTracking;
@@ -90,6 +97,13 @@ class AppState extends ChangeNotifier {
   Notices? notices;
   List<OutboxItem> queued = [];
   Map<String, dynamic> tracking = {};
+
+  /// The driver's live status (shift, car, tracking, alerts) as last received, the templates kept with their version,
+  /// and whether the last try reached the server (offline: the screens say so and never show tracking as live).
+  LiveStatus? liveStatus;
+  StatusConfig? statusConfig;
+  bool liveOnline = true;
+  static const liveEvery = Duration(seconds: 60);
   Object? lastError;
   bool busy = false;
   Timer? _poll;
@@ -447,6 +461,7 @@ class AppState extends ChangeNotifier {
 
   void _reset() {
     today = null;
+    liveStatus = null;
     cash = null;
     profile = null;
     myVehicle = null;
@@ -490,6 +505,7 @@ class AppState extends ChangeNotifier {
         if (shows('fuel')) _quietly(loadFuel),
         _quietly(loadNotices),
         _quietly(loadProfile),
+        loadLiveStatus(),
       ]);
       await _readLocal();
       _set(Phase.ready);
@@ -570,7 +586,52 @@ class AppState extends ChangeNotifier {
     if (phase != Phase.ready) return;
     await _quietly(loadToday);
     await _quietly(loadNotices);
+    await loadLiveStatus();
     notifyListeners();
+  }
+
+  LiveStatusStore get _liveStore => LiveStatusStore((k) => db.get(k), (k, v) => db.put(k, v));
+
+  /// Reads the live status (sending the cached templates' version: the server sends new ones only when they
+  /// changed). Offline, the last answer stays, marked offline. Never throws.
+  DateTime? _liveTriedAt;
+
+  Future<void> loadLiveStatus() async {
+    _liveTriedAt = DateTime.now();
+    final store = _liveStore;
+    try {
+      final version = await store.version();
+      final body = await api.get('/driver/live-status', query: {if (version != null) 'config_version': '$version'});
+      await store.save(body, DateTime.now());
+      liveOnline = true;
+    } on ApiError {
+      liveOnline = false;
+    } on SessionEnded {
+      return;
+    } catch (e, st) {
+      liveOnline = false;
+      await errors.record('live_status', e, st);
+    }
+    await _readLive();
+  }
+
+  Future<void> _readLive() async {
+    try {
+      liveStatus = await _liveStore.last();
+      statusConfig = await _liveStore.config();
+    } catch (e, st) {
+      await errors.record('live_status.read', e, st);
+    }
+  }
+
+  /// «Done» on a contact request: through the outbox (sent again until the server has it); gone from the card at
+  /// once.
+  Future<void> acknowledgeContact(String requestId) async {
+    final id = await outbox.add('contact_ack', {'request_id': requestId, 'client_ref': const Uuid().v4()}, {});
+    final s = liveStatus;
+    if (s != null) s.alerts.removeWhere((a) => a.data['request_id'] == requestId);
+    notifyListeners();
+    await _sendNow(id, after: loadLiveStatus);
   }
 
   Future<void> loadProfile() async => profile = Profile(await api.get('/driver/profile') as Map<String, dynamic>);
@@ -855,7 +916,15 @@ class AppState extends ChangeNotifier {
 
   /// The periodic look at what the tracking service and the outbox wrote (they run apart from the screens).
   @visibleForTesting
-  Future<void> pollLocal() => _readLocal(onlyIfChanged: true);
+  Future<void> pollLocal() async {
+    await _readLocal(onlyIfChanged: true);
+    final tried = _liveTriedAt;
+    if (phase == Phase.ready && (tried == null || DateTime.now().difference(tried) > liveEvery)) {
+      final before = (liveStatus?.receivedAt, liveOnline);
+      await loadLiveStatus();
+      if ((liveStatus?.receivedAt, liveOnline) != before) notifyListeners();
+    }
+  }
 
   Future<void> reloadLocal() => _readLocal();
 

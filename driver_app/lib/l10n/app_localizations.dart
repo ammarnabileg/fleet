@@ -3145,6 +3145,138 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'تفعيل'**
   String get activationReplaceConfirm;
+
+  /// No description provided for @trackingActive.
+  ///
+  /// In ar, this message translates to:
+  /// **'الموقع يُرسل'**
+  String get trackingActive;
+
+  /// No description provided for @trackingStale.
+  ///
+  /// In ar, this message translates to:
+  /// **'الموقع لا يصل'**
+  String get trackingStale;
+
+  /// No description provided for @trackingUnknown.
+  ///
+  /// In ar, this message translates to:
+  /// **'حالة التتبع غير معروفة'**
+  String get trackingUnknown;
+
+  /// No description provided for @noticeBigActive.
+  ///
+  /// In ar, this message translates to:
+  /// **'آخر موقع أُرسل {time}'**
+  String noticeBigActive(String time);
+
+  /// No description provided for @noticeBigStale.
+  ///
+  /// In ar, this message translates to:
+  /// **'لم يصل موقع منذ {time}. افتح التطبيق وتحقق من إعدادات الموقع'**
+  String noticeBigStale(String time);
+
+  /// No description provided for @noticeBigStaleNever.
+  ///
+  /// In ar, this message translates to:
+  /// **'لم يُرسل أي موقع بعد. افتح التطبيق وتحقق من إعدادات الموقع'**
+  String get noticeBigStaleNever;
+
+  /// No description provided for @noticeBigOff.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا يُتتبَّع موقعك الآن'**
+  String get noticeBigOff;
+
+  /// No description provided for @openApp.
+  ///
+  /// In ar, this message translates to:
+  /// **'فتح التطبيق'**
+  String get openApp;
+
+  /// No description provided for @alertsChannel.
+  ///
+  /// In ar, this message translates to:
+  /// **'تنبيهات مهمة'**
+  String get alertsChannel;
+
+  /// No description provided for @offlineSince.
+  ///
+  /// In ar, this message translates to:
+  /// **'غير متصل · آخر تحديث {time}'**
+  String offlineSince(String time);
+
+  /// No description provided for @statusCall.
+  ///
+  /// In ar, this message translates to:
+  /// **'اتصل'**
+  String get statusCall;
+
+  /// No description provided for @statusDone.
+  ///
+  /// In ar, this message translates to:
+  /// **'تم'**
+  String get statusDone;
+
+  /// No description provided for @statusCheckSettings.
+  ///
+  /// In ar, this message translates to:
+  /// **'فحص الإعدادات'**
+  String get statusCheckSettings;
+
+  /// No description provided for @statusOpenCash.
+  ///
+  /// In ar, this message translates to:
+  /// **'الكاش'**
+  String get statusOpenCash;
+
+  /// No description provided for @statusOpenCustody.
+  ///
+  /// In ar, this message translates to:
+  /// **'سيارتي'**
+  String get statusOpenCustody;
+
+  /// No description provided for @statusOpenMaintenance.
+  ///
+  /// In ar, this message translates to:
+  /// **'الصيانة'**
+  String get statusOpenMaintenance;
+
+  /// No description provided for @statusOpenDocuments.
+  ///
+  /// In ar, this message translates to:
+  /// **'مستنداتي'**
+  String get statusOpenDocuments;
+
+  /// No description provided for @statusOpenContact.
+  ///
+  /// In ar, this message translates to:
+  /// **'التفاصيل'**
+  String get statusOpenContact;
+
+  /// No description provided for @statusMore.
+  ///
+  /// In ar, this message translates to:
+  /// **'و{count} تنبيهات أخرى'**
+  String statusMore(String count);
+
+  /// No description provided for @statusDaySummary.
+  ///
+  /// In ar, this message translates to:
+  /// **'جلسات اليوم: {count}'**
+  String statusDaySummary(String count);
+
+  /// No description provided for @statusContactSent.
+  ///
+  /// In ar, this message translates to:
+  /// **'تم إبلاغ المشرف'**
+  String get statusContactSent;
+
+  /// No description provided for @statusDialFailed.
+  ///
+  /// In ar, this message translates to:
+  /// **'تعذر فتح الاتصال على هذا الهاتف'**
+  String get statusDialFailed;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

@@ -12,8 +12,11 @@ import '../core/db.dart';
 import '../core/error_log.dart';
 import '../core/tokens.dart';
 import '../l10n/app_localizations.dart';
+import '../status/engine.dart';
+import 'alerts.dart';
 import 'fix_mapper.dart';
 import 'health.dart';
+import 'notice.dart';
 import 'tracker.dart';
 
 /// The Android foreground service (type "location") that keeps tracking when the app is closed. It runs in its
@@ -59,16 +62,16 @@ Stream<Fix> _gps(Duration interval) {
   return Geolocator.getPositionStream(locationSettings: settings).map(fixFromPosition);
 }
 
-/// The ongoing notification of the tracking service: the driver's company as its title, and under it whether he is
-/// at work. At work the card is painted green (Android colours a foreground service's notification); not at work it
-/// stays plain with the status in grey. Posted on the service's own id and channel, so it stays its notification.
+/// The ongoing notification of the tracking service, always the same one (its id and channel), updated in place
+/// when what it says changes: the company as its title, whether the driver is at work and the real tracking state;
+/// expanded, the time of the last location. At work with tracking active the card is painted green (Android colours a
+/// foreground service's notification). One action: open the app. The important alerts go on their own channel.
 class WorkNotice {
   WorkNotice([FlutterLocalNotificationsPlugin? plugin]) : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   final FlutterLocalNotificationsPlugin _plugin;
   static const channel = 'FOREGROUND_DEFAULT'; // created by flutter_background_service before its first post
-  static const green = Color(0xFF15803D);
-  static const grey = Color(0xFF6B7280);
+  static const alertsChannel = 'driver_alerts';
 
   bool _ready = false;
 
@@ -83,16 +86,35 @@ class WorkNotice {
     } catch (_) {}
   }
 
-  Future<void> show({required String lang, required Map<String, dynamic>? company, required bool working}) async {
+  AndroidFlutterLocalNotificationsPlugin? get _android =>
+      _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+
+  /// Android 13 and later: the driver may refuse notifications; then the alerts stay in the app.
+  Future<bool> allowed() async {
+    if (!_ready) return false;
+    try {
+      return await _android?.areNotificationsEnabled() ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> show({required String lang, required WorkState state}) async {
     if (!_ready) return;
     final l = lookupAppLocalizations(Locale(lang == 'en' ? 'en' : 'ar'));
-    final title = (company?[lang] ?? company?['ar'] ?? l.appTitle) as String;
-    final status = '● ${working ? l.driverWorking : l.driverNotWorking}';
+    final c = workNoticeContent(
+      l,
+      lang: lang,
+      company: state.company,
+      working: state.working,
+      tracking: state.tracking,
+      lastFixAt: state.lastFixAt,
+    );
     try {
       await _plugin.show(
         id: TrackingService.notificationId,
-        title: title,
-        body: working ? '<b>$status</b>' : '<font color="#6B7280"><b>$status</b></font>',
+        title: c.title,
+        body: c.body,
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             channel,
@@ -107,9 +129,39 @@ class WorkNotice {
             priority: Priority.low,
             category: AndroidNotificationCategory.service,
             icon: 'ic_bg_service_small',
-            color: working ? green : grey,
-            colorized: working,
-            styleInformation: const DefaultStyleInformation(true, true),
+            color: Color(c.color),
+            colorized: c.colorized,
+            styleInformation: BigTextStyleInformation(c.big),
+            actions: [AndroidNotificationAction('open', l.openApp, showsUserInterface: true)],
+          ),
+        ),
+      );
+    } catch (_) {}
+  }
+
+  /// A heads-up for an important alert (a contact request, a location problem), on the high-importance channel.
+  Future<void> headsUp({required String lang, required StatusAlert alert}) async {
+    if (!_ready) return;
+    final l = lookupAppLocalizations(Locale(lang == 'en' ? 'en' : 'ar'));
+    try {
+      await _android?.createNotificationChannel(
+        AndroidNotificationChannel(alertsChannel, l.alertsChannel, importance: Importance.high),
+      );
+      await _plugin.show(
+        id: headsUpId(alert.id),
+        title: alert.title ?? l.appTitle,
+        body: alert.subtitle,
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            alertsChannel,
+            l.alertsChannel,
+            importance: Importance.high,
+            priority: Priority.high,
+            category: AndroidNotificationCategory.message,
+            icon: 'ic_bg_service_small',
+            styleInformation: BigTextStyleInformation(
+              [alert.subtitle, alert.data['message']].whereType<String>().where((x) => x.isNotEmpty).join('\n'),
+            ),
           ),
         ),
       );
@@ -149,7 +201,14 @@ Future<void> _run(ServiceInstance service, AppDb db) async {
       lastUploadAt: lastUploadAt,
       appVersion: AppConfig.appVersion,
     ),
-    notify: (company, working) => notice.show(lang: api.lang, company: company, working: working),
+    notifyState: (state) => notice.show(lang: api.lang, state: state),
+    // the live status and its important alerts: shown, never a reason to start tracking
+    checkAlerts: () => AlertWatcher(
+      api: api,
+      db: db,
+      allowed: notice.allowed,
+      post: (alert) => notice.headsUp(lang: api.lang, alert: alert),
+    ).check(),
     onSessionEnded: () => service.stopSelf(),
   );
   service.on('stop').listen((_) async {

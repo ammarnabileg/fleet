@@ -1724,4 +1724,80 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get activationReplaceConfirm => 'تفعيل';
+
+  @override
+  String get trackingActive => 'الموقع يُرسل';
+
+  @override
+  String get trackingStale => 'الموقع لا يصل';
+
+  @override
+  String get trackingUnknown => 'حالة التتبع غير معروفة';
+
+  @override
+  String noticeBigActive(String time) {
+    return 'آخر موقع أُرسل $time';
+  }
+
+  @override
+  String noticeBigStale(String time) {
+    return 'لم يصل موقع منذ $time. افتح التطبيق وتحقق من إعدادات الموقع';
+  }
+
+  @override
+  String get noticeBigStaleNever => 'لم يُرسل أي موقع بعد. افتح التطبيق وتحقق من إعدادات الموقع';
+
+  @override
+  String get noticeBigOff => 'لا يُتتبَّع موقعك الآن';
+
+  @override
+  String get openApp => 'فتح التطبيق';
+
+  @override
+  String get alertsChannel => 'تنبيهات مهمة';
+
+  @override
+  String offlineSince(String time) {
+    return 'غير متصل · آخر تحديث $time';
+  }
+
+  @override
+  String get statusCall => 'اتصل';
+
+  @override
+  String get statusDone => 'تم';
+
+  @override
+  String get statusCheckSettings => 'فحص الإعدادات';
+
+  @override
+  String get statusOpenCash => 'الكاش';
+
+  @override
+  String get statusOpenCustody => 'سيارتي';
+
+  @override
+  String get statusOpenMaintenance => 'الصيانة';
+
+  @override
+  String get statusOpenDocuments => 'مستنداتي';
+
+  @override
+  String get statusOpenContact => 'التفاصيل';
+
+  @override
+  String statusMore(String count) {
+    return 'و$count تنبيهات أخرى';
+  }
+
+  @override
+  String statusDaySummary(String count) {
+    return 'جلسات اليوم: $count';
+  }
+
+  @override
+  String get statusContactSent => 'تم إبلاغ المشرف';
+
+  @override
+  String get statusDialFailed => 'تعذر فتح الاتصال على هذا الهاتف';
 }

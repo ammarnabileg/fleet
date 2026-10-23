@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -22,6 +23,7 @@ import 'ui/theme.dart';
 import 'ui/widgets/common.dart';
 
 final _theme = appTheme(); // built once, not on every rebuild
+const _phone = MethodChannel('fleet/phone'); // the dialer (MainActivity): no call permission, the driver presses call
 
 Future<void> main() async {
   // whatever escapes goes to the phone's local error log (no outside service, no driver data in it)
@@ -55,6 +57,14 @@ Future<void> _main(AppDb db) async {
       stopTracking: () async => TrackingService.stop(),
       deviceMeta: DeviceIdentity.meta,
       pushToken: FirebasePush.token,
+      dial: (phone) async {
+        try {
+          return await _phone.invokeMethod<bool>('dial', phone) ?? false;
+        } on PlatformException {
+          return false;
+        }
+      },
+      openLocationSettings: () async => Geolocator.openLocationSettings(),
     ),
   );
   final links = AppLinks();

@@ -32,6 +32,16 @@ class Fix {
   final bool isMock;
 }
 
+/// What the ongoing notification shows.
+class WorkState {
+  const WorkState({required this.company, required this.working, required this.tracking, this.lastFixAt});
+
+  final Map<String, dynamic>? company;
+  final bool working;
+  final String tracking; // active / stale / off
+  final DateTime? lastFixAt;
+}
+
 typedef FixStream = Stream<Fix> Function(Duration interval);
 typedef HealthProbe = Future<Map<String, dynamic>> Function({
   required bool trackingRunning,
@@ -49,6 +59,8 @@ class Tracker {
     required this.fixes,
     required this.health,
     this.notify,
+    this.notifyState,
+    this.checkAlerts,
     this.onSessionEnded,
     DateTime Function()? clock,
     this.heartbeatEvery = const Duration(minutes: 5),
@@ -65,6 +77,13 @@ class Tracker {
 
   /// The ongoing notification: the driver's company and whether he is at work (shown only when either changes).
   final void Function(Map<String, dynamic>? company, bool working)? notify;
+
+  /// The same, with the real tracking state (active / stale / off): shown again only when one of them changes.
+  final void Function(WorkState state)? notifyState;
+
+  /// After each heartbeat that reached the server: the driver's live status and its important alerts. Whatever it
+  /// finds never switches tracking on: only the heartbeat's answer (a custody) does.
+  final Future<void> Function()? checkAlerts;
   final void Function()? onSessionEnded;
   final DateTime Function() _now;
   final Duration heartbeatEvery;
@@ -95,6 +114,16 @@ class Tracker {
   static const movingSpeedKmh = 8.0;
   static const stillFor = Duration(minutes: 2);
   static const wakeEvery = Duration(seconds: 30);
+
+  /// No fix for this long while tracking is wanted: the notification says the location is not coming through.
+  static const staleAfter = Duration(minutes: 10);
+
+  /// What the phone itself can tell: off when nothing is to be tracked, active while fixes come, stale otherwise.
+  String get trackingState {
+    if (!required) return 'off';
+    final last = lastFixAt;
+    return _sub == null || last == null || _now().difference(last) > staleAfter ? 'stale' : 'active';
+  }
 
   Future<void> start() async {
     // what the last run knew: an offline restart (the phone rebooted, Android killed the service) during a custody
@@ -152,6 +181,7 @@ class Tracker {
       if (ss > 0) stationary = Duration(seconds: ss);
       onDuty = r['on_duty'] == true; // an older server: not at work
       company = (r['company'] is Map ? (r['company'] as Map).cast<String, dynamic>() : null) ?? company;
+      if (checkAlerts != null) unawaited(_checkAlerts());
     } on ApiError {
       // offline: keep the last known decision (a custody does not end because the network did)
     } on SessionEnded {
@@ -189,6 +219,18 @@ class Tracker {
       _listen(_wanted); // started, or the office changed the intervals: applied at once
     }
     await _publish();
+  }
+
+  Future<void> _checkAlerts() async {
+    try {
+      await checkAlerts!();
+    } on ApiError {
+      // offline: next heartbeat
+    } on SessionEnded {
+      // the heartbeat sees it too
+    } catch (e, st) {
+      await errors.record('tracker.alerts', e, st);
+    }
   }
 
   void _listen(Duration interval) {
@@ -340,12 +382,16 @@ class Tracker {
         'app_version': AppConfig.appVersion,
         'on_duty': onDuty,
         'company': company,
+        'tracking': trackingState,
       }),
     );
-    final shown = jsonEncode([company, onDuty, api.lang]); // the driver changed language: shown again in it
+    final tracking = trackingState;
+    // the driver changed language: shown again in it; the tracking state only when it changes (not every minute)
+    final shown = jsonEncode([company, onDuty, api.lang, if (notifyState != null) tracking]);
     if (shown != _shown) {
       _shown = shown;
       notify?.call(company, onDuty);
+      notifyState?.call(WorkState(company: company, working: onDuty, tracking: tracking, lastFixAt: lastFixAt));
     }
   }
 }

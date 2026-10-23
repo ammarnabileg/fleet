@@ -1733,4 +1733,80 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get activationReplaceConfirm => 'Activate';
+
+  @override
+  String get trackingActive => 'Location is being sent';
+
+  @override
+  String get trackingStale => 'Location is not coming through';
+
+  @override
+  String get trackingUnknown => 'Tracking state unknown';
+
+  @override
+  String noticeBigActive(String time) {
+    return 'Last location sent $time';
+  }
+
+  @override
+  String noticeBigStale(String time) {
+    return 'No location since $time. Open the app and check the location settings';
+  }
+
+  @override
+  String get noticeBigStaleNever => 'No location sent yet. Open the app and check the location settings';
+
+  @override
+  String get noticeBigOff => 'Your location is not tracked now';
+
+  @override
+  String get openApp => 'Open the app';
+
+  @override
+  String get alertsChannel => 'Important alerts';
+
+  @override
+  String offlineSince(String time) {
+    return 'Offline · last update $time';
+  }
+
+  @override
+  String get statusCall => 'Call';
+
+  @override
+  String get statusDone => 'Done';
+
+  @override
+  String get statusCheckSettings => 'Check settings';
+
+  @override
+  String get statusOpenCash => 'Cash';
+
+  @override
+  String get statusOpenCustody => 'My car';
+
+  @override
+  String get statusOpenMaintenance => 'Maintenance';
+
+  @override
+  String get statusOpenDocuments => 'My documents';
+
+  @override
+  String get statusOpenContact => 'Details';
+
+  @override
+  String statusMore(String count) {
+    return 'and $count more alerts';
+  }
+
+  @override
+  String statusDaySummary(String count) {
+    return 'Today\'s sessions: $count';
+  }
+
+  @override
+  String get statusContactSent => 'Your supervisor was told';
+
+  @override
+  String get statusDialFailed => 'Could not start a call on this phone';
 }

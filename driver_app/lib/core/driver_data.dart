@@ -6,7 +6,16 @@ import 'db.dart';
 /// What the phone kept for the driver signed in: his unsent actions (with their photos), his recorded positions, and
 /// what was read for him. Forgotten when his session ends, so the next driver on this phone never sends or sees it.
 /// The phone's own settings stay (language, the office's app config, the device id, the server's texts).
-const driverKeys = ['tracking_state', 'last_upload_at', 'fuel', 'report_form', 'maintenance_form', 'push_token'];
+const driverKeys = [
+  'tracking_state',
+  'last_upload_at',
+  'fuel',
+  'report_form',
+  'maintenance_form',
+  'push_token',
+  'live_status', // his states and alerts (the templates are the office's, kept)
+  'headsup_posted',
+];
 
 Future<void> forgetDriver(AppDb db) async {
   final files = <String>[];
