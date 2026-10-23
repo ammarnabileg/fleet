@@ -105,7 +105,9 @@ def test_switched_on_from_the_panel_after_google_accepts_the_key(admin_client, c
         "sender_id": APP["sender_id"],
     }
     listed = {c["kind"]: c for c in admin_client.get(C).json()}
-    assert listed["push"]["status"] == {"phones": 0}
+    status = listed["push"]["status"]
+    assert listed["push"]["state"] == "working" and (status["phones"], status["active_phones"]) == (0, 0)
+    assert status["notices"]["waiting"] == 0 and status["messages"]["recent"] == []
 
 
 def test_each_notice_goes_once_to_the_registered_phone_in_its_language(
@@ -147,7 +149,32 @@ def test_each_notice_goes_once_to_the_registered_phone_in_its_language(
     # the app sends a new token: what waited goes out
     client.post("/api/v1/driver/push-token", headers=h, json={"token": TOKEN_C, "lang": "en"})
     assert notifications.push_pending(db) == 1 and google.sent[-1]["token"] == TOKEN_C
-    assert {c["kind"]: c for c in admin_client.get(C).json()}["push"]["status"] == {"phones": 2}
+    status = {c["kind"]: c for c in admin_client.get(C).json()}["push"]["status"]
+    assert (status["phones"], status["active_phones"]) == (2, 2)
+    # each push as Firebase answered it, newest first: the third receipt failed on the dead token, then went out
+    # (its second attempt) once the app sent a new one; none of them opened in the app yet
+    recent = [(m["status"], m["attempt"], m["read"]) for m in status["messages"]["recent"]]
+    assert recent == [("accepted", 2, False), ("failed", 1, False), ("accepted", 1, False), ("accepted", 1, False)]
+    assert (status["messages"]["accepted"], status["messages"]["failed"]) == (3, 1)
+    assert "no longer valid" in status["messages"]["last_error"] and "fcm-token" not in json.dumps(status)
+    assert status["notices"] == {"waiting": 0, "pushed_7d": 3, "read_7d": 0, "window_hours": 48}
+
+
+def test_firebase_down_is_logged_and_the_notice_tried_again(admin_client, client, google, db, company):
+    d = make_driver(admin_client, company["id"])
+    h = bearer(bind_device(client, d["phone"]))
+    switch_on(admin_client, google)
+    client.post("/api/v1/driver/push-token", headers=h, json={"token": "fcm-token-" + "e" * 30})
+    admin_client.post("/api/v1/cash/receipts", json={"driver_id": d["id"], "amount": "4"})
+    google.down = True
+    assert notifications.push_pending(db) == 0
+    waiting = {c["kind"]: c for c in admin_client.get(C).json()}["push"]["status"]
+    assert waiting["notices"]["waiting"] == 1 and waiting["messages"]["recent"][0]["status"] == "failed"
+    google.down = False
+    assert notifications.push_pending(db) == 1
+    status = {c["kind"]: c for c in admin_client.get(C).json()}["push"]["status"]
+    assert [(m["status"], m["attempt"]) for m in status["messages"]["recent"]] == [("accepted", 2), ("failed", 1)]
+    assert status["notices"]["waiting"] == 0
 
 
 def test_firebase_down_stops_the_pass_and_the_next_one_sends(admin_client, client, google, db, company):

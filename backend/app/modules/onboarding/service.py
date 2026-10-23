@@ -273,7 +273,8 @@ def _notify(db: Session, driver: people.EmployeeRef, key: str, **params) -> None
     if not driver.phone:
         return
     try:
-        integrations.messenger(db).send(driver.phone, i18n.for_drivers(db, key, name=driver.name, **params))
+        message = i18n.for_drivers(db, key, name=driver.name, **params)
+        integrations.messenger(db, "registration_decision").send(driver.phone, message)
     except messaging.DeliveryError as exc:
         log.warning("registration decision not delivered: %s", exc)
 

@@ -2,7 +2,8 @@
    app/map.js — الخريطة (MapLibre GL، تُحمّل عند فتح صفحة فيها خريطة)
    الخريطة الأساسية من خادمنا: ملف واحد للكويت (Protomaps PMTiles من بيانات OpenStreetMap) في BT.config.mapPmtiles،
    يقرأ المتصفح منه ما يلزم فقط بطلبات HTTP Range. لا رسوم ولا حدود استخدام، ولا يرى طرف ثالث مواقع السيارات
-   ولا ما يشاهده المشرف. إن لم يوجد الملف على الخادم: بلاطات BT.config.mapFallbackTiles مع ملاحظة ظاهرة على الخريطة.
+   ولا ما يشاهده المشرف. الملف تنزّله وتحدّثه خدمة maps في docker-compose (deploy/maps). إن لم يوجد على الخادم:
+   بلاطات BT.config.mapFallbackTiles مع ملاحظة ظاهرة على الخريطة تقول السبب (maps/status.json من الخدمة نفسها).
    الإحداثيات في هذه الواجهة [lat, lng] كما في بقية النظام (MapLibre نفسه يستخدم [lng, lat]).
    ===================================================================== */
 (function () {
@@ -59,25 +60,52 @@
     });
   }
 
-  /* يفتح خريطة في العنصر. النتيجة null إن غادر المستخدم الصفحة قبل اكتمال التحميل. */
-  BT.map = function (el) {
+  /* لماذا الخريطة احتياطية: ما كتبته خدمة الخرائط في status.json بجانب الملف (تنزيل جارٍ، فشل وسببه، موعد المحاولة التالية) */
+  function fallbackNote(el) {
+    var note = document.createElement('div');
+    note.className = 'map-note';
+    note.setAttribute('role', 'status');
+    note.setAttribute('data-map-fallback', '');
+    note.textContent = 'خريطة احتياطية: ملف خريطة الكويت غير موجود على الخادم';
+    el.appendChild(note);
+    var url = abs(BT.config.mapPmtiles || 'maps/kuwait.pmtiles').replace(/[^/]*$/, 'status.json');
+    fetch(url, { cache: 'no-store', credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (st) {
+      var fmt = BT.fmt;
+      if (!st || !st.state) {
+        note.textContent = 'خريطة احتياطية: ملف خريطة الكويت غير موجود، وخدمة الخرائط (maps) لا تعمل على الخادم';
+      } else if (st.state === 'updating') {
+        note.textContent = 'خريطة احتياطية: يجري الآن تنزيل خريطة الكويت على الخادم (دقائق)، ثم تظهر عند فتح الصفحة مرة أخرى';
+      } else if (st.state === 'failed') {
+        note.textContent = 'خريطة احتياطية: تعذّر تنزيل خريطة الكويت (آخر محاولة ' + fmt.dt(st.checked_at) + ')، والمحاولة التالية تلقائياً ' + fmt.dt(st.next_try_at);
+        if (st.error) note.title = st.error;
+      }
+      note.setAttribute('data-state', st && st.state || 'none');
+    }, function () { /* تبقى الرسالة العامة */ });
+  }
+
+  var LOCALE = {
+    'NavigationControl.ZoomIn': 'تكبير', 'NavigationControl.ZoomOut': 'تصغير',
+    'FullscreenControl.Enter': 'ملء الشاشة', 'FullscreenControl.Exit': 'الخروج من ملء الشاشة',
+    'AttributionControl.ToggleAttribution': 'مصدر الخريطة', 'Popup.Close': 'إغلاق', 'Marker.Title': 'علامة'
+  };
+
+  /* يفتح خريطة في العنصر. النتيجة null إن غادر المستخدم الصفحة قبل اكتمال التحميل.
+     opts.fullscreen: العنصر الذي يملأ الشاشة (الخريطة نفسها افتراضياً) */
+  BT.map = function (el, opts) {
+    opts = opts || {};
     return libs().then(function (lib) {
       return baseStyle(lib).then(function (base) {
         if (!document.contains(el)) return null;
         var ml = lib.ml;
         var map = new ml.Map({
           container: el, style: base.style, center: lngLat(BT.config.mapCenter), zoom: BT.config.mapZoom, maxZoom: 18,
-          attributionControl: { compact: true }, dragRotate: false, pitchWithRotate: false, touchPitch: false
+          attributionControl: { compact: true }, dragRotate: false, pitchWithRotate: false, touchPitch: false, locale: LOCALE
         });
         map.touchZoomRotate.disableRotation();
         map.keyboard.disableRotation();
         map.addControl(new ml.NavigationControl({ showCompass: false }), 'top-left');
-        if (base.fallback) {
-          var note = document.createElement('div');
-          note.className = 'map-note';
-          note.textContent = 'خريطة احتياطية: ملف الخريطة غير موجود على الخادم';
-          el.appendChild(note);
-        }
+        map.addControl(new ml.FullscreenControl({ container: opts.fullscreen || el }), 'top-left');
+        if (base.fallback) fallbackNote(el);
         A.onLeave(function () { map.remove(); });
         return wrap(ml, map);
       });
@@ -98,8 +126,12 @@
         if (opts.onClick) el.addEventListener('click', function () { setTimeout(opts.onClick, 0); });
         var mk = new ml.Marker({ element: el, anchor: 'center' }).setLngLat(lngLat(pos)).addTo(map);
         return {
+          el: el,
           move: function (p) { mk.setLngLat(lngLat(p)); },
           html: function (x) { if (x !== last) el.innerHTML = last = x; },
+          title: function (x) { el.title = x; },
+          /* مخفية: داخل مجموعة، أو خارج التصفية */
+          show: function (on) { el.style.display = on ? '' : 'none'; if (!on && popup && popup.isOpen()) popup.remove(); },
           popup: function (x) {
             if (popup) popup.setHTML(x);
             else mk.setPopup(popup = new ml.Popup({ offset: 18, maxWidth: '300px' }).setHTML(x));
@@ -115,29 +147,48 @@
         points.forEach(function (p) { b.extend(lngLat(p)); });
         map.fitBounds(b, { padding: 40, maxZoom: maxZoom || 15, duration: 0 });
       },
+      fitBounds: function (points, maxZoom) {
+        if (!points.length) return;
+        var b = new ml.LngLatBounds(lngLat(points[0]), lngLat(points[0]));
+        points.forEach(function (p) { b.extend(lngLat(p)); });
+        map.fitBounds(b, { padding: 60, maxZoom: maxZoom || 15 });
+      },
       view: function (p, zoom) { map.easeTo({ center: lngLat(p), zoom: zoom }); },
       zoom: function () { return map.getZoom(); },
-      /* خط المسار (يحلّ محل السابق). off[i]: النقطة خارج يوم العمل (FR-TRK-09)؛ ما بين نقطتين خارجه يُرسم برتقالياً */
-      line: function (points, off) {
+      /* موضع النقطة على الشاشة بالبكسل (لتجميع العلامات المتقاربة) */
+      project: function (p) { return map.project(lngLat(p)); },
+      on: function (ev, fn) { map.on(ev, fn); },
+      resize: function () { map.resize(); },
+      /* أداة فوق الخريطة (أزرار الصفحة) */
+      control: function (node, where) { map.addControl({ onAdd: function () { return node; }, onRemove: function () { node.remove(); } }, where || 'top-right'); },
+      /* خط المسار (يحلّ محل السابق). off[i]: النقطة خارج يوم العمل (FR-TRK-09)؛ ما بين نقطتين خارجه يُرسم برتقالياً.
+         breaks[i]: انقطاع قبل النقطة i (فجوة GPS أو نقاط مخفية): يُرسم متقطعاً رمادياً لأنه ليس طريق السيارة */
+      line: function (points, off, breaks) {
         return loaded.then(function () {
           var features = [];
           for (var i = 1; i < points.length; i++) {
-            var o = !!(off && off[i - 1] && off[i]), last = features[features.length - 1];
-            if (last && last.properties.off === o) last.geometry.coordinates.push(lngLat(points[i]));
-            else features.push({ type: 'Feature', properties: { off: o }, geometry: { type: 'LineString', coordinates: [lngLat(points[i - 1]), lngLat(points[i])] } });
+            var kind = breaks && breaks[i] ? 'gap' : off && off[i - 1] && off[i] ? 'off' : 'on', last = features[features.length - 1];
+            if (last && last.properties.kind === kind && kind !== 'gap') last.geometry.coordinates.push(lngLat(points[i]));
+            else features.push({ type: 'Feature', properties: { kind: kind }, geometry: { type: 'LineString', coordinates: [lngLat(points[i - 1]), lngLat(points[i])] } });
           }
           var data = { type: 'FeatureCollection', features: features };
           if (map.getSource('route')) { map.getSource('route').setData(data); return; }
           map.addSource('route', { type: 'geojson', data: data });
-          var layout = { 'line-join': 'round', 'line-cap': 'round' };
-          map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: layout, paint: { 'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.9 } });
-          map.addLayer({ id: 'route', type: 'line', source: 'route', layout: layout, paint: { 'line-color': ['case', ['get', 'off'], '#F59E0B', '#0A6CFF'], 'line-width': 4, 'line-opacity': 0.9 } });
+          var layout = { 'line-join': 'round', 'line-cap': 'round' }, driven = ['!=', ['get', 'kind'], 'gap'];
+          map.addLayer({ id: 'route-casing', type: 'line', source: 'route', filter: driven, layout: layout, paint: { 'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.9 } });
+          map.addLayer({ id: 'route', type: 'line', source: 'route', filter: driven, layout: layout, paint: { 'line-color': ['case', ['==', ['get', 'kind'], 'off'], '#F59E0B', '#0A6CFF'], 'line-width': 4, 'line-opacity': 0.9 } });
+          map.addLayer({ id: 'route-gap', type: 'line', source: 'route', filter: ['==', ['get', 'kind'], 'gap'], paint: { 'line-color': '#64748B', 'line-width': 3, 'line-dasharray': [1.5, 2], 'line-opacity': 0.9 } });
         });
       }
     };
   }
 
-  BT.map.carHtml = function (tone, selected) {
-    return String(h`<div class="veh-mark ${tone}${selected ? ' sel' : ''}">${BT.icon('car', 15)}</div>`);
+  /* stale: موقع قديم (آخر موقع معروف، لا الموقع الحالي) يُرسم باهتاً بإطار متقطع */
+  BT.map.carHtml = function (tone, selected, stale) {
+    return String(h`<div class="veh-mark ${tone}${selected ? ' sel' : ''}${stale ? ' stale' : ''}">${BT.icon('car', 15)}</div>`);
+  };
+  /* مجموعة سيارات متقاربة على الشاشة: العدد، ونقطة حمراء بعدد المنقطعة منها */
+  BT.map.clusterHtml = function (n, lost) {
+    return String(h`<div class="veh-cluster" data-cluster>${n}${lost ? h`<span class="lost">${lost}</span>` : ''}</div>`);
   };
 })();

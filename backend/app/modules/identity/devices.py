@@ -107,7 +107,7 @@ def request_otp(db: Session, *, phone: str, device_uid: str, ip: str | None) -> 
     if code:
         text = i18n.for_drivers(db, "messages.otp", code=code, minutes=OTP_TTL.seconds // 60)
         try:
-            integrations.messenger(db).send(phone, text)
+            integrations.messenger(db, "otp").send(phone, text)
         except messaging.DeliveryError as exc:  # same answer to the phone; the supervisors are told instead
             log.warning("sign-in code not delivered: %s", exc)
             notifications.raise_alert(
@@ -327,7 +327,7 @@ def create_activation_link(
             hours=int(ACTIVATION_TTL.total_seconds() // 3600),
         )
         try:
-            integrations.messenger(db).send(driver.phone, text)
+            integrations.messenger(db, "activation").send(driver.phone, text)
         except messaging.NotOnWhatsApp:
             db.rollback()
             raise AppError(422, "phone_not_on_whatsapp", phone=driver.phone) from None
@@ -572,6 +572,11 @@ def push_phones(db: Session) -> int:
     return db.scalar(select(func.count()).where(Device.revoked_at.is_(None), Device.push_token.is_not(None))) or 0
 
 
+def active_phones(db: Session) -> int:
+    """How many drivers' phones are signed in (bound and not signed out): the most that can register for push."""
+    return db.scalar(select(func.count()).where(Device.revoked_at.is_(None))) or 0
+
+
 def forget_push_token(db: Session, device_id: int) -> None:
     """Firebase says the token is gone (the app was removed or reinstalled): no more tries until the app sends one."""
     db.execute(update(Device).where(Device.id == device_id).values(push_token=None))
@@ -595,6 +600,7 @@ def check_messaging_channel(db: Session) -> str:
         state = integrations.messenger(db).connection_state()
     except messaging.DeliveryError:
         state = "unreachable"
+    integrations.record_channel_state(db, state)  # the panel's "last test" stays current
     if state == "open":
         notifications.resolve(db, "messaging_down")
     else:

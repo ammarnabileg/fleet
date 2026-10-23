@@ -299,3 +299,71 @@ def test_only_integrations_manage_sees_or_changes_connections(admin_client, new_
         assert r.status_code == 403 and r.json()["code"] == "permission_denied", r.text
     # the settings screen never carries a connection's secrets
     assert "connections" not in c.get("/api/v1/settings").json()
+
+
+def test_whatsapp_readiness_tells_a_working_connection_from_messages_that_went_out(
+    admin_client, evolution, company, db, owner_db, monkeypatch
+):
+    """not configured -> working; the test button tries a switched-off service too (no message sent) and a dropped
+    WhatsApp session is a failed test; each message is logged as the provider answered, without its text."""
+    from app.modules.identity import service as identity
+    from tests.conftest import make_driver
+
+    assert connection(admin_client, "whatsapp")["state"] == "not_configured"
+    assert admin_client.put(f"{C}/whatsapp", json=whatsapp_body()).status_code == 200
+    assert connection(admin_client, "whatsapp")["state"] == "working"
+
+    driver = make_driver(admin_client, company["id"])
+    r = admin_client.post("/api/v1/driver/auth/otp", json={"phone": driver["phone"], "device_uid": "f" * 32})
+    assert r.status_code == 202
+    w = connection(admin_client, "whatsapp")
+    (m,) = w["status"]["messages"]["recent"]
+    assert (m["status"], m["purpose"], m["provider"], m["recipient"]) == (
+        "accepted",
+        "otp",
+        "evolution",
+        "…" + driver["phone"][-4:],
+    )
+    assert w["status"]["messages"]["accepted"] == 1 and w["status"]["messages"]["last_accepted_at"]
+    stored = owner_db.execute(text("SELECT row_to_json(m)::text FROM integrations.message_log m")).scalar()
+    assert driver["phone"].lstrip("+") not in stored and "provider_ref" in stored  # no number, no text (code)
+    assert '"provider_ref":"1"' in stored
+
+    # the provider refuses: logged as failed even though the caller rolls its transaction back
+    state = {"refuse": True}
+    real_send = messaging.EvolutionProvider.send
+
+    def refusing(self, to, body):
+        if state["refuse"]:
+            raise messaging.DeliveryError("evolution api answered 500")
+        return real_send(self, to, body)
+
+    monkeypatch.setattr(messaging.EvolutionProvider, "send", refusing)
+    r = admin_client.post(f"/api/v1/employees/{driver['id']}/activation-link", json={"channel": "whatsapp"})
+    assert r.status_code == 502
+    w = connection(admin_client, "whatsapp")["status"]["messages"]
+    assert [(x["status"], x["purpose"]) for x in w["recent"]] == [("failed", "activation"), ("accepted", "otp")]
+    assert w["last_error"] == "evolution api answered 500"
+
+    # switched off: "disabled", and its test really tries the saved settings
+    off = {"version": 1, "config": {"enabled": False, "url": "https://evo.example.com", "instance": "fleet"}}
+    assert admin_client.put(f"{C}/whatsapp", json=off).status_code == 200
+    w = connection(admin_client, "whatsapp")
+    assert (w["state"], w["checked_at"]) == ("disabled", None)
+    before = len(evolution)
+    checked = admin_client.post(f"{C}/whatsapp/check").json()
+    assert checked["check_ok"] is True and checked["state"] == "disabled" and len(evolution) == before + 1
+    assert not [c for c in evolution[before:] if "sendText" in c.url.path]  # a test never sends a message
+
+    # on again, then its WhatsApp session drops: the scheduler's check makes the last test a failure
+    on = whatsapp_body(version=2)
+    on.pop("secrets")
+    assert admin_client.put(f"{C}/whatsapp", json=on).status_code == 200
+    monkeypatch.setattr(messaging.EvolutionProvider, "connection_state", lambda self: "close")
+    integrations._cache.clear()
+    integrations._built.clear()
+    assert identity.check_messaging_channel(db) == "close"
+    w = connection(admin_client, "whatsapp")
+    assert w["state"] == "failed" and "close" in w["check_error"]
+    checked = admin_client.post(f"{C}/whatsapp/check").json()
+    assert checked["check_ok"] is False and "QR" in checked["check_error"]

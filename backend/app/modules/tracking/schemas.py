@@ -84,6 +84,7 @@ class LiveVehicle(BaseModel):
     in_maintenance: bool = False  # at a center: kept by its driver, not tracked meanwhile
     on_duty: bool = True  # the driver's day started and not ended (BRD FR-TRK-09)
     position_hidden: bool = False  # off duty, and the user may not see it (tracking.off_duty)
+    signal_loss_minutes: int = 10  # a position older than this is shown as the last known one, not a current one
 
 
 class RoutePoint(BaseModel):
@@ -94,6 +95,29 @@ class RoutePoint(BaseModel):
     heading: int | None
     accuracy_m: float | None
     on_duty: bool = True  # within one of the driver's work days (BRD FR-TRK-09)
+    # the route is broken before this point: "signal" = a GPS gap (nothing sent for longer than gap_minutes),
+    # "hidden" = points the user may not see in between. The line across a break is not where the vehicle went.
+    break_before: Literal["signal", "hidden"] | None = None
+
+
+class RouteGap(BaseModel):
+    from_: datetime = Field(alias="from")
+    to: datetime
+    minutes: int
+    km: float  # straight-line distance between the two points around the gap
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+
+class RouteStop(BaseModel):
+    from_: datetime = Field(alias="from")
+    to: datetime
+    minutes: int
+    lat: float
+    lng: float
+    points: int
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
 
 
 class RouteOut(BaseModel):
@@ -105,6 +129,9 @@ class RouteOut(BaseModel):
     hidden_off_duty: int = 0  # points outside the work day the user may not see (tracking.off_duty)
     truncated: bool
     drivers: list[DriverRef]
+    gap_minutes: int = 10  # silence longer than this between two points is a GPS gap
+    gaps: list[RouteGap] = []
+    stops: list[RouteStop] = []  # stood within 150 m for 5 minutes or more
     points: list[RoutePoint]
 
     model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)

@@ -265,7 +265,7 @@ def send_code(db: Session, *, token: str, device_uid: str, phone: str) -> dict:
     db.commit()
     text = i18n.for_drivers(db, "messages.otp", code=code, minutes=OTP_TTL.seconds // 60)
     try:
-        integrations.messenger(db).send(phone, text)
+        integrations.messenger(db, "claim_otp").send(phone, text)
     except messaging.NotOnWhatsApp:
         raise AppError(422, "phone_not_on_whatsapp", phone=phone) from None
     except messaging.DeliveryError:

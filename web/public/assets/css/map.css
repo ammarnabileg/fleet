@@ -1,0 +1,50 @@
+/* =====================================================================
+   map.css — the live map and the route page (app/pages/tracking.js, app/map.js). Scoped to their own classes.
+   The base map is always light, so what is drawn on it (markers, map buttons) has fixed colours, not the theme's.
+   ===================================================================== */
+
+/* live map: list + map side by side; on a phone one at a time, switched by the tabs above */
+.trk { display: grid; gap: var(--gap); grid-template-columns: minmax(0, 320px) minmax(0, 1fr); }
+.trk-side { padding: 12px; min-width: 0; }
+.trk-main { min-width: 0; position: relative; }
+.trk-switch { display: none; }
+@media (max-width: 900px) {
+  .trk { grid-template-columns: minmax(0, 1fr); }
+  .trk-switch { display: inline-flex; }
+  .trk-switch button { min-height: 44px; padding: 8px 18px; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+  .trk[data-pane="map"] .trk-side, .trk[data-pane="list"] .trk-main { display: none; }
+  .trk .live-map { height: calc(100dvh - 250px); min-height: 360px; }
+  .trk .side-list { max-height: none; }
+  .trk .side-list .li { min-height: 44px; }
+}
+
+/* full screen (the map's own button): the map fills it */
+.trk-main:fullscreen { background: #fff; }
+.trk-main:fullscreen .live-map { height: 100%; border-radius: 0; border: 0; }
+
+/* the page's buttons on the map: fit all, follow */
+.live-map .trk-tools { display: flex; }
+.live-map .trk-tools button { width: auto; height: 32px; display: flex; align-items: center; gap: 5px; padding: 0 10px; font: inherit; font-size: 12.5px; color: #1F2937; }
+.live-map .trk-tools button + button { border-top: 0; border-inline-start: 1px solid #ddd; }
+.live-map .trk-tools button.active { background: #1D4ED8; color: #fff; }
+.live-map .trk-tools button:disabled { color: #6B7280; cursor: not-allowed; }
+.live-map .trk-tools button:focus-visible, .live-map .maplibregl-ctrl button:focus-visible { outline: 3px solid #1D4ED8; outline-offset: 1px; }
+@media (pointer: coarse) {
+  .live-map .trk-tools button { height: 40px; padding: 0 12px; }
+  .live-map .maplibregl-ctrl-group button { min-width: 40px; min-height: 40px; }
+}
+
+/* a position that is not current (signal lost, at a center, hidden): faded with a dashed edge */
+.veh-mark.stale { opacity: .62; border-style: dashed; }
+/* vehicles close together on screen: how many, and how many of them have no current position */
+.veh-cluster { position: relative; min-width: 36px; height: 36px; padding: 0 9px; border-radius: 18px; background: #1D4ED8; color: #fff; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, .35); cursor: pointer; }
+.veh-cluster .lost { position: absolute; top: -7px; right: -7px; min-width: 19px; height: 19px; padding: 0 4px; border-radius: 10px; background: #B91C1C; color: #fff; font-size: 10.5px; line-height: 19px; text-align: center; border: 2px solid #fff; }
+
+/* route page: stops, playback */
+.route-stop { width: 22px; height: 22px; border-radius: 6px; background: #334155; color: #fff; font: 700 12px/18px system-ui, sans-serif; text-align: center; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
+.route-play { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 14px; }
+.route-play[hidden] { display: none; }
+.route-slider { flex: 1 1 220px; display: flex; min-width: 0; }
+.route-slider input { width: 100%; min-height: 32px; accent-color: var(--primary-strong); }
+.route-play select { width: auto; padding-block: 4px; margin-inline-start: 6px; }
+.route-now { min-width: 220px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

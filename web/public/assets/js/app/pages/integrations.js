@@ -1,8 +1,9 @@
 /* =====================================================================
    app/pages/integrations.js — الخدمات الخارجية من لوحة التحكم: تخزين الملفات
-   (الخادم أو Cloudflare R2) وواتساب (Evolution API). المفاتيح السرية تُكتب فقط:
+   (الخادم أو Cloudflare R2) وواتساب (Evolution API) وإشعارات Firebase. المفاتيح السرية تُكتب فقط:
    لا تعود من الخادم أبداً، ويظهر آخر 4 أحرف منها للتمييز. التشغيل يُجرَّب أولاً،
-   وإن فشلت التجربة لا يُحفظ شيء.
+   وإن فشلت التجربة لا يُحفظ شيء. لكل قناة رسائل: حالتها (غير مهيأ/متوقف/يعمل/فشل)، وآخر اختبار اتصال،
+   ومنفصلاً عنه آخر الرسائل كما رد عليها المزود (قُبلت أو فشلت وسببها) دون نصها.
    ===================================================================== */
 (function () {
   'use strict';
@@ -17,6 +18,41 @@
       ? h`${BT.pill('الاتصال يعمل', 'g', true)} <span class="muted fs-sm">آخر تجربة ${fmt.dt(c.checked_at)}</span>`
       : h`${BT.pill('الاتصال فشل', 'r', true)} <span class="muted fs-sm">${fmt.dt(c.checked_at)}: <span class="ltr">${c.check_error}</span></span>`;
   }
+  /* جاهزية القناة (واتساب، Firebase): الحالة، ثم آخر اختبار اتصال منفصلاً عن الرسائل نفسها */
+  var STATE = {
+    not_configured: { t: 'غير مهيأ', tone: 'n', d: 'الإعدادات أو المفتاح ناقصة' },
+    disabled: { t: 'متوقف', tone: 'n', d: 'الإعدادات كاملة لكن الخدمة غير مفعّلة: لا يُرسل منها شيء' },
+    untested: { t: 'مفعّل، لم يُختبر', tone: 'o', d: 'مفعّل ولم يُجرَّب الاتصال بعد' },
+    working: { t: 'يعمل', tone: 'g', d: 'مفعّل وآخر اختبار اتصال نجح' },
+    failed: { t: 'فشل', tone: 'r', d: 'مفعّل وآخر اختبار اتصال فشل: الرسائل لا تخرج على الأرجح' }
+  };
+  var PURPOSE = { otp: 'رمز دخول السائق', activation: 'رابط تفعيل', password_reset: 'استعادة كلمة المرور', claim_otp: 'رمز تحقق التسجيل', scheme_decision: 'قرار نظام الرواتب', registration_decision: 'قرار التسجيل', notice: 'إشعار للسائق' };
+  var PROVIDER = { evolution: 'Evolution API', fcm: 'Firebase', log: 'سجل التطوير (لم يُرسل فعلياً)', none: 'غير مهيأ (لم يُرسل)' };
+  function stateLine(c) {
+    var st = STATE[c.state] || { t: c.state, tone: 'n', d: '' };
+    return h`<span data-state="${c.state}" title="${st.d}">${BT.pill(st.t, st.tone, true)}</span>`;
+  }
+  function testLine(c) {
+    var what = c.checked_at
+      ? (c.check_ok ? h`${BT.pill('نجح', 'g')} <span class="muted fs-sm">${fmt.dt(c.checked_at)} · ${fmt.since(c.checked_at)}</span>` : h`${BT.pill('فشل', 'r')} <span class="muted fs-sm">${fmt.dt(c.checked_at)} · ${fmt.since(c.checked_at)}</span><div class="fs-sm t-danger ltr mt-4">${c.check_error}</div>`)
+      : h`<span class="muted fs-sm">لم يُجرَّب بعد</span>`;
+    return h`<div class="highlight-box mb-12" data-test-line><div class="fs-sm"><b>آخر اختبار اتصال:</b> ${what}</div><div class="hint mt-4">الاختبار يتأكد أن الخدمة ترد بهذه الإعدادات${c.kind === 'whatsapp' ? ' وأن جلسة واتساب متصلة (يتكرر تلقائياً كل 5 دقائق أثناء التفعيل)' : ''}. لا يرسل رسالة لأحد، ولا يثبت وصول الرسائل: ذلك في «آخر الرسائل» أدناه.</div></div>`;
+  }
+  function messagesBlock(c) {
+    var m = c.status.messages;
+    if (!m) return '';
+    var push = c.kind === 'push';
+    var note = push
+      ? 'قبول Firebase للإشعار لا يعني ظهوره على الهاتف؛ «فُتح في التطبيق» هو الدليل على وصوله. ما لم يُرسل يُعاد تلقائياً كل 30 ثانية لمدة 48 ساعة.'
+      : 'قبول Evolution للرسالة يعني أنها أُرسلت للإرسال، لا أنها وصلت: إيصالات الوصول والقراءة من واتساب لا تصل للنظام. لا إعادة تلقائية لرموز الدخول (يطلبها السائق مجدداً)، وروابط التفعيل الجماعية تُعاد حتى 3 مرات.';
+    return h`<div data-messages><div class="between mb-8"><b class="fs-sm">آخر الرسائل</b><span class="fs-sm muted">آخر ${m.days} أيام: قبلها المزود <b class="num" data-accepted>${fmt.int(m.accepted)}</b> · فشلت <b class="num${m.failed ? ' t-danger' : ''}" data-failed>${fmt.int(m.failed)}</b></span></div>
+      ${m.last_failed_at ? h`<div class="banner warn fs-sm mb-8">${icon('triangle-alert', 16)}<div>آخر فشل ${fmt.dt(m.last_failed_at)}: <span class="ltr">${m.error_label || m.last_error}</span></div></div>` : ''}
+      ${m.recent.length ? h`<div class="table-wrap"><table class="t compact" data-messages-table><thead><tr><th>الوقت</th><th>الغرض</th><th>إلى</th><th>النتيجة</th>${push ? h`<th>في التطبيق</th>` : ''}</tr></thead><tbody>${m.recent.map(function (x) {
+        return h`<tr><td>${fmt.dt(x.at)}</td><td>${PURPOSE[x.purpose] || x.purpose || '—'}</td><td><bdi dir="ltr">${x.recipient || '—'}</bdi></td><td>${x.status === 'accepted' ? BT.pill(x.provider === 'log' || x.provider === 'none' ? PROVIDER[x.provider] : 'قبلها ' + (PROVIDER[x.provider] || x.provider), x.provider === 'log' || x.provider === 'none' ? 'n' : 'g') : h`${BT.pill('فشل', 'r')} <span class="fs-sm muted ltr">${x.error === 'not_on_whatsapp' ? 'الرقم ليس على واتساب' : x.error}</span>`}${x.attempt > 1 ? h` <span class="fs-sm muted">محاولة ${x.attempt}</span>` : ''}</td>${push ? h`<td>${x.read ? BT.pill('فُتح', 'g') : h`<span class="muted fs-sm">لم يُفتح بعد</span>`}</td>` : ''}</tr>`;
+      })}</tbody></table></div>` : h`<div class="muted fs-sm">لم تُرسل رسائل من هذه القناة بعد.</div>`}
+      <div class="hint mt-8">${note}</div></div>`;
+  }
+
   function secretField(c, name) {
     var s = c.secrets[name];
     return h`<div class="field"><label for="f-${name}">${SECRET_LABEL[name]}</label><input class="input ltr" type="password" name="${name}" id="f-${name}" autocomplete="new-password" placeholder="${s.set ? 'محفوظ ' + s.hint + ' — اتركه فارغاً للإبقاء عليه' : 'غير محفوظ'}"><div class="hint">${s.set ? h`يُخزَّن مشفّراً ولا يظهر مرة أخرى. <button type="button" class="btn btn-sm btn-ghost" data-clear="${name}">إزالة المفتاح المحفوظ</button>` : 'يُخزَّن مشفّراً ولا يظهر مرة أخرى'}</div><div class="err-msg"></div></div>`;
@@ -48,8 +84,8 @@
   function whatsappCard(c) {
     var cfg = c.config;
     return h`<form class="card" data-kind="whatsapp" novalidate>
-      <div class="card-h"><div class="card-t">${icon('message-square', 16)} واتساب (Evolution API)</div><span class="ms-auto">${checkLine(c)}</span></div>
-      <div class="card-b"><div class="form">
+      <div class="card-h"><div class="card-t">${icon('message-square', 16)} واتساب (Evolution API)</div><span class="ms-auto">${stateLine(c)}</span></div>
+      <div class="card-b">${testLine(c)}<div class="form">
         ${BT.f.switch({ name: 'enabled', label: 'إرسال رموز الدخول وروابط التفعيل من هذا الحساب', checked: cfg.enabled })}
         <div class="form-grid">
           ${BT.f.input({ name: 'url', label: 'عنوان Evolution API', value: cfg.url || '', placeholder: 'https://evolution.example.com', pattern: 'https?://[^\\s/?#]+(/[^\\s?#]*)?', msg: 'عنوان يبدأ بـ https://' })}
@@ -58,14 +94,15 @@
         </div>
         <div class="muted fs-sm">عند الإيقاف يُستخدم: ${MODE[c.status.server_mode] || c.status.server_mode}</div>
         <div class="row gap-8"><button type="submit" class="btn btn-sm btn-primary">${icon('check', 14)} حفظ</button><button type="button" class="btn btn-sm btn-secondary" data-check>${icon('refresh-cw', 14)} اختبار الاتصال</button></div>
+        ${messagesBlock(c)}
       </div></div></form>`;
   }
 
   function pushCard(c) {
     var cfg = c.config, s = c.secrets.service_account;
     return h`<form class="card" data-kind="push" novalidate>
-      <div class="card-h"><div class="card-t">${icon('bell-ring', 16)} الإشعارات الفورية (Firebase)</div><span class="ms-auto">${checkLine(c)}</span></div>
-      <div class="card-b"><div class="form">
+      <div class="card-h"><div class="card-t">${icon('bell-ring', 16)} الإشعارات الفورية (Firebase)</div><span class="ms-auto">${stateLine(c)}</span></div>
+      <div class="card-b">${testLine(c)}${devicesBox(c)}<div class="form">
         ${BT.f.switch({ name: 'enabled', label: 'إرسال إشعارات السائقين إلى هواتفهم', checked: cfg.enabled })}
         <div class="form-grid">
           ${BT.f.input({ name: 'app_id', label: 'App ID (أندرويد)', value: cfg.app_id || '', placeholder: '1:123456789:android:abc…', pattern: '1:[0-9]{6,20}:android:[0-9a-f]{8,40}', msg: 'كما في إعدادات المشروع: 1:رقم:android:…' })}
@@ -73,9 +110,19 @@
           ${BT.f.input({ name: 'client_api_key', label: 'Web/Android API Key', value: cfg.api_key || '', pattern: '[A-Za-z0-9_\\-]{20,60}', msg: 'كما في إعدادات المشروع' })}
         </div>
         <div class="field"><label for="f-service_account">${SECRET_LABEL.service_account}</label><textarea class="textarea ltr" rows="4" name="service_account" id="f-service_account" placeholder="${s.set ? 'محفوظ ' + s.hint + ' — اتركه فارغاً للإبقاء عليه' : 'الصق محتوى ملف JSON كاملاً'}"></textarea><div class="hint">${s.set ? h`يُخزَّن مشفّراً ولا يظهر مرة أخرى. <button type="button" class="btn btn-sm btn-ghost" data-clear="service_account">إزالة المفتاح المحفوظ</button>` : 'يُخزَّن مشفّراً ولا يظهر مرة أخرى'}</div><div class="err-msg"></div></div>
-        <div class="banner info fs-sm">${icon('info', 16)}<div>من Firebase: إعدادات المشروع ← تطبيقاتك (App ID و Sender ID و API Key لتطبيق أندرويد)، ثم حسابات الخدمة ← إنشاء مفتاح خاص (ملف JSON). التطبيق يأخذ هذه القيم من الخادم فلا يحتاج إصداراً جديداً. هواتف مسجلة الآن: <b class="num">${fmt.int(c.status.phones || 0)}</b>. الإشعارات تبقى في قائمة التطبيق دائماً؛ الدفع للهاتف إضافة.</div></div>
+        <div class="banner info fs-sm">${icon('info', 16)}<div>من Firebase: إعدادات المشروع ← تطبيقاتك (App ID و Sender ID و API Key لتطبيق أندرويد)، ثم حسابات الخدمة ← إنشاء مفتاح خاص (ملف JSON). التطبيق يأخذ هذه القيم من الخادم فلا يحتاج إصداراً جديداً. الإشعارات تبقى في قائمة التطبيق دائماً؛ الدفع للهاتف إضافة.</div></div>
         <div class="row gap-8"><button type="submit" class="btn btn-sm btn-primary">${icon('check', 14)} حفظ</button><button type="button" class="btn btn-sm btn-secondary" data-check>${icon('refresh-cw', 14)} اختبار الاتصال</button></div>
+        ${messagesBlock(c)}
       </div></div></form>`;
+  }
+
+  /* هواتف السائقين المسجلة للإشعارات، والإشعارات المنتظرة */
+  function devicesBox(c) {
+    var st = c.status, n = st.notices || {};
+    var why = !st.phones
+      ? (c.state === 'working' || c.state === 'untested' ? 'لم يسجل أي هاتف بعد: يسجل التطبيق هاتفه عند فتحه التالي بعد التفعيل' : 'صفر لأن Firebase غير مفعّلة: التطبيق لا يسجل هاتفه للإشعارات إلا بعد التفعيل هنا')
+      : '';
+    return h`<div class="highlight-box mb-12" data-push-devices><div class="between fs-sm"><span>هواتف مسجلة للإشعارات <b class="num" data-phones>${fmt.int(st.phones || 0)}</b> من <b class="num">${fmt.int(st.active_phones || 0)}</b> هاتف سائق مفعّل</span><span title="إشعارات آخر ${n.window_hours || 48} ساعة لم تصل لهاتف بعد: تُرسل تلقائياً عند تسجيل الهاتف أو تفعيل الخدمة">لم تُرسل لهاتف بعد <b class="num" data-waiting>${fmt.int(n.waiting || 0)}</b></span></div>${why ? h`<div class="hint mt-4">${why}</div>` : ''}${n.pushed_7d ? h`<div class="hint mt-4">آخر 7 أيام: أُرسل <b class="num">${fmt.int(n.pushed_7d)}</b> إشعاراً، فتح السائقون منها <b class="num">${fmt.int(n.read_7d)}</b> في التطبيق</div>` : ''}</div>`;
   }
 
   function configOf(kind, vals, cur) {

@@ -26,6 +26,7 @@ from app.modules.identity.claims import status as claim_status  # noqa: F401  (a
 from app.modules.identity.devices import (  # noqa: F401  (driver devices, used by other modules from here)
     DevicePrincipal,
     activate,
+    active_phones,
     check_messaging_channel,
     create_activation_link,
     device_status,

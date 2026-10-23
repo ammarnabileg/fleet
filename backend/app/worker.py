@@ -53,4 +53,5 @@ celery.conf.beat_schedule = {
     "approval-escalation": {"task": "approvals.escalate", "schedule": crontab(minute="*/15")},
     "driver-push": {"task": "notifications.push", "schedule": 30.0},  # does nothing until push is switched on
     "files-to-r2": {"task": "files.copy_to_r2", "schedule": 600.0},  # does nothing until R2 is switched on
+    "message-log": {"task": "integrations.purge_message_log", "schedule": crontab(hour=2, minute=40)},  # 90 days
 }

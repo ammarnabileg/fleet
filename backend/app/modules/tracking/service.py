@@ -257,7 +257,8 @@ def live_snapshot(
         p.vehicle_id: p
         for p in db.scalars(select(LastPosition).where(LastPosition.vehicle_id.in_([c.vehicle_id for c in custodies])))
     }
-    lost_after = timedelta(minutes=org.get_section(db, "tracking").signal_loss_minutes)
+    loss_minutes = org.get_section(db, "tracking").signal_loss_minutes
+    lost_after = timedelta(minutes=loss_minutes)
     working = fleet.on_duty_now(db, [c.id for c in custodies])
     at_center = fleet.in_maintenance(db, [c.id for c in custodies])
     now, out = utcnow(), []
@@ -285,6 +286,8 @@ def live_snapshot(
                 },
                 "signal_lost": now - reference > lost_after and c.id not in at_center,
                 "in_maintenance": c.id in at_center,
+                # the map ages the positions itself between two refreshes: a position older than this is not current
+                "signal_loss_minutes": loss_minutes,
             }
         )
     return out
@@ -322,6 +325,55 @@ def _km(a: Position, b: Position) -> float:
     dlat, dlng = lat2 - lat1, math.radians(b.lng - a.lng)
     h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlng / 2) ** 2
     return 2 * 6371.0088 * math.asin(math.sqrt(h))
+
+
+STOP_RADIUS_KM = 0.15  # a vehicle that stays within this distance of where it stopped...
+STOP_MIN = timedelta(minutes=5)  # ...for at least this long has stopped there
+GAP_MIN = timedelta(minutes=5)  # two points further apart than this (and than the signal loss setting): a GPS gap
+
+
+def _gaps(points: list[tuple[Position, bool]], shown_ids: set[int], gap_after: timedelta) -> dict[int, str]:
+    """Why the route is broken before a shown point: "signal" when the phone sent nothing for longer than gap_after
+    (a GPS gap: the line in between is not where the vehicle went), "hidden" when points the user may not see lie in
+    between. Keyed by the index of the point (in the full list) that follows the break."""
+    out: dict[int, str] = {}
+    last_shown = None
+    for i, (p, _) in enumerate(points):
+        if id(p) not in shown_ids:
+            continue
+        if last_shown is not None:
+            if i - last_shown > 1:
+                out[i] = "hidden"
+            elif p.recorded_at - points[last_shown][0].recorded_at > gap_after:
+                out[i] = "signal"
+        last_shown = i
+    return out
+
+
+def _stops(points: list[Position], breaks: set[int]) -> list[dict]:
+    """Where the vehicle stood still: consecutive points within STOP_RADIUS_KM of the first one for at least STOP_MIN.
+    A stop never spans a break in the route (a GPS gap, hidden points): nothing says the vehicle stayed meanwhile."""
+    stops, i = [], 0
+    while i < len(points):
+        j = i
+        while j + 1 < len(points) and (j + 1) not in breaks and _km(points[i], points[j + 1]) <= STOP_RADIUS_KM:
+            j += 1
+        if points[j].recorded_at - points[i].recorded_at >= STOP_MIN:
+            group = points[i : j + 1]
+            stops.append(
+                {
+                    "from": points[i].recorded_at,
+                    "to": points[j].recorded_at,
+                    "minutes": round((points[j].recorded_at - points[i].recorded_at).total_seconds() / 60),
+                    "lat": round(sum(p.lat for p in group) / len(group), 6),
+                    "lng": round(sum(p.lng for p in group) / len(group), 6),
+                    "points": len(group),
+                }
+            )
+            i = j + 1
+        else:
+            i += 1
+    return stops
 
 
 def route(
@@ -366,6 +418,11 @@ def route(
     periods = fleet.work_periods(db, vehicle_id, start, end)
     flagged = [(p, any(c == p.custody_id and a <= p.recorded_at <= b for c, a, b in periods)) for p in points]
     shown = flagged if see_off_duty else [(p, on) for p, on in flagged if on]
+    gap_after = max(GAP_MIN, timedelta(minutes=org.get_section(db, "tracking").signal_loss_minutes))
+    breaks_all = _gaps(flagged, {id(p) for p, _ in shown}, gap_after)
+    # the same breaks, by index in the shown list
+    position = {id(p): k for k, (p, _) in enumerate(shown)}
+    breaks = {position[id(flagged[i][0])]: why for i, why in breaks_all.items()}
     v = fleet.vehicles(db, [vehicle_id])[vehicle_id]
     drivers = people.names(db, {p.driver_id for p, _ in shown})
     pairs = list(zip(shown, shown[1:], strict=False))
@@ -378,6 +435,18 @@ def route(
         "hidden_off_duty": len(flagged) - len(shown),
         "truncated": truncated,
         "drivers": list(drivers.values()),
+        "gap_minutes": int(gap_after.total_seconds() // 60),
+        "gaps": [
+            {
+                "from": shown[k - 1][0].recorded_at,
+                "to": shown[k][0].recorded_at,
+                "minutes": round((shown[k][0].recorded_at - shown[k - 1][0].recorded_at).total_seconds() / 60),
+                "km": round(_km(shown[k - 1][0], shown[k][0]), 2),
+            }
+            for k, why in sorted(breaks.items())
+            if why == "signal"
+        ],
+        "stops": _stops([p for p, _ in shown], set(breaks)),
         "points": [
             {
                 "t": p.recorded_at,
@@ -387,8 +456,9 @@ def route(
                 "heading": p.heading,
                 "accuracy_m": p.accuracy_m,
                 "on_duty": on,
+                "break_before": breaks.get(k),
             }
-            for p, on in shown
+            for k, (p, on) in enumerate(shown)
         ],
     }
 

@@ -589,6 +589,33 @@ def mark_read(db: Session, employee_id: int, ids: Iterable | None) -> int:
 PUSH_WINDOW_HOURS = 48  # older notices stay in the app's list only: a backlog is not pushed once push is switched on
 
 
+def push_summary(db: Session) -> dict:
+    """For the integrations page: notices waiting to be pushed (within the window: tried again every pass), and of
+    the notices pushed in the last 7 days how many the driver has opened in the app (the only proof it reached him)."""
+    from datetime import timedelta
+
+    from app.core.clock import utcnow
+
+    now = utcnow()
+    waiting = db.scalar(
+        select(func.count()).where(
+            DriverNotice.pushed_at.is_(None), DriverNotice.created_at > now - timedelta(hours=PUSH_WINDOW_HOURS)
+        )
+    )
+    pushed = db.execute(
+        select(func.count(), func.count(DriverNotice.read_at)).where(DriverNotice.pushed_at >= now - timedelta(days=7))
+    ).one()
+    return {"waiting": waiting or 0, "pushed_7d": pushed[0], "read_7d": pushed[1], "window_hours": PUSH_WINDOW_HOURS}
+
+
+def notices_read(db: Session, public_ids) -> dict[str, bool]:
+    ids = [i for i in public_ids if i]
+    if not ids:
+        return {}
+    q = select(DriverNotice.public_id, DriverNotice.read_at).where(DriverNotice.public_id.in_(ids))
+    return {str(p): r is not None for p, r in db.execute(q)}
+
+
 def push_pending(db: Session, *, limit: int = 200) -> int:
     """Pushes the notices not pushed yet to the drivers' phones (beat, every half minute). Nothing until push is set up
     in the control panel; a phone that has not registered yet keeps its notices waiting (within the window); a token
@@ -635,12 +662,16 @@ def push_pending(db: Session, *, limit: int = 200) -> int:
             )  # fmt: skip
         except push.InvalidToken:
             identity.forget_push_token(db, device_id)
+            gone = "the phone's token is no longer valid (app removed or reinstalled)"
+            integrations.log_push(db, status="failed", notice_id=str(n.public_id), device_id=device_id, error=gone)
             targets.pop(n.employee_id, None)
             continue
         except push.PushError as exc:
             logging.getLogger("fleet.push").warning("push stopped: %s", exc)
+            integrations.log_push(db, status="failed", notice_id=str(n.public_id), device_id=device_id, error=str(exc))
             break
         n.pushed_at = func.now()
+        integrations.log_push(db, status="accepted", notice_id=str(n.public_id), device_id=device_id)
         sent += 1
     db.commit()
     return sent

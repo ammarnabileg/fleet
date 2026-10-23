@@ -68,11 +68,18 @@ class EvolutionProvider:
             raise DeliveryError(f"evolution api answered {response.status_code}")
         return response
 
-    def send(self, to: str, text: str) -> None:
+    def send(self, to: str, text: str) -> str | None:
+        """The message's id at Evolution (its key), when it gives one. Accepted by Evolution is not delivered: WhatsApp
+        reports delivery and reading to Evolution's webhooks, which this system does not receive."""
         # Evolution expects the international number without "+": +96550000000 -> 96550000000.
         # No link preview: WhatsApp would fetch the activation link to draw it.
         body = {"number": to.lstrip("+"), "text": text, "linkPreview": False}
-        self._call("POST", f"/message/sendText/{self._instance}", json=body)
+        response = self._call("POST", f"/message/sendText/{self._instance}", json=body)
+        try:
+            key = response.json().get("key") or {}
+        except (ValueError, AttributeError):
+            return None
+        return str(key["id"])[:100] if isinstance(key, dict) and key.get("id") else None
 
     def connection_state(self) -> str:
         """ "open" when the WhatsApp session is connected; "close" or "connecting" when it needs attention."""

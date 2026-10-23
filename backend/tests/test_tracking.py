@@ -191,6 +191,44 @@ def test_route_history(admin_client, client, new_client, companies, on_duty):
     assert c.get("/api/v1/tracking/route", params={"custody_id": on_duty["custody"]["id"]}).status_code == 404
 
 
+def test_route_stops_and_gps_gaps(admin_client, client, on_duty):
+    """A stop: standing within 150 m for 5 minutes or more. A GPS gap: nothing sent for longer than the signal loss
+    setting (10 minutes here); the point after it says so, and no stop is counted across it."""
+    t = now() - timedelta(minutes=55)
+    pts, seq = [], 0
+
+    def at(minute, lat, lng=47.9774):
+        nonlocal seq
+        seq += 1
+        pts.append(point(seq, t + timedelta(minutes=minute), lat=lat, lng=lng))
+
+    for m in range(0, 5):  # driving north
+        at(m, 29.30 + m * 0.01)
+    for m in range(5, 13):  # standing (a few metres of GPS noise) where it arrived at minute 4: an 8-minute stop
+        at(m, 29.34 + (m % 2) * 0.0003)
+    at(14, 29.36)
+    at(15, 29.37)
+    # 20 minutes of silence, then the phone is back at the same place for 3 minutes: a gap, not a stop
+    at(35, 29.3702)
+    at(36, 29.3701)
+    at(38, 29.3702)
+    at(40, 29.39)
+    send(client, on_duty["headers"], pts)
+    route = admin_client.get("/api/v1/tracking/route", params={"custody_id": on_duty["custody"]["id"]}).json()
+    assert route["gap_minutes"] == 10
+    assert [(g["minutes"], g["km"] < 0.1) for g in route["gaps"]] == [(20, True)]
+    breaks = [(i, p["break_before"]) for i, p in enumerate(route["points"]) if p["break_before"]]
+    assert breaks == [(15, "signal")]
+    assert [(s["minutes"], s["points"]) for s in route["stops"]] == [(8, 9)]
+    assert abs(route["stops"][0]["lat"] - 29.34) < 0.001
+
+
+def test_the_live_map_knows_when_a_position_is_no_longer_current(admin_client, client, on_duty):
+    send(client, on_duty["headers"], [point(1, now() - timedelta(minutes=25))])
+    row = admin_client.get("/api/v1/tracking/live").json()[0]
+    assert row["signal_loss_minutes"] == 10 and row["signal_lost"] is True and row["position"]["recorded_at"]
+
+
 def test_uat14_signal_loss_alerts_once_per_silence(admin_client, client, on_duty, db):
     from app.modules.tracking import service
 
