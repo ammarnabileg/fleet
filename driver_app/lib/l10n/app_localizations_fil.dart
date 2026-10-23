@@ -56,7 +56,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get phoneLabel => 'Telepono';
 
   @override
-  String get phoneInvalid => '8 digit ng Kuwait, o internasyonal na numero na nagsisimula sa +';
+  String get phoneInvalid =>
+      '8 digit ng Kuwait, o internasyonal na numero na nagsisimula sa +';
 
   @override
   String get sendCode => 'Ipadala ang code';
@@ -99,19 +100,22 @@ class AppLocalizationsFil extends AppLocalizations {
   String get permLocation => 'Lokasyon: “Payagan palagi”';
 
   @override
-  String get permLocationWhy => 'Para makita ng supervisor ang sasakyan habang nasa pangangalaga mo.';
+  String get permLocationWhy =>
+      'Para makita ng supervisor ang sasakyan habang nasa pangangalaga mo.';
 
   @override
   String get permNotifications => 'Mga notification';
 
   @override
-  String get permNotificationsWhy => 'May permanenteng notification habang nagta-track (patakaran ng Android).';
+  String get permNotificationsWhy =>
+      'May permanenteng notification habang nagta-track (patakaran ng Android).';
 
   @override
   String get permBattery => 'Huwag pansinin ang battery optimisation';
 
   @override
-  String get permBatteryWhy => 'Para hindi ihinto ng telepono ang pag-track sa background.';
+  String get permBatteryWhy =>
+      'Para hindi ihinto ng telepono ang pag-track sa background.';
 
   @override
   String get permGrant => 'Payagan';
@@ -123,7 +127,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get permSettings => 'Buksan ang settings';
 
   @override
-  String get permLocationRequired => 'Kailangan ang pahintulot sa lokasyon para magpatuloy.';
+  String get permLocationRequired =>
+      'Kailangan ang pahintulot sa lokasyon para magpatuloy.';
 
   @override
   String get gpsOff => 'Naka-off ang GPS: i-on ito sa settings ng telepono.';
@@ -218,7 +223,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get obWaitingTitle => 'Sinusuri ang mga detalye mo';
 
   @override
-  String get obWaitingText => 'Makakatanggap ka ng mensahe sa WhatsApp kapag naaprubahan o kung may kailangang ayusin.';
+  String get obWaitingText =>
+      'Makakatanggap ka ng mensahe sa WhatsApp kapag naaprubahan o kung may kailangang ayusin.';
 
   @override
   String get refresh => 'I-refresh';
@@ -386,7 +392,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get vehicleChangeReason => 'Dahilan';
 
   @override
-  String get vehicleChangePending => 'Nasa supervisor ang hiling mo para sa ibang sasakyan';
+  String get vehicleChangePending =>
+      'Nasa supervisor ang hiling mo para sa ibang sasakyan';
 
   @override
   String vehicleChangeRejected(Object note) {
@@ -486,7 +493,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get endDayTitle => 'Pagtatapos ng araw';
 
   @override
-  String get odometerIntro => 'Kunan nang malinaw ang odometer, saka i-type ang reading gaya ng nasa litrato.';
+  String get odometerIntro =>
+      'Kunan nang malinaw ang odometer, saka i-type ang reading gaya ng nasa litrato.';
 
   @override
   String get retake => 'Kunan muli';
@@ -624,7 +632,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get signOut => 'Mag-sign out';
 
   @override
-  String get signOutQ => 'Hihinto ang pag-track at kakailanganin mo ng bagong activation para mag-sign in. Magpatuloy?';
+  String get signOutQ =>
+      'Hihinto ang pag-track at kakailanganin mo ng bagong activation para mag-sign in. Magpatuloy?';
 
   @override
   String get blockedTitle => 'Suspendido ang account mo';
@@ -914,16 +923,19 @@ class AppLocalizationsFil extends AppLocalizations {
   }
 
   @override
-  String get statementNoPlatform => 'Hindi pa naitatakda ang platform mo. Kontakin ang opisina.';
+  String get statementNoPlatform =>
+      'Hindi pa naitatakda ang platform mo. Kontakin ang opisina.';
 
   @override
-  String get statementNoMonth => 'Naipadala mo na ang lahat ng bukas na buwan. Hintayin ang pagsusuri ng opisina.';
+  String get statementNoMonth =>
+      'Naipadala mo na ang lahat ng bukas na buwan. Hintayin ang pagsusuri ng opisina.';
 
   @override
   String get statementMonth => 'Buwan';
 
   @override
-  String get statementShots => 'Mga screenshot mula sa platform app (hanggang 6)';
+  String get statementShots =>
+      'Mga screenshot mula sa platform app (hanggang 6)';
 
   @override
   String get statementShotRequired => 'Magdagdag ng kahit isang screenshot';
@@ -981,7 +993,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get iban => 'IBAN';
 
   @override
-  String get ibanHint => 'Dito ipinapasok ang sahod mo: kopyahin ito mula sa app ng bangko mo';
+  String get ibanHint =>
+      'Dito ipinapasok ang sahod mo: kopyahin ito mula sa app ng bangko mo';
 
   @override
   String get bankName => 'Pangalan ng bangko';
@@ -1012,7 +1025,8 @@ class AppLocalizationsFil extends AppLocalizations {
       'Mag-sign in gamit ang civil ID at password mo. Sa unang pagkakataon: ang initial password na ibinigay ng opisina, saka ka pipili ng sarili mong password.';
 
   @override
-  String get forgotPassword => 'Nakalimutan ang password? Humingi sa supervisor mo ng bagong initial password.';
+  String get forgotPassword =>
+      'Nakalimutan ang password? Humingi sa supervisor mo ng bagong initial password.';
 
   @override
   String choosePassword(String name) {
@@ -1032,13 +1046,15 @@ class AppLocalizationsFil extends AppLocalizations {
   String get passwordsDiffer => 'Magkaiba ang dalawang password';
 
   @override
-  String get passwordIsCivilId => 'Huwag gamitin ang civil ID mo bilang password';
+  String get passwordIsCivilId =>
+      'Huwag gamitin ang civil ID mo bilang password';
 
   @override
   String get saveAndSignIn => 'I-save at mag-sign in';
 
   @override
-  String get validDayQuestion => 'Binilang ba ng app ng platform na valid ang araw na ito?';
+  String get validDayQuestion =>
+      'Binilang ba ng app ng platform na valid ang araw na ito?';
 
   @override
   String get validDayYes => 'Valid na araw';
@@ -1108,7 +1124,8 @@ class AppLocalizationsFil extends AppLocalizations {
   }
 
   @override
-  String get schemeBatchRates => 'Presyo bawat order ayon sa batch level ng buwan:';
+  String get schemeBatchRates =>
+      'Presyo bawat order ayon sa batch level ng buwan:';
 
   @override
   String schemeBatchRow(String level, String rate) {
@@ -1129,7 +1146,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get schemeReducedLoses => 'Walang tier bonus ang buwang may bawas';
 
   @override
-  String get schemeTiers => 'Tier bonus (ang pinakamataas na tier lang na naabot mo):';
+  String get schemeTiers =>
+      'Tier bonus (ang pinakamataas na tier lang na naabot mo):';
 
   @override
   String schemeTierRow(String orders, String amount) {
@@ -1155,7 +1173,8 @@ class AppLocalizationsFil extends AppLocalizations {
   }
 
   @override
-  String get schemeNoMissing => 'Walang kaltas para sa mga order na kulang sa target';
+  String get schemeNoMissing =>
+      'Walang kaltas para sa mga order na kulang sa target';
 
   @override
   String schemeCovers(String items) {
@@ -1163,10 +1182,12 @@ class AppLocalizationsFil extends AppLocalizations {
   }
 
   @override
-  String get schemeCoversNone => 'Ikaw ang nagbabayad ng gastos: maintenance, tirahan, gas at SIM';
+  String get schemeCoversNone =>
+      'Ikaw ang nagbabayad ng gastos: maintenance, tirahan, gas at SIM';
 
   @override
-  String get schemePlatformRates => 'Sariling patakaran ng platform: basic na sahod at mga rate ng kumpanya';
+  String get schemePlatformRates =>
+      'Sariling patakaran ng platform: basic na sahod at mga rate ng kumpanya';
 
   @override
   String get expense_maintenance => 'maintenance';
@@ -1299,7 +1320,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get dayNotStarted => 'Hindi mo pa sinisimulan ang araw mo';
 
   @override
-  String get dayNotStartedHint => 'Magsimula sa litrato ng odometer gamit ang camera';
+  String get dayNotStartedHint =>
+      'Magsimula sa litrato ng odometer gamit ang camera';
 
   @override
   String dayStartedAt(String time) {
@@ -1385,7 +1407,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get workReportDue => 'Hindi pa naipadala ang report ngayong araw';
 
   @override
-  String get workReportDueHint => 'Ipadala ang mga order at cash gaya ng nasa app ng platform';
+  String get workReportDueHint =>
+      'Ipadala ang mga order at cash gaya ng nasa app ng platform';
 
   @override
   String get sendDailyReport => 'Ipadala ang pang-araw-araw na report';
@@ -1440,7 +1463,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get accSend => 'Ipadala ang report';
 
   @override
-  String get workReportQueued => 'Naka-save sa telepono ang report ngayong araw';
+  String get workReportQueued =>
+      'Naka-save sa telepono ang report ngayong araw';
 
   @override
   String get reportQueuedForDay =>
@@ -1452,7 +1476,8 @@ class AppLocalizationsFil extends AppLocalizations {
   }
 
   @override
-  String get workReportDueHintDays => 'Ipadala ang mga order at kung binilang na valid ang araw';
+  String get workReportDueHintDays =>
+      'Ipadala ang mga order at kung binilang na valid ang araw';
 
   @override
   String get qaReportSubDays => 'Mga order ngayong araw at valid na araw';
@@ -1486,7 +1511,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get fuelAmount => 'Halagang binayaran';
 
   @override
-  String get fuelAmountInvalid => 'Ilagay ang halaga sa KWD, hanggang 3 decimal';
+  String get fuelAmountInvalid =>
+      'Ilagay ang halaga sa KWD, hanggang 3 decimal';
 
   @override
   String fuelAmountMax(String max) {
@@ -1566,7 +1592,8 @@ class AppLocalizationsFil extends AppLocalizations {
       'Kunan ang odometer gamit ang camera at ilagay ang reading. Mapupunta sa opisina ang request; kapag naaprubahan, sa iyo na ang kotse mula sa oras ng litrato.';
 
   @override
-  String get claimConditionPhotos => 'Mga litrato ng kondisyon ng kotse (opsyonal)';
+  String get claimConditionPhotos =>
+      'Mga litrato ng kondisyon ng kotse (opsyonal)';
 
   @override
   String get claimSend => 'Ipadala sa opisina';
@@ -1585,7 +1612,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get kind_vehicle_claim => 'Pagrehistro ng kotse';
 
   @override
-  String get mntNoCenter => 'Walang available na maintenance center: tawagan ang opisina';
+  String get mntNoCenter =>
+      'Walang available na maintenance center: tawagan ang opisina';
 
   @override
   String mntInMaintenance(String center) {
@@ -1632,7 +1660,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get objectionReason => 'Bakit ka tumututol';
 
   @override
-  String get objectionReasonShort => 'Isulat ang dahilan (hindi bababa sa 3 titik)';
+  String get objectionReasonShort =>
+      'Isulat ang dahilan (hindi bababa sa 3 titik)';
 
   @override
   String get objectionFile => 'Litratong nagpapakita nito (opsyonal)';
@@ -1647,7 +1676,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get objectionSent => 'Naipadala ang pagtutol mo; sasagot ang opisina';
 
   @override
-  String get objectionQueued => 'Ipapadala ang pagtutol mo kapag bumalik ang koneksyon';
+  String get objectionQueued =>
+      'Ipapadala ang pagtutol mo kapag bumalik ang koneksyon';
 
   @override
   String get myObjections => 'Mga pagtutol ko';
@@ -1698,13 +1728,15 @@ class AppLocalizationsFil extends AppLocalizations {
       'Ibabalik mo ito kapag kinuha mo ang kotse mo: kunan ang odometer nito at ilagay ang reading.';
 
   @override
-  String get pickupReplacementPhoto => 'Litrato ng odometer ng pamalit na kotse';
+  String get pickupReplacementPhoto =>
+      'Litrato ng odometer ng pamalit na kotse';
 
   @override
   String get fuelLitres => 'Litro (opsyonal)';
 
   @override
-  String get fuelLitresInvalid => 'Ilagay ang litro gaya ng nasa resibo (hanggang 500)';
+  String get fuelLitresInvalid =>
+      'Ilagay ang litro gaya ng nasa resibo (hanggang 500)';
 
   @override
   String get fuelLitresUnit => 'L';
@@ -1732,7 +1764,8 @@ class AppLocalizationsFil extends AppLocalizations {
   String get startFailedTitle => 'Hindi nakapagsimula ang app';
 
   @override
-  String get startFailedBody => 'May nangyaring mali habang naglo-load. Suriin ang koneksyon at subukan muli.';
+  String get startFailedBody =>
+      'May nangyaring mali habang naglo-load. Suriin ang koneksyon at subukan muli.';
 
   @override
   String get activationReplaceTitle => 'Palitan ang naka-sign in na driver?';
@@ -1764,7 +1797,8 @@ class AppLocalizationsFil extends AppLocalizations {
   }
 
   @override
-  String get noticeBigStaleNever => 'Wala pang naipadalang lokasyon. Buksan ang app at suriin ang settings ng lokasyon';
+  String get noticeBigStaleNever =>
+      'Wala pang naipadalang lokasyon. Buksan ang app at suriin ang settings ng lokasyon';
 
   @override
   String get noticeBigOff => 'Hindi tina-track ang lokasyon mo ngayon';

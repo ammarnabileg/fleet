@@ -181,7 +181,7 @@ class _DriverAppState extends State<DriverApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Driver',
+      title: 'Ajwad Driver',
       debugShowCheckedModeBanner: false,
       theme: _theme,
       locale: Locale(widget.state.lang),
