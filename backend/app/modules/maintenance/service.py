@@ -302,7 +302,10 @@ def _durations(events: list[RequestEvent], now: datetime) -> list[dict]:
             continue
         if e.status in HISTORY:
             break
-        end = events[i + 1].at if i + 1 < len(events) else None
+        if out and out[-1]["status"] == e.status:
+            continue  # a note on the same status (a replacement car, a new date): still the same stay
+        nxt = next((x for x in events[i + 1 :] if x.status != e.status), None)
+        end = nxt.at if nxt else None
         out.append(
             {
                 "status": e.status,
