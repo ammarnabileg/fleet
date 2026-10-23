@@ -221,7 +221,7 @@
         row: changeRow,
         actions: [
           { label: 'موافقة', cls: 'btn-primary', title: 'الموافقة على تغيير السيارة', message: 'يُبلَّغ السائق بالموافقة، ويبقى الطلب «بانتظار التسليم» حتى تُسلَّم له السيارة المطلوبة من هنا (تسليم أو نقل عهدة).', done: 'تمت الموافقة — بانتظار التسليم', run: function (x) { return api.post('/vehicle-change-requests/' + x.id + '/approve', {}); } },
-          rejectAction, closeAction
+          rejectAction
         ],
         after: function () { changesAfter(); A.pendingBox(document.getElementById('cus-approved'), approvedBox); }
       });

@@ -309,8 +309,7 @@
         return h`<div class="kpis">
             ${BT.kpi({ label: 'مستحق للشركة على السائقين', value: fmt.money(T.owed_by_drivers), sub: fmt.int(T.drivers_owing) + ' سائق · غير معتمد منه ' + fmt.money(T.pending), dot: 'o' })}
             ${BT.kpi({ label: 'أرصدة دائنة للسائقين', value: fmt.money(T.owed_to_drivers), sub: fmt.int(T.drivers_owed) + ' سائق · تحتاج تسوية · الصافي ' + fmt.money(T.net), dot: 'b', tone: T.drivers_owed ? 'warning' : null })}
-            ${BT.kpi({ label: 'معهم أكثر من 7 أيام', value: fmt.money(T.d8_plus), dot: 'r', tone: Number(T.d8_plus) ? 'danger' : null })}
-            ${BT.kpi({ label: '4–7 أيام', value: fmt.money(T.d4_7), dot: 'o' })}
+            ${BT.kpi({ label: 'معهم أكثر من 7 أيام', value: fmt.money(T.d8_plus), sub: '4–7 أيام ' + fmt.money(T.d4_7), dot: 'r', tone: Number(T.d8_plus) ? 'danger' : null })}
             ${BT.kpi({ label: 'حُصّل بإيصالات في الفترة', value: fmt.money(collected), dot: 'g' })}
           </div>
           <div class="section-t mt-12">أرصدة السائقين وأعمارها (اليوم ${fmt.date(d.as_of)})</div><div data-aging></div>
