@@ -29,6 +29,10 @@ ALTER TABLE notifications.alerts
     ADD COLUMN escalated_at    timestamptz,
     ADD COLUMN escalated_by    bigint;
 
+-- the old indexes count an automatically closed alert as open once acknowledged_at is cleared below
+DROP INDEX notifications.alerts_dedupe_key_idx;
+DROP INDEX notifications.alerts_open_idx;
+
 UPDATE notifications.alerts
    SET resolved_at = acknowledged_at,
        resolved_by = acknowledged_by,
@@ -40,8 +44,6 @@ UPDATE notifications.alerts SET acknowledged_at = NULL WHERE acknowledged_at IS 
 ALTER TABLE notifications.alerts ADD CONSTRAINT alerts_resolved_check CHECK ((resolved_at IS NULL) = (resolution IS NULL));
 
 -- one open alert per situation: open now means not handled
-DROP INDEX notifications.alerts_dedupe_key_idx;
-DROP INDEX notifications.alerts_open_idx;
 CREATE UNIQUE INDEX alerts_dedupe_key_idx ON notifications.alerts (dedupe_key) WHERE resolved_at IS NULL;
 CREATE INDEX alerts_open_idx ON notifications.alerts (created_at) WHERE resolved_at IS NULL;
 CREATE INDEX alerts_assigned_to_idx ON notifications.alerts (assigned_to) WHERE resolved_at IS NULL;
