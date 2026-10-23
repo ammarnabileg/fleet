@@ -350,12 +350,13 @@ class Avatar extends StatelessWidget {
   final double size;
 
   static const _colors = [
-    Color(0xFF0A84FF),
-    Color(0xFF7C4DFF),
-    Color(0xFF28A745),
-    Color(0xFFFF9F0A),
-    Color(0xFFE0457B),
-    Color(0xFF14A3A3),
+    // white initials on each ≥ 4.5:1 (as on the panel)
+    Color(0xFF0A6CFF),
+    Color(0xFF6A3DF0),
+    Color(0xFF1E7F36),
+    Color(0xFFB85C00),
+    Color(0xFFC2185B),
+    Color(0xFF0E7C7B),
   ];
 
   @override

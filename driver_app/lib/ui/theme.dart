@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 /// The driver app's identity, from its design (web/public/driver.html: assets/css/tokens.css, driver.css).
-/// success, warning and danger are the readable text shades; the bright fills are their *Fill.
+/// success, warning and danger are the readable text shades; *Fill the solid colours (white text on them ≥ 4.5:1,
+/// warningFill only behind no text). Every text colour here reads ≥ 4.5:1 on the light surfaces (WCAG AA), as on the
+/// panel (tokens.css); faint is for icons only (≥ 3:1).
 class AppColors {
-  static const primary = Color(0xFF0A84FF);
-  static const primaryStrong = Color(0xFF0A6CFF);
+  static const primary = Color(0xFF0A6CFF);
+  static const primaryStrong = Color(0xFF0058D0);
   static const primarySoft = Color(0xFFE4EEFF);
   static const primarySofter = Color(0xFFF1F6FF);
   static const bg = Color(0xFFF7F9FC);
@@ -13,20 +15,21 @@ class AppColors {
   static const sunken = Color(0xFFF4F7FB);
   static const text = Color(0xFF0B1F3A);
   static const text2 = Color(0xFF3A4254);
-  static const text3 = Color(0xFF6B7385);
-  static const muted = Color(0xFF8A93A6);
-  static const faint = Color(0xFF9AA3B5);
+  static const text3 = Color(0xFF525B6D);
+  static const muted = Color(0xFF5F6879);
+  static const faint = Color(0xFF8790A3);
   static const border = Color(0xFFECEFF4);
   static const borderStrong = Color(0xFFDCE2EC);
+  static const controlBorder = Color(0xFF8A93A6); // a field's outline: ≥ 3:1 so the field is seen
   static const divider = Color(0xFFF2F4F8);
-  static const success = Color(0xFF1E8E3E);
-  static const successFill = Color(0xFF28A745);
+  static const success = Color(0xFF177A35);
+  static const successFill = Color(0xFF1E7F36);
   static const successSoft = Color(0xFFE2F5E7);
-  static const warning = Color(0xFFB85F00);
-  static const warningFill = Color(0xFFFF9F0A);
+  static const warning = Color(0xFF9A4D00);
+  static const warningFill = Color(0xFFD97A00);
   static const warningSoft = Color(0xFFFFF0DA);
-  static const danger = Color(0xFFD12F2F);
-  static const dangerFill = Color(0xFFFF3B30);
+  static const danger = Color(0xFFB8261F);
+  static const dangerFill = Color(0xFFD02B20);
   static const dangerSoft = Color(0xFFFDE6E6);
   static const info = Color(0xFF1A5FD0);
   static const infoSoft = Color(0xFFE5EFFF);
@@ -97,15 +100,15 @@ ThemeData appTheme() {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: AppColors.surface,
-      border: field(AppColors.borderStrong),
-      enabledBorder: field(AppColors.borderStrong),
+      border: field(AppColors.controlBorder),
+      enabledBorder: field(AppColors.controlBorder),
       focusedBorder: field(AppColors.primary, 1.5),
       errorBorder: field(AppColors.danger),
       focusedErrorBorder: field(AppColors.danger, 1.5),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       labelStyle: const TextStyle(color: AppColors.text3),
       floatingLabelStyle: const TextStyle(color: AppColors.primaryStrong, fontWeight: FontWeight.w600),
-      hintStyle: const TextStyle(color: AppColors.faint),
+      hintStyle: const TextStyle(color: AppColors.muted),
       helperStyle: const TextStyle(color: AppColors.muted, fontSize: 11.5),
       errorStyle: const TextStyle(color: AppColors.danger, fontSize: 11.5),
     ),
@@ -179,7 +182,7 @@ ThemeData appTheme() {
     ),
     switchTheme: SwitchThemeData(
       trackColor: WidgetStateProperty.resolveWith(
-        (s) => s.contains(WidgetState.selected) ? AppColors.successFill : AppColors.borderStrong,
+        (s) => s.contains(WidgetState.selected) ? AppColors.successFill : AppColors.controlBorder,
       ),
       thumbColor: const WidgetStatePropertyAll(Colors.white),
       trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),

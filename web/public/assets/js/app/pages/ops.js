@@ -191,7 +191,7 @@
       if (t === 'fuel') fuelPanel(document.getElementById('fuel-panel'));
       if (t === 'petty') pettyPanel(document.getElementById('petty-panel'));
     }
-    v.addEventListener('bt:tab', function (e) { show(e.detail); });
+    v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/cash?tab=' + e.detail); });
     show(tab);
     if (q.tab === 'receipts' && api.can('cash.collect')) A.receipt(null);
   };

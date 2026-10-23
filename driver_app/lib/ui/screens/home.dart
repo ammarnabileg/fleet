@@ -151,38 +151,49 @@ class _Bell extends StatelessWidget {
       key: const Key('notifications'),
       customBorder: const CircleBorder(),
       onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          shape: BoxShape.circle,
-          boxShadow: AppColors.shadowXs,
-        ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            const Center(child: Icon(Icons.notifications_none_rounded, size: 21, color: AppColors.text2)),
-            if (unread > 0)
-              Positioned(
-                top: -3,
-                right: -3,
-                child: Container(
-                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.dangerFill,
-                    borderRadius: BorderRadius.circular(9),
-                    border: Border.all(color: Colors.white, width: 2),
+      // the tap target is 48 (Material's minimum); the round button drawn in it stays 38
+      child: SizedBox.square(
+        dimension: 48,
+        child: Center(
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: const BoxDecoration(
+              color: AppColors.surface,
+              shape: BoxShape.circle,
+              boxShadow: AppColors.shadowXs,
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Center(child: Icon(Icons.notifications_none_rounded, size: 21, color: AppColors.text2)),
+                if (unread > 0)
+                  Positioned(
+                    top: -3,
+                    right: -3,
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.dangerFill,
+                        borderRadius: BorderRadius.circular(9),
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '$unread',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
                   ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '$unread',
-                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700, height: 1.2),
-                  ),
-                ),
-              ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     ),
