@@ -1,4 +1,4 @@
-package com.brillianttech.fleet.driver
+package com.brillent.fleet.ajwad
 
 import android.content.ActivityNotFoundException
 import android.content.Intent

@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.brillianttech.fleet.driver"
+    namespace = "com.brillent.fleet.ajwad"
     // permission_handler_android 14 is compiled against Android 37 and requires the app to be too
     // (compileSdk only; targetSdk, the runtime behaviour, stays Flutter's)
     compileSdk = maxOf(flutter.compileSdkVersion, 37)
@@ -21,7 +21,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.brillianttech.fleet.driver"
+        applicationId = "com.brillent.fleet.ajwad"
         minSdk = 24
         // the server the activation links point to: -PactivationHost=fleet.example.com (must match API_URL)
         manifestPlaceholders["activationHost"] = (project.findProperty("activationHost") as String?) ?: "fleet.example.com"
