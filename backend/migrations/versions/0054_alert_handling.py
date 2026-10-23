@@ -7,13 +7,13 @@ Before this, acknowledging closed the alert: the alerts closed so far are kept a
 them (or automatically when nobody did).
 
 Revision ID: 0054_alert_handling
-Revises: 0051_scheme_blocks
+Revises: 0053_data_indexes
 """
 
 from alembic import op
 
 revision = "0054_alert_handling"
-down_revision = "0051_scheme_blocks"
+down_revision = "0053_data_indexes"
 branch_labels = None
 depends_on = None
 
