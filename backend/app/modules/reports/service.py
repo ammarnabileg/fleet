@@ -248,7 +248,7 @@ def dashboard(
 
     visible = Alert.permission.in_(list(permissions))
     alert_scope = literal(True) if all_companies else or_(Alert.company_id.is_(None), Alert.company_id.in_(company_ids))
-    open_alerts = (visible, alert_scope, Alert.acknowledged_at.is_(None))
+    open_alerts = (visible, alert_scope, Alert.resolved_at.is_(None))  # not handled yet
     rows = db.execute(select(Alert.severity, func.count()).where(*open_alerts).group_by(Alert.severity)).all()
     out["alerts"] = {"critical": 0, "warning": 0, "info": 0} | dict(rows)
     out["alerts_oldest"] = db.scalar(select(func.min(Alert.created_at)).where(*open_alerts))

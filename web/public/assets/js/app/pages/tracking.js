@@ -129,37 +129,171 @@
     v.querySelector('[data-range]').addEventListener('submit', function (e) { e.preventDefault(); var x = BT.form.values(e.target); load(x.start, x.end); });
   }
 
-  /* ================= التنبيهات ================= */
+  /* ================= التنبيهات =================
+     نص التنبيه = ما حدث وقت إنشائه (لا يتغير)، والحالة الآن تُحسب على الشاشة من الأوقات: كم بقي على انتهاء المستند
+     اليوم، منذ متى انقطعت الإشارة، من اطّلع ومن أُسند إليه ومتى عولج. «تم الاطلاع» لا يغلق التنبيه: يبقى مفتوحاً حتى
+     يزول سببه (يُغلق تلقائياً) أو يُسجَّل ما فُعل به. */
+  var SEV_ICON = { critical: 'siren', warning: 'triangle-alert', info: 'info' };
+  var STATUS_PILL = { 'new': ['جديد', 'b'], seen: ['اطُّلع عليه', 'o'], resolved: ['عولج', 'g'] };
+  A.alertKind = function (k) { return api.t('alert_kind', k); };
+  A.alertStatusPill = function (a) {
+    if (a.status === 'resolved') return BT.pill(a.resolution === 'auto' ? 'أُغلق تلقائياً' : 'عولج', 'g');
+    var p = STATUS_PILL[a.status] || ['—', 'n'];
+    return h`${BT.pill(p[0], p[1])}${a.escalated_at ? h` ${BT.pill('مُصعّد', 'r')}` : ''}`;
+  };
+  function secs(iso) { return Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000)); }
+  /* ما هو صحيح الآن، بجانب ما قاله التنبيه وقت إنشائه */
+  // brief: only what the text does not already say (the dashboard's list shows the time beside it)
+  A.alertNow = function (a, brief) {
+    var p = a.params || {};
+    if (a.status === 'resolved') {
+      return a.resolution === 'auto'
+        ? h`زال السبب فأُغلق تلقائياً ${fmt.agoEl(a.resolved_at)}`
+        : h`عالجه ${a.resolved_by ? a.resolved_by.name : '—'} ${fmt.agoEl(a.resolved_at)}${a.resolution_note ? h`: «${a.resolution_note}»` : ''}`;
+    }
+    if ((a.kind === 'document_expiring' || a.kind === 'document_expired') && p.date) {
+      var n = BT.date.daysLeft(p.date);
+      return h`الآن: ${BT.pill(fmt.daysLabel(n), n < 0 ? 'r' : n <= 15 ? 'o' : 'b')}`;
+    }
+    if (a.kind === 'signal_lost' && p.minutes != null) { // still open: no point has come since (a point closes it)
+      var since = new Date(new Date(a.created_at).getTime() - p.minutes * 60000).toISOString();
+      return h`لا موقع حتى الآن منذ ${fmt.time(since)} (${fmt.span(secs(since))})`;
+    }
+    if (a.updated_at) return h`آخر تحديث لأرقامه ${fmt.agoEl(a.updated_at)}`;
+    return brief ? '' : h`مفتوح منذ ${fmt.span(secs(a.created_at))}`;
+  };
+  function who(a) {
+    var bits = [];
+    if (a.assigned_to) bits.push(h`${icon('user-round', 12)} ${a.assigned_to.name}`);
+    if (a.acknowledged_by && a.status !== 'new') bits.push(h`${icon('eye', 12)} ${a.acknowledged_by.name}`);
+    return bits.length ? h`<span class="sub">${bits.map(function (b, i) { return h`${i ? ' · ' : ''}${b}`; })}</span>` : '';
+  }
+
   BT.pages['alerts'] = function (p, q) {
     A.setTitle('التنبيهات');
     var v = A.view();
-    BT.render(v, h`${A.head('التنبيهات', 'تظهر لك تنبيهات الصلاحيات التي تملكها فقط، ضمن شركاتك. «تم الاطلاع» يسجّل اسمك ووقتك في سجل التدقيق', '')}<div class="card"><div id="alerts-table"></div></div>`);
-    var cursors = [null], open = true;
+    var f = { severity: q.severity || '', kind: q.kind || '', sort: 'severity', since: '', until: '' };
+    var kinds = Object.keys(api.cat.alert_kind || {}).sort(function (x, y) { return A.alertKind(x).localeCompare(A.alertKind(y), 'ar'); });
+    BT.render(v, h`${A.head('التنبيهات', 'تظهر لك تنبيهات صلاحياتك وشركاتك فقط. «تم الاطلاع» يسجّل أنك رأيته ويبقى مفتوحاً حتى يُعالج أو يزول سببه؛ كل إجراء يُحفظ في سجل التنبيه وسجل التدقيق. الأوقات بتوقيت الكويت', '')}
+      <div class="kpis alerts-kpis" data-alert-counts></div>
+      <div class="card"><div id="alerts-table"></div></div>`);
+    var countsEl = v.querySelector('[data-alert-counts]');
+    function counts() {
+      api.get('/alerts/summary').then(function (s) {
+        if (!document.contains(countsEl)) return;
+        BT.render(countsEl, h`${BT.kpi({ label: 'مفتوحة', value: fmt.int(s.open), sub: fmt.int(s.critical) + ' حرجة · ' + fmt.int(s.warning) + ' تحذير · ' + fmt.int(s.info) + ' معلومة', dot: 'o', action: 'alerts-chip', arg: 'open' })}
+          ${BT.kpi({ label: 'لم يطّلع عليها أحد', value: fmt.int(s['new']), sub: 'تظهر في الجرس', dot: 'b', tone: s['new'] ? 'warning' : null, action: 'alerts-chip', arg: 'new' })}
+          ${BT.kpi({ label: 'مسندة إليك', value: fmt.int(s.mine), sub: 'مفتوحة وأنت المسؤول عنها', dot: 'p', action: 'alerts-chip', arg: 'mine' })}
+          ${BT.kpi({ label: 'حرجة مفتوحة', value: fmt.int(s.critical), sub: 'الأخطر أولاً في القائمة', dot: 'r', tone: s.critical ? 'danger' : null, action: 'alerts-severity', arg: 'critical' })}`);
+      }, function () {});
+    }
+    var sel = function (key, label, all, options) { return h`<select class="select" data-f="${key}" aria-label="${label}"><option value="">${all}</option>${options.map(function (o) { return h`<option value="${o[0]}"${String(o[0]) === f[key] ? raw(' selected') : ''}>${o[1]}</option>`; })}</select>`; };
     var t = BT.table(document.getElementById('alerts-table'), {
+      key: 'alerts',
       fetch: function (s) {
-        var page = Math.round(s.offset / (s.limit - 1));
-        if (open !== (s.chip !== 'closed')) { open = s.chip !== 'closed'; cursors = [null]; page = 0; }
-        if (page === 0) cursors = [null];
-        return api.get('/alerts', { open: open, limit: s.limit, before: cursors[page] }).then(function (rows) {
-          if (rows.length >= s.limit) cursors[page + 1] = rows[s.limit - 2].created_at;
-          return rows;
-        });
+        var query = { status: s.chip === 'mine' ? 'open' : s.chip, assigned: s.chip === 'mine' ? 'me' : null, q: s.q, severity: f.severity, kind: f.kind, sort: f.sort, offset: s.offset, limit: s.limit };
+        if (f.since) query.since = f.since + 'T00:00:00+03:00';
+        if (f.until) query.until = BT.date.add(f.until, 1) + 'T00:00:00+03:00';
+        return api.get('/alerts', query);
       },
-      chips: { value: 'open', all: false, options: [{ v: 'open', t: 'المفتوحة' }, { v: 'closed', t: 'كل التنبيهات' }] },
+      search: { placeholder: 'اسم، لوحة، رقم، أو كلمة من نص التنبيه…' },
+      chips: { value: q.status || 'open', all: false, options: [{ v: 'open', t: 'المفتوحة' }, { v: 'new', t: 'لم يُطّلع عليها' }, { v: 'mine', t: 'المسندة إليّ' }, { v: 'resolved', t: 'عولجت' }, { v: 'all', t: 'الكل' }] },
+      tools: h`${sel('severity', 'الخطورة', 'كل الدرجات', [['critical', 'حرج'], ['warning', 'تحذير'], ['info', 'معلومة']])}
+        ${sel('kind', 'النوع', 'كل الأنواع', kinds.map(function (k) { return [k, A.alertKind(k)]; }))}
+        <select class="select" data-f="sort" aria-label="الترتيب"><option value="severity">الأخطر أولاً</option><option value="newest">الأحدث أولاً</option></select>
+        <label class="t-date"><span>من</span><input class="input" type="date" data-f="since" aria-label="من تاريخ"></label>
+        <label class="t-date"><span>إلى</span><input class="input" type="date" data-f="until" aria-label="إلى تاريخ"></label>`,
+      openLabel: 'التفاصيل',
       columns: [
-        { key: 'severity', label: 'الخطورة', render: function (a) { return A.pill('severity', a.severity); } },
-        { key: 'message', label: 'التنبيه', render: function (a) { return h`<span style="white-space:normal">${a.message}</span>`; } },
-        { key: 'created_at', label: 'الوقت', render: function (a) { return h`${fmt.dt(a.created_at)}<span class="sub">${fmt.since(a.created_at)}</span>`; } },
+        { key: 'severity', label: 'الخطورة', fixed: true, render: function (a) { return A.pill('severity', a.severity); } },
+        { key: 'message', label: 'التنبيه (وقت حدوثه)', fixed: true, render: function (a) { return h`<span class="alert-msg">${a.message}</span><span class="sub">${A.alertKind(a.kind)}</span>`; } },
+        { key: 'created_at', label: 'وقت الحدث', render: function (a) { return h`<span class="num" title="${fmt.dtKw(a.created_at)}">${fmt.dt(a.created_at)}</span><span class="sub">${fmt.agoEl(a.created_at)}</span>`; } },
+        { key: 'now', label: 'الحالة الآن', render: function (a) { return h`<div class="alert-now">${A.alertStatusPill(a)}<span class="sub">${A.alertNow(a)}</span>${who(a)}</div>`; } },
         { key: 'company', label: 'الشركة', render: function (a) { return a.company_id ? api.company(a.company_id) : '—'; } },
-        { key: 'open', label: '', render: function (a) { return A.alertButton(a, !open); } },
-        { key: 'ack', label: '', render: function (a) { return a.acknowledged_at ? h`<span class="muted fs-sm">${icon('check', 13)} ${fmt.dt(a.acknowledged_at)}</span>` : h`<button type="button" class="btn btn-sm btn-soft" data-ack="${a.id}">${icon('check', 13)} تم الاطلاع</button>`; } }
+        { key: 'record', label: 'السجل', render: function (a) { return h`${A.alertButton(a, a.status === 'resolved')}${a.status === 'new' ? h` <button type="button" class="btn btn-sm btn-soft" data-ack="${a.id}">${icon('eye', 13)} تم الاطلاع</button>` : ''}`; } }
       ],
-      empty: { icon: 'circle-check', title: 'لا توجد تنبيهات' }
+      rowClass: function (a) { return a.status === 'new' ? 'alert-new' : ''; },
+      rowClick: function (a) { A.alertDrawer(a.id); },
+      empty: { icon: 'circle-check', title: 'لا توجد تنبيهات هنا' }
     });
-    A._alertsTable = t; // redrawn in place after a decision taken from one of its alerts
+    A._alertsTable = { refresh: function () { t.refresh(); counts(); } }; // redrawn in place after a decision or a new alert
+    counts();
+    var tableEl = document.getElementById('alerts-table');
+    BT.on(tableEl, 'change', '[data-f]', function (e, s) { f[s.getAttribute('data-f')] = s.value; t.refresh(); });
     BT.on(v, 'click', '[data-ack]', function (e, b) {
       b.disabled = true;
-      api.post('/alerts/' + b.getAttribute('data-ack') + '/ack').then(function () { BT.toast('تم تسجيل الاطلاع'); t.refresh(); A.refreshCounts(); }, function (err) { b.disabled = false; BT.toast(api.message(err), { type: 'error' }); });
+      api.post('/alerts/' + b.getAttribute('data-ack') + '/ack').then(function () { BT.toast('تم تسجيل الاطلاع، ويبقى مفتوحاً حتى يُعالج'); A._alertsTable.refresh(); A.refreshCounts(); }, function (err) { b.disabled = false; BT.toast(api.message(err), { type: 'error' }); });
     });
+    BT.actions['alerts-chip'] = function (c) { t.setChip(c); };
+    BT.actions['alerts-severity'] = function (s) { var x = tableEl.querySelector('[data-f=severity]'); x.value = s; f.severity = s; t.setChip('open'); };
   };
+
+  /* تفاصيل التنبيه: ما قاله وقت إنشائه، الحالة الآن، من أُسند إليه، وسجل ما فُعل به؛ والإجراءات */
+  A.alertDrawer = function (id) {
+    var dlg = BT.drawer.open({ title: 'تنبيه', icon: 'bell', size: 'lg', body: A.spinner(), buttons: [{ label: 'إغلاق', cls: 'btn-secondary' }] });
+    var a = null; // the alert as last loaded; the buttons act on it (one listener, the body redrawn under it)
+    function after() { A.refreshCounts(); if (A._alertsTable) A._alertsTable.refresh(); load(); }
+    BT.on(dlg.body, 'click', '[data-x]', function (e, b) {
+      var x = b.getAttribute('data-x');
+      if (!a) return;
+      if (x === 'ack') { b.disabled = true; api.post('/alerts/' + a.id + '/ack').then(function () { BT.toast('تم تسجيل الاطلاع'); after(); }, function (err) { b.disabled = false; BT.toast(api.message(err), { type: 'error' }); }); }
+      if (x === 'resolve') A.confirmRun({ title: 'تمت المعالجة', message: 'يُغلق التنبيه ويُحفظ ما فعلته باسمك ووقتك في سجله وسجل التدقيق.', confirmText: 'إغلاق التنبيه', tone: 'success', reason: { label: 'ماذا فُعل؟', placeholder: 'مثال: اتصلنا بالسائق وأعاد تشغيل الـ GPS' }, run: function (note) { return api.post('/alerts/' + a.id + '/resolve', { note: note }); }, done: 'أُغلق التنبيه', after: after });
+      if (x === 'assign' || x === 'escalate') pickHandler(a, x === 'escalate', after);
+    });
+    function load() {
+      api.get('/alerts/' + id).then(function (loaded) {
+        a = loaded;
+        var open = a.status !== 'resolved';
+        var log = [{ at: a.created_at, icon: SEV_ICON[a.severity], t: 'أُنشئ التنبيه', d: a.message }];
+        if (a.updated_at) log.push({ at: a.updated_at, icon: 'refresh-cw', t: 'تحدّثت أرقامه', d: 'النص أعلاه بأحدث الأرقام' });
+        a.events.forEach(function (e) {
+          var t = { acknowledged: 'تم الاطلاع', assigned: 'أُسند إلى ' + (e.user ? e.user.name : '—'), unassigned: 'أُلغي الإسناد', escalated: 'صُعّد إلى ' + (e.user ? e.user.name : '—'), resolved: 'عولج وأُغلق' }[e.action] || e.action;
+          log.push({ at: e.at, icon: { acknowledged: 'eye', assigned: 'user-round', unassigned: 'user-round', escalated: 'trending-up', resolved: 'circle-check' }[e.action] || 'history', t: t, by: e.by, d: e.note });
+        });
+        if (a.resolution === 'auto') log.push({ at: a.resolved_at, icon: 'circle-check', t: 'زال السبب فأُغلق تلقائياً' });
+        log.sort(function (x, y) { return new Date(x.at) - new Date(y.at); });
+        var target = A.alertTarget(a);
+        dlg.setBody(h`<div class="alert-detail" data-alert="${a.id}">
+          <div class="banner ${{ critical: 'danger', warning: 'warn', info: 'info' }[a.severity]} mb-12">${icon(SEV_ICON[a.severity], 16)}<div><b>${a.message}</b><div class="fs-sm mt-4">النص كما كان وقت إنشاء التنبيه${a.updated_at ? ' (بأرقام آخر تحديث)' : ''}</div></div></div>
+          ${BT.kv([
+            ['النوع', A.alertKind(a.kind)],
+            ['الخطورة', A.pill('severity', a.severity)],
+            ['وقت الحدث', h`<span class="num">${fmt.dtKw(a.created_at)}</span> · ${fmt.agoEl(a.created_at)}`],
+            ['الحالة الآن', h`${A.alertStatusPill(a)} <span class="fs-sm">${A.alertNow(a)}</span>`],
+            ['المسؤول عن المعالجة', a.assigned_to ? h`${a.assigned_to.name} <span class="muted fs-sm">منذ ${fmt.time(a.assigned_at)}</span>` : h`<span class="muted">لم يُسند لأحد</span>`],
+            a.escalated_at ? ['التصعيد', h`${a.escalated_by ? a.escalated_by.name : '—'} · <span class="num">${fmt.dtKw(a.escalated_at)}</span>`] : null,
+            ['الشركة', a.company_id ? api.company(a.company_id) : 'كل الشركات']
+          ].filter(Boolean))}
+          <div class="flex gap-8 mt-12" style="flex-wrap:wrap">
+            ${target ? A.alertButton(a, !open) : ''}
+            ${open && a.status === 'new' ? h`<button type="button" class="btn btn-sm btn-outline" data-x="ack">${icon('eye', 14)} تم الاطلاع</button>` : ''}
+            ${open ? h`<button type="button" class="btn btn-sm btn-outline" data-x="assign">${icon('user-round', 14)} ${a.assigned_to ? 'تغيير المسؤول' : 'إسناد'}</button>
+              <button type="button" class="btn btn-sm btn-outline" data-x="escalate">${icon('trending-up', 14)} تصعيد</button>
+              <button type="button" class="btn btn-sm btn-primary" data-x="resolve">${icon('circle-check', 14)} تمت المعالجة</button>` : ''}
+          </div>
+          <div class="section-t mt-16">سجل الإجراءات</div>
+          <div class="timeline" data-alert-log>${log.map(function (x) { return h`<div class="tl-item"><span class="tl-ic">${icon(x.icon, 13)}</span><div class="flex-1"><div class="tl-t">${x.t}${x.by ? h` <span class="muted fs-sm">— ${x.by.name}</span>` : ''}</div><div class="tl-d num">${fmt.dtKw(x.at)}</div>${x.d ? h`<div class="tl-d">${x.d}</div>` : ''}</div></div>`; })}</div>
+        </div>`);
+      }, function (err) { dlg.setBody(A.errorBox(err)); });
+    }
+    load();
+  };
+  function pickHandler(a, escalate, after) {
+    api.get('/alerts/' + a.id + '/handlers').then(function (users) {
+      var options = users.filter(function (u) { return !escalate || u.id !== api.me.public_id; }).map(function (u) { return { v: u.id, t: u.name }; });
+      if (!escalate) options.unshift({ v: '', t: 'لا أحد' });
+      A.formModal({
+        title: escalate ? 'تصعيد التنبيه' : 'إسناد التنبيه', subtitle: a.message, icon: escalate ? 'trending-up' : 'user-round', size: 'sm',
+        body: h`<div class="form">${BT.f.select({ name: 'user', label: escalate ? 'إلى' : 'المسؤول عن المعالجة', required: escalate, value: a.assigned_to ? a.assigned_to.id : '', options: options, placeholder: false, hint: 'تظهر فقط أسماء من يرى هذا التنبيه بصلاحياته وشركاته' })}
+          ${BT.f.textarea({ name: 'note', label: escalate ? 'سبب التصعيد' : 'ملاحظة', required: escalate, optional: !escalate, rows: 2 })}</div>`,
+        submitText: escalate ? 'تصعيد' : 'حفظ',
+        submit: function (v) {
+          return escalate ? api.post('/alerts/' + a.id + '/escalate', { user_id: v.user, note: v.note })
+            : api.post('/alerts/' + a.id + '/assign', { user_id: v.user || null, note: v.note || null });
+        },
+        done: escalate ? 'صُعّد التنبيه' : 'حُفظ الإسناد',
+        after: after
+      });
+    }, function (err) { BT.toast(api.message(err), { type: 'error' }); });
+  }
 })();

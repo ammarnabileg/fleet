@@ -587,6 +587,7 @@
       var el = document.getElementById('audit-table');
       var types = Object.keys(api.cat.audit_entity || {}).sort(function (a, b) { return entity(a).localeCompare(entity(b), 'ar'); });
       var t = BT.table(el, {
+        keepPage: false, // pages by cursor: «back» starts again from the first
         fetch: function (s) {
           var page = Math.round(s.offset / (s.limit - 1));
           if (page === 0) cursors = [null];

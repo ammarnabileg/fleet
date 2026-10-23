@@ -78,7 +78,7 @@ def test_started_the_day_and_sent_no_report(admin_client, client, new_client, co
     assert service.scan_missing(db) == 1
     assert service.scan_missing(db) == 0  # once a day
     (alert,) = open_alerts(admin_client, "daily_report_missing")
-    assert d["name"]["ar"] in alert["message"] and str(today()) in alert["message"]
+    assert d["name"]["ar"] in alert["message"] and today().strftime("%d-%m-%Y") in alert["message"]
     told = client.get("/api/v1/driver/notifications", headers=h).json()["items"]
     assert [n["kind"] for n in told] == ["report_missing", "vehicle_handed_over"]  # and the car handed to him
     assert [n["kind"] for n in other.get("/api/v1/driver/notifications", headers=h2).json()["items"]] == [

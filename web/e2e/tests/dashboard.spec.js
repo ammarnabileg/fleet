@@ -72,6 +72,7 @@ test('the drivers, the employees by status and each company apart, each opening 
   await expect(admin.locator('[data-drivers]')).toContainText('بلا سيارة');
   await expect(admin.locator('[data-drivers]')).toContainText(String(d.drivers.without_vehicle));
   await expect(admin.locator(`[data-by-company] tr[data-company="${company.id}"]`)).toContainText('شركة الأرقام ' + n);
+  await admin.locator('details[data-group=hr] > summary').click(); // the details, by domain, open on demand
   const active = admin.locator('[data-hr] [data-status=active]');
   await expect(active).toContainText(String(d.hr.statuses.find((s) => s.code === 'active').count));
   await active.click();

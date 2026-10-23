@@ -220,3 +220,50 @@ def test_drivers_hr_approvals_and_each_company_on_the_dashboard(admin_client, cl
     assert waiting["waiting"] == 1 and waiting["oldest"] is not None
     pay = admin_client.get("/api/v1/dashboard").json()["hr"]["payroll"]
     assert pay["draft"] == 1 and pay["not_started"] == len(admin_client.get("/api/v1/companies").json()) - 1
+
+
+def test_each_figure_s_details_list_what_it_counts(admin_client, client, new_client, companies, owner_db):
+    """A click on a figure no list page filters by lists exactly what the figure counts, within the same scope."""
+    from sqlalchemy import text
+
+    a, b = companies["a"]["id"], companies["b"]["id"]
+    v = make_vehicle(admin_client, a)
+    d = make_driver(admin_client, a)
+    idle = make_driver(admin_client, a)  # at work, no vehicle
+    make_driver(admin_client, b)
+    h = bearer(bind_device(client, d["phone"]))
+    hand_over(admin_client, v, d, started_at=(datetime.now(UTC) - timedelta(hours=1)).isoformat())
+    report = driver_report(client, h, "12.000", orders=5)
+    owner_db.execute(
+        text("UPDATE daily_ops.reports SET submitted_at = now() - interval '3 days' WHERE public_id = :r"),
+        {"r": report["id"]},
+    )
+    owner_db.commit()
+    admin_client.post("/api/v1/cash/receipts", json={"driver_id": d["id"], "amount": "5"})
+    dash = admin_client.get("/api/v1/dashboard").json()
+    details = lambda m, c=admin_client: c.get(f"/api/v1/dashboard/details/{m}").json()  # noqa: E731
+    lost = details("signal_lost")
+    assert lost["count"] == dash["drivers"]["signal_lost"] == 1
+    assert lost["rows"][0]["vehicle"]["plate"] == v["plate_number"] and lost["rows"][0]["has_point"] is False
+    idle_rows = details("without_vehicle")
+    assert idle_rows["count"] == dash["drivers"]["without_vehicle"]
+    assert idle["id"] in {r["driver"]["id"] for r in idle_rows["rows"]} and d["id"] not in {
+        r["driver"]["id"] for r in idle_rows["rows"]
+    }
+    assert details("started_today")["count"] == dash["drivers"]["started_today"]
+    assert details("today_missing")["count"] == dash["daily_reports"]["today_missing"]
+    today_rows = details("reports_today")["rows"]
+    assert len({r["driver"]["id"] for r in today_rows}) == dash["daily_reports"]["today_sent"]
+    assert sum(r["orders"] for r in today_rows) == dash["daily_reports"]["today_orders"]
+    overdue = details("reports_overdue")
+    assert overdue["count"] == dash["daily_reports"]["overdue"] == 1 and overdue["rows"][0]["cash"] == "12.000"
+    paid = details("deposited_today")
+    assert paid["count"] == 1 and paid["rows"][0]["amount"] == "5.000" == dash["cash"]["deposited_today"]
+    assert admin_client.get("/api/v1/dashboard/details/anything").status_code == 422
+
+    make_user(admin_client, "ops_b2", permissions=["dashboard.view", "daily_reports.view"], company_ids=[b])
+    c = new_client()
+    login(c, "ops_b2")
+    assert details("reports_overdue", c)["count"] == 0  # another company's report
+    r = c.get("/api/v1/dashboard/details/signal_lost")
+    assert r.status_code == 403 and r.json()["params"]["permission"] == "tracking.live"

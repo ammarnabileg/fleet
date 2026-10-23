@@ -33,6 +33,7 @@ def test_uat08_uat09_a_lower_reading_goes_to_review_and_a_correction_is_audited(
         json={"corrected_km": 80_100, "reason": "photo shows 80100"},
     )
     assert r.status_code == 200
+    assert admin_client.get("/api/v1/alerts").json() == []  # the reading decided: its alert closed itself
     out = r.json()
     assert (out["value_km"], out["corrected_km"], out["effective_km"], out["review_status"]) == (
         79_900,

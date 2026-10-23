@@ -241,7 +241,7 @@
 
   /* ---------- العدادات في القائمة (كل دقيقة) ---------- */
   A.refreshCounts = function () {
-    var jobs = [api.get('/alerts/summary').then(function (s) { A.counts.alerts = s.open; }, function () {})];
+    var jobs = [api.get('/alerts/summary').then(function (s) { A.counts.alerts = s.open; A.counts.alertsNew = s.new; }, function () {})];
     if (api.can('dashboard.view')) jobs.push(api.get('/dashboard').then(function (d) {
       A.counts.daily = d.daily_reports ? d.daily_reports.waiting_review : null;
       A.counts.signal_lost = d.drivers ? d.drivers.signal_lost : null;
@@ -269,8 +269,9 @@
   };
 
   /* ---------- التنبيهات ---------- */
+  // the bell counts what nobody has seen yet; the menu's «التنبيهات» counts every alert still open (not handled)
   A.updateBell = function () {
-    var b = document.getElementById('bell-badge'), n = A.counts.alerts || 0;
+    var b = document.getElementById('bell-badge'), n = A.counts.alertsNew || 0;
     if (b) { b.textContent = n > 99 ? '99+' : n; b.hidden = !n; }
   };
 
@@ -284,6 +285,7 @@
       var before = lastAlerts, latest = s.latest ? s.latest.id : null;
       lastAlerts = { open: s.open, latest: latest };
       A.counts.alerts = s.open;
+      A.counts.alertsNew = s.new;
       A.updateBell();
       if (!before) return; // the first look only notes where things stand
       var arrived = latest && latest !== before.latest && s.open > before.open;
@@ -308,19 +310,19 @@
     else if (cur === 'dashboard' && A._dashboardRedraw) A._dashboardRedraw();
   };
   BT.actions['notifications'] = function (arg, el) {
-    var pop = BT.popover(el, h`<div class="nm-h"><b>التنبيهات المفتوحة</b><a class="btn btn-link fs-sm" href="#/alerts">عرض الكل</a></div><div class="nm-list" data-alerts>${A.spinner()}</div>`, { cls: 'notif-menu' });
+    var pop = BT.popover(el, h`<div class="nm-h"><b>تنبيهات لم يطّلع عليها أحد</b><a class="btn btn-link fs-sm" href="#/alerts">إدارة التنبيهات</a></div><div class="nm-list" data-alerts>${A.spinner()}</div>`, { cls: 'notif-menu' });
     if (!pop) return;
-    api.get('/alerts', { limit: 15 }).then(function (rows) {
+    api.get('/alerts', { status: 'new', sort: 'severity', limit: 15 }).then(function (rows) {
       var list = pop.querySelector('[data-alerts]');
       if (!list) return;
-      if (!rows.length) { BT.render(list, BT.empty('bell', 'لا توجد تنبيهات مفتوحة')); return; }
+      if (!rows.length) { BT.render(list, BT.empty('bell', 'لا جديد', A.counts.alerts ? 'كل التنبيهات المفتوحة اطُّلع عليها؛ تجدها في صفحة التنبيهات حتى تُعالج' : 'لا توجد تنبيهات مفتوحة')); return; }
       BT.render(list, h`${rows.map(function (a) {
         var tone = { critical: 'danger', warning: 'warning', info: 'info' }[a.severity];
-        return h`<div class="notif" style="cursor:default"><span class="li-ic" style="width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--${tone}-soft);color:var(--${tone}-text)">${icon(a.severity === 'critical' ? 'siren' : a.severity === 'warning' ? 'triangle-alert' : 'info', 16)}</span><span class="flex-1"><span class="n-t" style="display:block">${a.message}</span><span class="n-d">${BT.fmt.since(a.created_at)}</span>${A.alertTarget(a) ? h`<span style="display:block;margin-top:6px">${A.alertButton(a)}</span>` : ''}</span><button type="button" class="btn btn-sm btn-ghost" data-ack="${a.id}" title="تم الاطلاع">${icon('check', 14)}</button></div>`;
+        return h`<div class="notif" style="cursor:default"><span class="li-ic" style="width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--${tone}-soft);color:var(--${tone}-text)">${icon(a.severity === 'critical' ? 'siren' : a.severity === 'warning' ? 'triangle-alert' : 'info', 16)}</span><span class="flex-1"><span class="n-t" style="display:block">${a.message}</span><span class="n-d">${BT.fmt.agoEl(a.created_at)}</span>${A.alertTarget(a) ? h`<span style="display:block;margin-top:6px">${A.alertButton(a)}</span>` : ''}</span><button type="button" class="btn btn-sm btn-ghost" data-ack="${a.id}" title="تم الاطلاع (يبقى مفتوحاً حتى يُعالج)" aria-label="تم الاطلاع">${icon('check', 14)}</button></div>`;
       })}`);
       BT.on(list, 'click', '[data-ack]', function (e, b) {
         b.disabled = true;
-        api.post('/alerts/' + b.getAttribute('data-ack') + '/ack').then(function () { b.closest('.notif').remove(); A.counts.alerts = Math.max(0, (A.counts.alerts || 1) - 1); A.updateBell(); A.renderNav(A.router.current.split('/')[0]); }, function (err) { b.disabled = false; BT.toast(api.message(err), { type: 'error' }); });
+        api.post('/alerts/' + b.getAttribute('data-ack') + '/ack').then(function () { b.closest('.notif').remove(); A.counts.alertsNew = Math.max(0, (A.counts.alertsNew || 1) - 1); A.updateBell(); A.renderNav(A.router.current.split('/')[0]); }, function (err) { b.disabled = false; BT.toast(api.message(err), { type: 'error' }); });
       });
     }, function (err) { var list = pop.querySelector('[data-alerts]'); if (list) BT.render(list, BT.empty('wifi-off', api.message(err))); });
   };

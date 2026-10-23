@@ -199,6 +199,14 @@
   BT.fmt.kwIso = function (local) { return local ? local + (local.length === 16 ? ':00' : '') + '+03:00' : null; };
   BT.fmt.kwInput = function (iso) { return new Date(new Date(iso || Date.now()).getTime() + 3 * 3600 * 1000).toISOString().slice(0, 16); };
   BT.fmt.since = function (iso) { return iso ? BT.fmt.ago(Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000))) : '—'; };
+  BT.fmt.dtKw = function (iso) { return iso ? BT.fmt.dt(iso) + ' بتوقيت الكويت' : '—'; };
+  /* «منذ…» تبقى صحيحة ما دامت على الشاشة: تُحدَّث كل نصف دقيقة، والوقت الدقيق بتوقيت الكويت عند التأشير عليها */
+  BT.fmt.agoEl = function (iso) {
+    return iso ? BT.h`<time class="ago" datetime="${iso}" data-ago="${iso}" title="${BT.fmt.dtKw(iso)}">${BT.fmt.since(iso)}</time>` : '—';
+  };
+  setInterval(function () {
+    BT.$$('[data-ago]').forEach(function (t) { t.textContent = BT.fmt.since(t.getAttribute('data-ago')); });
+  }, 30000);
   BT.fmt.money = function (s) { return s == null || s === '' ? '—' : BT.fmt.kwd(Number(s)); };
   BT.config.today = BT.fmt.dayOf(new Date().toISOString());
   BT.config.client = '';

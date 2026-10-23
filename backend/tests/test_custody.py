@@ -221,6 +221,9 @@ def test_emergency_handover_needs_permission_reason_and_review(admin_client, new
     assert [x["id"] for x in pending] == [r.json()["id"]]
     reviewed = admin_client.post(f"/api/v1/custodies/{r.json()['id']}/review", json={"note": "checked licence"})
     assert reviewed.status_code == 200 and not reviewed.json()["needs_review"]
+    assert admin_client.get("/api/v1/alerts").json() == []  # reviewed: its alert closed itself
+    closed = admin_client.get("/api/v1/alerts", params={"status": "resolved"}).json()
+    assert [(x["kind"], x["resolution"]) for x in closed] == [("emergency_custody", "auto")]
 
 
 def test_a_vehicle_in_custody_keeps_its_status_and_company(admin_client, companies):

@@ -81,6 +81,7 @@ def test_every_alert_kind_has_a_text_using_only_its_params():
 
     for lang, catalog in LANGS.items():
         assert catalog["alerts"].keys() == KINDS.keys(), lang
+        assert catalog["alert_kind"].keys() == KINDS.keys(), lang  # the short names the alerts page filters by
         for kind, spec in KINDS.items():
             used = set(PLACEHOLDER.findall(catalog["alerts"][kind]))
             assert used <= set(spec.params), f"{lang}: alerts.{kind} uses {used - set(spec.params)}"
