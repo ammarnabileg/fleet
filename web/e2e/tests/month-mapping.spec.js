@@ -38,7 +38,7 @@ test('a file with its own headers mapped to the fields, checked, applied, the ma
   await d.locator('input[type=file]').setInputFiles({ name: 'month.xlsx', mimeType: XLSX, buffer: file });
   const map = d.locator('[data-mapping]');
   await expect(map).toBeVisible();
-  await expect(d.locator('[data-map-sheet]')).toHaveValue('البيانات'); // the sheet with headers
+  await expect(d.locator('[data-map-sheet]')).toHaveCount(0); // the one sheet with headers is taken (the cover has none)
   await expect(d.locator('[data-map=period_start]')).toHaveValue('من'); // a header that names the field
   await expect(d.locator('[data-map=batch]')).toHaveValue(''); // the client's own name: chosen by hand
   await d.locator('[data-map=platform_driver_id]').selectOption('كود المندوب');
