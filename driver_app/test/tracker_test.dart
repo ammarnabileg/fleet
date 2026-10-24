@@ -253,13 +253,15 @@ void main() {
       gps.add(fix(t0.add(Duration(seconds: s)), speed: 0));
       await settle();
     }
-    expect(asked.last, const Duration(seconds: 30), reason: 'parked: the GPS asked every 30 s to see it leave');
+    // parking and the parked interval change only which points are kept: the GPS stream is never restarted for them
+    // (cancelling it on Android is a blocking call into the location service)
+    expect(asked, [const Duration(seconds: 30), const Duration(seconds: 10)], reason: 'parked: same stream');
     status = {...status, 'interval_stationary_s': 20};
     await t.heartbeat();
-    expect(asked.last, const Duration(seconds: 20), reason: 'a parked interval under 30 s is used as it is');
+    expect(asked, hasLength(2), reason: 'a new parked interval: same stream');
     gps.add(fix(t0.add(const Duration(seconds: 400)), speed: 35));
     await settle();
-    expect(asked.last, const Duration(seconds: 10), reason: 'moving again, at the new moving interval');
+    expect(asked, hasLength(2), reason: 'moving again: still the same stream at the moving interval');
     await t.stop();
   });
 

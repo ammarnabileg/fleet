@@ -156,7 +156,6 @@ class Tracker {
   static const stillSpeedKmh = 3.0;
   static const movingSpeedKmh = 8.0;
   static const stillFor = Duration(minutes: 2);
-  static const wakeEvery = Duration(seconds: 30);
 
   /// No fix for this long while tracking is wanted: the notification says the location is not coming through.
   static const staleAfter = Duration(minutes: 10);
@@ -249,13 +248,11 @@ class Tracker {
   /// How often a point is kept: the stationary interval only while parked.
   Duration get _keepEvery => _parked ? stationary : moving;
 
-  /// How often the GPS is asked: parked, still often enough to see the car leave within [wakeEvery] (the points in
-  /// between are not kept), so the live map never waits the whole stationary interval for a car that drove off.
-  Duration get _wanted {
-    if (!_parked) return moving;
-    final w = moving > wakeEvery ? moving : wakeEvery;
-    return w < stationary ? w : stationary;
-  }
+  /// How often the GPS is asked: always the moving interval, parked or not (parking only thins the points kept,
+  /// [_keepEvery]). The stream is never restarted to park or wake: on Android, cancelling it removes the plugin's
+  /// NMEA listener with a synchronous call on the main thread, and a stalled GNSS service blocked that call long
+  /// enough for an ANR. It restarts only when tracking starts or stops, or the office changes the moving interval.
+  Duration get _wanted => moving;
 
   Future<void> _apply() async {
     if (!required) {
