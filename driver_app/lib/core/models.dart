@@ -1117,3 +1117,105 @@ class LeavePreview {
   final List<PayPart> split;
   final List<({String code, Map<String, dynamic> params})> problems;
 }
+
+/// An expense type the office allows to be spent from a petty cash custody.
+class PettyCategory {
+  PettyCategory({required this.id, required this.code, required this.name});
+
+  factory PettyCategory.fromJson(Map<String, dynamic> j) =>
+      PettyCategory(id: j['id'] as int, code: j['code'] as String, name: Map<String, String>.from(j['name'] as Map));
+
+  final int id;
+  final String code;
+  final Map<String, String> name;
+
+  String label(String lang) => inLang(name, lang) ?? name.values.firstOrNull ?? code;
+}
+
+/// What he spent from his custody, recorded with the invoice's photo for the office to approve.
+class PettyExpense {
+  PettyExpense({
+    required this.id,
+    required this.amount,
+    required this.invoiceDate,
+    required this.status,
+    required this.createdAt,
+    this.category,
+    this.vendor,
+    this.note,
+    this.decisionNote,
+  });
+
+  factory PettyExpense.fromJson(Map<String, dynamic> j) => PettyExpense(
+    id: j['id'] as String,
+    amount: j['amount'] as String,
+    invoiceDate: j['invoice_date'] as String,
+    status: j['status'] as String,
+    createdAt: DateTime.parse(j['created_at'] as String),
+    category: j['category'] == null ? null : PettyCategory.fromJson(j['category'] as Map<String, dynamic>),
+    vendor: j['vendor'] as String?,
+    note: j['note'] as String?,
+    decisionNote: j['decision_note'] as String?,
+  );
+
+  final String id;
+  final String amount;
+  final String invoiceDate; // yyyy-mm-dd
+  final String status; // pending | in_review | approved | rejected | cancelled
+  final DateTime createdAt;
+  final PettyCategory? category;
+  final String? vendor;
+  final String? note;
+  final String? decisionNote; // the reason of a rejection
+}
+
+/// A movement of his custody: funded by the office, given back, or an expense the office entered from it.
+class PettyMovement {
+  PettyMovement({required this.id, required this.kind, required this.amount, required this.date, this.note});
+
+  factory PettyMovement.fromJson(Map<String, dynamic> j) => PettyMovement(
+    id: j['id'] as String,
+    kind: j['kind'] as String,
+    amount: j['amount'] as String,
+    date: j['date'] as String,
+    note: j['note'] as String?,
+  );
+
+  final String id;
+  final String kind; // petty_fund | petty_return | disbursement | reversal
+  final String amount; // + into his custody, - out of it
+  final String date;
+  final String? note;
+}
+
+/// His petty cash custody: whether he holds one, its balance, what he can still spend (the balance less what waits
+/// for the office), the expense types, its movements and his spending.
+class Petty {
+  Petty({
+    required this.hasCustody,
+    required this.balance,
+    required this.pending,
+    required this.available,
+    required this.categories,
+    required this.movements,
+    required this.expenses,
+  });
+
+  factory Petty.fromJson(Map<String, dynamic> j) => Petty(
+    hasCustody: j['has_custody'] as bool,
+    balance: j['balance'] as String,
+    pending: j['pending'] as String,
+    available: j['available'] as String,
+    categories: [for (final c in j['categories'] as List) PettyCategory.fromJson(c as Map<String, dynamic>)],
+    movements: [for (final m in j['movements'] as List) PettyMovement.fromJson(m as Map<String, dynamic>)],
+    expenses: [for (final e in j['expenses'] as List) PettyExpense.fromJson(e as Map<String, dynamic>)],
+  );
+
+  final bool hasCustody;
+  final String balance;
+  final String pending;
+  final String available;
+  final List<PettyCategory> categories;
+  final List<PettyMovement> movements;
+  final List<PettyExpense> expenses;
+}

@@ -165,6 +165,7 @@ class AppState extends ChangeNotifier {
   DriverSchemes? schemes;
   Leaves? leaves; // null until loaded, or when the screen is hidden: the app offers no absence request
   Fuel? fuel; // null until loaded, or when the server has no fuel for him: the app offers none
+  Petty? petty; // null until loaded, or when the screen is hidden: the app offers no custody screen
   Notices? notices;
   List<OutboxItem> queued = [];
   Map<String, dynamic> tracking = {};
@@ -310,6 +311,7 @@ class AppState extends ChangeNotifier {
     _applyReportForm(await db.get('report_form'));
     _applyMaintenanceForm(await db.get('maintenance_form'));
     _applyFuel(await db.get('fuel'));
+    _applyPetty(await db.get('petty'));
     _applyLeaves(await db.get('leaves'));
     await _showSplash();
     if (platform.updates != null) await updater.load(); // a required update stays required offline
@@ -563,6 +565,7 @@ class AppState extends ChangeNotifier {
     objections = [];
     schemes = null;
     fuel = null;
+    petty = null;
     leaves = null;
     notices = null;
     queued = [];
@@ -591,6 +594,7 @@ class AppState extends ChangeNotifier {
         if (shows('accidents')) _quietly(loadAccidents),
         if (shows('fuel')) _quietly(loadFuel),
         if (shows('leaves')) _quietly(loadLeaves),
+        if (shows('petty')) _quietly(loadPetty),
         _quietly(loadNotices),
         _quietly(loadProfile),
         loadLiveStatus(),
@@ -947,6 +951,62 @@ class AppState extends ChangeNotifier {
   Future<SendResult> cancelLeave(String leaveId) async {
     final id = await outbox.add('leave_cancel', {'leave_id': leaveId}, {});
     return _sendNow(id, after: loadLeaves);
+  }
+
+  /// His petty cash custody. A refusal (an older server, the screen hidden) means no custody screen; a network
+  /// failure keeps what was loaded (kept for the form offline: an invoice is often photographed with no signal).
+  Future<void> loadPetty() async {
+    try {
+      final raw = await api.get('/driver/petty') as Map<String, dynamic>;
+      petty = Petty.fromJson(raw);
+      await db.put('petty', jsonEncode(raw));
+    } on ApiError catch (e) {
+      if (e.isTransient) rethrow;
+      petty = null;
+      await db.put('petty', null);
+    }
+  }
+
+  void _applyPetty(String? raw) {
+    if (raw == null || petty != null) return;
+    try {
+      petty = Petty.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      // an older shape: the next load replaces it
+    }
+  }
+
+  /// Whether the custody screen is offered: the office shows it and he holds a custody.
+  bool get offersPetty => shows('petty') && petty?.hasCustody == true;
+
+  /// What he spent from his custody: the amount (3 decimals), the expense type, the invoice's camera photo, its date,
+  /// the vendor and a note if he gives them. Through the outbox: sent now, or queued until the network is back.
+  Future<SendResult> sendPetty({
+    required String amount,
+    required int category,
+    required DateTime invoiceDate,
+    String? vendor,
+    String? note,
+    required String invoicePath,
+  }) async {
+    final id = await outbox.add(
+      'petty',
+      {
+        'client_ref': const Uuid().v4(),
+        'amount': amount,
+        'category': category,
+        'invoice_date': _day(invoiceDate),
+        'vendor': ?vendor,
+        'note': ?note,
+      },
+      {'invoice_sha256': invoicePath},
+    );
+    return _sendNow(id, after: loadPetty);
+  }
+
+  Future<SendResult> cancelPetty(String expenseId) async {
+    final id = await outbox.add('petty_cancel', {'expense_id': expenseId}, {});
+    return _sendNow(id, after: loadPetty);
   }
 
   void _applyFuel(String? raw) {

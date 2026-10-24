@@ -33,7 +33,7 @@ String noticeCategory(String kind) {
   if (kind.startsWith('vehicle_')) return 'car';
   if (kind.startsWith('maintenance_') || kind.startsWith('accident_') || kind == 'fine_charged') return 'maintenance';
   if (kind == 'deduction_added') return 'maintenance';
-  if (kind.startsWith('receipt_') || kind.startsWith('report_') || kind.startsWith('fuel_')) return 'cash';
+  if (['receipt_', 'report_', 'fuel_', 'petty_'].any(kind.startsWith)) return 'cash';
   if (kind.startsWith('document_') || kind.startsWith('scheme_request_')) return 'documents';
   if (kind == 'payslip_ready' || kind == 'objection_updated') return 'documents';
   return 'alerts';

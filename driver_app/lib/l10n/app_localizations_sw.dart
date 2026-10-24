@@ -2062,4 +2062,122 @@ class AppLocalizationsSw extends AppLocalizations {
 
   @override
   String get noticeOpenLeave => 'Omba likizo';
+
+  @override
+  String get pettyTitle => 'Fedha ndogo za dhamana';
+
+  @override
+  String get qaPettySub => 'Tumia kwa ankara';
+
+  @override
+  String get pettyCashRow => 'Fedha zako ndogo za dhamana';
+
+  @override
+  String get pettyNone => 'Huna fedha ndogo za dhamana sasa. Ofisi hukupa kutoka hazina ya tawi.';
+
+  @override
+  String get pettyBalance => 'Salio la dhamana';
+
+  @override
+  String pettyPendingPart(String pending, String available) {
+    return '$pending kati yake inasubiri ukaguzi · $available bado inapatikana';
+  }
+
+  @override
+  String get pettySpend => 'Tumia kutoka kwa dhamana';
+
+  @override
+  String get pettyMine => 'Miamala';
+
+  @override
+  String get pettyEmpty => 'Hakuna miamala kwenye dhamana bado';
+
+  @override
+  String get pettyQueued => 'Inasubiri kutumwa';
+
+  @override
+  String get pettyPending => 'Inasubiri ukaguzi';
+
+  @override
+  String get pettyApproved => 'Imekubaliwa';
+
+  @override
+  String get pettyRejected => 'Imekataliwa';
+
+  @override
+  String get pettyCancelled => 'Imeghairiwa';
+
+  @override
+  String pettyReason(String reason) {
+    return 'Sababu: $reason';
+  }
+
+  @override
+  String get pettyCancel => 'Ghairi matumizi';
+
+  @override
+  String pettyCancelQ(String amount) {
+    return 'Ghairi matumizi ya $amount? Ofisi bado haijayakagua.';
+  }
+
+  @override
+  String get pettyFunded => 'Imetolewa na ofisi';
+
+  @override
+  String get pettyReturned => 'Imerudishwa hazina';
+
+  @override
+  String get pettyOfficeExpense => 'Matumizi yaliyowekwa na ofisi';
+
+  @override
+  String get pettyCorrection => 'Marekebisho';
+
+  @override
+  String pettyIntro(String available) {
+    return 'Piga picha ya ankara na uweke kiasi na aina ya matumizi. Ofisi itakagua, na ikikubaliwa itatolewa kwenye dhamana yako. Bado inapatikana: $available KWD';
+  }
+
+  @override
+  String get pettyInvoice => 'Picha ya ankara';
+
+  @override
+  String get pettyTakeInvoice => 'Piga picha ya ankara';
+
+  @override
+  String get pettyInvoiceMissing => 'Picha ya ankara inahitajika';
+
+  @override
+  String get pettyAmount => 'Kiasi';
+
+  @override
+  String get pettyAmountInvalid => 'Weka kiasi sahihi (hadi desimali 3)';
+
+  @override
+  String pettyAmountMax(String available) {
+    return 'Zaidi ya unachoweza bado kutumia ($available KWD)';
+  }
+
+  @override
+  String get pettyCategory => 'Aina ya matumizi';
+
+  @override
+  String get pettyCategoryMissing => 'Chagua aina ya matumizi';
+
+  @override
+  String get pettyDate => 'Tarehe ya ankara';
+
+  @override
+  String get pettyVendor => 'Muuzaji au duka';
+
+  @override
+  String get pettyNote => 'Maelezo';
+
+  @override
+  String get pettySend => 'Tuma kwa ukaguzi';
+
+  @override
+  String get kind_petty => 'Matumizi ya fedha ndogo';
+
+  @override
+  String get kind_petty_cancel => 'Kughairi matumizi ya fedha ndogo';
 }

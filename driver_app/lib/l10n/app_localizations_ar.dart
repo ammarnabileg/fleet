@@ -2048,4 +2048,122 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get noticeOpenLeave => 'طلب إجازة';
+
+  @override
+  String get pettyTitle => 'العهدة النقدية';
+
+  @override
+  String get qaPettySub => 'الصرف من العهدة بالفاتورة';
+
+  @override
+  String get pettyCashRow => 'عهدتك النقدية';
+
+  @override
+  String get pettyNone => 'ليست معك عهدة نقدية الآن. يصرفها لك المكتب من خزينة الفرع.';
+
+  @override
+  String get pettyBalance => 'رصيد العهدة';
+
+  @override
+  String pettyPendingPart(String pending, String available) {
+    return 'منها $pending بانتظار المراجعة · المتاح للصرف $available';
+  }
+
+  @override
+  String get pettySpend => 'صرف من العهدة';
+
+  @override
+  String get pettyMine => 'الحركات';
+
+  @override
+  String get pettyEmpty => 'لا حركات على العهدة بعد';
+
+  @override
+  String get pettyQueued => 'بانتظار الإرسال';
+
+  @override
+  String get pettyPending => 'بانتظار المراجعة';
+
+  @override
+  String get pettyApproved => 'معتمد';
+
+  @override
+  String get pettyRejected => 'مرفوض';
+
+  @override
+  String get pettyCancelled => 'ملغى';
+
+  @override
+  String pettyReason(String reason) {
+    return 'السبب: $reason';
+  }
+
+  @override
+  String get pettyCancel => 'إلغاء المصروف';
+
+  @override
+  String pettyCancelQ(String amount) {
+    return 'إلغاء المصروف $amount؟ لم يراجعه المكتب بعد.';
+  }
+
+  @override
+  String get pettyFunded => 'صرف عهدة من المكتب';
+
+  @override
+  String get pettyReturned => 'رد إلى الخزينة';
+
+  @override
+  String get pettyOfficeExpense => 'مصروف سجّله المكتب';
+
+  @override
+  String get pettyCorrection => 'تصحيح';
+
+  @override
+  String pettyIntro(String available) {
+    return 'صوّر الفاتورة وأدخل المبلغ ونوع المصروف. يراجعه المكتب، وعند الاعتماد يُخصم من عهدتك. المتاح للصرف: $available د.ك';
+  }
+
+  @override
+  String get pettyInvoice => 'صورة الفاتورة';
+
+  @override
+  String get pettyTakeInvoice => 'صوّر الفاتورة';
+
+  @override
+  String get pettyInvoiceMissing => 'صورة الفاتورة مطلوبة';
+
+  @override
+  String get pettyAmount => 'المبلغ';
+
+  @override
+  String get pettyAmountInvalid => 'أدخل مبلغًا صحيحًا (حتى 3 أرقام عشرية)';
+
+  @override
+  String pettyAmountMax(String available) {
+    return 'أكبر من المتاح للصرف ($available د.ك)';
+  }
+
+  @override
+  String get pettyCategory => 'نوع المصروف';
+
+  @override
+  String get pettyCategoryMissing => 'اختر نوع المصروف';
+
+  @override
+  String get pettyDate => 'تاريخ الفاتورة';
+
+  @override
+  String get pettyVendor => 'المورد أو المحل';
+
+  @override
+  String get pettyNote => 'ملاحظة';
+
+  @override
+  String get pettySend => 'إرسال للمراجعة';
+
+  @override
+  String get kind_petty => 'مصروف من العهدة';
+
+  @override
+  String get kind_petty_cancel => 'إلغاء مصروف من العهدة';
 }

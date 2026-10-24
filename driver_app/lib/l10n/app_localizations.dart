@@ -3732,6 +3732,222 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'طلب إجازة'**
   String get noticeOpenLeave;
+
+  /// No description provided for @pettyTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'العهدة النقدية'**
+  String get pettyTitle;
+
+  /// No description provided for @qaPettySub.
+  ///
+  /// In ar, this message translates to:
+  /// **'الصرف من العهدة بالفاتورة'**
+  String get qaPettySub;
+
+  /// No description provided for @pettyCashRow.
+  ///
+  /// In ar, this message translates to:
+  /// **'عهدتك النقدية'**
+  String get pettyCashRow;
+
+  /// No description provided for @pettyNone.
+  ///
+  /// In ar, this message translates to:
+  /// **'ليست معك عهدة نقدية الآن. يصرفها لك المكتب من خزينة الفرع.'**
+  String get pettyNone;
+
+  /// No description provided for @pettyBalance.
+  ///
+  /// In ar, this message translates to:
+  /// **'رصيد العهدة'**
+  String get pettyBalance;
+
+  /// No description provided for @pettyPendingPart.
+  ///
+  /// In ar, this message translates to:
+  /// **'منها {pending} بانتظار المراجعة · المتاح للصرف {available}'**
+  String pettyPendingPart(String pending, String available);
+
+  /// No description provided for @pettySpend.
+  ///
+  /// In ar, this message translates to:
+  /// **'صرف من العهدة'**
+  String get pettySpend;
+
+  /// No description provided for @pettyMine.
+  ///
+  /// In ar, this message translates to:
+  /// **'الحركات'**
+  String get pettyMine;
+
+  /// No description provided for @pettyEmpty.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا حركات على العهدة بعد'**
+  String get pettyEmpty;
+
+  /// No description provided for @pettyQueued.
+  ///
+  /// In ar, this message translates to:
+  /// **'بانتظار الإرسال'**
+  String get pettyQueued;
+
+  /// No description provided for @pettyPending.
+  ///
+  /// In ar, this message translates to:
+  /// **'بانتظار المراجعة'**
+  String get pettyPending;
+
+  /// No description provided for @pettyApproved.
+  ///
+  /// In ar, this message translates to:
+  /// **'معتمد'**
+  String get pettyApproved;
+
+  /// No description provided for @pettyRejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'مرفوض'**
+  String get pettyRejected;
+
+  /// No description provided for @pettyCancelled.
+  ///
+  /// In ar, this message translates to:
+  /// **'ملغى'**
+  String get pettyCancelled;
+
+  /// No description provided for @pettyReason.
+  ///
+  /// In ar, this message translates to:
+  /// **'السبب: {reason}'**
+  String pettyReason(String reason);
+
+  /// No description provided for @pettyCancel.
+  ///
+  /// In ar, this message translates to:
+  /// **'إلغاء المصروف'**
+  String get pettyCancel;
+
+  /// No description provided for @pettyCancelQ.
+  ///
+  /// In ar, this message translates to:
+  /// **'إلغاء المصروف {amount}؟ لم يراجعه المكتب بعد.'**
+  String pettyCancelQ(String amount);
+
+  /// No description provided for @pettyFunded.
+  ///
+  /// In ar, this message translates to:
+  /// **'صرف عهدة من المكتب'**
+  String get pettyFunded;
+
+  /// No description provided for @pettyReturned.
+  ///
+  /// In ar, this message translates to:
+  /// **'رد إلى الخزينة'**
+  String get pettyReturned;
+
+  /// No description provided for @pettyOfficeExpense.
+  ///
+  /// In ar, this message translates to:
+  /// **'مصروف سجّله المكتب'**
+  String get pettyOfficeExpense;
+
+  /// No description provided for @pettyCorrection.
+  ///
+  /// In ar, this message translates to:
+  /// **'تصحيح'**
+  String get pettyCorrection;
+
+  /// No description provided for @pettyIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'صوّر الفاتورة وأدخل المبلغ ونوع المصروف. يراجعه المكتب، وعند الاعتماد يُخصم من عهدتك. المتاح للصرف: {available} د.ك'**
+  String pettyIntro(String available);
+
+  /// No description provided for @pettyInvoice.
+  ///
+  /// In ar, this message translates to:
+  /// **'صورة الفاتورة'**
+  String get pettyInvoice;
+
+  /// No description provided for @pettyTakeInvoice.
+  ///
+  /// In ar, this message translates to:
+  /// **'صوّر الفاتورة'**
+  String get pettyTakeInvoice;
+
+  /// No description provided for @pettyInvoiceMissing.
+  ///
+  /// In ar, this message translates to:
+  /// **'صورة الفاتورة مطلوبة'**
+  String get pettyInvoiceMissing;
+
+  /// No description provided for @pettyAmount.
+  ///
+  /// In ar, this message translates to:
+  /// **'المبلغ'**
+  String get pettyAmount;
+
+  /// No description provided for @pettyAmountInvalid.
+  ///
+  /// In ar, this message translates to:
+  /// **'أدخل مبلغًا صحيحًا (حتى 3 أرقام عشرية)'**
+  String get pettyAmountInvalid;
+
+  /// No description provided for @pettyAmountMax.
+  ///
+  /// In ar, this message translates to:
+  /// **'أكبر من المتاح للصرف ({available} د.ك)'**
+  String pettyAmountMax(String available);
+
+  /// No description provided for @pettyCategory.
+  ///
+  /// In ar, this message translates to:
+  /// **'نوع المصروف'**
+  String get pettyCategory;
+
+  /// No description provided for @pettyCategoryMissing.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختر نوع المصروف'**
+  String get pettyCategoryMissing;
+
+  /// No description provided for @pettyDate.
+  ///
+  /// In ar, this message translates to:
+  /// **'تاريخ الفاتورة'**
+  String get pettyDate;
+
+  /// No description provided for @pettyVendor.
+  ///
+  /// In ar, this message translates to:
+  /// **'المورد أو المحل'**
+  String get pettyVendor;
+
+  /// No description provided for @pettyNote.
+  ///
+  /// In ar, this message translates to:
+  /// **'ملاحظة'**
+  String get pettyNote;
+
+  /// No description provided for @pettySend.
+  ///
+  /// In ar, this message translates to:
+  /// **'إرسال للمراجعة'**
+  String get pettySend;
+
+  /// No description provided for @kind_petty.
+  ///
+  /// In ar, this message translates to:
+  /// **'مصروف من العهدة'**
+  String get kind_petty;
+
+  /// No description provided for @kind_petty_cancel.
+  ///
+  /// In ar, this message translates to:
+  /// **'إلغاء مصروف من العهدة'**
+  String get kind_petty_cancel;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

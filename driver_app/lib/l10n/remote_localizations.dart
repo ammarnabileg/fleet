@@ -1279,4 +1279,81 @@ class RemoteLocalizations extends AppLocalizations {
   String get messagesChannel => _remote.text('messagesChannel') ?? _base.messagesChannel;
   @override
   String get noticeOpenLeave => _remote.text('noticeOpenLeave') ?? _base.noticeOpenLeave;
+  @override
+  String get pettyTitle => _remote.text('pettyTitle') ?? _base.pettyTitle;
+  @override
+  String get qaPettySub => _remote.text('qaPettySub') ?? _base.qaPettySub;
+  @override
+  String get pettyCashRow => _remote.text('pettyCashRow') ?? _base.pettyCashRow;
+  @override
+  String get pettyNone => _remote.text('pettyNone') ?? _base.pettyNone;
+  @override
+  String get pettyBalance => _remote.text('pettyBalance') ?? _base.pettyBalance;
+  @override
+  String pettyPendingPart(String pending, String available) =>
+      _remote.format('pettyPendingPart', {'pending': pending, 'available': available}) ??
+      _base.pettyPendingPart(pending, available);
+  @override
+  String get pettySpend => _remote.text('pettySpend') ?? _base.pettySpend;
+  @override
+  String get pettyMine => _remote.text('pettyMine') ?? _base.pettyMine;
+  @override
+  String get pettyEmpty => _remote.text('pettyEmpty') ?? _base.pettyEmpty;
+  @override
+  String get pettyQueued => _remote.text('pettyQueued') ?? _base.pettyQueued;
+  @override
+  String get pettyPending => _remote.text('pettyPending') ?? _base.pettyPending;
+  @override
+  String get pettyApproved => _remote.text('pettyApproved') ?? _base.pettyApproved;
+  @override
+  String get pettyRejected => _remote.text('pettyRejected') ?? _base.pettyRejected;
+  @override
+  String get pettyCancelled => _remote.text('pettyCancelled') ?? _base.pettyCancelled;
+  @override
+  String pettyReason(String reason) => _remote.format('pettyReason', {'reason': reason}) ?? _base.pettyReason(reason);
+  @override
+  String get pettyCancel => _remote.text('pettyCancel') ?? _base.pettyCancel;
+  @override
+  String pettyCancelQ(String amount) =>
+      _remote.format('pettyCancelQ', {'amount': amount}) ?? _base.pettyCancelQ(amount);
+  @override
+  String get pettyFunded => _remote.text('pettyFunded') ?? _base.pettyFunded;
+  @override
+  String get pettyReturned => _remote.text('pettyReturned') ?? _base.pettyReturned;
+  @override
+  String get pettyOfficeExpense => _remote.text('pettyOfficeExpense') ?? _base.pettyOfficeExpense;
+  @override
+  String get pettyCorrection => _remote.text('pettyCorrection') ?? _base.pettyCorrection;
+  @override
+  String pettyIntro(String available) =>
+      _remote.format('pettyIntro', {'available': available}) ?? _base.pettyIntro(available);
+  @override
+  String get pettyInvoice => _remote.text('pettyInvoice') ?? _base.pettyInvoice;
+  @override
+  String get pettyTakeInvoice => _remote.text('pettyTakeInvoice') ?? _base.pettyTakeInvoice;
+  @override
+  String get pettyInvoiceMissing => _remote.text('pettyInvoiceMissing') ?? _base.pettyInvoiceMissing;
+  @override
+  String get pettyAmount => _remote.text('pettyAmount') ?? _base.pettyAmount;
+  @override
+  String get pettyAmountInvalid => _remote.text('pettyAmountInvalid') ?? _base.pettyAmountInvalid;
+  @override
+  String pettyAmountMax(String available) =>
+      _remote.format('pettyAmountMax', {'available': available}) ?? _base.pettyAmountMax(available);
+  @override
+  String get pettyCategory => _remote.text('pettyCategory') ?? _base.pettyCategory;
+  @override
+  String get pettyCategoryMissing => _remote.text('pettyCategoryMissing') ?? _base.pettyCategoryMissing;
+  @override
+  String get pettyDate => _remote.text('pettyDate') ?? _base.pettyDate;
+  @override
+  String get pettyVendor => _remote.text('pettyVendor') ?? _base.pettyVendor;
+  @override
+  String get pettyNote => _remote.text('pettyNote') ?? _base.pettyNote;
+  @override
+  String get pettySend => _remote.text('pettySend') ?? _base.pettySend;
+  @override
+  String get kind_petty => _remote.text('kind_petty') ?? _base.kind_petty;
+  @override
+  String get kind_petty_cancel => _remote.text('kind_petty_cancel') ?? _base.kind_petty_cancel;
 }

@@ -16,6 +16,7 @@ import 'claim.dart';
 import 'fines.dart';
 import 'fuel.dart';
 import 'leave.dart';
+import 'petty.dart';
 import 'maintenance.dart';
 import 'me.dart';
 import 'notifications.dart';
@@ -271,6 +272,7 @@ class HomeTab extends StatelessWidget {
         if (state.shows('accidents')) state.loadAccidents(),
         if (state.shows('fuel')) state.loadFuel(),
         if (state.shows('leaves')) state.loadLeaves(),
+        if (state.shows('petty')) state.loadPetty(),
         state.loadNotices(),
       ]);
       await state.loadProfile();
@@ -335,6 +337,15 @@ class HomeTab extends StatelessWidget {
           title: l.fuel,
           subtitle: l.qaFuelSub,
           onTap: () => _push(context, FuelScreen(state: state)),
+        ),
+      // only when he holds a petty cash custody (and the office shows the screen)
+      if (state.offersPetty)
+        QuickAction(
+          key: const Key('qa-petty'),
+          icon: Icons.account_balance_wallet,
+          title: l.pettyTitle,
+          subtitle: money(state.petty!.balance, l.kwd),
+          onTap: () => _push(context, PettyScreen(state: state)),
         ),
       if (state.shows('leaves') && state.leaves != null)
         QuickAction(
@@ -742,6 +753,8 @@ class _QueuedTile extends StatelessWidget {
       'accident' => l.kind_accident,
       'police_report' => l.kind_police_report,
       'fuel' => l.kind_fuel,
+      'petty' => l.kind_petty,
+      'petty_cancel' => l.kind_petty_cancel,
       'vehicle_claim' => l.kind_vehicle_claim,
       _ => l.kind_report,
     };
@@ -1077,6 +1090,25 @@ class CashTab extends StatelessWidget {
                 ],
               ),
             ),
+            if (state.offersPetty) ...[
+              const SizedBox(height: 12),
+              DCard.list(
+                child: InkWell(
+                  key: const Key('cash-petty'),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PettyScreen(state: state))),
+                  child: DRow(
+                    divider: false,
+                    leading: const IconTile(Icons.account_balance_wallet),
+                    title: l.pettyCashRow,
+                    subtitle: l.qaPettySub,
+                    trailing: Text(
+                      money(state.petty!.balance, l.kwd),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ),
+            ],
             if (cash.overLimit) ...[
               const SizedBox(height: 12),
               Banner2(text: l.cashOverLimit(money(cash.alertLimit, l.kwd)), tone: BannerTone.danger),

@@ -2059,4 +2059,122 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get noticeOpenLeave => 'छुट्टी का अनुरोध';
+
+  @override
+  String get pettyTitle => 'छोटी नकदी की अमानत';
+
+  @override
+  String get qaPettySub => 'बिल के साथ खर्च करें';
+
+  @override
+  String get pettyCashRow => 'आपकी छोटी नकदी की अमानत';
+
+  @override
+  String get pettyNone => 'अभी आपके पास कोई छोटी नकदी की अमानत नहीं है। ऑफ़िस इसे शाखा के खज़ाने से देता है।';
+
+  @override
+  String get pettyBalance => 'अमानत की शेष राशि';
+
+  @override
+  String pettyPendingPart(String pending, String available) {
+    return 'इसमें से $pending समीक्षा की प्रतीक्षा में · खर्च के लिए $available बचा';
+  }
+
+  @override
+  String get pettySpend => 'अमानत से खर्च करें';
+
+  @override
+  String get pettyMine => 'लेन-देन';
+
+  @override
+  String get pettyEmpty => 'अमानत पर अभी कोई लेन-देन नहीं';
+
+  @override
+  String get pettyQueued => 'भेजे जाने की प्रतीक्षा में';
+
+  @override
+  String get pettyPending => 'समीक्षा की प्रतीक्षा में';
+
+  @override
+  String get pettyApproved => 'मंज़ूर';
+
+  @override
+  String get pettyRejected => 'अस्वीकृत';
+
+  @override
+  String get pettyCancelled => 'रद्द';
+
+  @override
+  String pettyReason(String reason) {
+    return 'कारण: $reason';
+  }
+
+  @override
+  String get pettyCancel => 'खर्च रद्द करें';
+
+  @override
+  String pettyCancelQ(String amount) {
+    return '$amount का खर्च रद्द करें? ऑफ़िस ने अभी इसकी समीक्षा नहीं की है।';
+  }
+
+  @override
+  String get pettyFunded => 'ऑफ़िस द्वारा दी गई';
+
+  @override
+  String get pettyReturned => 'खज़ाने को लौटाई गई';
+
+  @override
+  String get pettyOfficeExpense => 'ऑफ़िस द्वारा दर्ज खर्च';
+
+  @override
+  String get pettyCorrection => 'सुधार';
+
+  @override
+  String pettyIntro(String available) {
+    return 'बिल की फ़ोटो लें और राशि व खर्च का प्रकार दर्ज करें। ऑफ़िस समीक्षा करेगा, और मंज़ूरी के बाद यह आपकी अमानत से घटेगा। खर्च के लिए बचा: $available KWD';
+  }
+
+  @override
+  String get pettyInvoice => 'बिल की फ़ोटो';
+
+  @override
+  String get pettyTakeInvoice => 'बिल की फ़ोटो लें';
+
+  @override
+  String get pettyInvoiceMissing => 'बिल की फ़ोटो ज़रूरी है';
+
+  @override
+  String get pettyAmount => 'राशि';
+
+  @override
+  String get pettyAmountInvalid => 'सही राशि दर्ज करें (3 दशमलव तक)';
+
+  @override
+  String pettyAmountMax(String available) {
+    return 'जितना आप अभी खर्च कर सकते हैं उससे अधिक ($available KWD)';
+  }
+
+  @override
+  String get pettyCategory => 'खर्च का प्रकार';
+
+  @override
+  String get pettyCategoryMissing => 'खर्च का प्रकार चुनें';
+
+  @override
+  String get pettyDate => 'बिल की तारीख';
+
+  @override
+  String get pettyVendor => 'विक्रेता या दुकान';
+
+  @override
+  String get pettyNote => 'टिप्पणी';
+
+  @override
+  String get pettySend => 'समीक्षा के लिए भेजें';
+
+  @override
+  String get kind_petty => 'छोटी नकदी का खर्च';
+
+  @override
+  String get kind_petty_cancel => 'छोटी नकदी का खर्च रद्द करना';
 }

@@ -2057,4 +2057,122 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noticeOpenLeave => 'Request leave';
+
+  @override
+  String get pettyTitle => 'Petty cash custody';
+
+  @override
+  String get qaPettySub => 'Spend from it with the invoice';
+
+  @override
+  String get pettyCashRow => 'Your petty cash custody';
+
+  @override
+  String get pettyNone => 'You hold no petty cash custody now. The office hands it to you from the branch treasury.';
+
+  @override
+  String get pettyBalance => 'Custody balance';
+
+  @override
+  String pettyPendingPart(String pending, String available) {
+    return '$pending of it waits for review · $available left to spend';
+  }
+
+  @override
+  String get pettySpend => 'Spend from the custody';
+
+  @override
+  String get pettyMine => 'Movements';
+
+  @override
+  String get pettyEmpty => 'No movements on the custody yet';
+
+  @override
+  String get pettyQueued => 'Waiting to send';
+
+  @override
+  String get pettyPending => 'Waiting for review';
+
+  @override
+  String get pettyApproved => 'Approved';
+
+  @override
+  String get pettyRejected => 'Rejected';
+
+  @override
+  String get pettyCancelled => 'Cancelled';
+
+  @override
+  String pettyReason(String reason) {
+    return 'Reason: $reason';
+  }
+
+  @override
+  String get pettyCancel => 'Cancel the spending';
+
+  @override
+  String pettyCancelQ(String amount) {
+    return 'Cancel the spending of $amount? The office has not reviewed it yet.';
+  }
+
+  @override
+  String get pettyFunded => 'Handed by the office';
+
+  @override
+  String get pettyReturned => 'Given back to the treasury';
+
+  @override
+  String get pettyOfficeExpense => 'Expense entered by the office';
+
+  @override
+  String get pettyCorrection => 'Correction';
+
+  @override
+  String pettyIntro(String available) {
+    return 'Photograph the invoice and enter the amount and the expense type. The office reviews it, and once approved it is taken off your custody. Left to spend: $available KWD';
+  }
+
+  @override
+  String get pettyInvoice => 'Invoice photo';
+
+  @override
+  String get pettyTakeInvoice => 'Photograph the invoice';
+
+  @override
+  String get pettyInvoiceMissing => 'The invoice photo is required';
+
+  @override
+  String get pettyAmount => 'Amount';
+
+  @override
+  String get pettyAmountInvalid => 'Enter a valid amount (up to 3 decimals)';
+
+  @override
+  String pettyAmountMax(String available) {
+    return 'More than you can still spend ($available KWD)';
+  }
+
+  @override
+  String get pettyCategory => 'Expense type';
+
+  @override
+  String get pettyCategoryMissing => 'Choose the expense type';
+
+  @override
+  String get pettyDate => 'Invoice date';
+
+  @override
+  String get pettyVendor => 'Vendor or shop';
+
+  @override
+  String get pettyNote => 'Note';
+
+  @override
+  String get pettySend => 'Send for review';
+
+  @override
+  String get kind_petty => 'Petty cash spending';
+
+  @override
+  String get kind_petty_cancel => 'Cancelling a petty cash spending';
 }

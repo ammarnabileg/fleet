@@ -38,7 +38,7 @@ class OutboxItem {
   );
 
   final int id;
-  final String kind; // odometer | report | report_edit | report_change | maintenance | accident | police_report | statement | fuel | objection | contact_ack | leave | leave_cancel
+  final String kind; // odometer | report | report_edit | report_change | maintenance | accident | police_report | statement | fuel | objection | contact_ack | leave | leave_cancel | petty | petty_cancel
   final Map<String, dynamic> payload;
   final Map<String, String> files; // payload field -> local file still to upload
   final DateTime createdAt;
@@ -114,6 +114,10 @@ class Outbox {
     'leave': ('/driver/leaves', 'upload', {'leave_exists'}, 'POST'),
     // he withdraws a request still waiting (a resend finds it withdrawn)
     'leave_cancel': ('/driver/leaves/{leave_id}/cancel', 'upload', <String>{}, 'POST'),
+    // what he spent from his petty cash custody, with the invoice's camera photo (a resend: its client_ref)
+    'petty': ('/driver/petty/expenses', 'camera', {'petty_expense_exists'}, 'POST'),
+    // he withdraws a spending still waiting (a resend finds it decided: nothing more to send)
+    'petty_cancel': ('/driver/petty/expenses/{expense_id}/cancel', 'upload', {'petty_expense_decided'}, 'POST'),
     // «Done» on the office's contact request: the server answers the same to a resend (its client_ref)
     'contact_ack': ('/driver/contact-requests/{request_id}/ack', 'upload', <String>{}, 'POST'),
   };

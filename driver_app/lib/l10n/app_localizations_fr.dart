@@ -2074,4 +2074,123 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get noticeOpenLeave => 'Demander un congé';
+
+  @override
+  String get pettyTitle => 'Caisse de menues dépenses';
+
+  @override
+  String get qaPettySub => 'Dépenser avec la facture';
+
+  @override
+  String get pettyCashRow => 'Votre caisse de menues dépenses';
+
+  @override
+  String get pettyNone =>
+      'Vous ne détenez aucune caisse de menues dépenses. Le bureau vous la remet depuis la caisse de l\'agence.';
+
+  @override
+  String get pettyBalance => 'Solde de la caisse';
+
+  @override
+  String pettyPendingPart(String pending, String available) {
+    return 'dont $pending en attente de vérification · $available encore disponibles';
+  }
+
+  @override
+  String get pettySpend => 'Dépenser de la caisse';
+
+  @override
+  String get pettyMine => 'Mouvements';
+
+  @override
+  String get pettyEmpty => 'Aucun mouvement sur la caisse pour l\'instant';
+
+  @override
+  String get pettyQueued => 'En attente d\'envoi';
+
+  @override
+  String get pettyPending => 'En attente de vérification';
+
+  @override
+  String get pettyApproved => 'Approuvée';
+
+  @override
+  String get pettyRejected => 'Refusée';
+
+  @override
+  String get pettyCancelled => 'Annulée';
+
+  @override
+  String pettyReason(String reason) {
+    return 'Motif : $reason';
+  }
+
+  @override
+  String get pettyCancel => 'Annuler la dépense';
+
+  @override
+  String pettyCancelQ(String amount) {
+    return 'Annuler la dépense de $amount ? Le bureau ne l\'a pas encore vérifiée.';
+  }
+
+  @override
+  String get pettyFunded => 'Remise par le bureau';
+
+  @override
+  String get pettyReturned => 'Rendue à la caisse';
+
+  @override
+  String get pettyOfficeExpense => 'Dépense saisie par le bureau';
+
+  @override
+  String get pettyCorrection => 'Correction';
+
+  @override
+  String pettyIntro(String available) {
+    return 'Photographiez la facture et saisissez le montant et le type de dépense. Le bureau la vérifie et, une fois approuvée, elle est déduite de votre caisse. Encore disponible : $available KWD';
+  }
+
+  @override
+  String get pettyInvoice => 'Photo de la facture';
+
+  @override
+  String get pettyTakeInvoice => 'Photographier la facture';
+
+  @override
+  String get pettyInvoiceMissing => 'La photo de la facture est obligatoire';
+
+  @override
+  String get pettyAmount => 'Montant';
+
+  @override
+  String get pettyAmountInvalid => 'Saisissez un montant valide (jusqu\'à 3 décimales)';
+
+  @override
+  String pettyAmountMax(String available) {
+    return 'Plus que ce que vous pouvez encore dépenser ($available KWD)';
+  }
+
+  @override
+  String get pettyCategory => 'Type de dépense';
+
+  @override
+  String get pettyCategoryMissing => 'Choisissez le type de dépense';
+
+  @override
+  String get pettyDate => 'Date de la facture';
+
+  @override
+  String get pettyVendor => 'Fournisseur ou magasin';
+
+  @override
+  String get pettyNote => 'Remarque';
+
+  @override
+  String get pettySend => 'Envoyer pour vérification';
+
+  @override
+  String get kind_petty => 'Dépense de caisse';
+
+  @override
+  String get kind_petty_cancel => 'Annulation d\'une dépense de caisse';
 }

@@ -2070,4 +2070,122 @@ class AppLocalizationsFil extends AppLocalizations {
 
   @override
   String get noticeOpenLeave => 'Mag-request ng leave';
+
+  @override
+  String get pettyTitle => 'Petty cash';
+
+  @override
+  String get qaPettySub => 'Gumastos gamit ang resibo';
+
+  @override
+  String get pettyCashRow => 'Ang iyong petty cash';
+
+  @override
+  String get pettyNone => 'Wala kang hawak na petty cash ngayon. Ibinibigay ito ng opisina mula sa kaha ng sangay.';
+
+  @override
+  String get pettyBalance => 'Balanse ng petty cash';
+
+  @override
+  String pettyPendingPart(String pending, String available) {
+    return '$pending dito ay naghihintay ng pagsusuri · $available pa ang magagastos';
+  }
+
+  @override
+  String get pettySpend => 'Gumastos mula sa petty cash';
+
+  @override
+  String get pettyMine => 'Mga galaw';
+
+  @override
+  String get pettyEmpty => 'Wala pang galaw sa petty cash';
+
+  @override
+  String get pettyQueued => 'Naghihintay maipadala';
+
+  @override
+  String get pettyPending => 'Naghihintay ng pagsusuri';
+
+  @override
+  String get pettyApproved => 'Naaprubahan';
+
+  @override
+  String get pettyRejected => 'Tinanggihan';
+
+  @override
+  String get pettyCancelled => 'Kinansela';
+
+  @override
+  String pettyReason(String reason) {
+    return 'Dahilan: $reason';
+  }
+
+  @override
+  String get pettyCancel => 'Kanselahin ang gastos';
+
+  @override
+  String pettyCancelQ(String amount) {
+    return 'Kanselahin ang gastos na $amount? Hindi pa ito nasusuri ng opisina.';
+  }
+
+  @override
+  String get pettyFunded => 'Ibinigay ng opisina';
+
+  @override
+  String get pettyReturned => 'Ibinalik sa kaha';
+
+  @override
+  String get pettyOfficeExpense => 'Gastos na itinala ng opisina';
+
+  @override
+  String get pettyCorrection => 'Pagwawasto';
+
+  @override
+  String pettyIntro(String available) {
+    return 'Kunan ng larawan ang resibo at ilagay ang halaga at uri ng gastos. Susuriin ito ng opisina, at kapag naaprubahan ay ibabawas sa iyong petty cash. Magagastos pa: $available KWD';
+  }
+
+  @override
+  String get pettyInvoice => 'Larawan ng resibo';
+
+  @override
+  String get pettyTakeInvoice => 'Kunan ng larawan ang resibo';
+
+  @override
+  String get pettyInvoiceMissing => 'Kailangan ang larawan ng resibo';
+
+  @override
+  String get pettyAmount => 'Halaga';
+
+  @override
+  String get pettyAmountInvalid => 'Maglagay ng tamang halaga (hanggang 3 decimal)';
+
+  @override
+  String pettyAmountMax(String available) {
+    return 'Higit sa maaari mo pang gastusin ($available KWD)';
+  }
+
+  @override
+  String get pettyCategory => 'Uri ng gastos';
+
+  @override
+  String get pettyCategoryMissing => 'Piliin ang uri ng gastos';
+
+  @override
+  String get pettyDate => 'Petsa ng resibo';
+
+  @override
+  String get pettyVendor => 'Tindahan o supplier';
+
+  @override
+  String get pettyNote => 'Tala';
+
+  @override
+  String get pettySend => 'Ipadala para suriin';
+
+  @override
+  String get kind_petty => 'Gastos mula sa petty cash';
+
+  @override
+  String get kind_petty_cancel => 'Pagkansela ng gastos mula sa petty cash';
 }
