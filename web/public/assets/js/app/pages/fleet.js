@@ -60,7 +60,7 @@
     A.formModal({
       title: editing ? 'تعديل السيارة' : 'إضافة سيارة', subtitle: editing ? x.plate_number : null, icon: editing ? 'pencil' : 'car', size: 'lg', done: editing ? 'تم حفظ التعديلات' : 'تمت إضافة السيارة',
       body: h`<div class="form-grid">
-        ${BT.f.input({ name: 'plate_number', label: 'رقم اللوحة', required: true, value: x.plate_number, placeholder: '18/23456' })}
+        ${BT.f.plate({ name: 'plate_number', label: 'رقم اللوحة', required: true, value: x.plate_number })}
         ${BT.f.input({ name: 'vin', label: 'رقم الشاصي (VIN)', optional: true, value: x.vin, maxlength: 17 })}
         ${BT.f.input({ name: 'make', label: 'الماركة', optional: true, value: x.make })}${BT.f.input({ name: 'model', label: 'الموديل', optional: true, value: x.model })}
         ${BT.f.input({ name: 'year', label: 'سنة الصنع', optional: true, value: x.year, num: true, min: 1990, max: 2100 })}${BT.f.input({ name: 'color', label: 'اللون', optional: true, value: x.color })}

@@ -546,3 +546,9 @@ table.t td.ledger-cell { background: var(--surface-2); padding: 12px 16px 16px; 
   .map-tools button { width: var(--touch); height: var(--touch); }
   .doc-link, .li { min-height: var(--touch); }
 }
+
+/* رقم اللوحة: خانتان والشرطة ثابتة بينهما */
+.plate-in { display: flex; align-items: center; gap: 6px; }
+.plate-in .plate-code { width: 64px; flex: none; text-align: center; }
+.plate-in .plate-num { flex: 1; min-width: 0; }
+.plate-in .plate-slash { font-weight: 700; font-size: 1.15em; color: var(--muted); }
