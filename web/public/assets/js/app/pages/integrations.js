@@ -133,12 +133,139 @@
     return { enabled: !!vals.enabled, url: vals.url || null, instance: vals.instance || null };
   }
 
+
+  /* ================= نقل الإعدادات (JSON): من سيرفر التجربة إلى الإنتاج =================
+     التصدير: الأقسام المختارة كملف JSON بمفاتيح طبيعية (الرموز والأسماء) لا بمعرّفات قاعدة البيانات، بلا أي سر؛
+     «تضمين الأسرار» (لمن يملك كل الصلاحيات) يشفّرها بعبارة مرور يكتبها المستخدم ولا تُحفظ في أي مكان.
+     الاستيراد (لمن يملك كل الصلاحيات): معاينة أولاً (لا يُحفظ شيء)، ثم الاستيراد في معاملة واحدة: يُنشئ الناقص ويحدّث
+     الموجود، ولا يحذف شيئاً ليس في الملف. */
+  function skippedList(s) {
+    var notes = s.skipped.map(function (x) { return { t: 'r', x: x }; }).concat(s.warnings.map(function (x) { return { t: 'o', x: x }; }));
+    if (!notes.length) return '';
+    return h`<ul class="fs-sm mt-4" data-notes>${notes.slice(0, 12).map(function (n) {
+      return h`<li class="${n.t === 'r' ? 't-danger' : 'muted'}"><bdi>${n.x.item}</bdi>: ${api.t('errors', n.x.code, n.x.params, n.x.code)}</li>`;
+    })}${notes.length > 12 ? h`<li class="muted">و ${notes.length - 12} أخرى…</li>` : ''}</ul>`;
+  }
+  function reportTable(r, done) {
+    var verb = done ? ['أُنشئ', 'حُدِّث'] : ['سيُنشأ', 'سيُحدَّث'];
+    return h`<div data-report="${done ? 'done' : 'preview'}">
+      <div class="fs-sm muted mb-8">الملف من <bdi dir="ltr">${r.source || '—'}</bdi> · صُدِّر ${r.exported_at ? fmt.dt(r.exported_at) : '—'} · إصدار النظام <bdi dir="ltr">${r.app_version || '—'}</bdi> · صيغة ${r.format_version}</div>
+      ${r.secrets === 'skipped' ? h`<div class="banner warn fs-sm mb-8">${icon('triangle-alert', 16)}<div>في الملف أسرار مشفّرة ولم تُكتب عبارة المرور: ستُستورد التكاملات بدون أسرارها (وتُترك متوقفة إن احتاجتها).</div></div>` : ''}
+      ${r.secrets === 'used' ? h`<div class="banner info fs-sm mb-8">${icon('key-round', 16)}<div>فُتحت الأسرار بعبارة المرور وستُحفظ مشفّرة بمفتاح هذا الخادم.</div></div>` : ''}
+      ${r.unknown_sections.length ? h`<div class="banner warn fs-sm mb-8" data-unknown>${icon('info', 16)}<div>أقسام لا يعرفها هذا الإصدار وتُتخطّى: <bdi dir="ltr">${r.unknown_sections.join('، ')}</bdi></div></div>` : ''}
+      <div class="table-wrap"><table class="t compact" data-report-table><thead><tr><th>القسم</th><th class="num">${verb[0]}</th><th class="num">${verb[1]}</th><th class="num">دون تغيير</th><th class="num">تُخطّي</th></tr></thead><tbody>
+      ${r.sections.map(function (s) {
+        return h`<tr data-row="${s.key}"><td>${api.name(s.label)}${skippedList(s)}</td><td class="num" data-created>${fmt.int(s.created)}</td><td class="num" data-updated>${fmt.int(s.updated)}</td><td class="num muted" data-unchanged>${fmt.int(s.unchanged)}</td><td class="num${s.skipped.length ? ' t-danger' : ''}" data-skipped>${fmt.int(s.skipped.length)}</td></tr>`;
+      })}</tbody></table></div></div>`;
+  }
+  function filenameOf(res) {
+    var m = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '');
+    return m ? m[1] : 'fleet-config.json';
+  }
+  function transferCard(el, sections) {
+    var owner = !!(api.me && api.me.all_permissions);
+    sections = sections.filter(function (s) { return s.key !== 'integrations' || api.can('integrations.manage'); });
+    BT.render(el, h`<div class="card mb-16" data-transfer>
+      <div class="card-h"><div class="card-t">${icon('file-text', 16)} نقل الإعدادات (JSON)</div></div>
+      <div class="card-b">
+        <div class="hint mb-12">لنقل ما ضبطته هنا (سيرفر التجربة مثلاً) إلى نسخة أخرى (الإنتاج): القوائم والإعدادات والأدوار والمنصات وأنظمة الرواتب ودليل الحسابات وقوالب الطباعة والترجمات المنشورة. لا يحتوي الملف بيانات تشغيلية (موظفين، سيارات، عهد، مبالغ، تقارير) ولا مستخدمين أو كلمات مرور. المراجع بين الأقسام بالرموز والأسماء (رمز المنصة، رقم الحساب، السجل التجاري للشركة) لا بأرقام قاعدة البيانات.</div>
+        <form data-export-form novalidate>
+          <div class="between mb-8"><b class="fs-sm">التصدير</b>${BT.f.check({ name: 'all', label: 'تحديد الكل', checked: true })}</div>
+          <div class="grid gap-8 mb-12" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))" data-sections>${sections.map(function (s) {
+            return h`<label class="check"><input type="checkbox" name="section" value="${s.key}" data-section="${s.key}" checked><span>${api.name(s.label)}</span></label>`;
+          })}</div>
+          ${owner ? h`<div class="highlight-box mb-12">${BT.f.switch({ name: 'include_secrets', label: 'تضمين الأسرار' })}
+            <div class="hint mt-4">مفاتيح التكاملات (R2 وواتساب وFirebase) لا تُصدَّر إلا بهذا الخيار، مشفّرة (AES-256-GCM) بعبارة مرور تكتبها هنا ولا تُحفظ في أي مكان. بدونها لا يمكن فتحها، والاستيراد يطلبها. احفظها بعيداً عن الملف.</div>
+            <div class="field mt-8" data-pass-box style="display:none"><label for="f-export-pass">عبارة المرور (10 أحرف على الأقل)</label><input class="input ltr" type="password" id="f-export-pass" name="passphrase" autocomplete="new-password" minlength="10"><div class="err-msg"></div></div></div>` : h`<div class="hint mb-12">${icon('lock', 14)} الملف بدون أسرار التكاملات (تصدير الأسرار والاستيراد لمن يملك كل الصلاحيات).</div>`}
+          <button type="submit" class="btn btn-sm btn-primary" data-export>${icon('download', 14)} تصدير</button>
+        </form>
+        ${owner ? h`<hr style="margin:16px 0;border:0;border-top:1px solid var(--border, #e5e7eb)"><form data-import-form novalidate>
+          <b class="fs-sm">الاستيراد</b>
+          <div class="hint mb-8">اختر ملف إعدادات صُدِّر من هذا النظام. المعاينة تعرض ما سيُنشأ وما سيُحدَّث وما يُتخطّى وسببه دون أن تحفظ شيئاً، ثم «استيراد» يطبّقه كله في معاملة واحدة. الاستيراد يدمج فقط: لا يحذف ما ليس في الملف.</div>
+          <div class="form-grid">
+            <div class="field"><label for="f-config-file">ملف الإعدادات (JSON)</label><input class="input" type="file" id="f-config-file" name="file" accept=".json,application/json" data-import-file><div class="err-msg"></div></div>
+            <div class="field"><label for="f-import-pass">عبارة المرور (إن كان في الملف أسرار)</label><input class="input ltr" type="password" id="f-import-pass" name="passphrase" autocomplete="off"><div class="hint">بدونها تُستورد التكاملات بلا أسرارها</div></div>
+          </div>
+          <div class="row gap-8 mt-8"><button type="submit" class="btn btn-sm btn-secondary" data-preview>${icon('eye', 14)} معاينة</button><button type="button" class="btn btn-sm btn-primary" data-import disabled>${icon('upload', 14)} استيراد</button></div>
+          <div class="mt-12" data-import-out></div>
+        </form>` : ''}
+      </div></div>`);
+
+    var ex = el.querySelector('[data-export-form]');
+    var all = ex.querySelector('[name=all]'), boxes = BT.$$('[data-section]', ex);
+    all.onchange = function () { boxes.forEach(function (b) { b.checked = all.checked; }); };
+    boxes.forEach(function (b) { b.onchange = function () { all.checked = boxes.every(function (x) { return x.checked; }); }; });
+    var sw = ex.querySelector('[name=include_secrets]'), passBox = ex.querySelector('[data-pass-box]');
+    if (sw) sw.onchange = function () { passBox.style.display = sw.checked ? '' : 'none'; };
+    ex.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var chosen = boxes.filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
+      if (!chosen.length) { BT.toast('اختر قسماً واحداً على الأقل', { type: 'error' }); return; }
+      var secrets = !!(sw && sw.checked), pass = secrets ? ex.querySelector('[name=passphrase]').value : '';
+      if (secrets && pass.length < 10) { BT.toast(api.t('errors', 'config_passphrase_short', { min: 10 }), { type: 'error' }); return; }
+      var button = ex.querySelector('[data-export]');
+      button.classList.add('is-loading');
+      var body = { sections: chosen.length === boxes.length ? [] : chosen, include_secrets: secrets, passphrase: secrets ? pass : null };
+      fetch(api.url('/config/export'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': api.csrf, 'Accept-Language': api.lang }, body: JSON.stringify(body) })
+        .then(function (res) {
+          if (!res.ok) return res.json().then(function (b) { throw new api.ApiError(res.status, b); }, function () { throw new api.ApiError(res.status, {}); });
+          return res.blob().then(function (blob) { return { blob: blob, name: filenameOf(res) }; });
+        })
+        .then(function (f) {
+          button.classList.remove('is-loading');
+          var a = document.createElement('a'); a.href = URL.createObjectURL(f.blob); a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+          BT.toast('صُدِّرت الإعدادات', { sub: secrets ? 'الأسرار مشفّرة بعبارة المرور' : 'بدون أسرار' });
+        }, function (err) { button.classList.remove('is-loading'); BT.toast(api.message(err), { type: 'error', timeout: 8000 }); });
+    });
+
+    var im = el.querySelector('[data-import-form]');
+    if (!im) return;
+    var out = im.querySelector('[data-import-out]'), go = im.querySelector('[data-import]');
+    function send(dry) {
+      var file = im.querySelector('[data-import-file]').files[0];
+      if (!file) { BT.toast('اختر ملف الإعدادات أولاً', { type: 'error' }); return Promise.reject(null); }
+      var fd = new FormData();
+      fd.append('file', file, file.name);
+      fd.append('dry_run', dry ? 'true' : 'false');
+      var pass = im.querySelector('[name=passphrase]').value;
+      if (pass) fd.append('passphrase', pass);
+      return api.request('POST', '/config/import', { form: fd });
+    }
+    im.querySelector('[data-import-file]').onchange = function () { go.disabled = true; BT.render(out, ''); };
+    im.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var b = im.querySelector('[data-preview]');
+      b.classList.add('is-loading');
+      send(true).then(function (r) {
+        b.classList.remove('is-loading');
+        BT.render(out, h`<div class="fs-sm mb-8"><b>المعاينة</b> — لم يُحفظ شيء بعد.</div>${reportTable(r, false)}`);
+        go.disabled = false;
+      }, function (err) { b.classList.remove('is-loading'); go.disabled = true; if (err) BT.toast(api.message(err), { type: 'error', timeout: 9000 }); });
+    });
+    go.onclick = function () {
+      BT.confirm({ title: 'استيراد الإعدادات؟', tone: 'warn', message: 'تُنشأ الأقسام الناقصة وتُحدَّث الموجودة كما في المعاينة، في معاملة واحدة، ويُسجَّل ذلك في سجل التدقيق. لا يُحذف شيء ليس في الملف.', confirmText: 'استيراد' }).then(function (c) {
+        if (!c.ok) return;
+        go.classList.add('is-loading');
+        send(false).then(function (r) {
+          go.classList.remove('is-loading'); go.disabled = true;
+          var created = 0, updated = 0;
+          r.sections.forEach(function (s) { created += s.created; updated += s.updated; });
+          BT.render(out, h`<div class="banner success fs-sm mb-8" data-result>${icon('circle-check', 16)}<div>تم الاستيراد: أُنشئ ${fmt.int(created)} وحُدِّث ${fmt.int(updated)}.</div></div>${reportTable(r, true)}`);
+          BT.toast('تم استيراد الإعدادات');
+        }, function (err) { go.classList.remove('is-loading'); if (err) BT.toast(api.message(err), { type: 'error', timeout: 9000 }); });
+      });
+    };
+  }
+
   BT.pages['integrations'] = function () {
     A.setTitle('التكاملات');
     var v = A.view();
-    BT.render(v, h`${A.head('التكاملات', 'الخدمات الخارجية التي يتصل بها النظام. كل تغيير يُسجَّل في سجل التدقيق، والمفاتيح لا تُعرض بعد حفظها.', '')}<div data-list></div>`);
-    var el = v.querySelector('[data-list]');
+    BT.render(v, h`${A.head('التكاملات', 'الخدمات الخارجية التي يتصل بها النظام. كل تغيير يُسجَّل في سجل التدقيق، والمفاتيح لا تُعرض بعد حفظها.', '')}<div data-transfer-box></div><div data-list></div>`);
+    var el = v.querySelector('[data-list]'), tbox = v.querySelector('[data-transfer-box]');
+    if (api.can('settings.view')) A.load(tbox, api.get('/config/sections'), function (sections) { setTimeout(function () { transferCard(tbox, sections); }); return ''; }).catch(function () {});
     function draw() {
+      if (!api.can('integrations.manage')) return;
       A.load(el, api.get('/integrations/connections'), function (rows) {
         var by = {};
         rows.forEach(function (c) { by[c.kind] = c; });

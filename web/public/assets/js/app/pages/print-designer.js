@@ -119,7 +119,7 @@
           <div class="card pt-side"><div class="card-h"><div class="card-t">${icon('eye', 15)} معاينة حية</div><div class="ms-auto">${BT.tabs('ptk', [['report', 'تقرير نموذجي'], ['receipt', 'إيصال نموذجي']], kind, 'tabs')}</div></div>
             <div class="pd-preview-wrap" data-pt-preview></div>
             ${state.history.length ? h`<div class="section-t mt-12">سجل النشر</div><div class="table-wrap"><table class="t compact"><thead><tr><th class="num">النسخة</th><th>التغيير</th><th>بواسطة</th><th class="num">في</th></tr></thead><tbody>${state.history.slice(0, 8).map(function (r) {
-              return h`<tr><td class="num">${r.version}</td><td>${r.restored_from != null ? 'رجوع إلى النسخة ' + r.restored_from : r.changed === 'default' ? 'الافتراضي' : 'شركة ' + String(r.changed || '').replace('company:', '')}</td><td>${r.by ? r.by.name : '—'}</td><td class="num">${fmt.dt(r.at)}</td></tr>`;
+              return h`<tr><td class="num">${r.version}</td><td>${r.restored_from != null ? 'رجوع إلى النسخة ' + r.restored_from : r.changed === 'default' ? 'الافتراضي' : r.changed === 'import' ? 'استيراد إعدادات من ملف' : 'شركة ' + String(r.changed || '').replace('company:', '')}</td><td>${r.by ? r.by.name : '—'}</td><td class="num">${fmt.dt(r.at)}</td></tr>`;
             })}</tbody></table></div>` : ''}</div>
         </div>`);
       preview();
