@@ -13,6 +13,7 @@ import 'package:fleet_driver/ui/screens/home.dart' show CashTab;
 import 'package:fleet_driver/ui/widgets/live_status.dart' show StatusCardView;
 import 'package:fleet_driver/tracking/system_notices.dart';
 import 'package:fleet_driver/ui/screens/fuel.dart';
+import 'package:fleet_driver/ui/screens/petty.dart';
 import 'package:fleet_driver/ui/photos.dart';
 import 'package:fleet_driver/ui/theme.dart';
 import 'package:flutter/material.dart';
@@ -4283,5 +4284,207 @@ void reviewWidgetTests() {
     await idle(tester);
     expect(find.text('حُفظ على الهاتف'), findsOneWidget);
     expect(w.state.queued.single.kind, 'leave');
+  });
+
+  Map<String, dynamic> pettyView({
+    bool has = true,
+    String balance = '20.000',
+    String pending = '0.000',
+    String? available,
+    List<Map<String, dynamic>> expenses = const [],
+    List<Map<String, dynamic>> movements = const [],
+  }) => {
+    'has_custody': has,
+    'balance': has ? balance : '0.000',
+    'pending': pending,
+    'available': available ?? balance,
+    'categories': has
+        ? [
+            {
+              'id': 3,
+              'code': 'office',
+              'name': {'ar': 'مصروفات مكتبية', 'en': 'Office'},
+            },
+          ]
+        : [],
+    'movements': movements,
+    'expenses': expenses,
+  };
+
+  Map<String, dynamic> pettyExpense(String id, String status, {String amount = '4.250', String? note}) => {
+    'id': id,
+    'amount': amount,
+    'category': {
+      'id': 3,
+      'code': 'office',
+      'name': {'ar': 'مصروفات مكتبية', 'en': 'Office'},
+    },
+    'invoice_date': '2026-10-20',
+    'vendor': null,
+    'note': null,
+    'status': status,
+    'decision_note': note,
+    'created_at': '2026-10-20T08:00:00Z',
+  };
+
+  testWidgets('petty cash: no custody, no quick action; a custody shows its balance and its movements by status', (
+    tester,
+  ) async {
+    var view = pettyView(has: false);
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on('GET', '/api/v1/driver/petty', (r) => (200, view));
+    await pumpApp(tester, w);
+    expect(find.byKey(const Key('qa-petty')), findsNothing, reason: 'no custody: the screen is not offered');
+    // opened anyway (from a link): it says he holds none
+    unawaited(
+      Navigator.of(tester.element(find.byType(Scaffold).first))
+          .push(MaterialPageRoute(builder: (_) => PettyScreen(state: w.state))),
+    );
+    await idle(tester);
+    expect(find.byKey(const Key('petty-none')), findsOneWidget);
+    expect(find.byKey(const Key('petty-spend')), findsNothing);
+    Navigator.of(tester.element(find.byKey(const Key('petty-none')))).pop();
+    await settle(tester);
+
+    view = pettyView(
+      pending: '4.250',
+      available: '15.750',
+      expenses: [
+        pettyExpense('p1', 'pending'),
+        pettyExpense('p2', 'approved', amount: '2.000'),
+        pettyExpense('p3', 'rejected', amount: '1.000', note: 'بلا رقم فاتورة'),
+      ],
+      movements: [
+        {
+          'id': 'm1',
+          'kind': 'petty_fund',
+          'amount': '20.000',
+          'date': '2026-10-19',
+          'created_at': '2026-10-19T08:00:00Z',
+          'note': null,
+        },
+      ],
+    );
+    await tester.runAsync(() async {
+      await w.state.loadPetty();
+      await w.state.reloadLocal();
+    });
+    await settle(tester);
+    await reveal(tester, find.byKey(const Key('qa-petty')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('qa-petty')));
+    await idle(tester);
+    expect(find.textContaining('20.000'), findsWidgets);
+    expect(find.byKey(const Key('petty-pending')), findsOneWidget);
+    for (final (id, label) in [('p1', 'بانتظار المراجعة'), ('p2', 'معتمد'), ('p3', 'مرفوض')]) {
+      await reveal(tester, find.byKey(Key('petty-expense-$id')));
+      expect(find.descendant(of: find.byKey(Key('petty-expense-$id')), matching: find.text(label)), findsOne);
+    }
+    expect(find.textContaining('بلا رقم فاتورة'), findsOneWidget);
+    expect(find.byKey(const Key('petty-move-m1')), findsOneWidget);
+    expect(find.byKey(const Key('petty-cancel-p1')), findsOneWidget, reason: 'pending: he may cancel it');
+    expect(find.byKey(const Key('petty-cancel-p2')), findsNothing);
+    await shot(tester, '31-petty');
+  });
+
+  testWidgets('petty cash spending: photo required, amount checked against what is left, sent with the invoice', (
+    tester,
+  ) async {
+    final expenses = <Map<String, dynamic>>[];
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on('GET', '/api/v1/driver/petty', (r) => (200, pettyView(expenses: expenses)));
+    final img = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.now());
+    Photos.gallery = () async => fail('the invoice comes from the camera only');
+    w.server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (r) => (201, {'sha256': 'e' * 64, 'size_bytes': 10, 'content_type': 'image/jpeg'}),
+    );
+    w.server.on('POST', '/api/v1/driver/petty/expenses', (r) {
+      final b = jsonDecode(r.body) as Map<String, dynamic>;
+      final e = pettyExpense('n1', 'pending', amount: b['amount'] as String);
+      expenses.add(e);
+      return (201, e);
+    });
+    await pumpApp(tester, w);
+    await reveal(tester, find.byKey(const Key('qa-petty')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('qa-petty')));
+    await idle(tester);
+    await tester.tap(find.byKey(const Key('petty-spend')));
+    await idle(tester);
+
+    // nothing filled: photo, amount and type asked for, nothing sent
+    await reveal(tester, find.byKey(const Key('petty-send')));
+    await tester.tap(find.byKey(const Key('petty-send')));
+    await idle(tester);
+    expect(find.byKey(const Key('petty-photo-missing')), findsOneWidget);
+    expect(find.text('اختر نوع المصروف'), findsOneWidget);
+    // more than the custody holds
+    await reveal(tester, find.byKey(const Key('petty-amount')));
+    await tester.enterText(find.byKey(const Key('petty-amount')), '20.001');
+    await reveal(tester, find.byKey(const Key('petty-send')));
+    await tester.tap(find.byKey(const Key('petty-send')));
+    await idle(tester);
+    expect(find.textContaining('أكبر من المتاح للصرف'), findsOneWidget);
+    expect(w.server.calls('/api/v1/driver/petty/expenses', method: 'POST'), isEmpty);
+
+    await reveal(tester, find.byKey(const Key('petty-amount')));
+    await tester.enterText(find.byKey(const Key('petty-amount')), '4.25');
+    await reveal(tester, find.byKey(const Key('petty-photo')));
+    await tester.tap(find.byKey(const Key('petty-photo')));
+    await idle(tester);
+    await reveal(tester, find.byKey(const Key('petty-category')));
+    await tester.tap(find.byKey(const Key('petty-category')));
+    await settle(tester);
+    await tester.tap(find.text('مصروفات مكتبية').last);
+    await settle(tester);
+    await reveal(tester, find.byKey(const Key('petty-send')));
+    await tester.tap(find.byKey(const Key('petty-send')));
+    await idle(tester);
+    final body = jsonDecode(w.server.calls('/api/v1/driver/petty/expenses', method: 'POST').single.body) as Map;
+    expect((body['amount'], body['category'], body['invoice_sha256']), ('4.250', 3, 'e' * 64));
+    expect((body['client_ref'] as String).length, 36);
+    expect(body['invoice_date'], DateFormat('yyyy-MM-dd', 'en').format(DateTime.now()));
+    expect(w.server.calls('/api/v1/driver/files').single.url.queryParameters['source'], 'camera');
+    expect(find.text('تم الإرسال'), findsOneWidget);
+  });
+
+  testWidgets('petty cash spending offline: queued on the phone and shown as waiting to send', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on('GET', '/api/v1/driver/petty', (r) => (200, pettyView()));
+    final img = await tester.runAsync(testImage);
+    Photos.camera = (_) async => TakenPhoto(img!, DateTime.now());
+    w.server.on('POST', '/api/v1/driver/files', (r) => throw const SocketException('offline'));
+    await pumpApp(tester, w);
+    w.server.on('GET', '/api/v1/driver/petty', (r) => throw const SocketException('offline'));
+    await reveal(tester, find.byKey(const Key('qa-petty')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('qa-petty')));
+    await idle(tester);
+    await tester.tap(find.byKey(const Key('petty-spend')));
+    await idle(tester);
+    await tester.enterText(find.byKey(const Key('petty-amount')), '3');
+    await reveal(tester, find.byKey(const Key('petty-photo')));
+    await tester.tap(find.byKey(const Key('petty-photo')));
+    await idle(tester);
+    await reveal(tester, find.byKey(const Key('petty-category')));
+    await tester.tap(find.byKey(const Key('petty-category')));
+    await settle(tester);
+    await tester.tap(find.text('مصروفات مكتبية').last);
+    await settle(tester);
+    await reveal(tester, find.byKey(const Key('petty-send')));
+    await tester.tap(find.byKey(const Key('petty-send')));
+    await idle(tester);
+    expect(find.text('حُفظ على الهاتف'), findsOneWidget);
+    expect(w.state.queued.single.kind, 'petty');
+    await tester.tap(find.text('تم'));
+    await idle(tester);
+    await tester.tap(find.byKey(const Key('qa-petty')));
+    await idle(tester);
+    final id = w.state.queued.single.id;
+    await reveal(tester, find.byKey(Key('petty-queued-$id')));
+    expect(find.descendant(of: find.byKey(Key('petty-queued-$id')), matching: find.text('بانتظار الإرسال')), findsOne);
   });
 }
