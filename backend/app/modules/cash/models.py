@@ -146,6 +146,11 @@ class Receipt(Base):
     created_by: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     driver_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # as issued: the printed receipt shows these, whatever changes later (a new car, a corrected name)
+    company_id: Mapped[int | None] = mapped_column(BigInteger)
+    driver_name: Mapped[dict | None] = mapped_column(JSONB)
+    civil_id: Mapped[str | None] = mapped_column(Text)
+    plate_number: Mapped[str | None] = mapped_column(Text)
 
 
 class FuelClaim(Base):

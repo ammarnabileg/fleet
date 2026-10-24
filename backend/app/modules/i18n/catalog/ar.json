@@ -649,7 +649,12 @@
     "broadcast_text_required": "الحقل ({field}) مطلوب باللغات: {langs}",
     "invalid_audience": "اختر من يصله الإشعار",
     "invalid_broadcast": "إشعار غير صالح: {detail}",
-    "unknown_channel": "قناة غير معروفة: {channel}"
+    "unknown_channel": "قناة غير معروفة: {channel}",
+    "print_template_variable_unknown": "متغير غير معروف {variable} في {field}",
+    "print_template_invalid": "قيمة غير صالحة في قالب الطباعة: {field}",
+    "print_template_image_missing": "الصورة غير موجودة: ارفعها من جديد",
+    "print_config_changed": "غيّر شخص آخر قوالب الطباعة: أعد فتح الصفحة",
+    "print_config_no_previous": "لا يوجد إعداد سابق للرجوع إليه"
   },
   "settings": {
     "branding": "الهوية",
@@ -1561,7 +1566,8 @@
     "payroll_objection": "اعتراض على كشف راتب",
     "maintenance_schedule": "جدول صيانة دورية",
     "leave_type": "نوع إجازة",
-    "app_release": "إصدار التطبيق"
+    "app_release": "إصدار التطبيق",
+    "print_template": "قالب الطباعة"
   },
   "audit_actor": {
     "user": "مستخدم",

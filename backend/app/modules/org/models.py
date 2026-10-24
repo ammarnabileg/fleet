@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Index, Integer, Text, func, text
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Date, DateTime, Index, Integer, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -61,3 +61,18 @@ class Setting(Base):
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     updated_by: Mapped[int | None] = mapped_column(BigInteger)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PrintTemplateVersion(Base):
+    """Every publish of the print templates: the default and the per-company overrides as one set. The newest is in
+    force; going back publishes an earlier one again as a new version (restored_from)."""
+
+    __tablename__ = "print_template_versions"
+    __table_args__ = (CheckConstraint("version > 0", name="version"), SCHEMA)
+
+    version: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    config: Mapped[dict] = mapped_column(JSONB)
+    restored_from: Mapped[int | None] = mapped_column(Integer)
+    changed: Mapped[str | None] = mapped_column(Text)  # "default", "company:<id>", or none for a rollback
+    created_by: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

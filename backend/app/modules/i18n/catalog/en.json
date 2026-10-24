@@ -649,7 +649,12 @@
     "broadcast_text_required": "The {field} is required in: {langs}",
     "invalid_audience": "Choose who the broadcast goes to",
     "invalid_broadcast": "Invalid broadcast: {detail}",
-    "unknown_channel": "Unknown channel: {channel}"
+    "unknown_channel": "Unknown channel: {channel}",
+    "print_template_variable_unknown": "Unknown variable {variable} in {field}",
+    "print_template_invalid": "Invalid value in the print template: {field}",
+    "print_template_image_missing": "The image is not there: upload it again",
+    "print_config_changed": "Someone else changed the print templates: reopen the page",
+    "print_config_no_previous": "There is no previous setting to go back to"
   },
   "settings": {
     "branding": "Branding",
@@ -1561,7 +1566,8 @@
     "payroll_objection": "Payslip objection",
     "maintenance_schedule": "Maintenance schedule",
     "leave_type": "Leave type",
-    "app_release": "App release"
+    "app_release": "App release",
+    "print_template": "Print template"
   },
   "audit_actor": {
     "user": "User",
