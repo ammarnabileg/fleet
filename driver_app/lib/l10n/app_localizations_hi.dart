@@ -2084,4 +2084,16 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get whatsNew => 'नया क्या है';
+
+  @override
+  String get noticesCurrent => 'मौजूदा';
+
+  @override
+  String get noticesHistory => 'इतिहास';
+
+  @override
+  String get messagesChannel => 'संदेश और अपडेट';
+
+  @override
+  String get noticeOpenLeave => 'छुट्टी का अनुरोध';
 }

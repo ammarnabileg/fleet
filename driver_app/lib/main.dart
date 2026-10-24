@@ -19,6 +19,7 @@ import 'core/updater.dart';
 import 'l10n/app_localizations.dart';
 import 'tracking/notice.dart';
 import 'tracking/service.dart';
+import 'tracking/system_notices.dart';
 import 'ui/screens/home.dart';
 import 'ui/screens/onboarding.dart';
 import 'ui/screens/permissions.dart';
@@ -63,7 +64,9 @@ Future<void> main() async {
 }
 
 Future<void> _main(AppDb db) async {
-  final state = AppState(
+  final notices = FlutterLocalNotificationsPlugin();
+  late final AppState state;
+  state = AppState(
     db: db,
     stringsDir: () => getApplicationSupportDirectory().then<Directory?>((d) => d, onError: (Object _) => null),
     platform: PhoneHooks(
@@ -84,6 +87,8 @@ Future<void> _main(AppDb db) async {
         }
       },
       openLocationSettings: () async => Geolocator.openLocationSettings(),
+      // the current situations as system notifications (system_notices.dart), in the app's language
+      notices: PluginPoster(notices, strings: () async => state.strings),
       updates: UpdateHooks(
         // the cache's "updates" folder: the only one the FileProvider shares with the installer
         dir: () async => Directory('${(await getTemporaryDirectory()).path}/updates'),
@@ -95,14 +100,17 @@ Future<void> _main(AppDb db) async {
     ),
   );
   final links = AppLinks();
-  // the buttons of the alerts' notifications that open the app («Call», «Open location settings»)
+  // a tap on a notification: its button («Call», «Open location settings»), or the app at the right place (the inbox,
+  // the maintenance or accident screen)
   Future<void> tapped(NotificationResponse r) => runNoticeTap(
     noticeTap(r.actionId, r.payload),
     dial: state.platform.dial,
     openLocationSettings: state.platform.openLocationSettings,
     acknowledge: state.acknowledgeContact,
+    open: state.navigate,
   );
-  final notices = FlutterLocalNotificationsPlugin();
+  // a tapped push from the office (a broadcast, a notice): its place is the inbox
+  FirebasePush.onOpened = (_) => state.navigate('inbox');
   NotificationResponse? launched;
   try {
     await notices.initialize(
@@ -110,6 +118,7 @@ Future<void> _main(AppDb db) async {
       onDidReceiveNotificationResponse: (r) => unawaited(tapped(r)),
       onDidReceiveBackgroundNotificationResponse: noticeBackgroundTap,
     );
+    await PluginPoster.createChannels(notices, state.strings); // before any push arrives on them
     final launch = await notices.getNotificationAppLaunchDetails();
     if (launch?.didNotificationLaunchApp == true) launched = launch!.notificationResponse;
   } catch (_) {

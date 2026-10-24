@@ -600,5 +600,9 @@
   "checkUpdates": "Tingnan ang mga update",
   "upToDate": "Nasa pinakabagong bersyon ka",
   "updateCheckFailed": "Hindi masuri: walang koneksyon",
-  "whatsNew": "Ano'ng bago"
+  "whatsNew": "Ano'ng bago",
+  "noticesCurrent": "Kasalukuyan",
+  "noticesHistory": "Kasaysayan",
+  "messagesChannel": "Mga mensahe at update",
+  "noticeOpenLeave": "Mag-request ng leave"
 }

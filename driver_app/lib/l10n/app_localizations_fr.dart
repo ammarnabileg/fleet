@@ -2110,4 +2110,16 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get whatsNew => 'Nouveautés';
+
+  @override
+  String get noticesCurrent => 'En cours';
+
+  @override
+  String get noticesHistory => 'Historique';
+
+  @override
+  String get messagesChannel => 'Messages et suivis';
+
+  @override
+  String get noticeOpenLeave => 'Demander un congé';
 }

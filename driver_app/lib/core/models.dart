@@ -820,17 +820,36 @@ class DriverNotice {
     required this.read,
     this.entityType,
     this.entityId,
+    this.title,
+    this.body,
+    this.style,
+    this.layout,
+    this.image,
+    this.actionTarget,
+    this.actionLabel = const {},
   });
 
-  factory DriverNotice.fromJson(Map<String, dynamic> j) => DriverNotice(
-    id: j['id'] as String,
-    kind: j['kind'] as String,
-    message: j['message'] as String,
-    createdAt: DateTime.parse(j['created_at'] as String),
-    read: j['read'] as bool,
-    entityType: j['entity_type'] as String?,
-    entityId: j['entity_id'] as String?,
-  );
+  factory DriverNotice.fromJson(Map<String, dynamic> j) {
+    final action = j['action'] is Map ? Map<String, dynamic>.from(j['action'] as Map) : null;
+    final label = action?['label'];
+    String? text(String k) => j[k] is String ? j[k] as String : null;
+    return DriverNotice(
+      id: j['id'] as String,
+      kind: j['kind'] as String,
+      message: j['message'] as String,
+      createdAt: DateTime.parse(j['created_at'] as String),
+      read: j['read'] as bool,
+      entityType: j['entity_type'] as String?,
+      entityId: j['entity_id'] as String?,
+      title: text('title'),
+      body: text('body'),
+      style: text('style'),
+      layout: text('layout'),
+      image: text('image'),
+      actionTarget: action?['target'] is String ? action!['target'] as String : null,
+      actionLabel: label is Map ? {for (final e in label.entries) '${e.key}': '${e.value}'} : const {},
+    );
+  }
 
   final String id;
   final String kind;
@@ -839,6 +858,17 @@ class DriverNotice {
   final bool read;
   final String? entityType;
   final String? entityId;
+
+  /// A broadcast's title and text apart, and its look as the office chose it: the style (info, announcement,
+  /// reminder, warning, urgent, success), the card's layout (standard, highlight, compact), a picture (its sha256) and
+  /// a button (a screen of the app, with its label per language). Unknown values: the standard card.
+  final String? title;
+  final String? body;
+  final String? style;
+  final String? layout;
+  final String? image;
+  final String? actionTarget;
+  final Map<String, String> actionLabel;
 }
 
 class Notices {

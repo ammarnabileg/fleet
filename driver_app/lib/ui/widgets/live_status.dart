@@ -41,14 +41,13 @@ String _hm(DateTime t) {
   return '\u2066${l.hour.toString().padLeft(2, '0')}:${l.minute.toString().padLeft(2, '0')}\u2069';
 }
 
-/// The status area of the home screen: offline, a clear line with the time of the last update; the most important
-/// alert on top (it goes back to the base state once it expires or is resolved); then the shift card, always there
-/// with the real tracking state, and the car's card when the car is not simply available.
+/// The status area of the home screen: the shift card only (the work state, the real tracking state) and, offline, a
+/// clear line with the time of the last update. Alerts and the car's state are never drawn here: they are system
+/// notifications and the inbox's «current» section (StatusCardView there).
 class LiveStatusPanel extends StatelessWidget {
-  const LiveStatusPanel({super.key, required this.view, required this.onAction, this.sessionsToday = 0});
+  const LiveStatusPanel({super.key, required this.view, this.sessionsToday = 0});
 
   final StatusView view;
-  final void Function(String action, StatusCard card) onAction;
   final int sessionsToday;
 
   @override
@@ -56,7 +55,6 @@ class LiveStatusPanel extends StatelessWidget {
     final l = context.l;
     final still = MediaQuery.of(context).disableAnimations;
     final duration = still ? Duration.zero : const Duration(milliseconds: 280);
-    final top = view.top;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -71,18 +69,6 @@ class LiveStatusPanel extends StatelessWidget {
         ],
         AnimatedSwitcher(
           duration: duration,
-          switchInCurve: Curves.easeOut,
-          switchOutCurve: Curves.easeIn,
-          child: top == null
-              ? const SizedBox.shrink(key: ValueKey('no-alert'))
-              : Padding(
-                  key: ValueKey('alert-${top.key}'),
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _StatusCardView(card: top, more: view.more, onAction: onAction),
-                ),
-        ),
-        AnimatedSwitcher(
-          duration: duration,
           child: _ShiftCard(
             key: ValueKey('shift-${view.shift.code}-${view.tracking}'),
             card: view.shift,
@@ -90,17 +76,6 @@ class LiveStatusPanel extends StatelessWidget {
             sessionsToday: sessionsToday,
           ),
         ),
-        if (view.vehicle != null) ...[
-          const SizedBox(height: 10),
-          AnimatedSwitcher(
-            duration: duration,
-            child: _StatusCardView(
-              key: ValueKey('vehicle-${view.vehicle!.code}'),
-              card: view.vehicle!,
-              onAction: onAction,
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -314,8 +289,9 @@ class _ShiftCard extends StatelessWidget {
   }
 }
 
-class _StatusCardView extends StatelessWidget {
-  const _StatusCardView({super.key, required this.card, required this.onAction, this.more = 0});
+/// A current situation's card (an alert, the car's state), in the inbox's «current» section, with its actions.
+class StatusCardView extends StatelessWidget {
+  const StatusCardView({super.key, required this.card, required this.onAction, this.more = 0});
 
   final StatusCard card;
   final void Function(String action, StatusCard card) onAction;

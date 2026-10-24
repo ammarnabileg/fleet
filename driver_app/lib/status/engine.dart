@@ -430,9 +430,14 @@ class StatusView {
     required this.more,
     required this.offline,
     required this.lastUpdate,
+    this.alerts = const [],
   });
 
   final StatusCard shift;
+
+  /// Every current alert, the most important first (top is the first): shown in the inbox's «current» section and
+  /// as system notifications, never on the home screen.
+  final List<StatusCard> alerts;
 
   /// active / stale / off as the server saw it; "unknown" offline: a state the phone cannot vouch for is never live.
   final String tracking;
@@ -505,31 +510,30 @@ StatusView compose(
     for (final a in s.alerts)
       if (!a.expired(now)) a,
   ]..sort((a, b) => b.priority.compareTo(a.priority));
-  StatusCard? top;
-  if (alerts.isNotEmpty) {
-    final a = alerts.first;
+  StatusCard cardOf(StatusAlert a) {
     final t = c.templates[a.code] ?? StatusConfig.builtIn[a.code];
-    if (t != null) {
-      top = renderCard(t, {...values, ...a.values}, lang, alert: a);
-    } else {
-      // a state this app does not know: the server's text on the generic card
-      top = StatusCard(
-        code: a.code,
-        kind: 'generic',
-        icon: StatusEngine.defaultIcon,
-        color: _grey,
-        title: a.title ?? '',
-        subtitle: a.subtitle ?? '',
-        actions: const [],
-        alert: a,
-      );
-    }
+    if (t != null) return renderCard(t, {...values, ...a.values}, lang, alert: a);
+    // a state this app does not know: the server's text on the generic card
+    return StatusCard(
+      code: a.code,
+      kind: 'generic',
+      icon: StatusEngine.defaultIcon,
+      color: _grey,
+      title: a.title ?? '',
+      subtitle: a.subtitle ?? '',
+      actions: const [],
+      alert: a,
+    );
   }
+
+  final cards = [for (final a in alerts) cardOf(a)];
+  final top = cards.isEmpty ? null : cards.first;
   return StatusView(
     shift: shift,
     tracking: offline ? 'unknown' : s.tracking,
     vehicle: vehicle,
     top: top,
+    alerts: cards,
     more: alerts.length > 1 ? alerts.length - 1 : 0,
     offline: offline,
     lastUpdate: s.receivedAt,

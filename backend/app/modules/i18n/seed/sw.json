@@ -601,7 +601,11 @@
     "checkUpdates": "Angalia masasisho",
     "upToDate": "Una toleo jipya zaidi",
     "updateCheckFailed": "Imeshindwa kuangalia: hakuna mtandao",
-    "whatsNew": "Kipya"
+    "whatsNew": "Kipya",
+    "noticesCurrent": "Yanayoendelea",
+    "noticesHistory": "Historia",
+    "messagesChannel": "Ujumbe na taarifa",
+    "noticeOpenLeave": "Omba likizo"
   },
   "server": {
     "deduction_source": {

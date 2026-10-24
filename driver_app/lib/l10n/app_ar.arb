@@ -1329,5 +1329,9 @@
   "checkUpdates": "تحقق من التحديثات",
   "upToDate": "عندك أحدث إصدار",
   "updateCheckFailed": "تعذّر التحقق: لا يوجد اتصال",
-  "whatsNew": "الجديد"
+  "whatsNew": "الجديد",
+  "noticesCurrent": "حالات حالية",
+  "noticesHistory": "السجل",
+  "messagesChannel": "رسائل ومتابعات",
+  "noticeOpenLeave": "طلب إجازة"
 }

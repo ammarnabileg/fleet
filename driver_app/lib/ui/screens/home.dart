@@ -44,6 +44,29 @@ class _HomeScreenState extends State<HomeScreen> {
     widget.state.atRootScreen(); // a root screen: newer strings, if any, from here
   }
 
+  /// Where a tapped notification or a button in the inbox asked to go: back to this screen first, then there.
+  void _open() {
+    final s = widget.state;
+    final target = s.takeTarget();
+    if (target == null || !mounted) return;
+    final nav = Navigator.of(context)..popUntil((r) => r.isFirst);
+    void push(Widget screen) => nav.push(MaterialPageRoute(builder: (_) => screen));
+    switch (target) {
+      case 'inbox':
+        push(NotificationsScreen(state: s));
+      case 'maintenance' when s.shows('maintenance'):
+        push(MaintenanceScreen(state: s));
+      case 'accident' when s.shows('accidents'):
+        push(AccidentScreen(state: s));
+      case 'leave' when s.shows('leaves'):
+        push(LeaveScreen(state: s));
+      case 'cash' when s.shows('cash'):
+        _go('cash');
+      case 'documents':
+        _go('account');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = context.l;
@@ -111,7 +134,8 @@ class _HomeScreenState extends State<HomeScreen> {
       index = 0;
       tab = 'home';
     }
-    final unread = s.notices?.unread ?? 0;
+    final unread = s.badgeCount;
+    if (s.pendingTarget != null) WidgetsBinding.instance.addPostFrameCallback((_) => _open());
     return Scaffold(
       appBar: AppBar(
         title: Text(tabs[index].$3),
@@ -256,35 +280,6 @@ class HomeTab extends StatelessWidget {
     await state.reloadLocal();
   }
 
-  /// What a status card's button does: only the actions built into the app (the engine hides any other).
-  Future<void> _statusAction(BuildContext context, String action, StatusCard card) async {
-    final l = context.l;
-    final messenger = ScaffoldMessenger.of(context);
-    switch (action) {
-      case 'open_cash':
-        onTab(state.shows('cash') ? 'cash' : 'home');
-      case 'open_custody' || 'open_documents':
-        onTab('account');
-      case 'open_maintenance':
-        if (state.shows('maintenance')) _push(context, MaintenanceScreen(state: state));
-      case 'open_location_settings':
-        await state.platform.openLocationSettings?.call();
-      case 'call_supervisor':
-        final phone = card.alert?.data['phone'];
-        final ok = phone is String && await (state.platform.dial?.call(phone) ?? Future.value(false));
-        if (!ok) messenger.showSnackBar(SnackBar(content: Text(l.statusDialFailed)));
-      case 'acknowledge':
-        final id = card.alert?.data['request_id'];
-        if (id is String) {
-          await state.acknowledgeContact(id);
-          messenger.showSnackBar(SnackBar(content: Text(l.statusContactSent)));
-        }
-      case 'open_contact':
-        final message = card.alert?.data['message'];
-        if (message is String) messenger.showSnackBar(SnackBar(content: Text(message)));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final l = context.l;
@@ -405,26 +400,11 @@ class HomeTab extends StatelessWidget {
                 online: state.liveOnline,
               ),
               sessionsToday: state.liveStatus!.sessionsToday,
-              onAction: (action, card) => _statusAction(context, action, card),
             ),
             const SizedBox(height: 12),
           ],
-          for (final r in state.maintenance.where((r) => r.isReady && state.shows('maintenance'))) ...[
-            ReadyBanner(request: r, state: state),
-            const SizedBox(height: 12),
-          ],
-          for (final a in state.accidents.where((a) => a.awaitsPoliceReport && state.shows('accidents'))) ...[
-            InkWell(
-              key: Key('police-banner-${a.number}'),
-              onTap: () => _push(context, AccidentScreen(state: state)),
-              child: Banner2(
-                text: l.accAwaitingPolice('${a.number}'),
-                tone: BannerTone.warn,
-                icon: Icons.description_outlined,
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
+          // a car ready at its center, an accident waiting for its police report: in the inbox's «current» section
+          // and as system notifications, never here
           if (state.needsAttention > 0) ...[
             Banner2(
               key: const Key('outbox-attention'),

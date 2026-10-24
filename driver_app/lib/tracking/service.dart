@@ -22,6 +22,7 @@ import 'alerts.dart';
 import 'fix_mapper.dart';
 import 'health.dart';
 import 'notice.dart';
+import 'system_notices.dart';
 import 'tracker.dart';
 
 /// The Android foreground service (type "location") that keeps tracking when the app is closed. It runs in its
@@ -76,7 +77,6 @@ class WorkNotice {
 
   final FlutterLocalNotificationsPlugin _plugin;
   static const channel = 'FOREGROUND_DEFAULT'; // created by flutter_background_service before its first post
-  static const alertsChannel = 'driver_alerts';
 
   bool _ready = false;
 
@@ -174,40 +174,13 @@ class WorkNotice {
     } catch (_) {}
   }
 
-  /// A heads-up for an important alert (a contact request, a location problem), on the high-importance channel, with
-  /// its buttons: «Call» and «Done» (sent in the background through the outbox), «Open location settings».
-  Future<void> headsUp({required String lang, required StatusAlert alert}) async {
-    if (!_ready) return;
-    final l = await _strings(lang);
-    final c = headsUpContent(l, alert);
-    try {
-      await _android?.createNotificationChannel(
-        AndroidNotificationChannel(alertsChannel, l.alertsChannel, importance: Importance.high),
-      );
-      await _plugin.show(
-        id: headsUpId(alert.id),
-        title: c.title,
-        body: c.body,
-        payload: c.payload,
-        notificationDetails: NotificationDetails(
-          android: AndroidNotificationDetails(
-            alertsChannel,
-            l.alertsChannel,
-            importance: Importance.high,
-            priority: Priority.high,
-            category: AndroidNotificationCategory.message,
-            icon: 'ic_bg_service_small',
-            color: Color(c.color),
-            subText: (inLang(_company, lang) ?? l.appTitle) as String,
-            styleInformation: BigTextStyleInformation(c.big, contentTitle: c.title),
-            actions: [
-              for (final a in c.actions) AndroidNotificationAction(a.id, a.label, showsUserInterface: a.opensApp),
-            ],
-          ),
-        ),
-      );
-    } catch (_) {}
-  }
+  /// The alerts' notifications (system_notices.dart): the heads-up channel for a contact request or a location
+  /// problem, the messages channel for the others; the company in their header, as the ongoing notification's.
+  NoticePoster poster(String Function() lang) => PluginPoster(
+    _plugin,
+    strings: () => _strings(lang()),
+    header: () => inLang(_company, lang()) as String?,
+  );
 }
 
 /// A notification button that does not open the app («Done» on a contact request), run by the plugin in a background
@@ -266,8 +239,8 @@ Future<void> _run(ServiceInstance service, AppDb db) async {
       final status = await AlertWatcher(
         api: api,
         db: db,
-        allowed: notice.allowed,
-        post: (alert) => notice.headsUp(lang: api.lang, alert: alert),
+        poster: notice.poster(() => api.lang),
+        strings: () => notice._strings(api.lang),
       ).check();
       if (status != null) await tracker.setInfo(noticeInfo(status));
     },

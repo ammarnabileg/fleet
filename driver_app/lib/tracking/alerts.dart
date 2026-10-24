@@ -1,30 +1,26 @@
-import 'dart:convert';
-
 import '../core/api.dart';
 import '../core/db.dart';
+import '../l10n/app_localizations.dart';
 import '../status/engine.dart';
-import 'notice.dart';
+import 'system_notices.dart';
 
 /// Run by the tracking service after each heartbeat: reads the driver's live status (kept for the app's screens
-/// too) and pops up the important new alerts, each once. It never touches the tracking itself.
+/// too) and keeps its system notifications in step (system_notices.dart): each current alert posted once, updated in
+/// place when its text changes, cancelled once it is over. It never touches the tracking itself.
 class AlertWatcher {
   AlertWatcher({
     required this.api,
     required this.db,
-    required this.allowed,
-    required this.post,
+    required this.poster,
+    required this.strings,
     DateTime Function()? clock,
   }) : _now = clock ?? DateTime.now;
 
   final Api api;
   final AppDb db;
-
-  /// Whether the driver lets the app post notifications (Android 13 and later ask him).
-  final Future<bool> Function() allowed;
-  final Future<void> Function(StatusAlert alert) post;
+  final NoticePoster poster;
+  final Future<AppLocalizations> Function() strings;
   final DateTime Function() _now;
-
-  static const postedKey = 'headsup_posted';
 
   /// The live status received (null: an answer it could not read).
   Future<LiveStatus?> check() async {
@@ -34,20 +30,26 @@ class AlertWatcher {
     final now = _now();
     final status = await store.save(body, now);
     if (status == null) return null;
-    final posted = <String>{};
-    try {
-      posted.addAll([for (final x in jsonDecode(await db.get(postedKey) ?? '[]') as List) '$x']);
-    } on FormatException {
-      // forgotten: at worst an alert pops up again
-    }
-    final todo = headsUpToPost(status.alerts, posted: posted, allowed: await allowed(), now: now);
-    for (final a in todo) {
-      await post(a);
-    }
-    // an alert that went away and comes back (the location lost again) pops up again
-    final current = {for (final a in status.alerts) a.id};
-    final keep = {...posted.where(current.contains), for (final a in todo) a.id};
-    await db.put(postedKey, jsonEncode(keep.toList()));
+    await syncAlertNotices(
+      db: db,
+      poster: poster,
+      l: await strings(),
+      view: compose(status, await store.config(), now: now, lang: api.lang),
+    );
     return status;
   }
 }
+
+/// The live status's notifications, as the app and the tracking service both keep them (one record of what is
+/// posted, so they never post the same twice).
+Future<void> syncAlertNotices({
+  required AppDb db,
+  required NoticePoster poster,
+  required AppLocalizations l,
+  required StatusView? view,
+}) => NoticeSync(
+  get: db.get,
+  put: db.put,
+  poster: poster,
+  scope: 'alerts',
+).sync([for (final c in currentCards(view)) cardNotice(l, c)]);

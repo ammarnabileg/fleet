@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show Locale;
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -20,7 +21,10 @@ import '../core/tokens.dart';
 import '../core/translations.dart';
 import '../core/updater.dart';
 import '../status/engine.dart';
+import '../l10n/app_localizations.dart';
+import '../tracking/alerts.dart' show syncAlertNotices;
 import '../tracking/positions.dart';
+import '../tracking/system_notices.dart';
 
 /// [failed]: the start itself failed in a way no retry inside could fix (an answer it could not read, a database
 /// error); the screen says so and offers to try again, never an endless spinner.
@@ -37,7 +41,11 @@ class PhoneHooks {
     this.dial,
     this.openLocationSettings,
     this.updates,
+    this.notices,
   });
+
+  /// The phone's notifications (null: none, as in most tests): the current situations are posted there.
+  final NoticePoster? notices;
 
   /// The in-app update's Android side (null: no updates, as in most tests).
   final UpdateHooks? updates;
@@ -588,6 +596,7 @@ class AppState extends ChangeNotifier {
       ]);
       await _readLocal();
       _set(Phase.ready);
+      unawaited(syncSystemNotices());
       unawaited(registerPush());
       if (await db.get('lang_told') != lang) await _tellLanguage(lang); // never throws
     } on SessionEnded {
@@ -723,6 +732,7 @@ class AppState extends ChangeNotifier {
     } catch (e, st) {
       await errors.record('live_status.read', e, st);
     }
+    unawaited(syncSystemNotices());
   }
 
   /// «Done» on a contact request: through the outbox (sent again until the server has it); gone from the card at
@@ -837,6 +847,7 @@ class AppState extends ChangeNotifier {
       for (final r in await api.get('/driver/maintenance') as List)
         MaintenanceRequest.fromJson(r as Map<String, dynamic>),
     ];
+    unawaited(syncSystemNotices());
     try {
       final raw = jsonEncode(await api.get('/driver/maintenance/form'));
       await db.put('maintenance_form', raw);
@@ -946,9 +957,95 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> loadAccidents() async => accidents = [
-    for (final a in await api.get('/driver/accidents') as List) Accident.fromJson(a as Map<String, dynamic>),
+  Future<void> loadAccidents() async {
+    accidents = [
+      for (final a in await api.get('/driver/accidents') as List) Accident.fromJson(a as Map<String, dynamic>),
+    ];
+    unawaited(syncSystemNotices());
+  }
+
+  // ---------------------------------------------------------------- the current situations (outside home)
+
+  /// The live status's current cards (every alert, the car's state): in the inbox's «current» section and as
+  /// system notifications; the home screen shows the shift card only.
+  List<StatusCard> get currentAlerts => liveStatus == null
+      ? const []
+      : currentCards(compose(liveStatus!, statusConfig, now: DateTime.now(), lang: lang, online: liveOnline));
+
+  /// The cars ready at their center, and the accidents waiting for a police report: current situations too.
+  List<MaintenanceRequest> get readyRequests => [
+    if (shows('maintenance'))
+      for (final r in maintenance)
+        if (r.isReady) r,
   ];
+  List<Accident> get awaitingPolice => [
+    if (shows('accidents'))
+      for (final a in accidents)
+        if (a.awaitsPoliceReport) a,
+  ];
+
+  int get currentCount => currentAlerts.length + readyRequests.length + awaitingPolice.length;
+
+  /// The bell's badge: the unread notices and the current situations.
+  int get badgeCount => (notices?.unread ?? 0) + currentCount;
+
+  /// Where a tapped notification asked the app to open (inbox, maintenance, accident, cash, documents, leave): the
+  /// home screen takes it and goes there.
+  String? pendingTarget;
+
+  void navigate(String target) {
+    pendingTarget = target;
+    notifyListeners();
+  }
+
+  String? takeTarget() {
+    final t = pendingTarget;
+    pendingTarget = null;
+    return t;
+  }
+
+  AppLocalizations get strings => appStrings(Locale(lang), translations.active);
+
+  Future<void> _syncing = Future.value();
+
+  /// Keeps the phone's notifications in step with the current situations (one after the other: never two at once).
+  Future<void> syncSystemNotices() {
+    final poster = platform.notices;
+    if (poster == null || phase != Phase.ready) return Future.value();
+    return _syncing = _syncing.then((_) async {
+      try {
+        final l = strings;
+        final live = liveStatus == null
+            ? null
+            : compose(liveStatus!, statusConfig, now: DateTime.now(), lang: lang, online: liveOnline);
+        await syncAlertNotices(db: db, poster: poster, l: l, view: live);
+        await NoticeSync(get: db.get, put: db.put, poster: poster, scope: 'banners').sync([
+          for (final r in readyRequests) readyNotice(l, r),
+          for (final a in awaitingPolice) policeNotice(l, a),
+        ]);
+      } catch (e, st) {
+        await errors.record('system_notices', e, st);
+      }
+    });
+  }
+
+  /// A broadcast's picture, downloaded once and kept on the phone (null: not reachable now).
+  final _images = <String, Uint8List>{};
+
+  Future<Uint8List?> noticeImage(String sha) async {
+    final kept = _images[sha];
+    if (kept != null) return kept;
+    try {
+      final stored = await db.get('notice_image:$sha');
+      if (stored != null) return _images[sha] = base64Decode(stored);
+      final res = await api.raw('/driver/broadcast-images/$sha');
+      if (res.statusCode != 200) return null;
+      await db.put('notice_image:$sha', base64Encode(res.bodyBytes));
+      return _images[sha] = res.bodyBytes;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Gives the server this phone's push token (again when it or the language changes), once push is on.
   Future<void> registerPush({bool force = false}) async {

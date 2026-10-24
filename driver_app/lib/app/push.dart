@@ -7,6 +7,9 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 class FirebasePush {
   static bool _ready = false;
 
+  /// A push the driver tapped (the app in the background or closed): its data, so the app opens at its place.
+  static void Function(Map<String, dynamic> data)? onOpened;
+
   static Future<String?> token(
     Map<String, dynamic> config, {
     required void Function(String token) onRefresh,
@@ -24,6 +27,9 @@ class FirebasePush {
       _ready = true;
       FirebaseMessaging.instance.onTokenRefresh.listen(onRefresh);
       FirebaseMessaging.onMessage.listen((_) => onMessage()); // in the foreground: the badge, not a banner
+      FirebaseMessaging.onMessageOpenedApp.listen((m) => onOpened?.call(m.data));
+      final initial = await FirebaseMessaging.instance.getInitialMessage();
+      if (initial != null) onOpened?.call(initial.data);
     }
     final settings = await FirebaseMessaging.instance.requestPermission();
     if (settings.authorizationStatus == AuthorizationStatus.denied) return null;

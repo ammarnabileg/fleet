@@ -601,7 +601,11 @@
     "checkUpdates": "अपडेट जाँचें",
     "upToDate": "आपके पास नवीनतम संस्करण है",
     "updateCheckFailed": "जाँच नहीं हो सकी: कनेक्शन नहीं है",
-    "whatsNew": "नया क्या है"
+    "whatsNew": "नया क्या है",
+    "noticesCurrent": "मौजूदा",
+    "noticesHistory": "इतिहास",
+    "messagesChannel": "संदेश और अपडेट",
+    "noticeOpenLeave": "छुट्टी का अनुरोध"
   },
   "server": {
     "deduction_source": {

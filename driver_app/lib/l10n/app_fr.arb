@@ -600,5 +600,9 @@
   "checkUpdates": "Rechercher des mises à jour",
   "upToDate": "Vous avez la dernière version",
   "updateCheckFailed": "Vérification impossible : pas de connexion",
-  "whatsNew": "Nouveautés"
+  "whatsNew": "Nouveautés",
+  "noticesCurrent": "En cours",
+  "noticesHistory": "Historique",
+  "messagesChannel": "Messages et suivis",
+  "noticeOpenLeave": "Demander un congé"
 }

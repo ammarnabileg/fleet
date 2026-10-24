@@ -2091,4 +2091,16 @@ class AppLocalizationsSw extends AppLocalizations {
 
   @override
   String get whatsNew => 'Kipya';
+
+  @override
+  String get noticesCurrent => 'Yanayoendelea';
+
+  @override
+  String get noticesHistory => 'Historia';
+
+  @override
+  String get messagesChannel => 'Ujumbe na taarifa';
+
+  @override
+  String get noticeOpenLeave => 'Omba likizo';
 }

@@ -1213,4 +1213,12 @@ class RemoteLocalizations extends AppLocalizations {
   String get updateCheckFailed => _remote.text('updateCheckFailed') ?? _base.updateCheckFailed;
   @override
   String get whatsNew => _remote.text('whatsNew') ?? _base.whatsNew;
+  @override
+  String get noticesCurrent => _remote.text('noticesCurrent') ?? _base.noticesCurrent;
+  @override
+  String get noticesHistory => _remote.text('noticesHistory') ?? _base.noticesHistory;
+  @override
+  String get messagesChannel => _remote.text('messagesChannel') ?? _base.messagesChannel;
+  @override
+  String get noticeOpenLeave => _remote.text('noticeOpenLeave') ?? _base.noticeOpenLeave;
 }

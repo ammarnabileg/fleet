@@ -2087,4 +2087,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get whatsNew => 'What\'s new';
+
+  @override
+  String get noticesCurrent => 'Current';
+
+  @override
+  String get noticesHistory => 'History';
+
+  @override
+  String get messagesChannel => 'Messages and updates';
+
+  @override
+  String get noticeOpenLeave => 'Request leave';
 }

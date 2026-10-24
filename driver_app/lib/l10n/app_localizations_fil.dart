@@ -2097,4 +2097,16 @@ class AppLocalizationsFil extends AppLocalizations {
 
   @override
   String get whatsNew => 'Ano\'ng bago';
+
+  @override
+  String get noticesCurrent => 'Kasalukuyan';
+
+  @override
+  String get noticesHistory => 'Kasaysayan';
+
+  @override
+  String get messagesChannel => 'Mga mensahe at update';
+
+  @override
+  String get noticeOpenLeave => 'Mag-request ng leave';
 }

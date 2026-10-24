@@ -3711,6 +3711,30 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'الجديد'**
   String get whatsNew;
+
+  /// No description provided for @noticesCurrent.
+  ///
+  /// In ar, this message translates to:
+  /// **'حالات حالية'**
+  String get noticesCurrent;
+
+  /// No description provided for @noticesHistory.
+  ///
+  /// In ar, this message translates to:
+  /// **'السجل'**
+  String get noticesHistory;
+
+  /// No description provided for @messagesChannel.
+  ///
+  /// In ar, this message translates to:
+  /// **'رسائل ومتابعات'**
+  String get messagesChannel;
+
+  /// No description provided for @noticeOpenLeave.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلب إجازة'**
+  String get noticeOpenLeave;
 }
 
 class _AppLocalizationsDelegate

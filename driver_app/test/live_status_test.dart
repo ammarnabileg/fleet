@@ -5,6 +5,7 @@ import 'package:fleet_driver/l10n/app_localizations.dart';
 import 'package:fleet_driver/status/engine.dart';
 import 'package:fleet_driver/tracking/alerts.dart';
 import 'package:fleet_driver/tracking/notice.dart';
+import 'package:fleet_driver/tracking/system_notices.dart';
 import 'package:fleet_driver/tracking/tracker.dart';
 import 'package:fleet_driver/ui/screens/notifications.dart';
 import 'package:fleet_driver/ui/widgets/live_status.dart';
@@ -461,31 +462,65 @@ void main() {
       expect(headsUpId('contact:1'), headsUpId('contact:1'));
     });
 
-    test('the watcher posts each alert once, again when it comes back; refused: in the app only', () async {
+    test('the watcher posts each alert once, updates it in place, cancels it when over; refused: none', () async {
       final (db, _, api, server) = await session();
       var alerts = [alert('contact_request', 90, id: 'contact:1'), alert('location_problem', 80)];
       server.on('GET', '/api/v1/driver/live-status', (_) => (200, body(alerts: alerts)));
-      final posted = <String>[];
-      var allowed = false;
-      final w = AlertWatcher(
-        api: api,
-        db: db,
-        allowed: () async => allowed,
-        post: (a) async => posted.add(a.id),
-        clock: () => now,
-      );
+      final poster = FakePoster()..allowed_ = false;
+      final w = AlertWatcher(api: api, db: db, poster: poster, strings: () async => ar, clock: () => now);
       await w.check();
-      expect(posted, isEmpty, reason: 'notifications refused: the card in the app only');
-      allowed = true;
+      expect(poster.posted, isEmpty, reason: 'notifications refused: in the inbox only');
+      poster.allowed_ = true;
       await w.check();
       await w.check();
-      expect(posted, ['contact:1', 'location_problem']);
+      expect([for (final n in poster.posted) n.key], ['contact:1', 'location_problem']);
+      expect([for (final n in poster.posted) n.channel], [alertsChannel, alertsChannel]);
+      alerts = [alert('location_problem', 80), alert('custody_settlement', 60)];
+      await w.check();
+      expect(poster.cancelled, [headsUpId('contact:1')], reason: 'resolved: gone from the shade');
+      expect(poster.posted.last.key, 'custody_settlement');
+      expect(poster.posted.last.channel, messagesChannel, reason: 'quietly: not over the screen');
+      expect(noticeTap(null, poster.posted.last.payload).target, 'inbox');
+      // its text changes: the same notification, updated in place
+      alerts = [alert('location_problem', 80, values: {'last_update': '08:55'}), alert('custody_settlement', 60)];
+      await w.check();
+      expect(poster.posted.last.key, 'location_problem');
+      expect(poster.posted.last.id, headsUpId('location_problem'));
+      final count = poster.posted.length;
+      await w.check();
+      expect(poster.posted, hasLength(count), reason: 'nothing changed: nothing posted');
       alerts = [];
       await w.check();
-      alerts = [alert('location_problem', 80)];
-      await w.check();
-      expect(posted, ['contact:1', 'location_problem', 'location_problem']);
+      expect(poster.cancelled, containsAll([headsUpId('location_problem'), headsUpId('custody_settlement')]));
       expect(server.calls('/api/v1/driver/live-status').last.url.queryParameters, isEmpty);
+    });
+
+    test('every current alert kind is a system notification; the car\'s state too, once', () {
+      final view = compose(
+        status(
+          body(
+            vehicle: 'breakdown',
+            alerts: [
+              alert('vehicle_maintenance', 70),
+              alert('document_missing', 40, values: {'document': 'رخصة'}),
+              alert('custody_settlement', 60),
+            ],
+          ),
+        ),
+        null,
+        now: now,
+        lang: 'ar',
+      );
+      final cards = currentCards(view);
+      expect([for (final c in cards) c.code], [
+        'vehicle_maintenance',
+        'custody_settlement',
+        'document_missing',
+        'vehicle_breakdown',
+      ]);
+      final notices = [for (final c in cards) cardNotice(ar, c)];
+      expect({for (final n in notices) n.channel}, {messagesChannel});
+      expect({for (final n in notices) n.id}, hasLength(4));
     });
 
     test('an office alert never starts the tracking', () async {
@@ -519,8 +554,12 @@ void main() {
         },
         health: ({required bool trackingRunning, required int queueSize, String? lastUploadAt}) async => {},
         notifyState: states.add,
-        checkAlerts: () =>
-            AlertWatcher(api: api, db: db, allowed: () async => true, post: (a) async => posted.add(a.id)).check(),
+        checkAlerts: () => AlertWatcher(
+          api: api,
+          db: db,
+          poster: FakePoster(onPost: (n) => posted.add(n.key)),
+          strings: () async => ar,
+        ).check(),
         heartbeatEvery: const Duration(hours: 1),
         syncEvery: const Duration(hours: 1),
       );
@@ -544,7 +583,13 @@ void main() {
           home: MediaQuery(
             data: MediaQueryData(disableAnimations: still),
             child: Scaffold(
-              body: LiveStatusPanel(view: view, onAction: (a, _) => on?.call(a)),
+              body: ListView(
+                children: [
+                  LiveStatusPanel(view: view),
+                  // the inbox's «current» cards, drawn by the same widget there
+                  for (final c in currentCards(view)) StatusCardView(card: c, onAction: (a, _) => on?.call(a)),
+                ],
+              ),
             ),
           ),
         ),
@@ -590,27 +635,26 @@ void main() {
       expect(find.byKey(const Key('status-action-acknowledge')), findsOneWidget);
     });
 
-    testWidgets('the alert switches smoothly, at once when animations are off', (tester) async {
-      final a = compose(
-        status(body(alerts: [alert('custody_settlement', 60)])),
+    testWidgets('home\'s panel: the shift card only, never an alert nor the car\'s state', (tester) async {
+      final view = compose(
+        status(body(vehicle: 'maintenance', alerts: [alert('custody_settlement', 60), alert('contact_request', 90)])),
         null,
         now: now,
         lang: 'ar',
       );
-      final b = compose(status(body()), null, now: now, lang: 'ar');
-      final card = find.byKey(const Key('status-card-custody_settlement'));
-      await pump(tester, a);
-      await pump(tester, b);
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(card, findsOneWidget, reason: 'fading out');
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('ar'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(body: LiveStatusPanel(view: view)),
+        ),
+      );
       await tester.pumpAndSettle();
-      expect(card, findsNothing);
-      await pump(tester, a, still: true);
-      await tester.pump();
-      await pump(tester, b, still: true);
-      await tester.pump();
-      expect(card, findsNothing, reason: 'animations off: replaced at once');
       expect(find.byKey(const Key('status-shift')), findsOneWidget);
+      expect(find.byType(StatusCardView), findsNothing);
+      expect(find.byKey(const Key('status-card-custody_settlement')), findsNothing);
+      expect(find.byKey(const Key('status-card-vehicle_maintenance')), findsNothing);
     });
 
     testWidgets('working: the green dot and the duration; off duty: calm, with the day summary', (tester) async {
@@ -720,4 +764,27 @@ void main() {
       expect(find.text('s'), findsOneWidget);
     });
   });
+}
+
+final ar = lookupAppLocalizations(const Locale('ar'));
+
+class FakePoster implements NoticePoster {
+  FakePoster({this.onPost});
+
+  final void Function(SystemNotice n)? onPost;
+  bool allowed_ = true;
+  final posted = <SystemNotice>[];
+  final cancelled = <int>[];
+
+  @override
+  Future<bool> allowed() async => allowed_;
+
+  @override
+  Future<void> post(SystemNotice n) async {
+    posted.add(n);
+    onPost?.call(n);
+  }
+
+  @override
+  Future<void> cancel(int id) async => cancelled.add(id);
 }

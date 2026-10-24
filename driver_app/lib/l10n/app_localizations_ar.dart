@@ -2072,4 +2072,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get whatsNew => 'الجديد';
+
+  @override
+  String get noticesCurrent => 'حالات حالية';
+
+  @override
+  String get noticesHistory => 'السجل';
+
+  @override
+  String get messagesChannel => 'رسائل ومتابعات';
+
+  @override
+  String get noticeOpenLeave => 'طلب إجازة';
 }

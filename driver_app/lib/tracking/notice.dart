@@ -222,14 +222,19 @@ HeadsUpContent headsUpContent(AppLocalizations l, StatusAlert alert) {
   );
 }
 
-/// What a tap on a notification asks for: [kind] is open (the app), call, ack or location_settings.
+/// What a tap on a notification asks for: [kind] is open (the app, at [target]), call, ack or location_settings.
 class NoticeTap {
-  const NoticeTap(this.kind, {this.requestId, this.phone});
+  const NoticeTap(this.kind, {this.requestId, this.phone, this.target = 'inbox'});
 
   final String kind;
   final String? requestId;
   final String? phone;
+
+  /// Where a plain tap opens the app: the inbox (its «current» section), or the screen named (maintenance, accident).
+  final String target;
 }
+
+const openTargets = {'inbox', 'maintenance', 'accident', 'cash', 'documents', 'leave'};
 
 /// Reads a tap from the plugin's response: an unknown button or a damaged payload only opens the app.
 NoticeTap noticeTap(String? actionId, String? payload) {
@@ -246,19 +251,22 @@ NoticeTap noticeTap(String? actionId, String? payload) {
     'call' when phone != null => NoticeTap('call', phone: phone),
     'ack' when request != null => NoticeTap('ack', requestId: request),
     'location_settings' => const NoticeTap('location_settings'),
-    _ => const NoticeTap('open'),
+    _ => NoticeTap('open', target: openTargets.contains(p['open']) ? p['open'] as String : 'inbox'),
   };
 }
 
 /// Does what a tap asked for, in the app: a call (the dialer, the driver presses call), the phone's location
-/// settings, «Done» (when it reached the app rather than the background). A plain tap only opened the app.
+/// settings, «Done» (when it reached the app rather than the background). A plain tap opens the app where it says.
 Future<void> runNoticeTap(
   NoticeTap tap, {
   required Future<bool> Function(String phone)? dial,
   required Future<void> Function()? openLocationSettings,
   required Future<void> Function(String requestId) acknowledge,
+  void Function(String target)? open,
 }) async {
   switch (tap.kind) {
+    case 'open':
+      open?.call(tap.target);
     case 'call':
       await dial?.call(tap.phone!);
     case 'location_settings':

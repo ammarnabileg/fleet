@@ -604,4 +604,8 @@ const Map<String, String> englishMessages = {
   'upToDate': "You have the latest version",
   'updateCheckFailed': "Could not check: no connection",
   'whatsNew': "What's new",
+  'noticesCurrent': "Current",
+  'noticesHistory': "History",
+  'messagesChannel': "Messages and updates",
+  'noticeOpenLeave': "Request leave",
 };
