@@ -8,7 +8,9 @@ import json
 import pytest
 from sqlalchemy import text
 
+from app.core.clock import today
 from app.modules.i18n import store
+from app.modules.payroll.service import add_months
 from tests.conftest import PASSWORD, login, make_user, name
 
 C = "/api/v1/config"
@@ -48,8 +50,13 @@ def configure(c, company) -> None:
     monthly = [{"key": "rating", "type": "money", "label": name("التقييم", "Rating")}]
     daily = [{"key": "orders", "builtin": "orders", "type": "int", "label": name("الطلبات", "Orders")}]
     ok(c.put(f"{P}/platforms/{p['id']}/fields", json={"version": 0, "daily": daily, "monthly": monthly}))
-    s = ok(c.post(f"{P}/schemes/from-template", json={"platform_id": p["id"], "code": "flat", "name": name("ثابت", "Flat")}),
-           201)  # fmt: skip
+    flat = {"platform_id": p["id"], "code": "flat", "name": name("ثابت", "Flat")}
+    s = ok(c.post(f"{P}/schemes/from-template", json=flat), 201)
+    d = c.get(f"{P}/schemes/{s['id']}/designer").json()
+    blocks = [b | {"params": b["params"] | {"rate": "0.450"}} for b in d["versions"][0]["blocks"]]
+    nxt = add_months(today().replace(day=1), 1).isoformat()
+    ok(c.post(f"{P}/schemes/{s['id']}/blocks", json={"version": d["scheme"]["version"], "blocks": blocks,
+        "effective_month": nxt}))  # fmt: skip
     ok(c.put("/api/v1/approvals/workflows/expense", json={"version": 0, "active": True, "steps": [
         {"name": name("المرحّل", "Dispatch"), "role": "dispatch", "min_amount": "5.000"}]}))  # fmt: skip
     ok(c.post("/api/v1/maintenance/centers", json={"name": "مركز النور", "phone": "+96522223333"}), 201)
@@ -155,6 +162,8 @@ def test_round_trip_to_a_fresh_installation(admin_client, company, reinstall):
     again = export(b, passphrase=PASS)
     assert again["sections"] == sealed["sections"]  # everything came across, by natural key
     assert again["files"].keys() == sealed["files"].keys()
+    scheme = next(x for x in again["sections"]["pay_schemes"] if x["code"] == "flat")
+    assert [v["blocks"][0]["params"]["rate"] for v in scheme["versions"]] == ["0.000", "0.450"]
     settings = b.get("/api/v1/settings").json()
     assert settings["tracking"]["value"]["interval_moving_s"] == 45 and settings["tracking"]["version"] == 1
     sha = settings["driver_app"]["value"]["splash_image"]
