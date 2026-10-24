@@ -648,7 +648,8 @@
     "companyRejected": "رفض المكتب اختيارك ({platform}): {reason}. اختر من جديد.",
     "companyPending": "طلبك للعمل مع {platform} بانتظار موافقة المكتب",
     "companyChange": "تغيير الاختيار",
-    "companyNone": "لا توجد شركات متاحة الآن. تواصل مع المكتب."
+    "companyNone": "لا توجد شركات متاحة الآن. تواصل مع المكتب.",
+    "endOrdersKept": "يُحفظ هنا ويظهر في تقرير اليوم لتكمل باقي حقوله"
   },
   "status_templates": {
     "shift_working.name": "في العمل",

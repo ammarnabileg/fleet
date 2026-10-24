@@ -1306,18 +1306,42 @@
   "noticeCatMaintenance": "الصيانة والخصومات",
   "noticeCatDocuments": "المستندات والراتب",
   "updateAvailable": "إصدار جديد {version} متاح",
-  "@updateAvailable": {"placeholders": {"version": {"type": "String"}}},
+  "@updateAvailable": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "updateNow": "تحديث",
   "updateLater": "لاحقاً",
   "updateRequiredTitle": "لازم تحدّث التطبيق عشان تكمل",
   "updateRequiredBody": "ما حُفظ على الهاتف يُرسل كالمعتاد، والتتبع مستمر.",
   "updateQueued": "بانتظار الإرسال: {count}",
-  "@updateQueued": {"placeholders": {"count": {"type": "String"}}},
+  "@updateQueued": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "updateSize": "الحجم {size}",
-  "@updateSize": {"placeholders": {"size": {"type": "String"}}},
+  "@updateSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "updateMobileData": "أنت على بيانات الجوال: التنزيل من باقتك.",
   "updateDownloading": "جارٍ التنزيل {percent}",
-  "@updateDownloading": {"placeholders": {"percent": {"type": "String"}}},
+  "@updateDownloading": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
   "updateInstall": "تثبيت",
   "updateInstallHint": "سيطلب أندرويد تأكيد التثبيت. افتح التطبيق بعد التحديث.",
   "updatePermissionTitle": "اسمح بتثبيت التحديث",
@@ -1340,7 +1364,16 @@
   "pettyNone": "ليست معك عهدة نقدية الآن. يصرفها لك المكتب من خزينة الفرع.",
   "pettyBalance": "رصيد العهدة",
   "pettyPendingPart": "منها {pending} بانتظار المراجعة · المتاح للصرف {available}",
-  "@pettyPendingPart": {"placeholders": {"pending": {"type": "String"}, "available": {"type": "String"}}},
+  "@pettyPendingPart": {
+    "placeholders": {
+      "pending": {
+        "type": "String"
+      },
+      "available": {
+        "type": "String"
+      }
+    }
+  },
   "pettySpend": "صرف من العهدة",
   "pettyMine": "الحركات",
   "pettyEmpty": "لا حركات على العهدة بعد",
@@ -1350,23 +1383,47 @@
   "pettyRejected": "مرفوض",
   "pettyCancelled": "ملغى",
   "pettyReason": "السبب: {reason}",
-  "@pettyReason": {"placeholders": {"reason": {"type": "String"}}},
+  "@pettyReason": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "pettyCancel": "إلغاء المصروف",
   "pettyCancelQ": "إلغاء المصروف {amount}؟ لم يراجعه المكتب بعد.",
-  "@pettyCancelQ": {"placeholders": {"amount": {"type": "String"}}},
+  "@pettyCancelQ": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
   "pettyFunded": "صرف عهدة من المكتب",
   "pettyReturned": "رد إلى الخزينة",
   "pettyOfficeExpense": "مصروف سجّله المكتب",
   "pettyCorrection": "تصحيح",
   "pettyIntro": "صوّر الفاتورة وأدخل المبلغ ونوع المصروف. يراجعه المكتب، وعند الاعتماد يُخصم من عهدتك. المتاح للصرف: {available} د.ك",
-  "@pettyIntro": {"placeholders": {"available": {"type": "String"}}},
+  "@pettyIntro": {
+    "placeholders": {
+      "available": {
+        "type": "String"
+      }
+    }
+  },
   "pettyInvoice": "صورة الفاتورة",
   "pettyTakeInvoice": "صوّر الفاتورة",
   "pettyInvoiceMissing": "صورة الفاتورة مطلوبة",
   "pettyAmount": "المبلغ",
   "pettyAmountInvalid": "أدخل مبلغًا صحيحًا (حتى 3 أرقام عشرية)",
   "pettyAmountMax": "أكبر من المتاح للصرف ({available} د.ك)",
-  "@pettyAmountMax": {"placeholders": {"available": {"type": "String"}}},
+  "@pettyAmountMax": {
+    "placeholders": {
+      "available": {
+        "type": "String"
+      }
+    }
+  },
   "pettyCategory": "نوع المصروف",
   "pettyCategoryMissing": "اختر نوع المصروف",
   "pettyDate": "تاريخ الفاتورة",
@@ -1380,9 +1437,25 @@
   "companyNote": "ملاحظة للمكتب (اختياري)",
   "companySend": "إرسال للمكتب",
   "companyRejected": "رفض المكتب اختيارك ({platform}): {reason}. اختر من جديد.",
-  "@companyRejected": {"placeholders": {"platform": {"type": "String"}, "reason": {"type": "String"}}},
+  "@companyRejected": {
+    "placeholders": {
+      "platform": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "companyPending": "طلبك للعمل مع {platform} بانتظار موافقة المكتب",
-  "@companyPending": {"placeholders": {"platform": {"type": "String"}}},
+  "@companyPending": {
+    "placeholders": {
+      "platform": {
+        "type": "String"
+      }
+    }
+  },
   "companyChange": "تغيير الاختيار",
-  "companyNone": "لا توجد شركات متاحة الآن. تواصل مع المكتب."
+  "companyNone": "لا توجد شركات متاحة الآن. تواصل مع المكتب.",
+  "endOrdersKept": "يُحفظ هنا ويظهر في تقرير اليوم لتكمل باقي حقوله"
 }

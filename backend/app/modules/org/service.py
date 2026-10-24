@@ -113,16 +113,26 @@ def all_sections(db: Session) -> dict[str, tuple[int, BaseModel]]:
     return {name: _load(db, name) for name in SECTIONS}
 
 
-def update_section(
-    db: Session, name: str, value: dict, *, expected_version: int, actor_user_id: int | None
-) -> tuple[int, BaseModel]:
-    model = _section_model(name)
+def parse_section(name: str, value: dict) -> BaseModel:
+    """A section's value checked as saving would check it (invalid_settings with the reasons)."""
     try:
-        new = model.model_validate(value)
+        return _section_model(name).model_validate(value)
     except ValidationError as exc:
         raise AppError(
             422, "invalid_settings", "; ".join(f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in exc.errors())
         ) from None
+
+
+def section_version(db: Session, name: str) -> tuple[int, BaseModel]:
+    """A section's version and value, read now."""
+    return _load(db, name)
+
+
+def update_section(
+    db: Session, name: str, value: dict, *, expected_version: int, actor_user_id: int | None
+) -> tuple[int, BaseModel]:
+    model = _section_model(name)
+    new = parse_section(name, value)
     row = db.get(Setting, name, with_for_update=True)
     current_version = 0 if row is None else row.version
     if current_version != expected_version:
@@ -356,3 +366,10 @@ def labels(db: Session, company_id: int, branch_id: int | None) -> tuple[dict | 
     company = db.get(Company, company_id)
     branch = db.get(Branch, branch_id) if branch_id else None
     return (company.name if company else None, branch.name if branch else None)
+
+
+def print_company(db: Session, company_id: int | None = None, **scope) -> str:
+    """The company line of a printout's header (an export's Excel header too): the identity in the print template."""
+    from app.modules.org import printing
+
+    return printing.layout(db, company_id, **scope)["identity"]["company"]

@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'api.dart';
 import 'db.dart';
 import 'errors.dart';
+import 'remote_version.dart';
 
 /// A published release newer than this app (GET /driver/app-update).
 class AppUpdate {
@@ -77,8 +78,13 @@ class UpdateHooks {
 enum UpdateStage { idle, downloading, ready, needsPermission, installing, failed }
 
 /// Finds, downloads, checks and hands over the app's new versions. The app is installed from an APK, not from a
-/// store: the server (the office's «App updates» page) says which version is the newest and whether it is required.
+/// store: the office's «تحديث التطبيق» says which version is the newest and whether it is required, in Firebase
+/// Remote Config ([remote]) and on the server.
 ///
+/// - Remote Config first, when Firebase is started: its versionCode not above this build means up to date, with no
+///   request to the server; above it, the server gives the file to download (size, sha256), and a forced update in
+///   Remote Config makes it required. Remote Config not available (Firebase off, nothing fetched): the server
+///   decides alone, as before.
 /// - Checks after the first screen, on resume at most every [every], and when the driver asks.
 /// - A required update blocks the screens (never the tracking service or the outbox: [beforeBlock] sends what is
 ///   queued first, and they keep sending in the background meanwhile).
@@ -94,6 +100,7 @@ class Updater extends ChangeNotifier {
     http.Client? client,
     this.every = const Duration(hours: 6),
     this.beforeBlock,
+    this.remote,
     DateTime Function()? now,
   }) : _http = client ?? api.client,
        _now = now ?? DateTime.now;
@@ -108,6 +115,12 @@ class Updater extends ChangeNotifier {
 
   /// Sends what is queued (outbox, positions) before a required update blocks the screens.
   final Future<void> Function()? beforeBlock;
+
+  /// Firebase Remote Config's version (null: the server only).
+  RemoteVersionSource? remote;
+
+  /// Who answered the last check: 'remote' (Remote Config, the server giving the file) or 'server'.
+  String? source;
 
   AppUpdate? available;
   bool _required = false;
@@ -161,12 +174,24 @@ class Updater extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      final body = await api.get(
-        '/driver/app-update',
-        query: {'version_code': '$currentBuild', 'lang': api.lang},
-        auth: false,
-      );
-      final j = body as Map<String, dynamic>;
+      final rv = await _remoteVersion();
+      final Map<String, dynamic> j;
+      if (rv != null && rv.code <= currentBuild) {
+        j = {'latest': null, 'required': false}; // Remote Config: this build is the newest
+      } else {
+        final body = await api.get(
+          '/driver/app-update',
+          query: {'version_code': '$currentBuild', 'lang': api.lang},
+          auth: false,
+        );
+        j = Map<String, dynamic>.of(body as Map<String, dynamic>);
+        final latest = j['latest'] as Map<String, dynamic>?;
+        // forced in Remote Config: required, for the version it names or a newer one the server offers
+        if (rv != null && rv.force && latest != null && (latest['version_code'] as num).toInt() >= rv.code) {
+          j['required'] = true;
+        }
+      }
+      source = rv == null ? 'server' : 'remote';
       checkedAt = _now();
       await db.put(_checkedKey, checkedAt!.toIso8601String());
       await db.put(_key, jsonEncode(j));
@@ -200,6 +225,17 @@ class Updater extends ChangeNotifier {
     } finally {
       checking = false;
       notifyListeners();
+    }
+  }
+
+  /// Remote Config's answer, or null when it is not available (never throws, never waits long).
+  Future<RemoteVersion?> _remoteVersion() async {
+    final r = remote;
+    if (r == null) return null;
+    try {
+      return await r.read().timeout(const Duration(seconds: 15));
+    } catch (_) {
+      return null;
     }
   }
 

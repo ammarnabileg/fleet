@@ -648,5 +648,6 @@
   "companyRejected": "Ofisi imekataa chaguo lako ({platform}): {reason}. Tafadhali chagua tena.",
   "companyPending": "Ombi lako la kufanya kazi na {platform} linasubiri ofisi",
   "companyChange": "Badilisha chaguo langu",
-  "companyNone": "Hakuna kampuni inayopatikana sasa. Wasiliana na ofisi."
+  "companyNone": "Hakuna kampuni inayopatikana sasa. Wasiliana na ofisi.",
+  "endOrdersKept": "Imehifadhiwa na itaonekana kwenye ripoti ya leo, ambapo utajaza sehemu zilizobaki"
 }

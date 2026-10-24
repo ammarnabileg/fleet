@@ -648,5 +648,6 @@
   "companyRejected": "Le bureau a refusé votre choix ({platform}) : {reason}. Choisissez à nouveau.",
   "companyPending": "Votre demande pour travailler avec {platform} attend le bureau",
   "companyChange": "Changer mon choix",
-  "companyNone": "Aucune société n'est disponible pour le moment. Contactez le bureau."
+  "companyNone": "Aucune société n'est disponible pour le moment. Contactez le bureau.",
+  "endOrdersKept": "Conservé et affiché dans le rapport du jour, où vous remplissez le reste"
 }

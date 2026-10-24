@@ -649,7 +649,8 @@
     "companyRejected": "ऑफ़िस ने आपका चुनाव ({platform}) अस्वीकार किया: {reason}। कृपया फिर से चुनें।",
     "companyPending": "{platform} के साथ काम करने का आपका अनुरोध ऑफ़िस के पास लंबित है",
     "companyChange": "मेरा चुनाव बदलें",
-    "companyNone": "अभी कोई कंपनी उपलब्ध नहीं है। ऑफ़िस से संपर्क करें।"
+    "companyNone": "अभी कोई कंपनी उपलब्ध नहीं है। ऑफ़िस से संपर्क करें।",
+    "endOrdersKept": "यह सहेजा जाएगा और आज की रिपोर्ट में दिखेगा, जहाँ आप बाकी भरेंगे"
   },
   "server": {
     "deduction_source": {
@@ -1249,7 +1250,14 @@
       "platform_already_set": "आपकी कंपनी पहले से ही ऑफ़िस ने तय कर दी है",
       "platform_request_pending": "आपका पिछला अनुरोध अभी भी ऑफ़िस के पास लंबित है",
       "platform_request_decided": "इस अनुरोध पर पहले ही निर्णय हो चुका है",
-      "platform_request_not_found": "अनुरोध नहीं मिला"
+      "platform_request_not_found": "अनुरोध नहीं मिला",
+      "app_update_release_missing": "संस्करण {version_code} ऐप अपडेट में नहीं है: पहले इसे अपलोड करें या GitHub से आयात करें",
+      "app_release_announced": "संस्करण {version_code} ऐप अपडेट में घोषित है: इसे अप्रकाशित करने से पहले कोई दूसरा घोषित करें",
+      "github_not_configured": "कोई GitHub रिपॉज़िटरी सेट नहीं है: इसे ऐप अपडेट में या सर्वर वेरिएबल GITHUB_RELEASES_REPO में लिखें",
+      "github_unreachable": "GitHub तक नहीं पहुँच सके (स्थिति {status}): रिपॉज़िटरी और टोकन जाँचें, फिर बाद में प्रयास करें",
+      "github_no_release": "GitHub रिपॉज़िटरी {repo} में कोई प्रकाशित रिलीज़ नहीं है",
+      "github_no_apk": "GitHub रिलीज़ {tag} में रिलीज़ के नाम वाली कोई APK नहीं है",
+      "github_apk_mismatch": "फ़ाइल {name} का संस्करण कोड {version_code} है: यह उसके नाम से मेल नहीं खाता"
     },
     "finance_source": {
       "cash_journal": "कैश लेजर: {kind} {reason}",

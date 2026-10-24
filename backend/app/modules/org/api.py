@@ -66,6 +66,11 @@ def put_settings(
             service.get_section(db, "finance").books_start_date,
             date.fromisoformat(new) if isinstance(new, str) and new else None,
         )
+    if section == "app_update":  # its own page: saving publishes the release and writes Firebase Remote Config
+        from app.modules.app_updates import service as app_updates
+
+        out = app_updates.save_settings(db, body.value, expected_version=body.version, actor_user_id=principal.user_id)
+        return schemas.SettingOut(version=out["version"], value=out["value"])
     value_in = body.value
     if section == "payroll":  # approving real payroll is the owner's call, after the reconciliation test
         current = service.section_now(db, "payroll").live_approval_enabled

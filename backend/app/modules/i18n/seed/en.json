@@ -648,7 +648,8 @@
     "companyRejected": "The office rejected your choice ({platform}): {reason}. Please choose again.",
     "companyPending": "Your request to work with {platform} is waiting for the office",
     "companyChange": "Change my choice",
-    "companyNone": "No company is available now. Contact the office."
+    "companyNone": "No company is available now. Contact the office.",
+    "endOrdersKept": "Kept and shown in today's report, where you fill in the rest"
   },
   "status_templates": {
     "shift_working.name": "Working",

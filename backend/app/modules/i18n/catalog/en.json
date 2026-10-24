@@ -677,7 +677,14 @@
     "platform_already_set": "Your company is already set by the office",
     "platform_request_pending": "Your earlier request is still waiting for the office",
     "platform_request_decided": "This request was already decided",
-    "platform_request_not_found": "Request not found"
+    "platform_request_not_found": "Request not found",
+    "app_update_release_missing": "Version {version_code} is not in App updates: upload it or import it from GitHub first",
+    "app_release_announced": "Version {version_code} is the one announced in App update: announce another before unpublishing it",
+    "github_not_configured": "No GitHub repository set: enter it in App update or in the server variable GITHUB_RELEASES_REPO",
+    "github_unreachable": "GitHub could not be reached (status {status}): check the repository and the token, then try later",
+    "github_no_release": "The GitHub repository {repo} has no published release",
+    "github_no_apk": "The GitHub release {tag} has no APK named as the release",
+    "github_apk_mismatch": "The file {name} has version code {version_code}: it does not match its name"
   },
   "settings": {
     "branding": "Branding",
@@ -750,7 +757,14 @@
     "leaves.absence_alert_year_days": "Yearly absence alert above (days, Art. 41)",
     "leaves.annual_carry_over_years": "Annual leave carry-over (years)",
     "leaves.weekend_days": "Weekly rest days (0 Monday … 6 Sunday)",
-    "driver_app.android_package": "Android package"
+    "driver_app.android_package": "Android package",
+    "app_update": "App update: announced version and forced update",
+    "app_update.latest_version": "New version number",
+    "app_update.force_update": "Force update",
+    "app_update.notes": "Release notes",
+    "app_update.download_name": "Download file name",
+    "app_update.github_repo": "GitHub repository",
+    "app_update.github_auto_import": "Import the latest GitHub release every hour"
   },
   "common": {
     "active": "Active",
@@ -1921,5 +1935,25 @@
     "above_fleet": "The car uses more than the fleet's median",
     "few_stretches": "Too few consecutive fills",
     "short_distance": "Too little distance"
+  },
+  "daily_column": {
+    "title": "Daily reports",
+    "driver": "Driver",
+    "vehicle": "Vehicle",
+    "business_date": "Business day",
+    "session": "Session",
+    "orders": "Orders",
+    "valid_day": "Day per platform",
+    "cash": "Cash",
+    "approved_cash": "Approved cash",
+    "status": "Status",
+    "late": "Late",
+    "submitted_at": "Sent at",
+    "reviewed_at": "Reviewed at",
+    "review_note": "Reviewer's note",
+    "notes": "Driver's notes",
+    "yes": "Yes",
+    "no": "No",
+    "all": "All statuses"
   }
 }

@@ -649,7 +649,8 @@
     "companyRejected": "Tinanggihan ng opisina ang pinili mo ({platform}): {reason}. Pumili ulit.",
     "companyPending": "Naghihintay sa opisina ang request mong magtrabaho sa {platform}",
     "companyChange": "Palitan ang pinili ko",
-    "companyNone": "Walang available na kumpanya ngayon. Kontakin ang opisina."
+    "companyNone": "Walang available na kumpanya ngayon. Kontakin ang opisina.",
+    "endOrdersKept": "Itatabi ito at lalabas sa ulat ngayong araw, kung saan pupunan mo ang iba pa"
   },
   "server": {
     "deduction_source": {
@@ -1249,7 +1250,14 @@
       "platform_already_set": "Naitakda na ng opisina ang kumpanya mo",
       "platform_request_pending": "Naghihintay pa sa opisina ang naunang request mo",
       "platform_request_decided": "Napagpasyahan na ang request na ito",
-      "platform_request_not_found": "Hindi nakita ang request"
+      "platform_request_not_found": "Hindi nakita ang request",
+      "app_update_release_missing": "Wala ang bersyon {version_code} sa mga update ng app: i-upload o i-import muna ito mula sa GitHub",
+      "app_release_announced": "Ang bersyon {version_code} ang naka-anunsyo sa update ng app: mag-anunsyo muna ng iba bago ito i-unpublish",
+      "github_not_configured": "Walang nakatakdang GitHub repository: ilagay ito sa update ng app o sa server variable na GITHUB_RELEASES_REPO",
+      "github_unreachable": "Hindi maabot ang GitHub (status {status}): suriin ang repository at token, saka subukan mamaya",
+      "github_no_release": "Walang na-publish na release ang GitHub repository na {repo}",
+      "github_no_apk": "Walang APK na may pangalan ng release ang GitHub release na {tag}",
+      "github_apk_mismatch": "Ang file na {name} ay may version code na {version_code}: hindi ito tugma sa pangalan nito"
     },
     "finance_source": {
       "cash_journal": "Cash ledger: {kind} {reason}",

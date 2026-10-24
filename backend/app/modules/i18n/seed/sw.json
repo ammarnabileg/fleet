@@ -649,7 +649,8 @@
     "companyRejected": "Ofisi imekataa chaguo lako ({platform}): {reason}. Tafadhali chagua tena.",
     "companyPending": "Ombi lako la kufanya kazi na {platform} linasubiri ofisi",
     "companyChange": "Badilisha chaguo langu",
-    "companyNone": "Hakuna kampuni inayopatikana sasa. Wasiliana na ofisi."
+    "companyNone": "Hakuna kampuni inayopatikana sasa. Wasiliana na ofisi.",
+    "endOrdersKept": "Imehifadhiwa na itaonekana kwenye ripoti ya leo, ambapo utajaza sehemu zilizobaki"
   },
   "server": {
     "deduction_source": {
@@ -1249,7 +1250,14 @@
       "platform_already_set": "Kampuni yako tayari imewekwa na ofisi",
       "platform_request_pending": "Ombi lako la awali bado linasubiri ofisi",
       "platform_request_decided": "Ombi hili tayari limeamuliwa",
-      "platform_request_not_found": "Ombi halikupatikana"
+      "platform_request_not_found": "Ombi halikupatikana",
+      "app_update_release_missing": "Toleo {version_code} halipo kwenye masasisho ya programu: lipakie au liingize kutoka GitHub kwanza",
+      "app_release_announced": "Toleo {version_code} ndilo lililotangazwa katika sasisho la programu: tangaza jingine kabla ya kuliondoa",
+      "github_not_configured": "Hakuna hazina ya GitHub iliyowekwa: iandike kwenye sasisho la programu au kwenye kigezo cha seva GITHUB_RELEASES_REPO",
+      "github_unreachable": "GitHub haipatikani (hali {status}): angalia hazina na tokeni, kisha jaribu baadaye",
+      "github_no_release": "Hazina ya GitHub {repo} haina toleo lililochapishwa",
+      "github_no_apk": "Toleo la GitHub {tag} halina APK yenye jina la toleo",
+      "github_apk_mismatch": "Faili {name} ina namba ya toleo {version_code}: hailingani na jina lake"
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",

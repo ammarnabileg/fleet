@@ -10,6 +10,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'app/push.dart';
+import 'app/remote_config.dart';
 import 'app/state.dart';
 import 'core/db.dart';
 import 'core/device.dart';
@@ -80,6 +81,7 @@ Future<void> _main(AppDb db) async {
       stopTracking: () async => TrackingService.stop(),
       deviceMeta: DeviceIdentity.meta,
       pushToken: FirebasePush.token,
+      remoteVersion: FirebaseRemoteVersion(),
       dial: (phone) async {
         try {
           return await _phone.invokeMethod<bool>('dial', phone) ?? false;
@@ -112,6 +114,8 @@ Future<void> _main(AppDb db) async {
   );
   // a tapped push from the office (a broadcast, a notice): its place is the inbox
   FirebasePush.onOpened = (_) => state.navigate('inbox');
+  // Firebase started: Remote Config (the newest version the office announced) fetched in the background
+  FirebasePush.onReady = () => unawaited(FirebaseRemoteVersion.prefetch());
   NotificationResponse? launched;
   try {
     await notices.initialize(

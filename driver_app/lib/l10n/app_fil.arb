@@ -648,5 +648,6 @@
   "companyRejected": "Tinanggihan ng opisina ang pinili mo ({platform}): {reason}. Pumili ulit.",
   "companyPending": "Naghihintay sa opisina ang request mong magtrabaho sa {platform}",
   "companyChange": "Palitan ang pinili ko",
-  "companyNone": "Walang available na kumpanya ngayon. Kontakin ang opisina."
+  "companyNone": "Walang available na kumpanya ngayon. Kontakin ang opisina.",
+  "endOrdersKept": "Itatabi ito at lalabas sa ulat ngayong araw, kung saan pupunan mo ang iba pa"
 }

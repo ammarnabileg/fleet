@@ -10,13 +10,13 @@
   ID on it) or rejects with a reason. Until approved nothing of payroll reads it.
 
 Revision ID: 0071_platforms_hub
-Revises: 0069_petty_spending
+Revises: 0070_app_update_flow
 """
 
 from alembic import op
 
 revision = "0071_platforms_hub"
-down_revision = "0069_petty_spending"
+down_revision = "0070_app_update_flow"
 branch_labels = None
 depends_on = None
 

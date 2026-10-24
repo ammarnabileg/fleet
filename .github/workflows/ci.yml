@@ -10,6 +10,10 @@ concurrency:
   group: ci-${{ github.event_name }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
+# read-only by default: only the driver-release job writes (a GitHub release of the signed APK)
+permissions:
+  contents: read
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -126,6 +130,9 @@ jobs:
   driver-app:
     runs-on: ubuntu-latest
     timeout-minutes: 35  # a hung step fails here instead of running for GitHub's six hours
+    outputs:
+      version: ${{ steps.build.outputs.version }}  # "0.1.1057": the release, its tag (v0.1.1057) and its APK name
+      signed: ${{ steps.signing.outputs.ci_debug_signing != 'true' }}
     services:
       postgres:
         image: postgres:16
@@ -201,6 +208,7 @@ jobs:
           printf 'storeFile=release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
             "$STORE_PASSWORD" "$KEY_ALIAS" "${KEY_PASSWORD:-$STORE_PASSWORD}" > key.properties
       - name: build the APK
+        id: build
         working-directory: driver_app
         # the deployed address the app talks to and the activation links open; the repository variable
         # DRIVER_API_URL replaces it (another deployment) without touching this file. A release build: the debug
@@ -220,10 +228,15 @@ jobs:
           free -m | awk 'NR==2 {print "runner RAM: " $2 " MB"}'
           # the versionCode grows with every run (the in-app update installs only a higher one; Android refuses a
           # lower one). The offset keeps it above the 1 every APK had before; the app gets the same number to compare
-          NAME=$(sed -nE 's/^version: *([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' pubspec.yaml)
+          # The version is "<major>.<minor>.<versionCode>" (pubspec.yaml's major.minor, then the versionCode): one
+          # string that names the release, its tag (v0.1.1057), the APK file (0.1.1057.apk) and what the app shows,
+          # with no "+" (unsafe in tags and URLs). The panel reads the versionCode as its last number.
+          MM=$(sed -nE 's/^version: *([0-9]+\.[0-9]+)\.[0-9]+.*/\1/p' pubspec.yaml)
           BUILD=$((GITHUB_RUN_NUMBER + 1000))
+          NAME="$MM.$BUILD"
+          echo "version=$NAME" >> "$GITHUB_OUTPUT"
           VERSION=(--build-name="$NAME" --build-number="$BUILD" --dart-define=APP_VERSION="$NAME" --dart-define=APP_BUILD="$BUILD")
-          echo "### Driver app version $NAME, versionCode $BUILD (upload the APK in Settings -> App updates, then publish)" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Driver app version $NAME, versionCode $BUILD (a GitHub release on the deployed branch; import it in Settings -> App updates)" >> "$GITHUB_STEP_SUMMARY"
           /usr/bin/time -v -o build-mem.txt flutter build apk --release --dart-define=API_URL="$API_URL" --android-project-arg activationHost="$HOST" "${VERSION[@]}" "${EXTRA[@]}"
           PEAK=$(awk -F': ' '/Maximum resident set size/ {print int($2/1024)}' build-mem.txt)
           echo "### Driver app build: peak memory of the largest process ${PEAK} MB (runner RAM $(free -m | awk 'NR==2 {print $2}') MB)" >> "$GITHUB_STEP_SUMMARY"
@@ -250,9 +263,39 @@ jobs:
             grep -E "SHA-256|DN:" certs.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          mv app-release.apk driver-app.apk
+          mv app-release.apk "$VERSION.apk"
+        env:
+          VERSION: ${{ steps.build.outputs.version }}
       - uses: actions/upload-artifact@v4
         with:
           name: driver-app-apk
-          path: driver_app/build/app/outputs/flutter-apk/driver-app.apk
+          path: driver_app/build/app/outputs/flutter-apk/${{ steps.build.outputs.version }}.apk
           retention-days: 14
+
+  # Each successful build of the deployed branch (DEPLOY_BRANCH, by default the branch the server deploys) signed with the real release key
+  # becomes a GitHub release named exactly its version, tag v<version>, with the APK named <version>.apk. Never for a
+  # pull request, never for a debug-signed build (it could not update an installed app). The panel imports it
+  # (Settings -> App updates -> «استيراد آخر إصدار من GitHub»); announcing and forcing it stay the office's decisions.
+  driver-release:
+    needs: driver-app
+    if: github.event_name == 'push' && github.ref_name == (vars.DEPLOY_BRANCH || 'claude/sharp-bardeen-t7t73k') && needs.driver-app.outputs.signed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write  # this job only: creating the tag and the release
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: driver-app-apk
+      - name: GitHub release named exactly the version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.driver-app.outputs.version }}
+        run: |
+          test -f "$VERSION.apk"
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release v$VERSION exists already (a re-run): kept as it is"; exit 0
+          fi
+          gh release create "v$VERSION" "$VERSION.apk" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$VERSION" --notes "Driver app $VERSION (versionCode ${VERSION##*.}), built from $GITHUB_SHA."
+          echo "### GitHub release $VERSION created (tag v$VERSION, asset $VERSION.apk)" >> "$GITHUB_STEP_SUMMARY"

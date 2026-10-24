@@ -29,9 +29,9 @@
     var review = api.can('daily_reports.review');
     if (review) changeRequests(document.getElementById('daily-changes'), function () { t.refresh(); });
     var t = BT.table(el, {
-      fetch: function (s) { return api.get('/daily-reports', { status: s.chip, business_date: filters.day, limit: s.limit, offset: s.offset }); },
+      fetch: function (s) { filters.status = s.chip; return api.get('/daily-reports', { status: s.chip, business_date: filters.day, limit: s.limit, offset: s.offset }); },
       chips: { value: q.status || 'submitted', all: false, options: A.options('report_status', ['submitted', 'returned', 'approved', 'rejected']) },
-      tools: h`<input class="input" type="date" data-day value="${filters.day}" aria-label="يوم العمل" title="يوم العمل">`,
+      tools: h`<input class="input" type="date" data-day value="${filters.day}" aria-label="يوم العمل" title="يوم العمل">${api.can('reports.export') ? h`<button type="button" class="btn btn-sm btn-outline" data-daily-export>${icon('file-spreadsheet', 14)} تصدير Excel</button>` : ''}`,
       selectable: review,
       id: function (r) { return r.id; },
       bulk: [{ label: 'اعتماد المحدد كما هو', icon: 'check', cls: 'btn-primary', run: function (rows, clear) { bulkApprove(rows.filter(function (r) { return r.status === 'submitted'; }), function () { clear(); t.refresh(); }); } }],
@@ -49,6 +49,12 @@
       empty: { icon: 'clipboard-check', title: 'لا توجد تقارير هنا' }
     });
     el.querySelector('[data-day]').addEventListener('change', function (e) { filters.day = e.target.value; t.refresh(); });
+    // the list as filtered now (status and day), as Excel from the server with the print header
+    BT.on(el, 'click', '[data-daily-export]', function (e, b) {
+      var status = filters.status || 'submitted';
+      b.classList.add('is-loading');
+      A.downloadFile('/daily-reports/export', { status: status, business_date: filters.day }, 'daily-reports' + (filters.day ? '-' + filters.day : '') + '-' + status + '.xlsx').then(function () { b.classList.remove('is-loading'); });
+    });
   };
 
   // FR-DWR-06: what a change touched, as the reviewer reads it
