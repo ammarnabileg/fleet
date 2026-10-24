@@ -625,7 +625,7 @@
                 return BT.f.select({ name: role, label: api.t('finance_role', role), value: mapped[role], placeholder: false, disabled: !approve, options: active.map(function (a) { return { v: a.id, t: accountLabel(a) }; }) });
               })}${approve ? h`<div><button type="submit" class="btn btn-primary">حفظ الربط</button></div>` : ''}</form></div>
             <div class="card"><div class="card-h"><div class="card-t">${icon('receipt', 17)} أنواع المصروفات</div>${approve ? h`<button type="button" class="btn btn-sm btn-soft" data-type-new>${icon('plus', 14)} نوع</button>` : ''}</div>
-              <div class="list">${types.map(function (t) { var a = byId[t.account_id]; return h`<button type="button" class="li" data-type="${t.id}" style="width:100%;text-align:start"${approve ? '' : raw(' disabled')}><div class="li-main"><div class="li-t">${api.name(t.name)}</div><div class="li-d">${a ? accountLabel(a) : '—'}</div></div>${t.active ? '' : BT.pill('موقوف', 'n')}</button>`; })}</div></div>
+              <div class="list">${types.map(function (t) { var a = byId[t.account_id]; return h`<button type="button" class="li" data-type="${t.id}" style="width:100%;text-align:start"${approve ? '' : raw(' disabled')}><div class="li-main"><div class="li-t">${api.name(t.name)}</div><div class="li-d">${a ? accountLabel(a) : '—'}</div></div>${t.petty ? BT.pill('من العهدة', 'b') : ''}${t.active ? '' : BT.pill('موقوف', 'n')}</button>`; })}</div></div>
           </div></div>`;
     }).then(function (r) {
       if (!r) return;
@@ -677,12 +677,14 @@
         ${BT.f.select({ name: 'account', label: 'الحساب', required: true, placeholder: false, value: t ? t.account_id : '', options: options })}
         ${BT.f.input({ name: 'name_ar', label: 'الاسم بالعربية', required: true, value: t ? t.name.ar || '' : '' })}
         ${BT.f.input({ name: 'name_en', label: 'الاسم بالإنجليزية', required: true, value: t ? t.name.en || '' : '' })}
-        ${t ? h`<label class="check full"><input type="checkbox" name="active"${t.active ? raw(' checked') : ''}> <span>نشط</span></label>` : ''}</div>`,
+        ${t ? h`<label class="check full"><input type="checkbox" name="active"${t.active ? raw(' checked') : ''}> <span>نشط</span></label>` : ''}
+        <label class="check full"><input type="checkbox" name="petty"${t && t.petty ? raw(' checked') : ''}> <span>يُصرف من العهدة النقدية في تطبيق السائق</span></label></div>`,
       submitText: 'حفظ', done: 'حُفظ النوع',
       submit: function (v, dlg) {
         var name = Object.assign({}, t ? t.name : {}, { ar: v.name_ar, en: v.name_en });
-        if (!t) return api.post('/finance/expense-types', { code: v.code, name: name, account_id: Number(v.account) });
-        return api.patch('/finance/expense-types/' + t.id, { name: name, account_id: Number(v.account), active: dlg.form.querySelector('[name=active]').checked });
+        var petty = dlg.form.querySelector('[name=petty]').checked;
+        if (!t) return api.post('/finance/expense-types', { code: v.code, name: name, account_id: Number(v.account), petty: petty });
+        return api.patch('/finance/expense-types/' + t.id, { name: name, account_id: Number(v.account), active: dlg.form.querySelector('[name=active]').checked, petty: petty });
       },
       after: done
     });

@@ -174,7 +174,7 @@
     var tabs = [];
     if (api.can('cash.view')) tabs.push(['balances', 'أرصدة السائقين']);
     if (api.can('treasury.view')) tabs.push(['treasury', 'الخزينة والبنك']);
-    if (api.can('treasury.view') && api.me.all_companies) tabs.push(['petty', 'العهد النقدية']);
+    if (api.can('treasury.view') && api.me.all_companies) tabs.push(['petty', 'العهد النقدية', A.counts.petty || null]);
     if (api.canAny(['cash.view', 'cash.fuel_review'])) tabs.push(['fuel', 'البنزين', A.counts.fuel || null]);
     if (!tabs.some(function (t) { return t[0] === tab; })) tab = tabs[0][0];
     BT.render(v, h`${A.head('دفتر الكاش', 'كل حركة قيد مزدوج لا يُحذف: التصحيح بقيد تسوية أو عكس مع السبب. رصيد السائق = ما في ذمته للشركة', api.can('cash.collect') ? A.btn('استلام كاش بإيصال', { icon: 'hand-coins', cls: 'btn-primary', action: 'cash-receipt' }) : '')}
@@ -547,6 +547,55 @@
     }).catch(function () {});
   }
 
+  /* مصروفات العهد النقدية: ما سجّله صاحب العهدة من التطبيق بالمبلغ وصورة الفاتورة؛ الاعتماد يُنشئ مصروفاً «من عهدة»
+     فتنقص عهدته، والرفض بسبب يصل إليه */
+  var PETTY_STATUS = { pending: ['بانتظار المراجعة', 'o'], in_review: ['في مسار الاعتماد', 'b'], approved: ['معتمد', 'g'], rejected: ['مرفوض', 'r'], cancelled: ['ألغاه صاحب العهدة', 'n'] };
+  function pettyStatus(x) { var st = PETTY_STATUS[x.status] || [x.status, 'n']; return BT.pill(st[0], st[1]); }
+  function pettyInvoice(x) { return A.thumbs([{ src: api.url('/cash/petty-expenses/' + x.id + '/invoice'), caption: 'فاتورة ' + fmt.money(x.amount) }]); }
+  function pettySpending(box, changed) {
+    var decide = api.can('treasury.manage'), approve = decide && api.can('finance.approve');
+    A.load(box, api.get('/cash/petty-expenses', { limit: 300 }), function (list) {
+      var pending = list.filter(function (x) { return x.status === 'pending'; });
+      setTimeout(function () {
+        var t = box.querySelector('[data-petty-spending-table]');
+        if (t) BT.table(t, {
+          rows: list, pageSize: 25,
+          search: { placeholder: 'اسم صاحب العهدة أو المورد…', text: function (x) { return api.name(x.driver.name) + ' ' + (x.vendor || ''); } },
+          chips: { key: 'status', all: 'الكل', options: Object.keys(PETTY_STATUS).map(function (k) { return { v: k, t: PETTY_STATUS[k][0] }; }), match: function (x, v) { return x.status === v; } },
+          columns: [
+            { key: 'invoice_date', label: 'تاريخ الفاتورة', render: function (x) { return h`<span class="num">${fmt.date(x.invoice_date)}</span>`; } },
+            { key: 'driver', label: 'صاحب العهدة', render: function (x) { return A.person(x.driver); } },
+            { key: 'category', label: 'النوع', render: function (x) { return h`${x.category ? api.name(x.category.name) : '—'}${x.vendor ? h`<span class="sub">${x.vendor}</span>` : ''}`; } },
+            { key: 'amount', label: 'المبلغ', num: true, render: function (x) { return h`<b class="num">${fmt.money(x.amount)}</b>`; } },
+            { key: 'status', label: 'الحالة', render: function (x) { return h`${pettyStatus(x)}${x.decision_note ? h`<span class="sub">${x.decision_note}</span>` : ''}`; } }
+          ],
+          rowClick: function (x) { BT.lightbox([{ src: api.url('/cash/petty-expenses/' + x.id + '/invoice'), caption: api.name(x.driver.name) + ' — ' + fmt.money(x.amount) }], 0); },
+          empty: { icon: 'receipt', title: 'لا مصروفات من العهد بعد', text: 'يسجّلها صاحب العهدة من تطبيق السائق بالمبلغ وصورة الفاتورة' }
+        });
+        box.querySelectorAll('[data-petty-pending-id]').forEach(function (row) {
+          var x = pending.find(function (y) { return y.id === row.getAttribute('data-petty-pending-id'); });
+          var ok = row.querySelector('[data-petty-approve]'), no = row.querySelector('[data-petty-reject]');
+          if (ok) ok.onclick = function () {
+            A.confirmRun({ title: 'اعتماد مصروف من العهدة', message: api.name(x.driver.name) + ' — ' + fmt.money(x.amount) + ' ' + BT.config.currency + '. يُسجَّل مصروفاً «من عهدة» وتنقص عهدته الآن (رصيدها ' + fmt.money(x.balance) + ').', confirmText: 'اعتماد', tone: 'success', icon: 'check',
+              run: function () { return api.post('/cash/petty-expenses/' + x.id + '/approve', {}); }, done: 'اعتُمد المصروف ونقصت العهدة', after: changed });
+          };
+          if (no) no.onclick = function () {
+            A.confirmRun({ title: 'رفض مصروف من العهدة', message: api.name(x.driver.name) + ' — ' + fmt.money(x.amount) + ' ' + BT.config.currency + '. لا تتغير العهدة، ويصل السبب لصاحبها.', confirmText: 'رفض', tone: 'danger', icon: 'x', reason: { label: 'السبب', required: true },
+              run: function (reason) { return api.post('/cash/petty-expenses/' + x.id + '/reject', { reason: reason }); }, done: 'رُفض المصروف', after: changed });
+          };
+        });
+      });
+      return h`${pending.length ? h`<div class="card mt-16" data-pending="petty"><div class="card-h"><div class="card-t">${icon('receipt', 16)} مصروفات العهد النقدية بانتظار المراجعة ${BT.pill(fmt.int(pending.length), 'o')}</div></div><div class="card-b">${pending.map(function (x) {
+          return h`<div class="between mb-12" data-petty-pending-id="${x.id}" style="gap:12px;align-items:flex-start"><div style="width:96px">${pettyInvoice(x)}</div><div class="flex-1">
+            <div><b>${api.name(x.driver.name)}</b> <span class="muted fs-sm">العهدة ${fmt.money(x.balance)}</span></div>
+            <div class="fs-sm"><b class="num">${fmt.money(x.amount)}</b> ${BT.config.currency} · ${x.category ? api.name(x.category.name) : '—'} · فاتورة <span class="num">${fmt.date(x.invoice_date)}</span>${x.vendor ? ' · ' + x.vendor : ''}</div>
+            ${x.note ? h`<div class="fs-sm muted">${x.note}</div>` : ''}</div>
+            ${decide ? h`<div class="nowrap">${approve ? h`<button type="button" class="btn btn-sm btn-success" data-petty-approve>${icon('check', 13)} اعتماد</button> ` : ''}<button type="button" class="btn btn-sm btn-outline" data-petty-reject>${icon('x', 13)} رفض</button></div>` : ''}</div>`;
+        })}</div></div>` : ''}
+        <div class="card mt-16"><div class="card-h"><div class="card-t">${icon('receipt', 16)} مصروفات العهد النقدية</div><span class="card-meta">ما سجّله أصحاب العهد من التطبيق</span></div><div data-petty-spending-table></div></div>`;
+    }).catch(function () {});
+  }
+
   /* العهد النقدية: موظف يمسك كاش للمصروفات الصغيرة، يُصرف له من خزينة فرع ويرد الباقي إليها */
   function pettyPanel(el) {
     var manage = api.can('treasury.manage');
@@ -554,14 +603,16 @@
       var rows = r[0], ready = r[2].role_ready;
       return h`<div class="card"><div class="card-h"><div class="card-t">${icon('wallet', 16)} العهد النقدية</div>${manage ? h`<div class="ms-auto nowrap"><button type="button" class="btn btn-sm btn-outline" data-petty-return>${icon('rotate-ccw', 14)} رد عهدة</button> <button type="button" class="btn btn-sm btn-primary" data-petty-fund${ready ? '' : raw(' disabled')}>${icon('hand-coins', 14)} صرف عهدة</button></div>` : ''}</div>
         ${ready ? '' : h`<div class="banner warn mb-12" data-petty-role>${icon('triangle-alert', 16)}<div>اربط دور العهد النقدية بحساب في دليل الحسابات («المالية» ← «دليل الحسابات» ← «ربط الأدوار»): لا تُصرف عهدة قبل ذلك حتى تدخل الدفاتر.</div></div>`}
-        ${rows.length ? h`<div class="table-wrap"><table class="t compact" data-petty><thead><tr><th>الموظف</th><th>الفرع</th><th class="num">الرصيد</th><th>آخر حركة</th><th></th></tr></thead><tbody>
+        ${rows.length ? h`<div class="table-wrap"><table class="t compact" data-petty><thead><tr><th>الموظف</th><th>الفرع</th><th class="num">الرصيد</th><th class="num">مصروفات بانتظار المراجعة</th><th>آخر حركة</th><th></th></tr></thead><tbody>
           ${rows.map(function (x) {
-            return h`<tr data-holder="${x.employee.id}"><td>${api.name(x.employee.name)}</td><td>${x.branch_id ? api.branch(x.branch_id) : '—'}</td><td class="num"><b>${fmt.money(x.balance)}</b></td><td class="num">${x.last_movement ? fmt.date(x.last_movement) : '—'}</td>
+            return h`<tr data-holder="${x.employee.id}"><td>${api.name(x.employee.name)}</td><td>${x.branch_id ? api.branch(x.branch_id) : '—'}</td><td class="num"><b>${fmt.money(x.balance)}</b></td><td class="num" data-holder-pending>${x.pending ? h`${BT.pill(fmt.int(x.pending.count), 'o')} <span class="num">${fmt.money(x.pending.amount)}</span>` : raw('<span class="muted">—</span>')}</td><td class="num">${x.last_movement ? fmt.date(x.last_movement) : '—'}</td>
               <td class="num nowrap"><button type="button" class="btn btn-sm btn-ghost" data-petty-moves="${x.employee.id}">${icon('list', 13)} حركات</button></td></tr>`;
           })}</tbody></table></div>` : BT.empty('wallet', 'لا عهد نقدية بعد', manage ? 'اصرف عهدة لموظف من خزينة فرع' : '')}
-        <div class="hint mt-8">العهدة تُصرف من خزينة فرع (تنقص الخزينة وتزيد العهدة)، ومصروفات الموظف تُسجَّل «من عهدة» فتنقص عهدته عند الاعتماد، والباقي يُرد للخزينة. في الدفاتر: حساب 1115 العهد النقدية.</div></div>`;
+        <div class="hint mt-8">العهدة تُصرف من خزينة فرع (تنقص الخزينة وتزيد العهدة)، ومصروفات الموظف تُسجَّل «من عهدة» فتنقص عهدته عند الاعتماد، والباقي يُرد للخزينة. في الدفاتر: حساب 1115 العهد النقدية.</div></div>
+        <div data-petty-spending></div>`;
     }).then(function (r) {
       if (!r) return;
+      pettySpending(el.querySelector('[data-petty-spending]'), function () { pettyPanel(el); A.refreshCounts(); });
       var rows = r[0], boxes = r[1], again = function () { pettyPanel(el); };
       var branchSelect = function () { return BT.f.select({ name: 'branch_id', label: 'خزينة الفرع', required: true, placeholder: false, options: boxes.map(function (b) { return { v: b.branch.id, t: api.name(b.branch.name) + ' — ' + fmt.money(b.treasury) }; }) }); };
       var move = function (kind, holderId) {
