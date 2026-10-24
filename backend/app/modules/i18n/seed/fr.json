@@ -649,7 +649,8 @@
       "vehicle_swapped": "Votre véhicule a été échangé : vous avez rendu {from} et pris {to}",
       "vehicle_taken": "Le véhicule {plate} a été retiré de votre garde",
       "leave_approved": "Votre demande d'absence ({kind}) du {from} au {to} a été approuvée",
-      "leave_rejected": "Votre demande d'absence ({kind}) du {from} au {to} a été refusée : {reason}"
+      "leave_rejected": "Votre demande d'absence ({kind}) du {from} au {to} a été refusée : {reason}",
+      "broadcast": "{title}\n{body}"
     },
     "errors": {
       "accident_exists": "Cet accident est déjà enregistré",
@@ -1160,7 +1161,15 @@
       "app_release_exists": "La version {version_code} a déjà été téléversée",
       "app_release_not_found": "Version introuvable",
       "app_release_published": "La version est publiée : dépubliez-la d'abord",
-      "app_release_notes_too_long": "Les notes de version dépassent {max} caractères"
+      "app_release_notes_too_long": "Les notes de version dépassent {max} caractères",
+      "broadcast_not_cancellable": "Cette diffusion a déjà été envoyée ou annulée",
+      "broadcast_not_draft": "Seul un brouillon peut être envoyé d'ici",
+      "broadcast_not_found": "Diffusion introuvable",
+      "broadcast_not_sent": "Cette diffusion n'a pas encore été envoyée",
+      "broadcast_text_required": "Le champ {field} est requis en : {langs}",
+      "invalid_audience": "Choisissez les destinataires de la diffusion",
+      "invalid_broadcast": "Diffusion invalide : {detail}",
+      "unknown_channel": "Canal inconnu : {channel}"
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",

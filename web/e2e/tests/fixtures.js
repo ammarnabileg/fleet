@@ -58,7 +58,7 @@ class Api {
       return text ? JSON.parse(text) : null;
     };
     return {
-      call: (method, path, body) => self.ctx.fetch('/api/v1' + path, { method, data: body, headers: auth }).then(answer(method, path)),
+      call: (method, path, body, headers) => self.ctx.fetch('/api/v1' + path, { method, data: body, headers: Object.assign({}, headers || {}, auth) }).then(answer(method, path)),
       /** A photo from the gallery, or the camera (a JPEG never sent before, as the server refuses a reused one). */
       photo: (source) => {
         return self.ctx.fetch('/api/v1/driver/files?source=' + (source || 'upload'), {

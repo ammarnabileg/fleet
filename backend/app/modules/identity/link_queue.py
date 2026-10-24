@@ -118,22 +118,35 @@ def cancel_waiting(db: Session, *, actor_user_id: int, all_companies: bool, comp
     return count
 
 
-def send_next(db: Session, now: datetime | None = None) -> str:
-    """Called every few seconds by the scheduler; sends at most one message when the pace allows it."""
+def whatsapp_pace(db: Session, now: datetime) -> str | None:
+    """None when one more bulk WhatsApp message may go now; else why not (outside_hours, too_soon, daily_limit). The
+    pace is the number's, shared by every bulk sender: the activation links and the broadcasts (ركن الإشعارات)."""
+    from app.modules.notifications import service as notifications  # late: notifications imports identity's service
+
     settings = org.get_section(db, "messaging")
-    now = now or utcnow()
     if not settings.send_from_hour <= now.astimezone(KUWAIT).hour < settings.send_until_hour:
         return "outside_hours"
-    last = db.scalar(select(func.max(LinkQueueItem.last_attempt_at)))
+    day = _day_start(now)
+    other_last, other_today = notifications.bulk_whatsapp_usage(db, day)
+    last = max(filter(None, [db.scalar(select(func.max(LinkQueueItem.last_attempt_at))), other_last]), default=None)
     if last and now - last < timedelta(seconds=settings.bulk_interval_seconds):
         return "too_soon"
-    sent_today = db.scalar(
+    sent_today = other_today + db.scalar(
         select(func.count())
         .select_from(LinkQueueItem)
-        .where(LinkQueueItem.status == "sent", LinkQueueItem.sent_at >= _day_start(now))
+        .where(LinkQueueItem.status == "sent", LinkQueueItem.sent_at >= day)
     )
     if sent_today >= settings.bulk_daily_limit:
         return "daily_limit"
+    return None
+
+
+def send_next(db: Session, now: datetime | None = None) -> str:
+    """Called every few seconds by the scheduler; sends at most one message when the pace allows it."""
+    now = now or utcnow()
+    blocked = whatsapp_pace(db, now)
+    if blocked:
+        return blocked
     item = db.scalar(
         select(LinkQueueItem)
         .where(

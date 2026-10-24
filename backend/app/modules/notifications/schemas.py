@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints
 
 Note = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
@@ -86,6 +86,8 @@ class DriverNoticeOut(BaseModel):
     entity_id: str | None
     created_at: datetime
     read: bool
+    title: str | None = None  # a broadcast's title and body, apart (the message holds both)
+    body: str | None = None
 
 
 class DriverNoticesOut(BaseModel):
@@ -101,3 +103,59 @@ class ReadIn(BaseModel):
 
 class ReadOut(BaseModel):
     count: int
+
+
+# ------------------------------------------------------------------ broadcasts (ركن الإشعارات)
+
+BroadcastLang = Literal["ar", "en", "fr", "sw", "hi", "fil"]
+
+
+class AudienceIn(BaseModel):
+    kind: Literal["all", "company", "platform", "on_duty", "selected"]
+    company_ids: list[int] = Field(default_factory=list, max_length=200)
+    platform_ids: list[int] = Field(default_factory=list, max_length=200)
+    employee_ids: list[uuid.UUID] = Field(default_factory=list, max_length=5000)
+
+
+class BroadcastPreviewIn(BaseModel):
+    audience: AudienceIn
+    channels: list[Annotated[str, StringConstraints(max_length=31)]] = Field(default_factory=list, max_length=10)
+
+
+class BroadcastIn(BroadcastPreviewIn):
+    title: dict[BroadcastLang, Annotated[str, StringConstraints(max_length=120)]]
+    body: dict[BroadcastLang, Annotated[str, StringConstraints(max_length=2000)]]
+    scheduled_at: AwareDatetime | None = None
+    send: bool = True
+
+
+class ResendIn(BaseModel):
+    channel: Annotated[str, StringConstraints(max_length=31)] | None = None
+
+
+class BroadcastOut(BaseModel):
+    id: str
+    title: dict[str, str]
+    body: dict[str, str]
+    audience: dict
+    channels: list[str]
+    status: str
+    scheduled_at: datetime | None
+    recipients: int
+    created_at: datetime
+    started_at: datetime | None
+    sent_at: datetime | None
+    cancelled_at: datetime | None
+    stats: dict[str, dict[str, int]]
+    requeued: int | None = None
+
+
+class BroadcastDeliveryOut(BaseModel):
+    driver: dict | None
+    channel: str
+    status: str
+    reason: str | None
+    lang: str | None
+    attempts: int
+    updated_at: datetime
+    sent_at: datetime | None

@@ -649,7 +649,8 @@
       "vehicle_swapped": "आपकी गाड़ी बदली गई: आपने {from} दी और {to} ली",
       "vehicle_taken": "गाड़ी {plate} आपकी ज़िम्मेदारी से हटा ली गई",
       "leave_approved": "आपका अनुपस्थिति अनुरोध ({kind}) {from} से {to} तक स्वीकृत हुआ",
-      "leave_rejected": "आपका अनुपस्थिति अनुरोध ({kind}) {from} से {to} तक अस्वीकार हुआ: {reason}"
+      "leave_rejected": "आपका अनुपस्थिति अनुरोध ({kind}) {from} से {to} तक अस्वीकार हुआ: {reason}",
+      "broadcast": "{title}\n{body}"
     },
     "errors": {
       "accident_exists": "यह दुर्घटना पहले से दर्ज है",
@@ -1160,7 +1161,15 @@
       "app_release_exists": "संस्करण {version_code} पहले ही अपलोड हो चुका है",
       "app_release_not_found": "संस्करण नहीं मिला",
       "app_release_published": "संस्करण प्रकाशित है: पहले अप्रकाशित करें",
-      "app_release_notes_too_long": "रिलीज़ नोट्स {max} अक्षरों से लंबे हैं"
+      "app_release_notes_too_long": "रिलीज़ नोट्स {max} अक्षरों से लंबे हैं",
+      "broadcast_not_cancellable": "यह प्रसारण पहले ही भेजा या रद्द किया जा चुका है",
+      "broadcast_not_draft": "यहाँ से केवल ड्राफ्ट भेजा जा सकता है",
+      "broadcast_not_found": "प्रसारण नहीं मिला",
+      "broadcast_not_sent": "यह प्रसारण अभी भेजा नहीं गया है",
+      "broadcast_text_required": "{field} इन भाषाओं में आवश्यक है: {langs}",
+      "invalid_audience": "चुनें कि प्रसारण किसे भेजा जाए",
+      "invalid_broadcast": "अमान्य प्रसारण: {detail}",
+      "unknown_channel": "अज्ञात चैनल: {channel}"
     },
     "finance_source": {
       "cash_journal": "कैश लेजर: {kind} {reason}",

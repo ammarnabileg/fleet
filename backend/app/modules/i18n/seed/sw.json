@@ -649,7 +649,8 @@
       "vehicle_swapped": "Gari lako limebadilishwa: ulitoa {from} na ukachukua {to}",
       "vehicle_taken": "Gari {plate} limeondolewa chini ya jukumu lako",
       "leave_approved": "Ombi lako la kutokuwepo ({kind}) kuanzia {from} hadi {to} limeidhinishwa",
-      "leave_rejected": "Ombi lako la kutokuwepo ({kind}) kuanzia {from} hadi {to} limekataliwa: {reason}"
+      "leave_rejected": "Ombi lako la kutokuwepo ({kind}) kuanzia {from} hadi {to} limekataliwa: {reason}",
+      "broadcast": "{title}\n{body}"
     },
     "errors": {
       "accident_exists": "Ajali hii tayari imerekodiwa",
@@ -1160,7 +1161,15 @@
       "app_release_exists": "Toleo {version_code} limeshapakiwa",
       "app_release_not_found": "Toleo halijapatikana",
       "app_release_published": "Toleo limechapishwa: liondoe kwanza",
-      "app_release_notes_too_long": "Maelezo ya toleo yanazidi herufi {max}"
+      "app_release_notes_too_long": "Maelezo ya toleo yanazidi herufi {max}",
+      "broadcast_not_cancellable": "Tangazo hili tayari limetumwa au kufutwa",
+      "broadcast_not_draft": "Rasimu pekee inaweza kutumwa kutoka hapa",
+      "broadcast_not_found": "Tangazo halikupatikana",
+      "broadcast_not_sent": "Tangazo hili bado halijatumwa",
+      "broadcast_text_required": "Sehemu ya {field} inahitajika kwa: {langs}",
+      "invalid_audience": "Chagua tangazo linaenda kwa nani",
+      "invalid_broadcast": "Tangazo si sahihi: {detail}",
+      "unknown_channel": "Njia isiyojulikana: {channel}"
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",

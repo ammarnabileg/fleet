@@ -56,7 +56,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get phoneLabel => 'Téléphone';
 
   @override
-  String get phoneInvalid => '8 chiffres koweïtiens, ou un numéro international commençant par +';
+  String get phoneInvalid =>
+      '8 chiffres koweïtiens, ou un numéro international commençant par +';
 
   @override
   String get sendCode => 'Envoyer le code';
@@ -99,19 +100,22 @@ class AppLocalizationsFr extends AppLocalizations {
   String get permLocation => 'Position : « Toujours autoriser »';
 
   @override
-  String get permLocationWhy => 'Pour que le superviseur voie le véhicule pendant votre garde.';
+  String get permLocationWhy =>
+      'Pour que le superviseur voie le véhicule pendant votre garde.';
 
   @override
   String get permNotifications => 'Notifications';
 
   @override
-  String get permNotificationsWhy => 'Une notification permanente s\'affiche pendant le suivi (règle Android).';
+  String get permNotificationsWhy =>
+      'Une notification permanente s\'affiche pendant le suivi (règle Android).';
 
   @override
   String get permBattery => 'Ignorer l\'optimisation de la batterie';
 
   @override
-  String get permBatteryWhy => 'Pour que le téléphone n\'arrête pas le suivi en arrière-plan.';
+  String get permBatteryWhy =>
+      'Pour que le téléphone n\'arrête pas le suivi en arrière-plan.';
 
   @override
   String get permGrant => 'Autoriser';
@@ -123,10 +127,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get permSettings => 'Ouvrir les paramètres';
 
   @override
-  String get permLocationRequired => 'L\'autorisation de localisation est nécessaire pour continuer.';
+  String get permLocationRequired =>
+      'L\'autorisation de localisation est nécessaire pour continuer.';
 
   @override
-  String get gpsOff => 'Le GPS est désactivé : activez-le dans les paramètres du téléphone.';
+  String get gpsOff =>
+      'Le GPS est désactivé : activez-le dans les paramètres du téléphone.';
 
   @override
   String get obTitle => 'Finaliser l\'inscription';
@@ -156,7 +162,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get civilId => 'Carte d\'identité civile';
 
   @override
-  String get civilIdInvalid => 'La carte d\'identité civile comporte 12 chiffres';
+  String get civilIdInvalid =>
+      'La carte d\'identité civile comporte 12 chiffres';
 
   @override
   String get nationality => 'Nationalité';
@@ -255,7 +262,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get noCustody => 'Aucun véhicule sous votre garde actuellement';
 
   @override
-  String get noCustodyHint => 'Quand un véhicule vous est remis, il s\'affiche ici et le suivi démarre tout seul.';
+  String get noCustodyHint =>
+      'Quand un véhicule vous est remis, il s\'affiche ici et le suivi démarre tout seul.';
 
   @override
   String custodySince(String when) {
@@ -340,7 +348,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get editReportTitle => 'Modifier le rapport';
 
   @override
-  String get changeReportTitle => 'Demander la modification d\'un rapport approuvé';
+  String get changeReportTitle =>
+      'Demander la modification d\'un rapport approuvé';
 
   @override
   String get changeReportIntro =>
@@ -386,7 +395,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get vehicleChangeReason => 'Motif';
 
   @override
-  String get vehicleChangePending => 'Votre demande d\'un autre véhicule est chez le superviseur';
+  String get vehicleChangePending =>
+      'Votre demande d\'un autre véhicule est chez le superviseur';
 
   @override
   String vehicleChangeRejected(Object note) {
@@ -541,7 +551,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get cashInvalid => 'Un montant avec au plus trois décimales';
 
   @override
-  String get screenshot => 'Capture d\'écran du résumé du jour dans l\'application de livraison';
+  String get screenshot =>
+      'Capture d\'écran du résumé du jour dans l\'application de livraison';
 
   @override
   String get notes => 'Remarques';
@@ -788,7 +799,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get accNew => 'Nouvelle déclaration d\'accident';
 
   @override
-  String get accEmergency => 'Si quelqu\'un est blessé, appelez d\'abord le 112.';
+  String get accEmergency =>
+      'Si quelqu\'un est blessé, appelez d\'abord le 112.';
 
   @override
   String get accIntro =>
@@ -916,16 +928,19 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get statementNoPlatform => 'Votre plateforme n\'est pas encore définie. Contactez le bureau.';
+  String get statementNoPlatform =>
+      'Votre plateforme n\'est pas encore définie. Contactez le bureau.';
 
   @override
-  String get statementNoMonth => 'Vous avez envoyé tous les mois ouverts. Attendez la vérification du bureau.';
+  String get statementNoMonth =>
+      'Vous avez envoyé tous les mois ouverts. Attendez la vérification du bureau.';
 
   @override
   String get statementMonth => 'Mois';
 
   @override
-  String get statementShots => 'Captures d\'écran de l\'application de la plateforme (jusqu\'à 6)';
+  String get statementShots =>
+      'Captures d\'écran de l\'application de la plateforme (jusqu\'à 6)';
 
   @override
   String get statementShotRequired => 'Ajoutez au moins une capture d\'écran';
@@ -983,7 +998,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get iban => 'IBAN';
 
   @override
-  String get ibanHint => 'Votre salaire y est versé : copiez-le depuis l\'application de votre banque';
+  String get ibanHint =>
+      'Votre salaire y est versé : copiez-le depuis l\'application de votre banque';
 
   @override
   String get bankName => 'Nom de la banque';
@@ -1014,7 +1030,8 @@ class AppLocalizationsFr extends AppLocalizations {
       'Connectez-vous avec votre carte d\'identité civile et votre mot de passe. La première fois : le mot de passe initial donné par le bureau, puis vous choisissez le vôtre.';
 
   @override
-  String get forgotPassword => 'Mot de passe oublié ? Demandez un nouveau mot de passe initial à votre superviseur.';
+  String get forgotPassword =>
+      'Mot de passe oublié ? Demandez un nouveau mot de passe initial à votre superviseur.';
 
   @override
   String choosePassword(String name) {
@@ -1034,13 +1051,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get passwordsDiffer => 'Les deux mots de passe sont différents';
 
   @override
-  String get passwordIsCivilId => 'N\'utilisez pas votre numéro d\'identité civile comme mot de passe';
+  String get passwordIsCivilId =>
+      'N\'utilisez pas votre numéro d\'identité civile comme mot de passe';
 
   @override
   String get saveAndSignIn => 'Enregistrer et se connecter';
 
   @override
-  String get validDayQuestion => 'L\'application de la plateforme a-t-elle compté ce jour comme valide ?';
+  String get validDayQuestion =>
+      'L\'application de la plateforme a-t-elle compté ce jour comme valide ?';
 
   @override
   String get validDayYes => 'Jour valide';
@@ -1110,7 +1129,8 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get schemeBatchRates => 'Prix par commande selon le niveau de batch du mois :';
+  String get schemeBatchRates =>
+      'Prix par commande selon le niveau de batch du mois :';
 
   @override
   String schemeBatchRow(String level, String rate) {
@@ -1128,10 +1148,12 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get schemeReducedLoses => 'Un mois réduit ne donne pas de prime de palier';
+  String get schemeReducedLoses =>
+      'Un mois réduit ne donne pas de prime de palier';
 
   @override
-  String get schemeTiers => 'Prime de palier (uniquement le plus haut palier atteint) :';
+  String get schemeTiers =>
+      'Prime de palier (uniquement le plus haut palier atteint) :';
 
   @override
   String schemeTierRow(String orders, String amount) {
@@ -1165,7 +1187,8 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get schemeCoversNone => 'Vous payez les frais : entretien, logement, essence et carte SIM';
+  String get schemeCoversNone =>
+      'Vous payez les frais : entretien, logement, essence et carte SIM';
 
   @override
   String get schemePlatformRates =>
@@ -1302,7 +1325,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get dayNotStarted => 'Vous n\'avez pas commencé votre journée';
 
   @override
-  String get dayNotStartedHint => 'Commencez par une photo du compteur avec l\'appareil photo';
+  String get dayNotStartedHint =>
+      'Commencez par une photo du compteur avec l\'appareil photo';
 
   @override
   String dayStartedAt(String time) {
@@ -1388,7 +1412,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get workReportDue => 'Le rapport du jour n\'est pas encore envoyé';
 
   @override
-  String get workReportDueHint => 'Envoyez les commandes et les espèces comme dans l\'application de la plateforme';
+  String get workReportDueHint =>
+      'Envoyez les commandes et les espèces comme dans l\'application de la plateforme';
 
   @override
   String get sendDailyReport => 'Envoyer le rapport quotidien';
@@ -1426,7 +1451,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get takeOdometerPhoto => 'Prendre la photo du compteur';
 
   @override
-  String get cameraOnly => 'Appareil photo uniquement — la galerie n\'est pas autorisée';
+  String get cameraOnly =>
+      'Appareil photo uniquement — la galerie n\'est pas autorisée';
 
   @override
   String lastKmHint(String km) {
@@ -1434,7 +1460,8 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get cashHint => 'Comme indiqué dans l\'application de la société de livraison';
+  String get cashHint =>
+      'Comme indiqué dans l\'application de la société de livraison';
 
   @override
   String get mntDescriptionHint => 'ex. un bruit au freinage';
@@ -1443,7 +1470,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get accSend => 'Envoyer la déclaration';
 
   @override
-  String get workReportQueued => 'Le rapport du jour est enregistré sur le téléphone';
+  String get workReportQueued =>
+      'Le rapport du jour est enregistré sur le téléphone';
 
   @override
   String get reportQueuedForDay =>
@@ -1455,7 +1483,8 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get workReportDueHintDays => 'Envoyez les commandes et si le jour a été compté comme valide';
+  String get workReportDueHintDays =>
+      'Envoyez les commandes et si le jour a été compté comme valide';
 
   @override
   String get qaReportSubDays => 'Commandes du jour et jour valide';
@@ -1489,7 +1518,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get fuelAmount => 'Montant payé';
 
   @override
-  String get fuelAmountInvalid => 'Saisissez le montant en KWD, jusqu\'à 3 décimales';
+  String get fuelAmountInvalid =>
+      'Saisissez le montant en KWD, jusqu\'à 3 décimales';
 
   @override
   String fuelAmountMax(String max) {
@@ -1541,7 +1571,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get moveFuel => 'Carburant';
 
   @override
-  String get vehicleChangePlate => 'Numéro d\'immatriculation de l\'autre véhicule';
+  String get vehicleChangePlate =>
+      'Numéro d\'immatriculation de l\'autre véhicule';
 
   @override
   String get vehicleChangePlateHint => '12-34567';
@@ -1569,7 +1600,8 @@ class AppLocalizationsFr extends AppLocalizations {
       'Prenez la photo du compteur avec l\'appareil photo et saisissez le relevé. La demande va au bureau ; une fois approuvée, la voiture est à vous depuis l\'heure de la photo.';
 
   @override
-  String get claimConditionPhotos => 'Photos de l\'état de la voiture (facultatif)';
+  String get claimConditionPhotos =>
+      'Photos de l\'état de la voiture (facultatif)';
 
   @override
   String get claimSend => 'Envoyer au bureau';
@@ -1588,7 +1620,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get kind_vehicle_claim => 'Enregistrement de voiture';
 
   @override
-  String get mntNoCenter => 'Aucun centre d\'entretien n\'est disponible : appelez le bureau';
+  String get mntNoCenter =>
+      'Aucun centre d\'entretien n\'est disponible : appelez le bureau';
 
   @override
   String mntInMaintenance(String center) {
@@ -1647,10 +1680,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get objectionGallery => 'Galerie';
 
   @override
-  String get objectionSent => 'Votre contestation a été envoyée ; le bureau répondra';
+  String get objectionSent =>
+      'Votre contestation a été envoyée ; le bureau répondra';
 
   @override
-  String get objectionQueued => 'Votre contestation sera envoyée au retour de la connexion';
+  String get objectionQueued =>
+      'Votre contestation sera envoyée au retour de la connexion';
 
   @override
   String get myObjections => 'Mes contestations';
@@ -1701,19 +1736,22 @@ class AppLocalizationsFr extends AppLocalizations {
       'Vous la rendez en récupérant votre voiture : photographiez son compteur et saisissez le relevé.';
 
   @override
-  String get pickupReplacementPhoto => 'Photo du compteur de la voiture de remplacement';
+  String get pickupReplacementPhoto =>
+      'Photo du compteur de la voiture de remplacement';
 
   @override
   String get fuelLitres => 'Litres (facultatif)';
 
   @override
-  String get fuelLitresInvalid => 'Saisissez les litres comme sur le reçu (jusqu\'à 500)';
+  String get fuelLitresInvalid =>
+      'Saisissez les litres comme sur le reçu (jusqu\'à 500)';
 
   @override
   String get fuelLitresUnit => 'L';
 
   @override
-  String get replacementCar => 'Voiture de remplacement — la vôtre est au centre';
+  String get replacementCar =>
+      'Voiture de remplacement — la vôtre est au centre';
 
   @override
   String outboxAttention(String reason) {
@@ -1735,7 +1773,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get startFailedTitle => 'L\'application n\'a pas pu démarrer';
 
   @override
-  String get startFailedBody => 'Une erreur s\'est produite au chargement. Vérifiez la connexion et réessayez.';
+  String get startFailedBody =>
+      'Une erreur s\'est produite au chargement. Vérifiez la connexion et réessayez.';
 
   @override
   String get activationReplaceTitle => 'Remplacer le chauffeur connecté ?';
@@ -1822,7 +1861,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get statusContactSent => 'Votre superviseur a été prévenu';
 
   @override
-  String get statusDialFailed => 'Impossible de lancer un appel sur ce téléphone';
+  String get statusDialFailed =>
+      'Impossible de lancer un appel sur ce téléphone';
 
   @override
   String get leaves => 'Demande d\'absence';
@@ -1881,7 +1921,8 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get leavePreviewOffline => 'Le calcul nécessite une connexion : la demande est envoyée et vérifiée au bureau';
+  String get leavePreviewOffline =>
+      'Le calcul nécessite une connexion : la demande est envoyée et vérifiée au bureau';
 
   @override
   String get leaveSend => 'Envoyer la demande';
@@ -1913,7 +1954,8 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get leaveNoTypes => 'Aucun type de congé ne vous est disponible pour le moment';
+  String get leaveNoTypes =>
+      'Aucun type de congé ne vous est disponible pour le moment';
 
   @override
   String get leaveDatesInvalid => 'La date de fin est avant le début';
@@ -1969,10 +2011,12 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get headsUpLocationBodyNever => 'Ouvrez l\'application et vérifiez les paramètres de localisation.';
+  String get headsUpLocationBodyNever =>
+      'Ouvrez l\'application et vérifiez les paramètres de localisation.';
 
   @override
-  String get actionOpenLocationSettings => 'Ouvrir les paramètres de localisation';
+  String get actionOpenLocationSettings =>
+      'Ouvrir les paramètres de localisation';
 
   @override
   String get noticeCatAlerts => 'Alertes';
@@ -2001,7 +2045,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get updateLater => 'Plus tard';
 
   @override
-  String get updateRequiredTitle => 'Vous devez mettre à jour l\'application pour continuer';
+  String get updateRequiredTitle =>
+      'Vous devez mettre à jour l\'application pour continuer';
 
   @override
   String get updateRequiredBody =>
@@ -2018,7 +2063,8 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get updateMobileData => 'Vous êtes sur les données mobiles : le téléchargement utilise votre forfait.';
+  String get updateMobileData =>
+      'Vous êtes sur les données mobiles : le téléchargement utilise votre forfait.';
 
   @override
   String updateDownloading(String percent) {
@@ -2033,7 +2079,8 @@ class AppLocalizationsFr extends AppLocalizations {
       'Android vous demandera de confirmer l\'installation. Rouvrez l\'application après la mise à jour.';
 
   @override
-  String get updatePermissionTitle => 'Autoriser l\'installation de la mise à jour';
+  String get updatePermissionTitle =>
+      'Autoriser l\'installation de la mise à jour';
 
   @override
   String get updatePermissionBody =>
@@ -2043,7 +2090,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get updateOpenSettings => 'Ouvrir les paramètres';
 
   @override
-  String get updateChecksum => 'Le fichier téléchargé était endommagé et a été supprimé. Réessayez.';
+  String get updateChecksum =>
+      'Le fichier téléchargé était endommagé et a été supprimé. Réessayez.';
 
   @override
   String get updateFailed => 'Le téléchargement a échoué. Réessayez.';

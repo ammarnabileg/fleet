@@ -512,6 +512,7 @@ DRIVER_KINDS: dict[str, tuple[str, ...]] = {  # kind: the params its text uses
     "objection_updated": ("month", "status", "response"),
     "leave_approved": ("kind", "from", "to"),
     "leave_rejected": ("kind", "from", "to", "reason"),
+    "broadcast": ("title", "body"),  # from the office's broadcasts: every language kept, read in the app's
 }
 
 
@@ -545,7 +546,23 @@ def notify_driver(
     return db.execute(stmt.returning(DriverNotice.id)).first() is not None
 
 
+def _broadcast_text(n: DriverNotice, lang: str) -> tuple[str, str]:
+    from app.modules.notifications.channels import text_in
+
+    return text_in(n.params.get("title"), lang), text_in(n.params.get("body"), lang)
+
+
+def _broadcast_parts(n: DriverNotice, lang: str) -> dict:
+    if n.kind != "broadcast":
+        return {}
+    title, body = _broadcast_text(n, lang)
+    return {"title": title, "body": body}
+
+
 def notice_text(db: Session, n: DriverNotice, lang: str, default: str) -> str:
+    if n.kind == "broadcast":
+        title, body = _broadcast_text(n, lang)
+        return i18n.t(db, lang, "driver_notice.broadcast", title=title, body=body)
     params = {k: i18n.pick(v, lang, default) if isinstance(v, dict) else v for k, v in n.params.items()}
     return i18n.t(db, lang, f"driver_notice.{n.kind}", **params)
 
@@ -569,6 +586,7 @@ def driver_notices(db: Session, employee_id: int, *, lang: str, limit: int = 50)
                 "id": str(n.public_id),
                 "kind": n.kind,
                 "message": notice_text(db, n, lang, default),
+                **_broadcast_parts(n, lang),
                 "entity_type": n.entity_type,
                 "entity_id": n.entity_id,
                 "created_at": n.created_at,
@@ -678,3 +696,10 @@ def push_pending(db: Session, *, limit: int = 200) -> int:
         sent += 1
     db.commit()
     return sent
+
+
+def bulk_whatsapp_usage(db: Session, since) -> tuple:
+    """For the WhatsApp number's shared pace (identity's bulk links): the broadcasts' last try, and sends since."""
+    from app.modules.notifications import broadcasts
+
+    return broadcasts.bulk_whatsapp_usage(db, since)

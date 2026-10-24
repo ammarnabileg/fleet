@@ -649,7 +649,8 @@
       "vehicle_swapped": "Pinalitan ang sasakyan mo: ibinigay mo ang {from} at kinuha mo ang {to}",
       "vehicle_taken": "Inalis sa pangangalaga mo ang sasakyang {plate}",
       "leave_approved": "Naaprubahan ang iyong kahilingan sa pagliban ({kind}) mula {from} hanggang {to}",
-      "leave_rejected": "Tinanggihan ang iyong kahilingan sa pagliban ({kind}) mula {from} hanggang {to}: {reason}"
+      "leave_rejected": "Tinanggihan ang iyong kahilingan sa pagliban ({kind}) mula {from} hanggang {to}: {reason}",
+      "broadcast": "{title}\n{body}"
     },
     "errors": {
       "accident_exists": "Naka-record na ang aksidenteng ito",
@@ -1160,7 +1161,15 @@
       "app_release_exists": "Na-upload na ang bersyon {version_code}",
       "app_release_not_found": "Hindi nakita ang bersyon",
       "app_release_published": "Naka-publish ang bersyon: i-unpublish muna",
-      "app_release_notes_too_long": "Lampas sa {max} character ang release notes"
+      "app_release_notes_too_long": "Lampas sa {max} character ang release notes",
+      "broadcast_not_cancellable": "Naipadala na o nakansela na ang broadcast na ito",
+      "broadcast_not_draft": "Draft lamang ang maipapadala mula rito",
+      "broadcast_not_found": "Hindi nahanap ang broadcast",
+      "broadcast_not_sent": "Hindi pa naipapadala ang broadcast na ito",
+      "broadcast_text_required": "Kailangan ang {field} sa: {langs}",
+      "invalid_audience": "Piliin kung para kanino ang broadcast",
+      "invalid_broadcast": "Hindi wastong broadcast: {detail}",
+      "unknown_channel": "Hindi kilalang channel: {channel}"
     },
     "finance_source": {
       "cash_journal": "Cash ledger: {kind} {reason}",
