@@ -295,14 +295,17 @@ def _group_names(db: Session, t: dict) -> tuple[str, str]:
     return t["header"]["name_ar"] or display, t["header"]["name_en"] or display
 
 
-def identity_of(db: Session, company: Company | None, template: dict) -> dict:
-    """The header's values: the company's, or the group's when the printout spans companies."""
+def identity_of(db: Session, company: Company | None, template: dict, own: bool = True) -> dict:
+    """The header's values: the company's, or the group's when the printout spans companies. The names written in a
+    template replace the company's only in its own template: the default's are the group's names."""
     if company is None:
         ar, en = _group_names(db, template)
         blank = {k: "" for k in HEADER_VARIABLES}
         return blank | {"company": ar, "company_en": en}
     names = company.name or {}
     ar = names.get("ar") or next(iter(names.values()), "")
+    if not own:
+        template = {"header": {"name_ar": "", "name_en": ""}}
     return {
         "company": template["header"]["name_ar"] or ar,
         "company_en": template["header"]["name_en"] or names.get("en") or ar,
@@ -328,7 +331,7 @@ def layout(db: Session, company_id: int | None, *, all_companies: bool, company_
         "config_version": version,
         "company_id": company_id,
         "template": t,
-        "identity": identity_of(db, company, t),
+        "identity": identity_of(db, company, t, own=company is None or str(company.id) in config["companies"]),
         "images": {"logo": _data_uri(db, t["header"]["logo"]), "watermark": _data_uri(db, t["watermark"]["image"])},
     }
 

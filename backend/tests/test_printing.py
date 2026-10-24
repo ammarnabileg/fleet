@@ -100,9 +100,14 @@ def test_a_company_override_and_the_identity_in_the_header(admin_client, company
     other = companies["b"]
     theirs = admin_client.get("/api/v1/print/layout", params={"company_id": other["id"]}).json()
     assert theirs["template"]["page"]["accent"] == t["page"]["accent"]
+    named = t | {"header": t["header"] | {"name_ar": "المجموعة"}}
+    assert admin_client.put(f"{T}/default", json={"template": named, "config_version": 1}).status_code == 200
+    theirs = admin_client.get("/api/v1/print/layout", params={"company_id": other["id"]}).json()
+    assert theirs["identity"]["company"] == other["name"]["ar"]  # the default's names are the group's only
     group = admin_client.get("/api/v1/print/layout").json()
+    assert group["identity"]["company"] == "المجموعة"
     assert group["company_id"] is None and group["identity"]["company"]
-    off = admin_client.put(f"{T}/companies/{company['id']}", json={"template": None, "config_version": 1}).json()
+    off = admin_client.put(f"{T}/companies/{company['id']}", json={"template": None, "config_version": 2}).json()
     assert off["companies"] == {}
 
 

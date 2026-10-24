@@ -9,7 +9,7 @@ async function company(api, n) {
   return api.post('/companies', { name: { ar: 'شركة العهد ' + n, en: 'Custody company ' + n } });
 }
 
-test('the handover and receipt pickers list every driver, past the first 200', async ({ admin, api }) => {
+test('the handover picker lists every driver past the first 200, and the receipt search finds them', async ({ admin, api }) => {
   test.setTimeout(240_000);
   const n = uid();
   const c = await company(api, n);
@@ -33,9 +33,11 @@ test('the handover and receipt pickers list every driver, past the first 200', a
   await admin.goto('/admin.html#/cash');
   await settled(admin);
   await admin.getByRole('button', { name: 'استلام كاش بإيصال' }).click();
-  await expect(admin.locator('.overlay[data-open] [name=drv]')).toBeVisible();
-  const receipt = await listed('.overlay[data-open] [name=drv]');
-  expect(names.map((x) => x.split(' — ')[0]).filter((x) => !receipt.some((o) => o.startsWith(x + ' — ')))).toEqual([]);
+  // the receipt finds a driver by searching the server (plate, civil ID or name): the last one made is found too
+  const last = names[names.length - 1].split(' — ')[0];
+  await admin.locator('.overlay[data-open] [name=drv_q]').fill(last);
+  await expect(admin.locator('.overlay[data-open] [data-drv-id]')).toHaveCount(1);
+  await expect(admin.locator('.overlay[data-open] [data-drv-id]')).toContainText(last);
 });
 
 test('handover, start of day, a low reading corrected, then the return', async ({ admin, api }) => {

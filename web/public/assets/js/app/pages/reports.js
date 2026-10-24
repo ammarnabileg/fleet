@@ -36,6 +36,13 @@
     show(tab);
   };
 
+  /* مركز التقارير يفتح نفس التقارير (report-center.js) */
+  A.reportPanels = function () {
+    lists = null;
+    return { daily: dailyPanel, fleet: fleetPanel, km: kmPanel, cash: cashPanel, maintenance: maintenancePanel, accidents: accidentsPanel, payroll: payrollPanel };
+  };
+  A.reportTabs = TABS;
+
   /* ---------- الفلاتر: القوائم تُحمّل مرة لكل فتح للصفحة ---------- */
   var lists = null, PICK = {};
   function loadLists() {
@@ -103,6 +110,7 @@
       ${o.sections && o.sections.length > 1 && api.can('reports.export') ? BT.f.select({ name: 'section', label: 'الجدول المصدَّر', value: o.sections[0].v, placeholder: false, options: o.sections }) : ''}
       <button type="submit" class="btn btn-primary" style="align-self:flex-end">${icon('chart-column', 15)} عرض</button>
       ${api.can('reports.export') ? h`<button type="button" class="btn btn-outline" data-export="xlsx" style="align-self:flex-end">${icon('sheet', 15)} Excel</button><button type="button" class="btn btn-ghost" data-export="csv" style="align-self:flex-end">CSV</button>` : ''}
+      <button type="button" class="btn btn-ghost" data-preview style="align-self:flex-end">${icon('eye', 15)} معاينة</button>
       <button type="button" class="btn btn-ghost" data-print style="align-self:flex-end">${icon('printer', 15)} طباعة / PDF</button></form>`;
   }
   /* o: {path, name, title, months, sections, load(query)}; الحمل يضع el._print = function () { return [أقسام] } */
@@ -124,21 +132,24 @@
         A.downloadFile(o.path, q, o.name + (section ? '-' + section : '') + '-' + r.x.from + '-' + r.x.to + '.' + ext);
       };
     });
-    form.querySelector('[data-print]').onclick = function () {
-      var r = read(); if (!r) return;
-      if (!el._print) { BT.toast('اعرض التقرير أولاً', { type: 'error' }); return; }
-      printReport(o.title, describe(form, r.x, o.months), el._print());
-    };
+    function doc() {
+      var r = read(); if (!r) return null;
+      if (!el._print) { BT.toast('اعرض التقرير أولاً', { type: 'error' }); return null; }
+      // the report prints under the identity of the company chosen (the report center's, else the filter's), or the group's
+      var company = (el._printCompany && el._printCompany()) || r.x.company_id || null;
+      return reportDoc(o.title, describe(form, r.x, o.months), el._print(), company);
+    }
+    form.querySelector('[data-print]').onclick = function () { var d = doc(); if (d) BT.printDoc(d); };
+    var pv = form.querySelector('[data-preview]');
+    if (pv) pv.onclick = function () { var d = doc(); if (d) BT.printPreview(d); };
     o.load(read().q);
   }
 
   /* الطباعة: كل الصفوف (لا الصفحة المعروضة فقط)، بعنوان التقرير وفلاتره ومن طبعه */
   function cell(c, r) { return c.print ? c.print(r) : c.render ? c.render(r) : (r[c.key] == null ? '—' : r[c.key]); }
-  function printReport(title, meta, sections) {
-    BT.print(h`<div class="print-report"><div class="pr-head"><h1>${title}</h1><div>${meta}</div><div class="muted">طُبع ${fmt.dt(new Date().toISOString())} · ${api.me ? api.me.full_name : ''}</div></div>
-      ${sections.map(function (s) {
-        return h`<h2>${s.title}</h2>${s.rows.length ? h`<table class="t"><thead><tr>${s.columns.map(function (c) { return h`<th class="${c.num ? 'num' : ''}">${c.label}</th>`; })}</tr></thead><tbody>${s.rows.map(function (r) { return h`<tr>${s.columns.map(function (c) { return h`<td class="${c.num ? 'num' : ''}">${cell(c, r)}</td>`; })}</tr>`; })}</tbody></table>` : h`<div class="muted">لا يوجد</div>`}`;
-      })}</div>`);
+  function reportDoc(title, meta, sections, companyId) {
+    return { title: title, meta: meta, companyId: companyId ? Number(companyId) : null,
+      body: h`${sections.map(function (s) { return h`<h2>${s.title}</h2>${BT.printTable(s.columns, s.rows, cell)}`; })}` };
   }
   function table(node, rows, columns, more) { if (node) BT.table(node, Object.assign({ rows: rows, columns: columns, pageSize: 10 }, more || {})); }
   function money(key, label) { return { key: key, label: label, num: true, sort: function (r) { return Number(r[key] || 0); }, render: function (r) { return r[key] == null ? '—' : fmt.money(r[key]); } }; }
