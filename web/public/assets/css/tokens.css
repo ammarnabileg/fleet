@@ -39,25 +39,34 @@
   /* النصوص */
   --text: #0B1F3A;           /* العناوين والأرقام */
   --text-2: #3A4254;         /* النص العادي */
-  --text-3: #6B7385;         /* تسميات */
-  --muted: #8A93A6;
-  --faint: #9AA3B5;
+  --text-3: #525B6D;         /* تسميات */
+  /* WCAG AA: كل لون نص هنا ≥ 4.5:1 على الأسطح الفاتحة (surface ‏/ surface-2 ‏/ surface-3).
+     faint للأيقونات والفواصل فقط (≥ 3:1)، لا لنص يُقرأ. الفحص: contrast.py في مراجعة الوصول */
+  --muted: #5F6879;
+  --faint: #8790A3;
   --on-primary: #FFFFFF;
+  --control-border: #8A93A6; /* حدود الحقول ومربعات الاختيار: ≥ 3:1 حتى يُرى الحقل */
+  --focus: #0A6CFF;          /* إطار التركيز بلوحة المفاتيح */
 
   /* الأساسي */
-  --primary: #0A84FF;
-  --primary-strong: #0A6CFF;
+  --primary: #0A6CFF;        /* أزرق الشعار: نص أبيض عليه 4.56:1 */
+  --primary-strong: #0058D0;
+  --primary-hover: #0058D0;  /* خلفية الزر الأساسي عند المرور: أغمق، والنص الأبيض يبقى مقروءاً */
   --primary-soft: #E4EEFF;
   --primary-softer: #F1F6FF;
-  --ring: rgba(10, 132, 255, .35);
+  --ring: rgba(10, 108, 255, .35);
 
   /* الحالات: لون أساسي / لون نص / خلفية فاتحة */
-  --success: #28A745;  --success-text: #1E8E3E;  --success-soft: #E2F5E7;
-  --warning: #FF9F0A;  --warning-text: #B85F00;  --warning-soft: #FFF0DA;
-  --danger:  #FF3B30;  --danger-text:  #D12F2F;  --danger-soft:  #FDE6E6;
-  --info:    #0A84FF;  --info-text:    #1A5FD0;  --info-soft:    #E5EFFF;
+  /* لون أساسي (نقاط ومؤشرات ≥ 3:1) / لون نص (≥ 4.5:1 على الخلفية الفاتحة) / خلفية فاتحة / تعبئة تحمل نصاً أبيض */
+  --success: #1F9D45;  --success-text: #177A35;  --success-soft: #E2F5E7;  --success-solid: #1E7F36;
+  --warning: #D97A00;  --warning-text: #9A4D00;  --warning-soft: #FFF0DA;
+  --danger:  #E5352B;  --danger-text:  #B8261F;  --danger-soft:  #FDE6E6;  --danger-solid: #D02B20;
+  --info:    #0A6CFF;  --info-text:    #1A5FD0;  --info-soft:    #E5EFFF;
   --purple:  #7C4DFF;  --purple-text:  #7040D8;  --purple-soft:  #F0E8FF;
   --neutral: #8A93A6;  --neutral-text: #5B6478;  --neutral-soft: #EEF0F4;
+
+  /* أهداف اللمس على الشاشات التي تُلمس (pointer: coarse) */
+  --touch: 44px;
 
   /* الرسوم البيانية */
   --series-1: #2A78D6;
@@ -119,18 +128,22 @@
   --text: #EAF0F8;
   --text-2: #BCC6D6;
   --text-3: #93A0B5;
-  --muted: #7F8AA0;
+  --muted: #8994AA;
   --faint: #6A7589;
+  --control-border: #5D6A80;
+  --focus: #5AAAFF;
 
-  --primary: #3D9BFF;
+  /* زر أساسي بنص أبيض 4.78:1؛ الروابط والنص الأزرق primary-strong (فاتح على الداكن) */
+  --primary: #1F6FDF;
   --primary-strong: #5AAAFF;
+  --primary-hover: #185FC4;
   --primary-soft: rgba(61, 155, 255, .16);
   --primary-softer: rgba(61, 155, 255, .08);
   --ring: rgba(61, 155, 255, .45);
 
-  --success: #34C759;  --success-text: #5BD27B;  --success-soft: rgba(52, 199, 89, .15);
+  --success: #34C759;  --success-text: #5BD27B;  --success-soft: rgba(52, 199, 89, .15);  --success-solid: #1E7F36;
   --warning: #FFA826;  --warning-text: #FFB84D;  --warning-soft: rgba(255, 159, 10, .15);
-  --danger:  #FF5147;  --danger-text:  #FF7A72;  --danger-soft:  rgba(255, 69, 58, .15);
+  --danger:  #FF5147;  --danger-text:  #FF7A72;  --danger-soft:  rgba(255, 69, 58, .15);  --danger-solid: #D02B20;
   --info:    #3D9BFF;  --info-text:    #7DB8FF;  --info-soft:    rgba(61, 155, 255, .15);
   --purple:  #9A78FF;  --purple-text:  #B49BFF;  --purple-soft:  rgba(124, 77, 255, .18);
   --neutral: #7F8AA0;  --neutral-text: #A5B0C2;  --neutral-soft: rgba(127, 138, 160, .16);

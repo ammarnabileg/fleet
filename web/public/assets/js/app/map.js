@@ -1,0 +1,208 @@
+/* =====================================================================
+   app/map.js — الخريطة (MapLibre GL، تُحمّل عند فتح صفحة فيها خريطة)
+   الخريطة الأساسية من خادمنا: ملف واحد للكويت (Protomaps PMTiles من بيانات OpenStreetMap) في BT.config.mapPmtiles،
+   يقرأ المتصفح منه ما يلزم فقط بطلبات HTTP Range. لا رسوم ولا حدود استخدام، ولا يرى طرف ثالث مواقع السيارات
+   ولا ما يشاهده المشرف. الملف تنزّله وتحدّثه خدمة maps في docker-compose (deploy/maps). إن لم يوجد على الخادم:
+   بلاطات BT.config.mapFallbackTiles مع ملاحظة ظاهرة على الخريطة تقول السبب (maps/status.json من الخدمة نفسها).
+   الإحداثيات في هذه الواجهة [lat, lng] كما في بقية النظام (MapLibre نفسه يستخدم [lng, lat]).
+   ===================================================================== */
+(function () {
+  'use strict';
+  var BT = window.BT, A = BT.A, h = BT.h;
+  var V = 'assets/vendor/maps/';
+  var ATTRIBUTION = '<a href="https://protomaps.com" target="_blank" rel="noopener">Protomaps</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
+  var loading = null;
+
+  function abs(path) { return new URL(path, document.baseURI).href; }
+  function lngLat(p) { return [p[1], p[0]]; }
+
+  /* المكتبات مرة واحدة للصفحة كلها */
+  function libs() {
+    if (!loading) {
+      A.loadCss(V + 'maplibre/maplibre-gl.css');
+      loading = Promise.all([import(abs(V + 'maplibre/maplibre-gl.mjs')), A.loadScript(V + 'pmtiles.js'), A.loadScript(V + 'basemaps.js')]).then(function (r) {
+        var ml = r[0], protocol = new window.pmtiles.Protocol();
+        ml.addProtocol('pmtiles', protocol.tile);
+        // تشكيل الحروف العربية واتجاه الأسماء من اليمين (يُحمّل عند أول اسم عربي)
+        ml.setRTLTextPlugin(abs(V + 'mapbox-gl-rtl-text.js'), true).catch(function () { /* الأسماء العربية تظهر مفككة فقط */ });
+        return { ml: ml, protocol: protocol };
+      });
+      loading.catch(function () { loading = null; }); // يُعاد المحاولة عند فتح الصفحة مرة أخرى
+    }
+    return loading;
+  }
+
+  /* نمط الخريطة: الملف المحلي إن وُجد، وإلا البلاطات الاحتياطية */
+  function baseStyle(lib) {
+    var url = abs(BT.config.mapPmtiles || 'maps/kuwait.pmtiles'), file = new window.pmtiles.PMTiles(url);
+    lib.protocol.add(file);
+    return file.getHeader().then(function () {
+      return {
+        style: {
+          version: 8,
+          glyphs: abs(V + 'fonts/') + '{fontstack}/{range}.pbf', // الرموز بعد URL(): وإلا حوّل الأقواس إلى %7B
+          sprite: abs(V + 'sprites/light'),
+          sources: { protomaps: { type: 'vector', url: 'pmtiles://' + url, attribution: ATTRIBUTION } },
+          layers: window.basemaps.layers('protomaps', window.basemaps.namedFlavor('light'), { lang: 'ar' })
+        }
+      };
+    }, function (err) {
+      if (!BT.config.mapFallbackTiles) throw err;
+      if (window.console) console.warn('map file missing, using the fallback tiles:', url, err);
+      return {
+        fallback: true,
+        style: {
+          version: 8,
+          sources: { raster: { type: 'raster', tiles: [BT.config.mapFallbackTiles], tileSize: 256, maxzoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' } },
+          layers: [{ id: 'raster', type: 'raster', source: 'raster' }]
+        }
+      };
+    });
+  }
+
+  /* لماذا الخريطة احتياطية: ما كتبته خدمة الخرائط في status.json بجانب الملف (تنزيل جارٍ، فشل وسببه، موعد المحاولة التالية) */
+  function fallbackNote(el) {
+    var note = document.createElement('div');
+    note.className = 'map-note';
+    note.setAttribute('role', 'status');
+    note.setAttribute('data-map-fallback', '');
+    note.textContent = 'خريطة احتياطية: ملف خريطة الكويت غير موجود على الخادم';
+    el.appendChild(note);
+    var url = abs(BT.config.mapPmtiles || 'maps/kuwait.pmtiles').replace(/[^/]*$/, 'status.json');
+    fetch(url, { cache: 'no-store', credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (st) {
+      var fmt = BT.fmt;
+      if (!st || !st.state) {
+        note.textContent = 'خريطة احتياطية: ملف خريطة الكويت غير موجود، وخدمة الخرائط (maps) لا تعمل على الخادم';
+      } else if (st.state === 'updating') {
+        note.textContent = 'خريطة احتياطية: يجري الآن تنزيل خريطة الكويت على الخادم (دقائق)، ثم تظهر عند فتح الصفحة مرة أخرى';
+      } else if (st.state === 'failed') {
+        note.textContent = 'خريطة احتياطية: تعذّر تنزيل خريطة الكويت (آخر محاولة ' + fmt.dt(st.checked_at) + ')، والمحاولة التالية تلقائياً ' + fmt.dt(st.next_try_at);
+        if (st.error) note.title = st.error;
+      }
+      note.setAttribute('data-state', st && st.state || 'none');
+    }, function () { /* تبقى الرسالة العامة */ });
+  }
+
+  var LOCALE = {
+    'NavigationControl.ZoomIn': 'تكبير', 'NavigationControl.ZoomOut': 'تصغير',
+    'FullscreenControl.Enter': 'ملء الشاشة', 'FullscreenControl.Exit': 'الخروج من ملء الشاشة',
+    'AttributionControl.ToggleAttribution': 'مصدر الخريطة', 'Popup.Close': 'إغلاق', 'Marker.Title': 'علامة'
+  };
+
+  /* يفتح خريطة في العنصر. النتيجة null إن غادر المستخدم الصفحة قبل اكتمال التحميل.
+     opts.fullscreen: العنصر الذي يملأ الشاشة (الخريطة نفسها افتراضياً) */
+  BT.map = function (el, opts) {
+    opts = opts || {};
+    return libs().then(function (lib) {
+      return baseStyle(lib).then(function (base) {
+        if (!document.contains(el)) return null;
+        var ml = lib.ml;
+        var map = new ml.Map({
+          container: el, style: base.style, center: lngLat(BT.config.mapCenter), zoom: BT.config.mapZoom, maxZoom: 18,
+          attributionControl: { compact: true }, dragRotate: false, pitchWithRotate: false, touchPitch: false, locale: LOCALE
+        });
+        map.touchZoomRotate.disableRotation();
+        map.keyboard.disableRotation();
+        map.addControl(new ml.NavigationControl({ showCompass: false }), 'top-left');
+        map.addControl(new ml.FullscreenControl({ container: opts.fullscreen || el }), 'top-left');
+        if (base.fallback) fallbackNote(el);
+        A.onLeave(function () { map.remove(); });
+        return wrap(ml, map);
+      });
+    });
+  };
+
+  function wrap(ml, map) {
+    var loaded = new Promise(function (ok) { if (map.loaded()) ok(); else map.once('load', ok); });
+    return {
+      raw: map,
+      /* علامة HTML: html من قوالبنا (BT.h)، والنافذة المنبثقة تُنشأ مرة وتُحدَّث محتوياتها (تبقى مفتوحة مع البث الحي) */
+      marker: function (pos, html, opts) {
+        opts = opts || {};
+        var el = document.createElement('div'), popup = null, last = html;
+        el.innerHTML = html;
+        if (opts.title) el.title = opts.title;
+        // بعد انتهاء النقرة: لو أعاد onClick رسم العلامة أثناءها لما فتحت الخريطة النافذة المنبثقة
+        if (opts.onClick) el.addEventListener('click', function () { setTimeout(opts.onClick, 0); });
+        var mk = new ml.Marker({ element: el, anchor: 'center' }).setLngLat(lngLat(pos)).addTo(map), anim = 0;
+        return {
+          el: el,
+          /* ms: انزلاق من الموضع الحالي للجديد بدل القفز (البث المباشر)؛ قفزة كبيرة (أكثر من 3 كم) تُنقل فوراً */
+          move: function (p, ms) {
+            cancelAnimationFrame(anim);
+            var to = lngLat(p), from = mk.getLngLat();
+            if (!ms || from.distanceTo(new ml.LngLat(to[0], to[1])) > 3000 || document.hidden) { mk.setLngLat(to); return; }
+            var t0 = performance.now();
+            (function step(now) {
+              var k = Math.min(1, (now - t0) / ms), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+              mk.setLngLat([from.lng + (to[0] - from.lng) * e, from.lat + (to[1] - from.lat) * e]);
+              if (k < 1) anim = requestAnimationFrame(step);
+            })(t0);
+          },
+          html: function (x) { if (x !== last) el.innerHTML = last = x; },
+          title: function (x) { el.title = x; },
+          /* مخفية: داخل مجموعة، أو خارج التصفية */
+          show: function (on) { el.style.display = on ? '' : 'none'; if (!on && popup && popup.isOpen()) popup.remove(); },
+          popup: function (x) {
+            if (popup) popup.setHTML(x);
+            else mk.setPopup(popup = new ml.Popup({ offset: 18, maxWidth: '300px' }).setHTML(x));
+          },
+          open: function () { if (popup && !popup.isOpen()) mk.togglePopup(); },
+          pos: function () { var c = mk.getLngLat(); return [c.lat, c.lng]; },
+          remove: function () { mk.remove(); }
+        };
+      },
+      fit: function (points, maxZoom) {
+        if (!points.length) return;
+        var b = new ml.LngLatBounds(lngLat(points[0]), lngLat(points[0]));
+        points.forEach(function (p) { b.extend(lngLat(p)); });
+        map.fitBounds(b, { padding: 40, maxZoom: maxZoom || 15, duration: 0 });
+      },
+      fitBounds: function (points, maxZoom) {
+        if (!points.length) return;
+        var b = new ml.LngLatBounds(lngLat(points[0]), lngLat(points[0]));
+        points.forEach(function (p) { b.extend(lngLat(p)); });
+        map.fitBounds(b, { padding: 60, maxZoom: maxZoom || 15 });
+      },
+      view: function (p, zoom, ms) { map.easeTo({ center: lngLat(p), zoom: zoom, duration: ms == null ? 800 : ms, easing: function (t) { return t * (2 - t); } }); },
+      fly: function (p, zoom) { map.flyTo({ center: lngLat(p), zoom: zoom, speed: 1.4, curve: 1.3, essential: true }); },
+      zoom: function () { return map.getZoom(); },
+      /* موضع النقطة على الشاشة بالبكسل (لتجميع العلامات المتقاربة) */
+      project: function (p) { return map.project(lngLat(p)); },
+      on: function (ev, fn) { map.on(ev, fn); },
+      resize: function () { map.resize(); },
+      /* أداة فوق الخريطة (أزرار الصفحة) */
+      control: function (node, where) { map.addControl({ onAdd: function () { return node; }, onRemove: function () { node.remove(); } }, where || 'top-right'); },
+      /* خط المسار (يحلّ محل السابق). off[i]: النقطة خارج يوم العمل (FR-TRK-09)؛ ما بين نقطتين خارجه يُرسم برتقالياً.
+         breaks[i]: انقطاع قبل النقطة i (فجوة GPS أو نقاط مخفية): يُرسم متقطعاً رمادياً لأنه ليس طريق السيارة */
+      line: function (points, off, breaks) {
+        return loaded.then(function () {
+          var features = [];
+          for (var i = 1; i < points.length; i++) {
+            var kind = breaks && breaks[i] ? 'gap' : off && off[i - 1] && off[i] ? 'off' : 'on', last = features[features.length - 1];
+            if (last && last.properties.kind === kind && kind !== 'gap') last.geometry.coordinates.push(lngLat(points[i]));
+            else features.push({ type: 'Feature', properties: { kind: kind }, geometry: { type: 'LineString', coordinates: [lngLat(points[i - 1]), lngLat(points[i])] } });
+          }
+          var data = { type: 'FeatureCollection', features: features };
+          if (map.getSource('route')) { map.getSource('route').setData(data); return; }
+          map.addSource('route', { type: 'geojson', data: data });
+          var layout = { 'line-join': 'round', 'line-cap': 'round' }, driven = ['!=', ['get', 'kind'], 'gap'];
+          map.addLayer({ id: 'route-casing', type: 'line', source: 'route', filter: driven, layout: layout, paint: { 'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.9 } });
+          map.addLayer({ id: 'route', type: 'line', source: 'route', filter: driven, layout: layout, paint: { 'line-color': ['case', ['==', ['get', 'kind'], 'off'], '#F59E0B', '#0A6CFF'], 'line-width': 4, 'line-opacity': 0.9 } });
+          map.addLayer({ id: 'route-gap', type: 'line', source: 'route', filter: ['==', ['get', 'kind'], 'gap'], paint: { 'line-color': '#64748B', 'line-width': 3, 'line-dasharray': [1.5, 2], 'line-opacity': 0.9 } });
+        });
+      }
+    };
+  }
+
+  /* stale: موقع قديم (آخر موقع معروف، لا الموقع الحالي) يُرسم باهتاً بإطار متقطع */
+  /* heading: اتجاه الحركة بالدرجات (سهم حول العلامة)، يظهر فقط والسيارة ماشية */
+  BT.map.carHtml = function (tone, selected, stale, heading) {
+    var arrow = heading != null && !stale ? h`<span class="veh-dir" style="transform:rotate(${Math.round(heading)}deg)"></span>` : '';
+    return String(h`<div class="veh-mark ${tone}${selected ? ' sel' : ''}${stale ? ' stale' : ''}">${arrow}${BT.icon('car', 15)}</div>`);
+  };
+  /* مجموعة سيارات متقاربة على الشاشة: العدد، ونقطة حمراء بعدد المنقطعة منها */
+  BT.map.clusterHtml = function (n, lost) {
+    return String(h`<div class="veh-cluster" data-cluster>${n}${lost ? h`<span class="lost">${lost}</span>` : ''}</div>`);
+  };
+})();

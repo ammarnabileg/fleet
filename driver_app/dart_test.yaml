@@ -1,0 +1,4 @@
+tags:
+  contract:
+    # against a real backend: BACKEND_URL=http://127.0.0.1:8000 flutter test --tags contract
+    timeout: 3m

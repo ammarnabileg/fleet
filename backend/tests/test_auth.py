@@ -85,7 +85,7 @@ def test_password_change_signs_out_other_sessions(client, new_client, superuser,
 
 
 def test_deactivating_a_user_ends_their_sessions(admin_client, new_client):
-    user = make_user(admin_client, "clerk", all_branches=True)
+    user = make_user(admin_client, "clerk")
     c = new_client()
     login(c, "clerk")
     r = admin_client.patch(f"/api/v1/users/{user['public_id']}", json={"version": user["version"], "is_active": False})
@@ -107,3 +107,26 @@ def test_pending_mfa_session_expires_after_five_minutes(client, superuser, db):
     db.commit()
     r = fresh.post("/api/v1/auth/mfa/verify", json={"code": totp_code(uri, offset_steps=1)})
     assert r.status_code == 401 and r.json()["code"] == "not_authenticated"
+
+
+def test_the_office_sets_a_users_password_temporary_or_final(admin_client, new_client):
+    """«تعديل مستخدم»: a new password either temporary (changed at the next sign-in, the default) or his password as
+    given; either way his sessions end."""
+    from tests.conftest import login, make_user
+
+    user = make_user(admin_client, "pw_set_user")
+    uid = user["public_id"]
+    r = admin_client.post(f"/api/v1/users/{uid}/password", json={"new_password": "short"})
+    assert r.status_code == 422, r.text
+    r = admin_client.post(f"/api/v1/users/{uid}/password", json={"new_password": "temporary-password-1"})
+    assert r.status_code == 204, r.text
+    client = new_client()  # his own browser: the office stays signed in on admin_client
+    login(client, "pw_set_user", "temporary-password-1")
+    assert client.get("/api/v1/auth/me").json()["must_change_password"] is True
+    r = admin_client.post(
+        f"/api/v1/users/{uid}/password", json={"new_password": "his-final-password-2", "must_change": False}
+    )
+    assert r.status_code == 204, r.text
+    assert client.get("/api/v1/auth/me").status_code == 401  # his sessions ended
+    login(client, "pw_set_user", "his-final-password-2")
+    assert client.get("/api/v1/auth/me").json()["must_change_password"] is False
