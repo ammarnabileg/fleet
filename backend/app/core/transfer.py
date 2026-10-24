@@ -40,10 +40,10 @@ class Report:
     def count(self, outcome: str) -> None:
         setattr(self, outcome, getattr(self, outcome) + 1)
 
-    def skip(self, item: str, code: str, **params) -> None:
+    def skip(self, item: str, code: str, /, **params) -> None:
         self.skipped.append({"item": item, "code": code, "params": _plain(params)})
 
-    def warn(self, item: str, code: str, **params) -> None:
+    def warn(self, item: str, code: str, /, **params) -> None:
         self.warnings.append({"item": item, "code": code, "params": _plain(params)})
 
     @property
