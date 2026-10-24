@@ -140,7 +140,7 @@ def reset_password(
     principal: Principal = Depends(require_permission("users.update")),
     db: Session = Depends(get_session),
 ):
-    service.reset_password(db, principal, public_id, body.new_password)
+    service.reset_password(db, principal, public_id, body.new_password, must_change=body.must_change)
 
 
 @router.get("/roles", response_model=list[schemas.RoleOut])

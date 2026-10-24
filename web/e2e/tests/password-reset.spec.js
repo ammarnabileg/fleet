@@ -39,3 +39,38 @@ test('a forgotten password replaced with a code sent to the phone', async ({ bro
   await expect(page).toHaveURL(/admin\.html/);
   await ctx.close();
 });
+
+test('the office sets a user\'s password from «تعديل مستخدم», final or to be changed at the next sign-in', async ({ admin, browser, api, baseURL }) => {
+  const n = uid();
+  const username = 'edited' + n;
+  const role = await api.post('/roles', { code: 'e' + n, name: { ar: 'دور ' + n, en: 'Role ' + n }, permissions: ['vehicles.view'] });
+  await api.post('/users', { username, full_name: 'معدَّل ' + n, password: 'first-password-' + n, role_codes: [role.code], all_companies: true });
+
+  await admin.goto('/admin.html#/settings?tab=users');
+  const table = admin.locator('.card').filter({ hasText: 'مستخدم' }).first();
+  const search = table.locator('input[type=search]');
+  if (await search.count()) await search.fill(username);
+  await table.locator('tr', { hasText: username }).click();
+  const dlg = admin.locator('.overlay[data-open]').last();
+  await expect(dlg).toContainText('تغيير كلمة المرور');
+  await dlg.locator('[name=new_password]').fill('final-password-' + n);
+  await dlg.locator('[name=new_password2]').fill('other-password-' + n);
+  await dlg.locator('.btn-primary').click();
+  await expect(admin.locator('.toast').last()).toContainText('غير متطابقتين'); // the form stays open
+  await dlg.locator('[name=new_password2]').fill('final-password-' + n);
+  await dlg.locator('[name=must_change]').uncheck();
+  await dlg.locator('.btn-primary').click();
+  await expect(admin.locator('.toast').last()).toContainText('تم الحفظ');
+
+  const ctx = await browser.newContext({ baseURL, locale: 'ar' });
+  const page = await ctx.newPage();
+  await page.goto('/login.html');
+  await page.locator('#u').fill(username);
+  await page.locator('#p').fill('first-password-' + n);
+  await page.locator('#step1 [type=submit]').click();
+  await expect(page.locator('#login-err')).toBeVisible(); // the old one no longer opens the account
+  await page.locator('#p').fill('final-password-' + n);
+  await page.locator('#step1 [type=submit]').click();
+  await expect(page).toHaveURL(/admin\.html/); // final: no forced change at sign-in
+  await ctx.close();
+});

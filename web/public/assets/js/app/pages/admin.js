@@ -230,13 +230,22 @@
         ${BT.f.input({ name: 'phone', label: 'الجوال', optional: true, value: u.phone, validate: 'phone' })}
         ${editing ? BT.f.switch({ name: 'is_active', label: 'الحساب نشط', checked: u.is_active }) : BT.f.input({ name: 'password', label: 'كلمة مرور مؤقتة', type: 'password', required: true, hint: 'يُطلب منه تغييرها عند أول دخول' })}
         <div class="full"><div class="label mb-8">الأدوار</div><div class="flex gap-12" style="flex-wrap:wrap">${custom.map(function (r) { return BT.f.check({ name: 'role_codes', value: r.code, label: api.name(r.name), checked: u.roles.indexOf(r.code) > -1 }); })}</div></div>
-        <div class="full">${scopeFields(u)}</div></div>`,
+        <div class="full">${scopeFields(u)}</div>
+        ${editing ? h`<div class="full" data-pw><div class="label mb-8">${icon('key-round', 14)} تغيير كلمة المرور <span class="muted fs-sm">(اتركها فارغة للإبقاء على الحالية)</span></div><div class="form-grid">
+          ${BT.f.input({ name: 'new_password', label: 'كلمة المرور الجديدة', type: 'password', optional: true })}
+          ${BT.f.input({ name: 'new_password2', label: 'تأكيد كلمة المرور', type: 'password', optional: true })}
+          <div class="full">${BT.f.check({ name: 'must_change', value: '1', label: 'يُطلب منه تغييرها عند الدخول التالي', checked: true })}</div>
+          <div class="full hint">حفظ كلمة مرور جديدة يُنهي كل جلساته الحالية فوراً.</div></div></div>` : ''}</div>`,
       submit: function (v) {
         var roles_ = [].concat(v.role_codes || []).filter(Boolean), cos = [].concat(v.company_ids || []).filter(Boolean).map(Number);
         if (!v.all_companies && !cos.length) { BT.toast('اختر شركة واحدة على الأقل', { type: 'error' }); return false; } // the form stays open, one message
         var body = { full_name: v.full_name, phone: A.phoneE164(v.phone), role_codes: roles_, all_companies: !!v.all_companies, company_ids: v.all_companies ? [] : cos };
         if (!editing) return api.post('/users', Object.assign(body, { username: v.username, password: v.password }));
-        return api.patch('/users/' + u.public_id, Object.assign(body, { version: u.version, is_active: !!v.is_active }));
+        if ((v.new_password || v.new_password2) && v.new_password !== v.new_password2) { BT.toast('كلمتا المرور غير متطابقتين', { type: 'error' }); return false; }
+        return api.patch('/users/' + u.public_id, Object.assign(body, { version: u.version, is_active: !!v.is_active })).then(function (r) {
+          // the details first, then the password: a refused password (too weak) leaves the saved details as they are
+          return v.new_password ? api.post('/users/' + u.public_id + '/password', { new_password: v.new_password, must_change: !!v.must_change }).then(function () { return r; }) : r;
+        });
       },
       after: after
     });

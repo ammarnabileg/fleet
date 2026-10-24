@@ -45,6 +45,7 @@ class ResetWithCodeIn(BaseModel):
 
 class PasswordResetIn(BaseModel):
     new_password: str = Field(max_length=200)
+    must_change: bool = True  # a temporary password he replaces at the next sign-in, or his password as given
 
 
 class LocaleIn(BaseModel):

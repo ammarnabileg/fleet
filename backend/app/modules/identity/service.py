@@ -646,16 +646,23 @@ def update_user(db: Session, principal: Principal, public_id, *, version: int, c
     return after
 
 
-def reset_password(db: Session, principal: Principal, public_id, new_password: str) -> None:
+def reset_password(
+    db: Session, principal: Principal, public_id, new_password: str, *, must_change: bool = True
+) -> None:
     user = _get_visible_user(db, principal, public_id)
     if user.is_superuser and not principal.is_superuser:
         raise AppError(403, "cannot_modify_superuser")
     _check_password_policy(new_password)
-    user.password_hash, user.must_change_password = security.hash_password(new_password), True
+    user.password_hash, user.must_change_password = security.hash_password(new_password), must_change
     user.failed_logins, user.locked_until, user.updated_at = 0, None, utcnow()
     _revoke_all_sessions(db, user.id)
     audit.record(
-        db, action="user.password_reset", entity_type="user", entity_id=user.public_id, actor_user_id=principal.user_id
+        db,
+        action="user.password_reset",
+        entity_type="user",
+        entity_id=user.public_id,
+        actor_user_id=principal.user_id,
+        after={"must_change": must_change},
     )
     db.commit()
 
