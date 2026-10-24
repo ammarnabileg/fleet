@@ -25,6 +25,7 @@ UPLOADERS = (
     "portal.invoices",
     "portal.damage",  # the damage estimate and its photos
     "settings.update",  # the driver app's splash image
+    "broadcasts.send",  # a broadcast card's picture
 )
 
 

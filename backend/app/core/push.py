@@ -91,13 +91,27 @@ class FcmSender:
         self._token = None
         self._access_token()
 
-    def send(self, token: str, *, title: str, body: str, data: dict[str, str] | None = None) -> None:
+    def send(
+        self,
+        token: str,
+        *,
+        title: str,
+        body: str,
+        data: dict[str, str] | None = None,
+        priority: str = "high",
+        channel: str | None = None,
+    ) -> None:
+        """priority: Android's delivery priority (high wakes the phone); channel: the app's notification channel it
+        is shown on (the app creates them; one it lacks falls back to Android's default)."""
+        android: dict = {"priority": priority}
+        if channel:
+            android["notification"] = {"channel_id": channel}
         message = {
             "message": {
                 "token": token,
                 "notification": {"title": title, "body": body},
                 "data": data or {},
-                "android": {"priority": "high"},
+                "android": android,
             }
         }
         try:

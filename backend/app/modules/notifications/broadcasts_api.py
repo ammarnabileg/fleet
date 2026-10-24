@@ -46,9 +46,25 @@ def create(
         channels=body.channels,
         scheduled_at=body.scheduled_at,
         send=body.send,
+        style=body.style,
+        layout=body.layout,
+        image=body.image,
+        action=body.action.model_dump() if body.action else None,
         actor_user_id=principal.user_id,
         **principal.scope,
     )
+
+
+@router.get("/broadcasts/images/{sha256}")
+def image(sha256: str, _: Principal = Depends(require_permission(VIEW)), db: Session = Depends(get_session)):
+    """A card's picture, for the panel's preview and history (stored JPEG or PNG only)."""
+    from app.core.errors import AppError
+    from app.modules.files import service as files
+
+    info = files.get(db, sha256)
+    if info.content_type not in files.IMAGES:
+        raise AppError(404, "file_not_found")
+    return files.response(db, info)
 
 
 @router.get("/broadcasts", response_model=list[schemas.BroadcastOut])

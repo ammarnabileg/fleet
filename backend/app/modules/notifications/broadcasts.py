@@ -34,6 +34,35 @@ REQUIRED_LANGS = ("ar", "en")
 AUDIENCES = ("all", "company", "platform", "on_duty", "selected")
 INTERRUPTED_AFTER = timedelta(minutes=15)
 STATS = ("queued", "sent", "failed", "skipped")
+STYLES = ("info", "announcement", "reminder", "warning", "urgent", "success")
+LAYOUTS = ("standard", "highlight", "compact")
+TARGETS = ("cash", "documents", "maintenance", "leave")  # the app's own screens only: no links (see schemas)
+IMAGE_MAX_BYTES = 2 * 1024 * 1024  # the card's picture: every phone downloads it
+
+
+def check_image(db: Session, sha: str | None) -> str | None:
+    """A stored JPEG or PNG, small enough for every phone to download."""
+    if not sha:
+        return None
+    from app.modules.files import service as files
+
+    info = files.get(db, sha)  # 422 file_not_found when it was never uploaded
+    if info.content_type not in files.IMAGES:
+        raise AppError(415, "file_type_not_allowed")
+    if info.size_bytes > IMAGE_MAX_BYTES:
+        raise AppError(413, "file_too_large", max_mb=IMAGE_MAX_BYTES // (1024 * 1024))
+    return sha
+
+
+def check_look(style: str, layout: str, action: dict | None) -> tuple[str, str, dict | None]:
+    if style not in STYLES or layout not in LAYOUTS:
+        raise AppError(422, "invalid_broadcast", detail="style")
+    if action:
+        if action.get("target") not in TARGETS:
+            raise AppError(422, "invalid_broadcast", detail="action.target")
+        label = {k: v.strip() for k, v in (action.get("label") or {}).items() if k in LANGS and (v or "").strip()}
+        action = {"target": action["target"], "label": label}
+    return style, layout, action or None
 
 
 # ------------------------------------------------------------------ audience
@@ -202,9 +231,15 @@ def create(
     actor_user_id: int,
     all_companies: bool,
     company_ids,
+    style: str = "info",
+    layout: str = "standard",
+    image: str | None = None,
+    action: dict | None = None,
 ) -> dict:
     """send=False keeps a draft; with scheduled_at the scheduler sends it then; otherwise it goes now."""
     title, body = _texts(title, "title"), _texts(body, "body")
+    style, layout, action = check_look(style, layout, action)
+    image = check_image(db, image)
     audience = _check_audience(audience)
     names = _channels(channels)
     if scheduled_at is not None and scheduled_at <= utcnow():
@@ -214,6 +249,10 @@ def create(
         body=body,
         audience=audience | {"_scope": {"all_companies": all_companies, "company_ids": sorted(company_ids)}},
         channels=names,
+        style=style,
+        layout=layout,
+        image=image,
+        action=action,
         status="draft",
         scheduled_at=scheduled_at,
         created_by=actor_user_id,
@@ -230,6 +269,8 @@ def create(
             "title": title,
             "audience": audience,
             "channels": names,
+            "style": style,
+            "layout": layout,
             "scheduled_at": scheduled_at and str(scheduled_at),
         },
     )
@@ -348,7 +389,9 @@ def resend_failed(db: Session, public_id, *, actor_user_id: int, channel: str | 
 
 
 def _message(b: Broadcast) -> ch.Message:
-    return ch.Message(b.id, str(b.public_id), b.title, b.body)
+    return ch.Message(
+        b.id, str(b.public_id), b.title, b.body, style=b.style, layout=b.layout, image=b.image, action=b.action
+    )
 
 
 def _recipient_of(db: Session, d: BroadcastDelivery, refs: dict, targets: dict) -> ch.Recipient:
@@ -533,6 +576,10 @@ def _out(b: Broadcast, stats: dict) -> dict:
         "body": b.body,
         "audience": {k: v for k, v in b.audience.items() if not k.startswith("_")},
         "channels": list(b.channels),
+        "style": b.style,
+        "layout": b.layout,
+        "image": b.image,
+        "action": b.action,
         "status": b.status,
         "scheduled_at": b.scheduled_at,
         "recipients": b.recipients,

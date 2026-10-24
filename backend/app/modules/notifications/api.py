@@ -177,3 +177,11 @@ def read_notices(
     body: schemas.ReadIn, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
 ):
     return {"count": service.mark_read(db, device.employee_id, body.ids)}
+
+
+@router.get("/driver/broadcast-images/{sha256}")
+def driver_broadcast_image(
+    sha256: str, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
+):
+    """The picture of a broadcast in the driver's inbox (the app keeps it once downloaded)."""
+    return service.driver_image(db, device.employee_id, sha256)

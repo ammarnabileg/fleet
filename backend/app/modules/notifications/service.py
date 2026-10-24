@@ -556,7 +556,15 @@ def _broadcast_parts(n: DriverNotice, lang: str) -> dict:
     if n.kind != "broadcast":
         return {}
     title, body = _broadcast_text(n, lang)
-    return {"title": title, "body": body}
+    p = n.params
+    return {
+        "title": title,
+        "body": body,
+        "style": p.get("style") or "info",
+        "layout": p.get("layout") or "standard",
+        "image": p.get("image"),
+        "action": p.get("action"),
+    }
 
 
 def notice_text(db: Session, n: DriverNotice, lang: str, default: str) -> str:
@@ -680,6 +688,7 @@ def push_pending(db: Session, *, limit: int = 200) -> int:
                 body=notice_text(db, n, lang, default),
                 data={"id": str(n.public_id), "kind": n.kind, "entity_type": n.entity_type or "",
                       "entity_id": n.entity_id or ""},
+                channel="driver_messages",  # the app's default-importance channel: in the shade, not over the screen
             )  # fmt: skip
         except push.InvalidToken:
             identity.forget_push_token(db, device_id)
@@ -703,3 +712,22 @@ def bulk_whatsapp_usage(db: Session, since) -> tuple:
     from app.modules.notifications import broadcasts
 
     return broadcasts.bulk_whatsapp_usage(db, since)
+
+
+def driver_image(db: Session, employee_id: int, sha256: str):
+    """A broadcast card's picture, for a driver whose inbox holds that broadcast only."""
+    from app.modules.files import service as files
+
+    held = db.scalar(
+        select(DriverNotice.id)
+        .where(
+            DriverNotice.employee_id == employee_id,
+            DriverNotice.kind == "broadcast",
+            DriverNotice.params["image"].astext == sha256,
+        )
+        .limit(1)
+    )
+    if held is None:
+        raise AppError(404, "file_not_found")
+    info = files.get(db, sha256)
+    return files.response(db, info, headers={"Cache-Control": "private, max-age=86400"})

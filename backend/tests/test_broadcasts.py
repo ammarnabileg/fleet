@@ -147,7 +147,15 @@ def test_push_goes_once_in_the_drivers_language_with_its_payload(admin_client, c
     assert m["token"] == TOKEN_A
     assert m["notification"] == {"title": "Tangazo muhimu", "body": "Kazi inaanza saa mbili"}
     [notice] = notices(client, h1)
-    assert m["data"] == {"id": notice["id"], "kind": "broadcast", "entity_type": "broadcast", "entity_id": b["id"]}
+    assert m["data"] == {
+        "id": notice["id"],
+        "kind": "broadcast",
+        "entity_type": "broadcast",
+        "entity_id": b["id"],
+        "style": "info",
+        "layout": "standard",
+    }
+    assert m["android"] == {"priority": "normal", "notification": {"channel_id": "driver_messages"}}
     assert admin_client.get(f"{B}/{b['id']}").json()["status"] == "sent"
     assert {(c, s, r) for _, c, s, r, _ in rows(db, b["id"]) if c == "push"} == {
         ("push", "sent", None),
@@ -261,3 +269,81 @@ def test_an_interrupted_send_is_failed_not_sent_twice(admin_client, company, wha
     broadcasts.run(db, NOON)
     assert messaging.provider().sent == []
     assert [(s, r) for _, c, s, r, _ in rows(db, b["id"]) if c == "whatsapp"] == [("failed", "interrupted")]
+
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+
+
+def upload(admin_client, data=PNG, name_="card.png"):
+    r = admin_client.post("/api/v1/files", files={"file": (name_, data, "application/octet-stream")})
+    assert r.status_code == 201, r.text
+    return r.json()["sha256"]
+
+
+def test_the_style_layout_image_and_action_reach_the_inbox_push_and_whatsapp(
+    admin_client, client, new_client, company, google, whatsapp_on, db
+):
+    switch_on(admin_client, google)
+    d1, d2 = make_driver(admin_client, company["id"]), make_driver(admin_client, company["id"])
+    h1 = bearer(bind_device(client, d1["phone"]))
+    other = new_client()
+    h2 = bearer(bind_device(other, d2["phone"]))
+    assert (
+        client.post("/api/v1/driver/push-token", headers=h1, json={"token": TOKEN_A, "lang": "en"}).status_code == 204
+    )
+    sha = upload(admin_client)
+    action = {"target": "cash", "label": {"ar": "  افتح العهدة ", "en": "Open cash", "fr": " "}}
+    b = compose(
+        admin_client, channels_=["push", "whatsapp"], style="urgent", layout="highlight", image=sha, action=action
+    )
+    assert (b["style"], b["layout"], b["image"]) == ("urgent", "highlight", sha)
+    assert b["action"] == {"target": "cash", "label": {"ar": "افتح العهدة", "en": "Open cash"}}
+    assert admin_client.get(B).json()[0]["style"] == "urgent"  # the history shows it
+    for _ in range(3):
+        broadcasts.run(db)
+    [m] = google.sent
+    assert m["notification"]["title"] == "\u26a0\ufe0f Important notice"  # urgent: marked
+    assert m["android"] == {"priority": "high", "notification": {"channel_id": "driver_alerts"}}
+    assert (m["data"]["style"], m["data"]["layout"]) == ("urgent", "highlight")
+    [n] = notices(client, h1, "en")
+    assert (n["style"], n["layout"], n["image"], n["action"]["target"]) == ("urgent", "highlight", sha, "cash")
+    assert any(m.text.startswith("*\u26a0\ufe0f ") for m in messaging.provider().sent)
+
+    # the picture: to a driver whose inbox holds it, and to the panel; nobody else
+    assert client.get(f"/api/v1/driver/broadcast-images/{sha}", headers=h1).content == PNG
+    assert admin_client.get(f"{B}/images/{sha}").status_code == 200
+    stranger = upload(admin_client, PNG + b"x")
+    assert client.get(f"/api/v1/driver/broadcast-images/{stranger}", headers=h1).status_code == 404
+    assert notices(other, h2)[0]["image"] == sha  # his own inbox holds it too
+
+    # a plain one: defaults, and quietly on the normal channel
+    b2 = compose(admin_client, channels_=["push"], style="reminder")
+    broadcasts.run(db)
+    assert google.sent[-1]["android"]["notification"]["channel_id"] == "driver_messages"
+    assert google.sent[-1]["notification"]["title"] == "Important notice"
+    assert (b2["layout"], b2["image"], b2["action"]) == ("standard", None, None)
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"style": "party"},
+        {"layout": "poster"},
+        {"action": {"target": "url", "label": {}}},
+        {"action": {"target": "https://example.com"}},
+        {"image": "not-a-sha"},
+        {"image": "0" * 64},  # never uploaded
+    ],
+)
+def test_a_style_layout_action_or_image_outside_the_lists_is_refused(admin_client, company, extra):
+    body = {"title": TITLE, "body": BODY, "audience": {"kind": "all"}, "channels": []}
+    r = admin_client.post(B, json=body | extra)
+    assert r.status_code == 422, r.text
+
+
+def test_a_large_or_non_image_picture_is_refused(admin_client, company):
+    body = {"title": TITLE, "body": BODY, "audience": {"kind": "all"}, "channels": []}
+    pdf = upload(admin_client, b"%PDF-1.4\n" + b"0" * 64, "x.pdf")
+    assert admin_client.post(B, json=body | {"image": pdf}).status_code == 415
+    big = upload(admin_client, PNG + b"0" * broadcasts.IMAGE_MAX_BYTES)
+    assert admin_client.post(B, json=body | {"image": big}).status_code == 413

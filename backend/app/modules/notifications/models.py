@@ -119,6 +119,10 @@ class Broadcast(Base):
     body: Mapped[dict] = mapped_column(JSONB)
     audience: Mapped[dict] = mapped_column(JSONB)  # {"kind": all|company|platform|on_duty|selected, ...}
     channels: Mapped[list[str]] = mapped_column(ARRAY(Text))
+    style: Mapped[str] = mapped_column(Text, server_default=text("'info'"))  # see broadcasts.STYLES
+    layout: Mapped[str] = mapped_column(Text, server_default=text("'standard'"))
+    image: Mapped[str | None] = mapped_column(Text)  # a stored file's sha256 (JPEG or PNG)
+    action: Mapped[dict | None] = mapped_column(JSONB)  # {"target": ..., "label": {lang: text}}
     status: Mapped[str] = mapped_column(Text, server_default=text("'draft'"))
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     recipients: Mapped[int] = mapped_column(Integer, server_default=text("0"))

@@ -88,6 +88,10 @@ class DriverNoticeOut(BaseModel):
     read: bool
     title: str | None = None  # a broadcast's title and body, apart (the message holds both)
     body: str | None = None
+    style: str | None = None  # a broadcast's look: style, layout, image (sha256) and action {target, label}
+    layout: str | None = None
+    image: str | None = None
+    action: dict | None = None
 
 
 class DriverNoticesOut(BaseModel):
@@ -117,6 +121,18 @@ class AudienceIn(BaseModel):
     employee_ids: list[uuid.UUID] = Field(default_factory=list, max_length=5000)
 
 
+BroadcastStyle = Literal["info", "announcement", "reminder", "warning", "urgent", "success"]
+BroadcastLayout = Literal["standard", "highlight", "compact"]
+# what the app's button may open: screens built into it, never a link (a link in a message from the office is the
+# phishing a driver cannot tell apart; the company's pages are reached from the app's own screens)
+BroadcastTarget = Literal["cash", "documents", "maintenance", "leave"]
+
+
+class BroadcastActionIn(BaseModel):
+    target: BroadcastTarget
+    label: dict[BroadcastLang, Annotated[str, StringConstraints(max_length=30)]] = Field(default_factory=dict)
+
+
 class BroadcastPreviewIn(BaseModel):
     audience: AudienceIn
     channels: list[Annotated[str, StringConstraints(max_length=31)]] = Field(default_factory=list, max_length=10)
@@ -127,6 +143,10 @@ class BroadcastIn(BroadcastPreviewIn):
     body: dict[BroadcastLang, Annotated[str, StringConstraints(max_length=2000)]]
     scheduled_at: AwareDatetime | None = None
     send: bool = True
+    style: BroadcastStyle = "info"
+    layout: BroadcastLayout = "standard"
+    image: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")] | None = None
+    action: BroadcastActionIn | None = None
 
 
 class ResendIn(BaseModel):
@@ -139,6 +159,10 @@ class BroadcastOut(BaseModel):
     body: dict[str, str]
     audience: dict
     channels: list[str]
+    style: str = "info"
+    layout: str = "standard"
+    image: str | None = None
+    action: dict | None = None
     status: str
     scheduled_at: datetime | None
     recipients: int

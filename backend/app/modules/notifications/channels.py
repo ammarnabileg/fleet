@@ -23,6 +23,9 @@ from app.modules.integrations import service as integrations
 from app.modules.notifications.models import DriverNotice
 
 WHATSAPP_LIMIT = 4096  # characters WhatsApp takes in one message
+HEADS_UP_STYLES = ("urgent", "warning")
+URGENT_MARK = "\u26a0\ufe0f"  # ⚠️
+ALERTS_CHANNEL, MESSAGES_CHANNEL = "driver_alerts", "driver_messages"  # the app's two Android channels
 
 
 def text_in(texts: dict | None, lang: str) -> str:
@@ -46,9 +49,28 @@ class Message:
     public_id: str
     title: dict
     body: dict
+    style: str = "info"
+    layout: str = "standard"
+    image: str | None = None
+    action: dict | None = None
+
+    @property
+    def urgent(self) -> bool:
+        return self.style == "urgent"
+
+    @property
+    def heads_up(self) -> bool:
+        """Urgent and warning messages pop over the screen (the app's high-importance channel); the others arrive
+        quietly in the shade (its default-importance channel)."""
+        return self.style in HEADS_UP_STYLES
 
     def title_in(self, lang: str) -> str:
         return text_in(self.title, lang)
+
+    def marked_title_in(self, lang: str) -> str:
+        """The title as push and WhatsApp show it: an urgent one marked «⚠️», the others as written."""
+        title = self.title_in(lang)
+        return f"{URGENT_MARK} {title}" if self.urgent else title
 
     def body_in(self, lang: str) -> str:
         return text_in(self.body, lang)
@@ -106,7 +128,14 @@ class Inbox(Channel):
             .values(
                 employee_id=recipient.employee_id,
                 kind="broadcast",
-                params={"title": message.title, "body": message.body},
+                params={
+                    "title": message.title,
+                    "body": message.body,
+                    "style": message.style,
+                    "layout": message.layout,
+                    "image": message.image,
+                    "action": message.action,
+                },
                 entity_type="broadcast",
                 entity_id=message.public_id,
                 dedupe_key=notice_key(message),
@@ -141,13 +170,17 @@ class Push(Channel):
 
     def payload(self, recipient: Recipient, message: Message, notice_id: str | None) -> dict:
         return {
-            "title": message.title_in(recipient.lang),
+            "title": message.marked_title_in(recipient.lang),
             "body": message.body_in(recipient.lang),
+            "priority": "high" if message.heads_up else "normal",
+            "channel": ALERTS_CHANNEL if message.heads_up else MESSAGES_CHANNEL,
             "data": {
                 "id": notice_id or "",
                 "kind": "broadcast",
                 "entity_type": "broadcast",
                 "entity_id": message.public_id,
+                "style": message.style,
+                "layout": message.layout,
             },
         }
 
@@ -166,7 +199,14 @@ class Push(Channel):
         p = self.payload(recipient, message, notice_id)
         log = {"notice_id": notice_id or message.public_id, "device_id": recipient.device_id, "purpose": "broadcast"}
         try:
-            sender.send(recipient.token, title=p["title"], body=p["body"], data=p["data"])
+            sender.send(
+                recipient.token,
+                title=p["title"],
+                body=p["body"],
+                data=p["data"],
+                priority=p["priority"],
+                channel=p["channel"],
+            )
         except push.InvalidToken:
             identity.forget_push_token(db, recipient.device_id)
             integrations.log_push(db, status="failed", error="token no longer valid", **log)
@@ -192,7 +232,7 @@ class WhatsApp(Channel):
         return None if recipient.phone else "no_phone"
 
     def text(self, recipient: Recipient, message: Message) -> str:
-        return f"*{message.title_in(recipient.lang)}*\n\n{message.body_in(recipient.lang)}"[:WHATSAPP_LIMIT]
+        return f"*{message.marked_title_in(recipient.lang)}*\n\n{message.body_in(recipient.lang)}"[:WHATSAPP_LIMIT]
 
     def send(self, db: Session, recipient: Recipient, message: Message) -> Result:
         if not self.enabled(db):
