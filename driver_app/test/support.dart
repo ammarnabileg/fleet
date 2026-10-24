@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:fleet_driver/core/api.dart';
 import 'package:fleet_driver/core/db.dart';
 import 'package:fleet_driver/core/tokens.dart';
+import 'package:fleet_driver/tracking/system_notices.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -52,4 +53,25 @@ Future<(AppDb, TokenStore, Api, FakeServer)> session({int expiresIn = 900}) asyn
   final server = FakeServer();
   final api = Api(baseUrl: 'http://fleet.test', tokens: tokens, client: server.client);
   return (db, tokens, api, server);
+}
+
+class FakePoster implements NoticePoster {
+  FakePoster({this.onPost});
+
+  final void Function(SystemNotice n)? onPost;
+  bool allowed_ = true;
+  final posted = <SystemNotice>[];
+  final cancelled = <int>[];
+
+  @override
+  Future<bool> allowed() async => allowed_;
+
+  @override
+  Future<void> post(SystemNotice n) async {
+    posted.add(n);
+    onPost?.call(n);
+  }
+
+  @override
+  Future<void> cancel(int id) async => cancelled.add(id);
 }

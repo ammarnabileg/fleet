@@ -482,7 +482,10 @@ void main() {
       expect(poster.posted.last.channel, messagesChannel, reason: 'quietly: not over the screen');
       expect(noticeTap(null, poster.posted.last.payload).target, 'inbox');
       // its text changes: the same notification, updated in place
-      alerts = [alert('location_problem', 80, values: {'last_update': '08:55'}), alert('custody_settlement', 60)];
+      alerts = [
+        alert('location_problem', 80, values: {'last_update': '08:55'}),
+        alert('custody_settlement', 60),
+      ];
       await w.check();
       expect(poster.posted.last.key, 'location_problem');
       expect(poster.posted.last.id, headsUpId('location_problem'));
@@ -512,12 +515,10 @@ void main() {
         lang: 'ar',
       );
       final cards = currentCards(view);
-      expect([for (final c in cards) c.code], [
-        'vehicle_maintenance',
-        'custody_settlement',
-        'document_missing',
-        'vehicle_breakdown',
-      ]);
+      expect(
+        [for (final c in cards) c.code],
+        ['vehicle_maintenance', 'custody_settlement', 'document_missing', 'vehicle_breakdown'],
+      );
       final notices = [for (final c in cards) cardNotice(ar, c)];
       expect({for (final n in notices) n.channel}, {messagesChannel});
       expect({for (final n in notices) n.id}, hasLength(4));
@@ -767,24 +768,3 @@ void main() {
 }
 
 final ar = lookupAppLocalizations(const Locale('ar'));
-
-class FakePoster implements NoticePoster {
-  FakePoster({this.onPost});
-
-  final void Function(SystemNotice n)? onPost;
-  bool allowed_ = true;
-  final posted = <SystemNotice>[];
-  final cancelled = <int>[];
-
-  @override
-  Future<bool> allowed() async => allowed_;
-
-  @override
-  Future<void> post(SystemNotice n) async {
-    posted.add(n);
-    onPost?.call(n);
-  }
-
-  @override
-  Future<void> cancel(int id) async => cancelled.add(id);
-}

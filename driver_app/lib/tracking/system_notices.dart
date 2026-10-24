@@ -22,10 +22,7 @@ const messagesChannel = 'driver_messages';
 List<StatusCard> currentCards(StatusView? view) {
   if (view == null) return const [];
   final codes = {for (final a in view.alerts) a.code};
-  return [
-    ...view.alerts,
-    if (view.vehicle != null && !codes.contains(view.vehicle!.code)) view.vehicle!,
-  ];
+  return [...view.alerts, if (view.vehicle != null && !codes.contains(view.vehicle!.code)) view.vehicle!];
 }
 
 class SystemNotice {
@@ -223,7 +220,9 @@ class PluginPoster implements NoticePoster {
           color: Color(n.color),
           subText: header?.call() ?? l.appTitle,
           styleInformation: BigTextStyleInformation(n.big, contentTitle: n.title),
-          actions: [for (final a in n.actions) AndroidNotificationAction(a.id, a.label, showsUserInterface: a.opensApp)],
+          actions: [
+            for (final a in n.actions) AndroidNotificationAction(a.id, a.label, showsUserInterface: a.opensApp),
+          ],
         ),
       ),
     );

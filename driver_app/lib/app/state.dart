@@ -80,6 +80,7 @@ class AppState extends ChangeNotifier {
     this.updateStringsAtStart = true,
     bool? checkUpdates,
     http.Client? downloadClient,
+    this.autoSyncNotices = true,
   }) : checkUpdates = checkUpdates ?? updateStringsAtStart,
        tokens = TokenStore(db),
        outbox = Outbox(db),
@@ -596,7 +597,7 @@ class AppState extends ChangeNotifier {
       ]);
       await _readLocal();
       _set(Phase.ready);
-      unawaited(syncSystemNotices());
+      _autoSync();
       unawaited(registerPush());
       if (await db.get('lang_told') != lang) await _tellLanguage(lang); // never throws
     } on SessionEnded {
@@ -732,7 +733,7 @@ class AppState extends ChangeNotifier {
     } catch (e, st) {
       await errors.record('live_status.read', e, st);
     }
-    unawaited(syncSystemNotices());
+    _autoSync();
   }
 
   /// «Done» on a contact request: through the outbox (sent again until the server has it); gone from the card at
@@ -847,7 +848,7 @@ class AppState extends ChangeNotifier {
       for (final r in await api.get('/driver/maintenance') as List)
         MaintenanceRequest.fromJson(r as Map<String, dynamic>),
     ];
-    unawaited(syncSystemNotices());
+    _autoSync();
     try {
       final raw = jsonEncode(await api.get('/driver/maintenance/form'));
       await db.put('maintenance_form', raw);
@@ -961,7 +962,7 @@ class AppState extends ChangeNotifier {
     accidents = [
       for (final a in await api.get('/driver/accidents') as List) Accident.fromJson(a as Map<String, dynamic>),
     ];
-    unawaited(syncSystemNotices());
+    _autoSync();
   }
 
   // ---------------------------------------------------------------- the current situations (outside home)
@@ -1006,27 +1007,52 @@ class AppState extends ChangeNotifier {
 
   AppLocalizations get strings => appStrings(Locale(lang), translations.active);
 
-  Future<void> _syncing = Future.value();
+  /// Whether the notifications follow every load by themselves (tests call syncSystemNotices themselves).
+  final bool autoSyncNotices;
+  bool _syncBusy = false, _syncAgain = false;
 
-  /// Keeps the phone's notifications in step with the current situations (one after the other: never two at once).
-  Future<void> syncSystemNotices() {
+  void _autoSync() {
+    if (autoSyncNotices) unawaited(syncSystemNotices());
+  }
+
+  /// Keeps the phone's notifications in step with the current situations (one at a time: a call meanwhile runs once
+  /// more after it).
+  Future<void> syncSystemNotices() async {
     final poster = platform.notices;
-    if (poster == null || phase != Phase.ready) return Future.value();
-    return _syncing = _syncing.then((_) async {
+    if (poster == null || phase != Phase.ready) return;
+    if (_syncBusy) {
+      _syncAgain = true;
+      return;
+    }
+    _syncBusy = true;
+    try {
+      do {
+        _syncAgain = false;
+        await _syncOnce(poster);
+      } while (_syncAgain);
+    } finally {
+      _syncBusy = false;
+    }
+  }
+
+  Future<void> _syncOnce(NoticePoster poster) async {
+    {
       try {
         final l = strings;
         final live = liveStatus == null
             ? null
             : compose(liveStatus!, statusConfig, now: DateTime.now(), lang: lang, online: liveOnline);
         await syncAlertNotices(db: db, poster: poster, l: l, view: live);
-        await NoticeSync(get: db.get, put: db.put, poster: poster, scope: 'banners').sync([
-          for (final r in readyRequests) readyNotice(l, r),
-          for (final a in awaitingPolice) policeNotice(l, a),
-        ]);
+        await NoticeSync(
+          get: db.get,
+          put: db.put,
+          poster: poster,
+          scope: 'banners',
+        ).sync([for (final r in readyRequests) readyNotice(l, r), for (final a in awaitingPolice) policeNotice(l, a)]);
       } catch (e, st) {
         await errors.record('system_notices', e, st);
       }
-    });
+    }
   }
 
   /// A broadcast's picture, downloaded once and kept on the phone (null: not reachable now).

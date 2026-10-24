@@ -356,7 +356,10 @@ class BroadcastCard extends StatelessWidget {
         title: title,
         subtitle: text,
         highlight: fresh,
-        extra: [const SizedBox.shrink(key: Key('broadcast-layout-standard')), ?image],
+        extra: [
+          const SizedBox.shrink(key: Key('broadcast-layout-standard')),
+          ?image,
+        ],
         meta: time,
         actions: [?button],
       ),

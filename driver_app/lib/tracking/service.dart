@@ -176,11 +176,8 @@ class WorkNotice {
 
   /// The alerts' notifications (system_notices.dart): the heads-up channel for a contact request or a location
   /// problem, the messages channel for the others; the company in their header, as the ongoing notification's.
-  NoticePoster poster(String Function() lang) => PluginPoster(
-    _plugin,
-    strings: () => _strings(lang()),
-    header: () => inLang(_company, lang()) as String?,
-  );
+  NoticePoster poster(String Function() lang) =>
+      PluginPoster(_plugin, strings: () => _strings(lang()), header: () => inLang(_company, lang()) as String?);
 }
 
 /// A notification button that does not open the app («Done» on a contact request), run by the plugin in a background

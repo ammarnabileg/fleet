@@ -7,6 +7,11 @@ import 'package:fleet_driver/core/api.dart';
 import 'package:fleet_driver/core/models.dart' show kuwaitDay;
 import 'package:fleet_driver/core/tokens.dart';
 import 'package:fleet_driver/main.dart';
+import 'package:fleet_driver/tracking/notice.dart' show noticeTap, runNoticeTap;
+import 'package:fleet_driver/ui/screens/accident.dart';
+import 'package:fleet_driver/ui/screens/home.dart' show CashTab;
+import 'package:fleet_driver/ui/widgets/live_status.dart' show StatusCardView;
+import 'package:fleet_driver/tracking/system_notices.dart';
 import 'package:fleet_driver/ui/screens/fuel.dart';
 import 'package:fleet_driver/ui/photos.dart';
 import 'package:fleet_driver/ui/theme.dart';
@@ -71,6 +76,7 @@ Future<World> world({
     required void Function() onMessage,
   })?
   pushToken,
+  NoticePoster? notices,
 }) async {
   final db = await testDb();
   final server = FakeServer();
@@ -81,6 +87,7 @@ Future<World> world({
     db: db,
     api: api,
     pollEvery: null,
+    autoSyncNotices: false, // the tests post the notifications themselves (syncSystemNotices)
     updateStringsAtStart: false, // every request here is scripted; test/l10n_test.dart covers the update
     platform: PhoneHooks(
       permissionsOk: () async => true,
@@ -88,6 +95,7 @@ Future<World> world({
       stopTracking: () async {},
       deviceMeta: () async => {'platform': 'android', 'model': 'Test phone', 'app_version': '0.1.0'},
       pushToken: pushToken,
+      notices: notices,
     ),
   );
   server.on(
@@ -282,6 +290,11 @@ Future<void> reveal(WidgetTester tester, Finder f) async {
   if (f.evaluate().isEmpty) await tester.scrollUntilVisible(f, 200, scrollable: find.byType(Scrollable).first);
   await tester.ensureVisible(f);
   await tester.pump();
+}
+
+Future<void> openInbox(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('notifications')));
+  await settle(tester);
 }
 
 Future<void> pumpApp(WidgetTester tester, World w) async {
@@ -2037,9 +2050,13 @@ void main() {
     expect(find.text('تم الإرسال'), findsOneWidget);
   });
 
-  testWidgets('a vehicle ready at the center is announced on the home screen with where to collect it', (tester) async {
+  testWidgets('a vehicle ready at the center: a system notification and the inbox\'s current section, not home', (
+    tester,
+  ) async {
+    final poster = FakePoster();
     final w = (await tester.runAsync(
       () => world(
+        notices: poster,
         maintenance: [
           {
             'id': 'm1',
@@ -2058,9 +2075,25 @@ void main() {
       ),
     ))!;
     await pumpApp(tester, w);
+    await idle(tester);
+    await tester.runAsync(() => w.state.syncSystemNotices());
+    expect(find.textContaining('جاهزة للاستلام من مركز النور'), findsNothing, reason: 'never on the home screen');
+    expect(find.descendant(of: find.byKey(const Key('notifications')), matching: find.text('1')), findsOneWidget);
+    final posted = poster.posted.single;
+    expect((posted.key, posted.channel), ('mnt-ready:m1', messagesChannel));
+    expect(noticeTap(null, posted.payload).target, 'maintenance');
+    await tester.runAsync(() => w.state.syncSystemNotices());
+    expect(poster.posted, hasLength(1), reason: 'posted once');
+    await openInbox(tester);
+    expect(find.byKey(const Key('notices-current')), findsOneWidget);
     expect(find.textContaining('جاهزة للاستلام من مركز النور'), findsOneWidget);
     expect(find.textContaining('الشويخ'), findsOneWidget);
     await shot(tester, '14-maintenance-ready');
+    // collected (no longer ready): the notification goes
+    w.server.on('GET', '/api/v1/driver/maintenance', (r) => (200, []));
+    await tester.runAsync(() => w.state.loadMaintenance());
+    await tester.runAsync(() => w.state.syncSystemNotices());
+    expect(poster.cancelled, [posted.id]);
   });
 
   Map<String, dynamic> directForm() => {
@@ -2198,6 +2231,8 @@ void main() {
     ready = true;
     await tester.drag(find.byKey(const Key('in-maintenance')), const Offset(0, 400)); // pulled to refresh
     await idle(tester);
+    expect(find.byKey(const Key('mnt-picked-up-41')), findsNothing, reason: 'in the inbox, not on home');
+    await openInbox(tester);
     await tester.tap(find.byKey(const Key('mnt-picked-up-41')));
     await settle(tester);
     expect(find.text('استلام السيارة من المركز'), findsOneWidget);
@@ -2239,6 +2274,7 @@ void main() {
     };
     final w = (await tester.runAsync(() => world()))!;
     w.server.on('GET', '/api/v1/driver/maintenance', (r) => (200, [request()]));
+    w.server.on('GET', '/api/v1/driver/notifications', (r) => (200, {'unread': 0, 'items': []}));
     final img = await tester.runAsync(testImage);
     Photos.camera = (_) async => TakenPhoto(img!, DateTime.utc(2026, 10, 4, 10, 5));
     var n = 0;
@@ -2251,6 +2287,7 @@ void main() {
       return (200, request());
     });
     await pumpApp(tester, w);
+    await openInbox(tester);
     await tester.tap(find.byKey(const Key('mnt-picked-up-41')));
     await settle(tester);
     expect(find.byKey(const Key('pickup-replacement')), findsOneWidget);
@@ -2356,7 +2393,9 @@ void main() {
     expect(find.text('تم الإرسال'), findsOneWidget);
   });
 
-  testWidgets('waiting for the police report: a banner on the home screen, sent later from the list', (tester) async {
+  testWidgets('waiting for the police report: in the inbox\'s current section (not home), sent later from the list', (
+    tester,
+  ) async {
     final w = (await tester.runAsync(() => world(accidents: [accident()])))!;
     final img = await tester.runAsync(testImage);
     Photos.camera = (_) async => fail('the police report comes from the phone files, not the camera');
@@ -2368,6 +2407,8 @@ void main() {
     );
     w.server.on('POST', '/api/v1/driver/accidents/a1/police-report', (r) => (200, accident(police: true)));
     await pumpApp(tester, w);
+    expect(find.textContaining('بانتظار محضر الشرطة'), findsNothing, reason: 'never on the home screen');
+    await openInbox(tester);
     expect(find.textContaining('بانتظار محضر الشرطة'), findsOneWidget);
     await tester.tap(find.byKey(const Key('police-banner-12')));
     await idle(tester);
@@ -2383,6 +2424,227 @@ void main() {
     expect(jsonDecode(call.body), {'number': null, 'file_sha256': 'c' * 64});
     expect(w.server.calls('/api/v1/driver/files').single.url.queryParameters['source'], 'upload');
     expect(find.text('تم الإرسال'), findsOneWidget);
+  });
+
+  Map<String, dynamic> live({List<Map<String, dynamic>> alerts = const [], String vehicle = 'available'}) => {
+    'config_version': 3,
+    'min_app_template_version': 1,
+    'generated_at': DateTime.now().toUtc().toIso8601String(),
+    'shift': {
+      'state': 'working',
+      'started_at': DateTime.now().toUtc().subtract(const Duration(hours: 1)).toIso8601String(),
+      'sessions_today': 1,
+    },
+    'vehicle': {'state': vehicle, 'plate_number': '18/23456', 'stage': 'Quote', 'center': 'مركز النور'},
+    'tracking': {'state': 'active', 'last_update': DateTime.now().toUtc().toIso8601String()},
+    'alerts': alerts,
+    'config': null,
+  };
+  Map<String, dynamic> liveAlert(String code, int priority, {Map<String, dynamic>? data}) => {
+    'id': code == 'contact_request' ? 'contact:1' : code,
+    'code': code,
+    'kind': {'custody_settlement': 'custody', 'contact_request': 'contact'}[code] ?? 'generic',
+    'priority': priority,
+    'expires_at': null,
+    'values': {'amount': '12.500'},
+    'data': data ?? {},
+    'title': 'server title $code',
+    'subtitle': 'server subtitle',
+  };
+
+  Future<World> withSituations(FakePoster poster) async {
+    final w = await world(notices: poster, accidents: [accident()]);
+    w.server.on(
+      'GET',
+      '/api/v1/driver/live-status',
+      (r) => (
+        200,
+        live(
+          vehicle: 'maintenance',
+          alerts: [
+            liveAlert('contact_request', 90, data: {'request_id': 'r1', 'message': 'كلمني', 'phone': '+96550000000'}),
+            liveAlert('custody_settlement', 60),
+          ],
+        ),
+      ),
+    );
+    w.server.on(
+      'GET',
+      '/api/v1/driver/notifications',
+      (r) => (
+        200,
+        {
+          'unread': 1,
+          'items': [
+            {
+              'id': 'n1',
+              'kind': 'receipt_issued',
+              'message': 'استلم المكتب منك 15.000 د.ك، إيصال رقم 7.',
+              'entity_type': null,
+              'entity_id': null,
+              'created_at': '2026-10-07T09:00:00Z',
+              'read': false,
+            },
+          ],
+        },
+      ),
+    );
+    w.server.on('POST', '/api/v1/driver/notifications/read', (r) => (200, {'count': 1}));
+    return w;
+  }
+
+  testWidgets('home keeps the shift card only: alerts and banners are system notifications and current in the inbox', (
+    tester,
+  ) async {
+    final poster = FakePoster();
+    final w = (await tester.runAsync(() => withSituations(poster)))!;
+    await pumpApp(tester, w);
+    await idle(tester);
+    await tester.runAsync(() => w.state.syncSystemNotices());
+    // home: the shift card, no alert card, no banner
+    expect(find.byKey(const Key('status-shift')), findsOneWidget);
+    expect(find.byType(StatusCardView), findsNothing);
+    expect(find.byKey(const Key('police-banner-12')), findsNothing);
+    expect(find.textContaining('بانتظار محضر الشرطة'), findsNothing);
+    // the bell: one unread notice + four current situations (two alerts, the car at the center, the accident)
+    expect(find.descendant(of: find.byKey(const Key('notifications')), matching: find.text('5')), findsOneWidget);
+    // the phone's shade: each once, the contact request over the screen, the others quietly
+    final byKey = {for (final n in poster.posted) n.key: n};
+    expect(byKey.keys.toSet(), {'contact:1', 'custody_settlement', 'vehicle_maintenance', 'accident:a1'});
+    expect(byKey['contact:1']!.channel, alertsChannel);
+    expect(byKey['custody_settlement']!.channel, messagesChannel);
+    expect(noticeTap(null, byKey['accident:a1']!.payload).target, 'accident');
+    expect(poster.posted, hasLength(4));
+    // the inbox: «current» on top, with their buttons, above the history
+    await openInbox(tester);
+    expect(find.byKey(const Key('notices-current')), findsOneWidget);
+    expect(find.byKey(const Key('status-card-contact_request')), findsOneWidget);
+    expect(find.byKey(const Key('status-action-call_supervisor')), findsOneWidget);
+    expect(find.byKey(const Key('status-card-custody_settlement')), findsOneWidget);
+    expect(find.byKey(const Key('status-card-vehicle_maintenance')), findsOneWidget);
+    expect(find.byKey(const Key('police-banner-12')), findsOneWidget);
+    expect(find.textContaining('إيصال رقم 7'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byKey(const Key('notices-current'))).dy,
+      lessThan(tester.getTopLeft(find.textContaining('إيصال رقم 7')).dy),
+    );
+    await shot(tester, '25-notifications-current');
+    // a button that opens a screen: back home, on that tab
+    await tester.ensureVisible(find.byKey(const Key('status-action-open_cash')));
+    await tester.tap(find.byKey(const Key('status-action-open_cash')));
+    await idle(tester);
+    await settle(tester);
+    expect(find.byKey(const Key('notices-current')), findsNothing);
+    expect(find.byType(CashTab), findsOneWidget);
+  });
+
+  testWidgets('notifications refused: nothing posted on the phone, all of it in the inbox', (tester) async {
+    final poster = FakePoster()..allowed_ = false;
+    final w = (await tester.runAsync(() => withSituations(poster)))!;
+    await pumpApp(tester, w);
+    await idle(tester);
+    await tester.runAsync(() => w.state.syncSystemNotices());
+    expect(poster.posted, isEmpty);
+    await openInbox(tester);
+    expect(find.byKey(const Key('status-card-custody_settlement')), findsOneWidget);
+    expect(find.byKey(const Key('police-banner-12')), findsOneWidget);
+  });
+
+  testWidgets('a tapped notification opens the app at its place: the inbox, the accident', (tester) async {
+    final w = (await tester.runAsync(() => withSituations(FakePoster())))!;
+    await pumpApp(tester, w);
+    await idle(tester);
+    await runNoticeTap(
+      noticeTap(null, '{"open":"inbox","alert":"custody_settlement"}'),
+      dial: null,
+      openLocationSettings: null,
+      acknowledge: (_) async {},
+      open: w.state.navigate,
+    );
+    await idle(tester);
+    await settle(tester);
+    expect(find.byKey(const Key('notices-current')), findsOneWidget);
+    w.state.navigate('accident');
+    await idle(tester);
+    await settle(tester);
+    expect(find.byKey(const Key('notices-current')), findsNothing, reason: 'the inbox closed first');
+    expect(find.byType(AccidentScreen), findsOneWidget);
+  });
+
+  testWidgets('broadcasts drawn by their style and layout: picture, button, an unknown look as the standard card', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    Map<String, dynamic> b(String id, String? style, String? layout, {String? image, Map? action}) => {
+      'id': id,
+      'kind': 'broadcast',
+      'message': 'عنوان $id\nنص $id',
+      'title': 'عنوان $id',
+      'body': 'نص $id',
+      'style': style,
+      'layout': layout,
+      'image': image,
+      'action': action,
+      'entity_type': 'broadcast',
+      'entity_id': 'b-$id',
+      'created_at': '2026-10-07T09:00:00Z',
+      'read': true,
+    };
+    final sha = 'a' * 64;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/notifications',
+      (r) => (
+        200,
+        {
+          'unread': 0,
+          'items': [
+            b(
+              '1',
+              'urgent',
+              'highlight',
+              image: sha,
+              action: {
+                'target': 'maintenance',
+                'label': {'ar': 'افتح الصيانة الآن'},
+              },
+            ),
+            b('2', 'reminder', 'compact'),
+            b('3', 'party', 'poster', action: {'target': 'leave', 'label': {}}),
+          ],
+        },
+      ),
+    );
+    w.server.on('GET', '/api/v1/driver/broadcast-images/$sha', (r) => (200, <int>[1, 2, 3]));
+    await pumpApp(tester, w);
+    await openInbox(tester);
+    await idle(tester);
+    await settle(tester);
+    final one = find.byKey(const Key('broadcast-1'));
+    expect(find.descendant(of: one, matching: find.byKey(const Key('broadcast-layout-highlight'))), findsOneWidget);
+    expect(find.descendant(of: one, matching: find.byKey(const Key('broadcast-style-urgent'))), findsOneWidget);
+    expect(find.descendant(of: one, matching: find.byKey(const Key('broadcast-image'))), findsOneWidget);
+    expect(find.text('افتح الصيانة الآن'), findsOneWidget);
+    final two = find.byKey(const Key('broadcast-2'));
+    expect(find.descendant(of: two, matching: find.byKey(const Key('broadcast-layout-compact'))), findsOneWidget);
+    expect(find.text('نص 2'), findsNothing, reason: 'compact: one line');
+    final three = find.byKey(const Key('broadcast-3'));
+    expect(find.descendant(of: three, matching: find.byKey(const Key('broadcast-layout-standard'))), findsOneWidget);
+    expect(find.descendant(of: three, matching: find.byIcon(Icons.info_outline)), findsOneWidget);
+    expect(
+      find.descendant(of: three, matching: find.text('طلب إجازة')),
+      findsOneWidget,
+      reason: 'the app\'s label',
+    );
+    // the picture is downloaded once and kept
+    await tester.runAsync(() => w.state.noticeImage(sha));
+    expect(w.server.calls('/api/v1/driver/broadcast-images/$sha'), hasLength(1));
+    await shot(tester, '26-broadcast-cards');
+    // the button opens the app's screen
+    await tester.tap(find.text('افتح الصيانة الآن'));
+    await idle(tester);
+    await settle(tester);
+    expect(find.byKey(const Key('broadcast-1')), findsNothing);
   });
 
   testWidgets('the outcome and the deduction in monthly installments are shown to the driver', (tester) async {
