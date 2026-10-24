@@ -1,6 +1,7 @@
 """The rules designer's calls: a platform's input fields, the month review (values, exceptions, imports), the rule
 catalog and templates, and trying a block list on sample figures."""
 
+import json
 import uuid
 from datetime import date
 from typing import Literal
@@ -9,6 +10,7 @@ from fastapi import APIRouter, Depends, Form, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.db import get_session
+from app.core.errors import AppError
 from app.modules.files import service as files
 from app.modules.identity.service import Principal, require_permission
 from app.modules.payroll import designer_schemas as schemas
@@ -89,7 +91,38 @@ def cancel_exception(
 
 # ------------------------------------------------------------------ the month from Excel
 
-Format = Literal["partner_batches", "generic"]
+Format = Literal["partner_batches", "generic", "mapped"]
+
+
+def _mapping(raw: str | None) -> dict | None:
+    """The columns chosen in the panel: {"sheet": name or null, "columns": {field: the file's header text}}."""
+    if not raw:
+        return None
+    try:
+        m = json.loads(raw)
+    except ValueError:
+        raise AppError(422, "month_import_mapping") from None
+    cols = m.get("columns") if isinstance(m, dict) else None
+    sheet = m.get("sheet") if isinstance(m, dict) else None
+    if (
+        not isinstance(cols, dict)
+        or len(cols) > 80
+        or not all(isinstance(k, str) and isinstance(v, str | None) and len(v or "") <= 200 for k, v in cols.items())
+        or not isinstance(sheet, str | None)
+    ):
+        raise AppError(422, "month_import_mapping")
+    return {"sheet": sheet, "columns": {k: v for k, v in cols.items() if v}}
+
+
+@router.post("/month-imports/columns")
+def import_columns(
+    file: UploadFile,
+    platform_id: int = Form(...),
+    _: Principal = Depends(require_permission("payroll.prepare")),
+    db: Session = Depends(get_session),
+):
+    """The file's sheets and headers, the fields a column may feed, and the columns pre-selected (last time's)."""
+    return month_import.columns(db, platform_id=platform_id, data=files.read_upload(file))
 
 
 @router.post("/month-imports/check")
@@ -99,6 +132,7 @@ def check_import(
     month_: date = Form(..., alias="month"),
     format: Format = Form("partner_batches"),
     replace_month: bool = Form(False),
+    mapping: str | None = Form(None),
     principal: Principal = Depends(require_permission("payroll.prepare")),
     db: Session = Depends(get_session),
 ):
@@ -111,6 +145,7 @@ def check_import(
         fmt=format,
         data=data,
         replace_month=replace_month,
+        mapping=_mapping(mapping),
         approver=principal.has("payroll.approve"),  # the exceptions a file carries are approvals
         **principal.scope,
     )
@@ -123,6 +158,7 @@ def apply_import(
     month_: date = Form(..., alias="month"),
     format: Format = Form("partner_batches"),
     replace_month: bool = Form(False),  # «استبدال الشهر كله»: the month's batch rows replaced by the file's
+    mapping: str | None = Form(None),  # format mapped: the columns chosen, saved for the platform's next file
     principal: Principal = Depends(require_permission("payroll.prepare")),
     db: Session = Depends(get_session),
 ):
@@ -136,6 +172,7 @@ def apply_import(
         file_name=file.filename,
         actor_user_id=principal.user_id,
         replace_month=replace_month,
+        mapping=_mapping(mapping),
         approver=principal.has("payroll.approve"),
         **principal.scope,
     )

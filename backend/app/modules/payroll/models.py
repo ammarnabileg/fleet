@@ -104,6 +104,41 @@ class Platform(Base):
     columns: Mapped[list] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    is_core: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))  # built in: seeded, never deleted
+    import_mapping: Mapped[dict | None] = mapped_column(JSONB)  # the last monthly import's columns, pre-selected
+
+
+class PlatformRequest(Base):
+    """A driver with no platform says in the app which company he works with; the office approves it (his platform
+    set, with his ID on it) or rejects it with a reason. Payroll never reads a request."""
+
+    __tablename__ = "platform_requests"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'approved', 'rejected', 'cancelled')", name="status"),
+        CheckConstraint("char_length(driver_note) <= 500", name="driver_note"),
+        CheckConstraint("(status IN ('approved', 'rejected')) = (decided_at IS NOT NULL)", name="decided"),
+        CheckConstraint("status <> 'rejected' OR admin_note IS NOT NULL", name="rejected"),
+        Index(
+            "platform_requests_employee_id_idx", "employee_id", unique=True, postgresql_where=text("status = 'pending'")
+        ),
+        Index("platform_requests_status_idx", "status", "created_at"),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    company_id: Mapped[int] = mapped_column(BigInteger)
+    platform_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("payroll.platforms.id"))
+    status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
+    driver_note: Mapped[str | None] = mapped_column(Text)
+    admin_note: Mapped[str | None] = mapped_column(Text)
+    platform_driver_id: Mapped[str | None] = mapped_column(Text)
+    submitted_by_device: Mapped[int | None] = mapped_column(BigInteger)
+    decided_by: Mapped[int | None] = mapped_column(BigInteger)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
 
 
 class Statement(Base):

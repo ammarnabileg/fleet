@@ -33,7 +33,7 @@ CORRECTABLE = ("orders", "valid_days", "working_days", *SIMPLE_BUILTINS)
 @dataclass
 class Inputs:
     values: dict = field(default_factory=dict)  # monthly field -> value
-    batches: list = field(default_factory=list)  # (batch, orders)
+    batches: list = field(default_factory=list)  # (batch, orders, period start, period end), in the month's order
     tasks: dict | None = None  # task type -> count
     daily: dict = field(default_factory=dict)  # the platform's own daily fields: their month totals
     exceptions: list = field(default_factory=list)  # MonthException rows, live
@@ -44,6 +44,16 @@ def _locked(db: Session, company_id: int, month: date) -> None:
 
     if month_locked(db, company_id, month):
         raise AppError(409, "payroll_locked")
+
+
+def batch_sub(batch: int, start: date | None) -> str:
+    """The key of a batch row in the month: the batch, and the period's start when the platform sets it weekly (the
+    same batch twice in a month, each week its own row)."""
+    return f"{batch}@{start.isoformat()}" if start else str(batch)
+
+
+def batch_of(sub: str) -> int:
+    return int(sub.split("@", 1)[0])
 
 
 def load(db: Session, platforms: dict[int, int | None], month: date) -> dict[int, Inputs]:
@@ -58,13 +68,13 @@ def load(db: Session, platforms: dict[int, int | None], month: date) -> dict[int
             continue  # a platform he left: its fields are not his any more
         row = out[v.employee_id]
         if v.key == "batch_orders":
-            row.batches.append((int(v.sub), int(v.value)))
+            row.batches.append((batch_of(v.sub), int(v.value), v.period_start, v.period_end))
         elif v.key == "task_counts":
             row.tasks = (row.tasks or {}) | {v.sub: int(v.value)}
         else:
             row.values[v.key] = v.value
-    for row in out.values():
-        row.batches.sort()
+    for row in out.values():  # by their period (weekly rows), else by batch as before
+        row.batches.sort(key=lambda b: (b[2] or date.min, b[0], b[3] or date.min))
     q = select(MonthException).where(
         MonthException.employee_id.in_(ids), MonthException.month == month, MonthException.cancelled_at.is_(None)
     )
@@ -204,18 +214,25 @@ def set_values(db: Session, public_id, *, month: date, data: dict, actor_user_id
     for key, sub, value in rows:
         _put(db, e, month, key, sub, value, source="manual", actor_user_id=actor_user_id)
     if batches is not None:
-        seen = set()
+        from app.modules.payroll.statements import month_end
+
+        rows_by_sub = {}
         for b in batches:
-            if b["batch"] in seen:
+            start, end = b.get("period_start"), b.get("period_end")
+            if start and not (start <= month_end(month) and end >= month):
+                raise AppError(422, "batch_period_outside", batch=b["batch"])  # the week must touch the month
+            sub = batch_sub(b["batch"], start)
+            if sub in rows_by_sub:
                 raise AppError(422, "batch_duplicate", batch=b["batch"])
-            seen.add(b["batch"])
-        _replace(db, e, month, "batch_orders", {str(b["batch"]): Decimal(b["orders"]) for b in batches}, actor_user_id)
+            rows_by_sub[sub] = (Decimal(b["orders"]), b.get("period_start"), b.get("period_end"))
+        _replace(db, e, month, "batch_orders", rows_by_sub, actor_user_id)
     if tasks is not None:
         allowed = {o["value"] for it in forms.get(db, e.platform_id)["monthly"] for o in it.get("options") or []}
         unknown = sorted(set(tasks) - allowed)
         if unknown:
             raise AppError(422, "field_unknown", field=unknown[0])
-        _replace(db, e, month, "task_counts", {k: Decimal(int(n)) for k, n in tasks.items()}, actor_user_id)
+        counts = {k: (Decimal(int(n)), None, None) for k, n in tasks.items()}
+        _replace(db, e, month, "task_counts", counts, actor_user_id)
     db.flush()
     after = {k: str(x.value) for k, x in _existing(db, e, month).items()}
     audit.record(
@@ -239,7 +256,7 @@ def _existing(db: Session, e: people.EmployeeRef, month: date) -> dict[str, Mont
     return {(f"{v.key}:{v.sub}" if v.sub else v.key): v for v in db.scalars(q)}
 
 
-def _put(db, e, month, key, sub, value, *, source, actor_user_id, import_id=None) -> None:
+def _put(db, e, month, key, sub, value, *, source, actor_user_id, import_id=None, period=None) -> None:
     row = db.scalar(
         select(MonthValue).where(
             MonthValue.platform_id == e.platform_id,
@@ -259,10 +276,12 @@ def _put(db, e, month, key, sub, value, *, source, actor_user_id, import_id=None
         )
         db.add(row)
     row.value, row.source, row.import_id = value, source, import_id
+    row.period_start, row.period_end = period or (None, None)
     row.set_by, row.set_at = actor_user_id, utcnow()
 
 
 def _replace(db, e, month, key, values: dict, actor_user_id, *, source="manual", import_id=None) -> None:
+    """values: sub -> (value, period start, period end)."""
     db.execute(
         delete(MonthValue).where(
             MonthValue.platform_id == e.platform_id,
@@ -271,7 +290,7 @@ def _replace(db, e, month, key, values: dict, actor_user_id, *, source="manual",
             MonthValue.key == key,
         )
     )
-    for sub, value in values.items():
+    for sub, (value, start, end) in values.items():
         db.add(
             MonthValue(
                 employee_id=e.id,
@@ -283,9 +302,18 @@ def _replace(db, e, month, key, values: dict, actor_user_id, *, source="manual",
                 value=value,
                 source=source,
                 import_id=import_id,
+                period_start=start,
+                period_end=end,
                 set_by=actor_user_id,
             )
         )
+
+
+def batch_out(b: tuple) -> dict:
+    out = {"batch": b[0], "orders": b[1]}
+    if b[2]:
+        out |= {"period_start": b[2], "period_end": b[3]}
+    return out
 
 
 def driver_month(db: Session, e: people.EmployeeRef, month: date) -> dict:
@@ -297,7 +325,7 @@ def _inputs_out(db: Session, found: Inputs, users: dict | None = None) -> dict:
     users = users if users is not None else identity.user_names(db, {x.approved_by for x in found.exceptions})
     return {
         "values": {k: str(v) for k, v in found.values.items()},
-        "batches": [{"batch": b, "orders": n} for b, n in found.batches],
+        "batches": [batch_out(b) for b in found.batches],
         "tasks": found.tasks or {},
         "daily": {k: str(v) for k, v in found.daily.items()},
         "exceptions": [_exception_out(x, users) for x in found.exceptions],
@@ -468,7 +496,7 @@ def review(db: Session, *, platform_id: int, month: date, all_companies: bool, c
                     lacking.append(MISSING_KEY.get(k, k))
         if lacking:
             issues.append("values_missing")
-        if f.batches and sum(n for _, n in f.batches) != orders and orders:
+        if f.batches and sum(b[1] for b in f.batches) != orders and orders:
             issues.append("orders_conflict")  # the partner's batch rows and the approved daily orders differ
         if sy["pending_reports"]:
             issues.append("daily_pending")

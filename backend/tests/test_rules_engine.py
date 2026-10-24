@@ -440,7 +440,8 @@ def test_templates_are_valid_and_marked():
         "keeta_plan",
     }
     # Keeta's batch rule is its default; the two before it stay as legacy starting points
-    assert [(t["code"], t.get("default", False), t.get("legacy", False)) for t in ts if t["platform_hint"] == "keeta"] == [
+    keeta = [t for t in ts if t["platform_hint"] == "keeta"]
+    assert [(t["code"], t.get("default", False), t.get("legacy", False)) for t in keeta] == [
         ("keeta_batches", True, False),
         ("keeta_plan", False, True),
         ("keeta_paid", False, True),

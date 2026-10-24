@@ -28,43 +28,74 @@ from app.modules.payroll.rules.catalog import EXCUSES
 from app.modules.payroll.service import month_start
 from app.modules.people import service as people
 
-PARTNER = {
-    "rider": ("rider id", "rider", "رقم السائق", "driver id"),
-    "batch": ("batch no.", "batch no", "batch", "الباتش", "رقم الباتش"),
-    "orders": ("total completed deliveries", "completed deliveries", "deliveries", "الطلبات المكتمله", "عدد الطلبات"),
-}
-GENERIC_IDS = {
+# what a file's column may feed: who the row is, the month, a batch row (its batch, its completed orders, its period
+# when the platform sets the batch week by week), then each monthly field of the platform and an approved exception
+BASE_FIELDS = (
+    "platform_driver_id",
+    "civil_id",
+    "month",
+    "batch",
+    "orders",
+    "period_start",
+    "period_end",
+)
+EXCEPTION_COLUMNS = ("exception_kind", "exception_days", "exception_excuses", "exception_note")
+ALIASES = {
+    "platform_driver_id": ("platform_driver_id", "platform driver id", "driver id", "rider id", "rider", "رقم السائق"),
     "civil_id": ("civil_id", "civil id", "الرقم المدني"),
-    "platform_driver_id": ("platform_driver_id", "platform driver id", "driver id", "rider id", "رقم السائق"),
     "month": ("month", "الشهر"),
-    "batch": ("batch", "batch no.", "الباتش"),
-    "batch_orders": ("batch_orders", "batch orders", "طلبات الباتش"),
+    "batch": ("batch no.", "batch no", "batch", "الباتش", "رقم الباتش"),
+    "orders": (
+        "total completed deliveries", "completed deliveries", "deliveries", "batch_orders", "batch orders",
+        "طلبات الباتش", "الطلبات المكتمله", "عدد الطلبات",
+    ),
+    "period_start": ("period_start", "period start", "week start", "start date", "from", "بدايه الفتره", "من"),
+    "period_end": ("period_end", "period end", "week end", "end date", "to", "نهايه الفتره", "الي"),
     "exception_kind": ("exception_kind", "نوع الاستثناء"),
     "exception_days": ("exception_days", "ايام الاستثناء"),
     "exception_excuses": ("exception_excuses", "ما يعذر عنه"),
     "exception_note": ("exception_note", "ملاحظه الاستثناء"),
+}  # fmt: skip
+# the partner's report of orders by batch (Rider ID, Batch No., Total Completed Deliveries): a preset of the mapping
+PARTNER = ("platform_driver_id", "batch", "orders")
+PARTNER_ALIASES = {
+    "platform_driver_id": ("rider id", "rider", "رقم السائق", "driver id"),
+    "batch": ALIASES["batch"],
+    "orders": ("total completed deliveries", "completed deliveries", "deliveries", "الطلبات المكتمله", "عدد الطلبات"),
 }
-EXCEPTION_COLUMNS = ("exception_kind", "exception_days", "exception_excuses", "exception_note")
+GENERIC = ("platform_driver_id", "civil_id", "month", "batch", "orders", *EXCEPTION_COLUMNS)
+GENERIC_ALIASES = {
+    k: (("batch_orders", "batch orders", "طلبات الباتش") if k == "orders" else ALIASES[k]) for k in GENERIC
+}
 MAX_ROWS = 5000
 MAX_BATCH = 20
+HEADER_ROWS = 20
 
 
-def _sheet_rows(data: bytes) -> list[list]:
+def _workbook(data: bytes):
     import openpyxl  # defusedxml makes openpyxl parse the XML safely
 
     try:
-        wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+        return openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     except (zipfile.BadZipFile, KeyError, OSError, ValueError):
         raise AppError(422, "import_not_xlsx") from None
-    rows = [list(r) for r in wb.worksheets[0].iter_rows(values_only=True)][: MAX_ROWS + 20]
-    wb.close()
-    return rows
+
+
+def _sheet_rows(data: bytes, sheet: str | None = None) -> list[list]:
+    wb = _workbook(data)
+    try:
+        if sheet is not None and sheet not in wb.sheetnames:
+            raise AppError(422, "month_import_sheet", sheet=sheet[:60])
+        ws = wb[sheet] if sheet is not None else wb.worksheets[0]
+        return [list(r) for r in ws.iter_rows(values_only=True)][: MAX_ROWS + HEADER_ROWS]
+    finally:
+        wb.close()
 
 
 def _header(rows: list[list], wanted: dict) -> tuple[int, dict]:
     """The first row naming at least two of the wanted columns: its index and where each column is."""
     names = {k: {norm(a) for a in v} for k, v in wanted.items()}
-    for i, r in enumerate(rows[:20]):
+    for i, r in enumerate(rows[:HEADER_ROWS]):
         found = {}
         for j, c in enumerate(r):
             h = norm(c)
@@ -98,9 +129,25 @@ def _month_of(v) -> date | None:
         raise ValueError from None
 
 
+def _day(v) -> date | None:
+    """A date cell: an Excel date, or the text 2026-09-07 or 07/09/2026."""
+    if isinstance(v, datetime):
+        return v.date()
+    if isinstance(v, date):
+        return v
+    text = cell_text(v)
+    if not text:
+        return None
+    parts = text.replace("/", "-").replace(".", "-").split(" ")[0].split("-")
+    if len(parts) != 3:
+        raise ValueError
+    a, b, c = (int(x) for x in parts)
+    return date(a, b, c) if a > 31 else date(c, b, a)
+
+
 class _Parsed:
     def __init__(self):
-        self.entries: dict[tuple, dict] = {}  # (driver id, key, sub) -> {"value", "row"}
+        self.entries: dict[tuple, dict] = {}  # (driver id, key, sub) -> {"value", "row", "period"}
         self.exceptions: list[dict] = []
         self.unknown: list[dict] = []
         self.duplicates: list[dict] = []
@@ -108,10 +155,10 @@ class _Parsed:
         self.other_month: list[dict] = []
         self.rows = 0
 
-    def add(self, profile: dict, key: str, sub: str, value: Decimal, row: int) -> None:
+    def add(self, profile: dict, key: str, sub: str, value: Decimal, row: int, period: tuple | None = None) -> None:
         k = (profile["id"], key, sub)
         if k in self.entries:
-            same = self.entries[k]["value"] == value
+            same = self.entries[k]["value"] == value and self.entries[k]["period"] == period
             self.duplicates.append(
                 {
                     "row": row,
@@ -124,7 +171,7 @@ class _Parsed:
             )
             if same:
                 return
-        self.entries[k] = {"value": value, "row": row, "profile": profile}
+        self.entries[k] = {"value": value, "row": row, "profile": profile, "period": period}
 
 
 def _who(p: dict) -> dict:
@@ -146,27 +193,6 @@ def _batch(v) -> int:
     return b
 
 
-def _partner(rows: list[list], by_ref: dict, out: _Parsed) -> None:
-    at, cols = _header(rows, PARTNER)
-    if set(cols) != set(PARTNER):
-        raise AppError(422, "month_import_headers")
-    for n, r in enumerate(rows[at + 1 :], start=at + 2):
-        rider = cell_text(r[cols["rider"]] if cols["rider"] < len(r) else None)
-        if not rider and not any(cell_text(c) for c in r):
-            continue
-        out.rows += 1
-        try:
-            batch, orders = _batch(r[cols["batch"]]), _int(r[cols["orders"]])
-        except (ValueError, InvalidOperation, IndexError):
-            out.invalid.append({"row": n, "rider": rider})
-            continue
-        p = by_ref.get(norm(rider))
-        if p is None:
-            out.unknown.append({"row": n, "rider": rider})
-            continue
-        out.add(p, "batch_orders", str(batch), Decimal(orders), n)
-
-
 def _exception(cell, p: dict) -> dict | None:
     kind = cell_text(cell("exception_kind"))
     if not kind:
@@ -183,26 +209,135 @@ def _exception(cell, p: dict) -> dict | None:
     return {"profile": p, "kind": kind, "days": days, "excuses": sorted(set(excuses)), "note": note}
 
 
-def _generic(db: Session, rows: list[list], platform_id: int, the_month: date, refs: tuple, out: _Parsed) -> None:
+# ------------------------------------------------------------------ the fields a column may feed
+
+
+def fields(db: Session, platform_id: int) -> list[dict]:
+    """What a file's columns may feed for this platform, in the order the panel lists them: who the row is, the
+    month, a batch row, each monthly field of the platform (a task type each), an approved exception."""
+    out = [{"key": k, "group": "base", "label": None, "aliases": list(ALIASES[k])} for k in BASE_FIELDS]
+    kinds = month.monthly_kinds(db, platform_id)
+    for it in forms.get(db, platform_id)["monthly"]:
+        kind = kinds.get(it["key"])
+        if kind == "task_counts":
+            for o in it["options"]:
+                out.append(
+                    {"key": f"task:{o['value']}", "group": "task", "label": o["label"],
+                     "aliases": [o["value"], *o["label"].values()]}
+                )  # fmt: skip
+        elif kind not in (None, "batch_orders", "choice"):
+            out.append(
+                {"key": it["key"], "group": "field", "label": it["label"], "kind": kind,
+                 "aliases": [it["key"], *it["label"].values()]}
+            )  # fmt: skip
+    out += [{"key": k, "group": "exception", "label": None, "aliases": list(ALIASES[k])} for k in EXCEPTION_COLUMNS]
+    return out
+
+
+def _aliases(db: Session, platform_id: int, keys=None) -> dict:
+    return {f["key"]: tuple(f["aliases"]) for f in fields(db, platform_id) if keys is None or f["key"] in keys}
+
+
+def _resolve(rows: list[list], columns: dict, known: set) -> tuple[int, dict]:
+    """A mapping {field: header text} on the file: the header row (the first naming every chosen header) and where
+    each chosen column is."""
+    unknown = sorted(set(columns) - known)
+    if unknown:
+        raise AppError(422, "month_import_field_unknown", field=unknown[0][:60])
+    chosen = {k: norm(v) for k, v in columns.items() if cell_text(v)}
+    if not chosen.keys() & {"platform_driver_id", "civil_id"}:
+        raise AppError(422, "month_import_driver_column")
+    if ("batch" in chosen) != ("orders" in chosen):
+        raise AppError(422, "month_import_batch_columns")
+    if ("period_end" in chosen) and ("period_start" not in chosen):
+        raise AppError(422, "month_import_batch_columns")
+    for i, r in enumerate(rows[:HEADER_ROWS]):
+        where = {norm(c): j for j, c in reversed(list(enumerate(r))) if cell_text(c)}
+        if all(h in where for h in chosen.values()):
+            return i, {k: where[h] for k, h in chosen.items()}
+    missing = next(v for v in columns.values() if cell_text(v))
+    raise AppError(422, "month_import_column", column=cell_text(missing)[:80])
+
+
+def _guess(headers: list, aliases: dict, saved: dict | None) -> dict:
+    """The column for each field: the one chosen last time when the file has that header, else one whose header
+    names it."""
+    present = {norm(h): cell_text(h) for h in headers if cell_text(h)}
+    out = {}
+    for key, names in aliases.items():
+        before = norm((saved or {}).get(key))
+        if before and before in present:
+            out[key] = present[before]
+            continue
+        hit = next((present[norm(a)] for a in names if norm(a) in present), None)
+        if hit is not None and hit not in out.values():
+            out[key] = hit
+    return out
+
+
+def columns(db: Session, *, platform_id: int, data: bytes) -> dict:
+    """The file's sheets, each with its header row (the row naming most fields, or the first full one), its headers
+    and its first rows; the fields a column may feed, and the mapping pre-selected (last time's, matched by header
+    text, else by the headers' names)."""
+    from app.modules.payroll.models import Platform
+
+    p = db.get(Platform, platform_id)
+    if p is None:
+        raise AppError(404, "platform_not_found")
+    saved = p.import_mapping or {}
+    aliases = _aliases(db, platform_id)
+    wb = _workbook(data)
+    sheets = []
+    try:
+        for ws in wb.worksheets:
+            rows = [list(r) for r in ws.iter_rows(values_only=True, max_row=HEADER_ROWS + 8)]
+            best, score = None, 0
+            for i, r in enumerate(rows[:HEADER_ROWS]):
+                n = len(_guess(r, aliases, saved.get("columns")))
+                if n > score:
+                    best, score = i, n
+            if best is None:
+                best = next((i for i, r in enumerate(rows) if sum(1 for c in r if cell_text(c)) >= 2), None)
+            if best is None:
+                sheets.append({"name": ws.title, "header_row": None, "headers": [], "sample": []})
+                continue
+            headers = [cell_text(c) for c in rows[best]]
+            while headers and not headers[-1]:
+                headers.pop()
+            sample = [[_shown(c) for c in r[: len(headers)]] for r in rows[best + 1 :] if any(cell_text(c) for c in r)]
+            sheets.append({"name": ws.title, "header_row": best + 1, "headers": headers, "sample": sample[:5]})
+    finally:
+        wb.close()
+    usable = [s for s in sheets if s["headers"]]
+    if not usable:
+        raise AppError(422, "month_import_headers")
+    sheet = next((s for s in usable if s["name"] == saved.get("sheet")), None) or max(
+        usable, key=lambda s: len(_guess(s["headers"], aliases, saved.get("columns")))
+    )
+    return {
+        "sheets": sheets,
+        "sheet": sheet["name"],
+        "fields": [{k: v for k, v in f.items() if k != "aliases"} for f in fields(db, platform_id)],
+        "mapping": _guess(sheet["headers"], aliases, saved.get("columns")),
+        "saved": bool(saved),
+    }
+
+
+def _shown(c):
+    if isinstance(c, datetime | date):
+        return c.isoformat()[:10]
+    return cell_text(c)
+
+
+# ------------------------------------------------------------------ reading the rows
+
+
+def _read(db: Session, rows: list[list], at: int, cols: dict, platform_id: int, the_month: date, refs: tuple,
+          out: _Parsed) -> None:  # fmt: skip
+    """Each row after the header: who (the platform driver ID, else the civil ID), the month when given, a batch row
+    with its period, the platform's fields and task counts, an approved exception. A row is read whole or not at all."""
     by_ref, by_civil = refs
     kinds = month.monthly_kinds(db, platform_id)
-    fields = forms.get(db, platform_id)["monthly"]
-    wanted = dict(GENERIC_IDS)
-    for key, kind in kinds.items():
-        if kind in ("batch_orders", "choice"):
-            continue
-        labels = [it["label"] for it in fields if it["key"] == key]
-        wanted.setdefault(key, (key, *(x for lab in labels for x in lab.values())))
-    tasks = {}
-    for it in fields:
-        if it["type"] == "task_counts":
-            for o in it["options"]:
-                tasks[o["value"]] = (o["value"], *o["label"].values())
-    for task, aliases in tasks.items():
-        wanted[f"task:{task}"] = aliases
-    at, cols = _header(rows, wanted)
-    if "civil_id" not in cols and "platform_driver_id" not in cols:
-        raise AppError(422, "month_import_headers")
     for n, r in enumerate(rows[at + 1 :], start=at + 2):
         if not any(cell_text(c) for c in r):
             continue
@@ -213,53 +348,88 @@ def _generic(db: Session, rows: list[list], platform_id: int, the_month: date, r
             return r[j] if j is not None and j < len(r) else None
 
         ref, civil = cell_text(cell("platform_driver_id")), cell_text(cell("civil_id"))
+        staged: list[tuple] = []
+        try:  # a batch row that cannot be read is a wrong row, whoever it names
+            if cell_text(cell("batch")) or cell_text(cell("orders")):
+                batch, orders = _batch(cell("batch")), _int(cell("orders"))
+                start, end = _day(cell("period_start")), _day(cell("period_end"))
+                if (start is None) != (end is None) and "period_end" in cols:
+                    raise ValueError  # a week needs both its dates
+                end = end or start
+                if start and (end < start or start > statements_month_end(the_month) or end < the_month):
+                    raise ValueError
+                period = (start, end) if start else None
+                staged.append(("batch_orders", month.batch_sub(batch, start), Decimal(orders), period))
+        except (ValueError, InvalidOperation, TypeError):
+            out.invalid.append({"row": n, "rider": ref or civil})
+            continue
         p = (by_ref.get(norm(ref)) if ref else None) or (by_civil.get(norm(civil)) if civil else None)
         if p is None:
             out.unknown.append({"row": n, "rider": ref or civil})
             continue
-        staged: list[tuple] = []  # the whole row read first: a row is applied entirely or not at all
         try:
             m = _month_of(cell("month"))
             if m is not None and m != the_month:
                 out.other_month.append({"row": n, "employee": _who(p), "month": m.isoformat()})
                 continue
-            if cell_text(cell("batch")) or cell_text(cell("batch_orders")):
-                staged.append(("batch_orders", str(_batch(cell("batch"))), Decimal(_int(cell("batch_orders")))))
             for key, kind in kinds.items():
                 if key in cols and kind not in ("batch_orders", "task_counts", "choice") and cell_text(cell(key)):
                     raw = cell(key)
                     if kind == "bool":
                         raw = norm(raw) in ("1", "yes", "true", "نعم", "x", "✓")
-                    staged.append((key, "", month._number(kind, raw)))
-            for task in tasks:
-                if cell_text(cell(f"task:{task}")):
-                    staged.append(("task_counts", task, Decimal(_int(cell(f"task:{task}")))))
+                    staged.append((key, "", month._number(kind, raw), None))
+            for key in cols:
+                if key.startswith("task:") and cell_text(cell(key)):
+                    staged.append(("task_counts", key[5:], Decimal(_int(cell(key))), None))
             exc = _exception(cell, p)
         except (ValueError, InvalidOperation, TypeError):
             out.invalid.append({"row": n, "rider": ref or civil})
             continue
-        for key, sub, value in staged:
-            out.add(p, key, sub, value, n)
+        for key, sub, value, period in staged:
+            out.add(p, key, sub, value, n, period)
         if exc:
             out.exceptions.append(exc | {"row": n})
 
 
-def _parse(db: Session, *, platform_id: int, the_month: date, fmt: str, data: bytes, scope: dict) -> _Parsed:
-    rows = _sheet_rows(data)
+def statements_month_end(d: date) -> date:
+    from app.modules.payroll.statements import month_end
+
+    return month_end(d)
+
+
+def _layout(db: Session, rows: list[list], *, platform_id: int, fmt: str, mapping: dict | None) -> tuple[int, dict]:
+    if fmt == "mapped":
+        known = {f["key"] for f in fields(db, platform_id)}
+        return _resolve(rows, dict((mapping or {}).get("columns") or {}), known)
+    if fmt == "partner_batches":  # the preset of the partner's report: its three columns, all of them
+        at, cols = _header(rows, PARTNER_ALIASES)
+        if set(cols) != set(PARTNER):
+            raise AppError(422, "month_import_headers")
+        return at, cols
+    wanted = GENERIC_ALIASES | {
+        k: v for k, v in _aliases(db, platform_id).items() if k not in BASE_FIELDS and k not in EXCEPTION_COLUMNS
+    }
+    at, cols = _header(rows, wanted)
+    if "civil_id" not in cols and "platform_driver_id" not in cols:
+        raise AppError(422, "month_import_headers")
+    return at, cols
+
+
+def _parse(
+    db: Session, *, platform_id: int, the_month: date, fmt: str, data: bytes, scope: dict, mapping: dict | None = None
+) -> _Parsed:
+    rows = _sheet_rows(data, (mapping or {}).get("sheet") if fmt == "mapped" else None)
+    at, cols = _layout(db, rows, platform_id=platform_id, fmt=fmt, mapping=mapping)
     out = _Parsed()
-    refs = _drivers(db, platform_id, scope)
-    if fmt == "partner_batches":
-        _partner(rows, refs[0], out)
-    else:
-        _generic(db, rows, platform_id, the_month, refs, out)
+    _read(db, rows, at, cols, platform_id, the_month, _drivers(db, platform_id, scope), out)
     return out
 
 
 def _month_batches(db: Session, platform_id: int, the_month: date) -> dict:
-    q = select(MonthValue.employee_id, MonthValue.sub, MonthValue.value).where(
+    q = select(MonthValue.employee_id, MonthValue.sub, MonthValue.value, MonthValue.period_end).where(
         MonthValue.platform_id == platform_id, MonthValue.month == the_month, MonthValue.key == "batch_orders"
     )
-    return {(e, sub): v for e, sub, v in db.execute(q)}
+    return {(e, sub): (v, end) for e, sub, v, end in db.execute(q)}
 
 
 def _report(
@@ -267,12 +437,13 @@ def _report(
 ) -> dict:
     from app.modules.payroll import statements
 
-    by_driver: dict[int, dict] = defaultdict(lambda: {"batches": {}, "values": {}, "tasks": {}})
+    by_driver: dict[int, dict] = defaultdict(lambda: {"batches": [], "values": {}, "tasks": {}})
     for (emp, key, sub), e in parsed.entries.items():
         d = by_driver[emp]
         d["profile"] = e["profile"]
         if key == "batch_orders":
-            d["batches"][int(sub)] = int(e["value"])
+            period = e["period"] or (None, None)
+            d["batches"].append((month.batch_of(sub), int(e["value"]), *period))
         elif key == "task_counts":
             d["tasks"][sub] = int(e["value"])
         else:
@@ -286,7 +457,7 @@ def _report(
     drivers, conflicts, paid = [], [], []
     for emp, d in by_driver.items():
         p = d["profile"]
-        in_file = sum(d["batches"].values())
+        in_file = sum(b[1] for b in d["batches"])
         daily = system[emp]["orders"]
         if d["batches"] and daily and in_file != daily:
             conflicts.append({"employee": _who(p), "file_orders": in_file, "daily_orders": daily})
@@ -296,7 +467,7 @@ def _report(
         drivers.append(
             {
                 "employee": _who(p),
-                "batches": [{"batch": b, "orders": n} for b, n in sorted(d["batches"].items())],
+                "batches": [month.batch_out(b) for b in sorted(d["batches"], key=lambda b: (b[2] or date.min, b[0]))],
                 "values": d["values"],
                 "tasks": d["tasks"],
                 "daily_orders": daily,
@@ -310,7 +481,11 @@ def _report(
     )
     # the month's batch rows already there: another file replaces them only when asked to, as a whole
     existing = _month_batches(db, platform_id, the_month)
-    in_file = {(e, sub): v["value"] for (e, key, sub), v in parsed.entries.items() if key == "batch_orders"}
+    in_file = {
+        (e, sub): (v["value"], (v["period"] or (None, None))[1])
+        for (e, key, sub), v in parsed.entries.items()
+        if key == "batch_orders"
+    }
     same = bool(in_file) and existing == in_file
     reasons = []
     if parsed.invalid:
@@ -358,10 +533,10 @@ def _report(
 
 def check(
     db: Session, *, platform_id: int, month_: date, fmt: str, data: bytes, replace_month: bool = False,
-    approver: bool = False, **scope,
+    approver: bool = False, mapping: dict | None = None, **scope,
 ) -> dict:  # fmt: skip
     the_month = month_start(month_)
-    parsed = _parse(db, platform_id=platform_id, the_month=the_month, fmt=fmt, data=data, scope=scope)
+    parsed = _parse(db, platform_id=platform_id, the_month=the_month, fmt=fmt, data=data, scope=scope, mapping=mapping)
     digest = hashlib.sha256(data).hexdigest()
     return _report(
         db, parsed, platform_id=platform_id, the_month=the_month, digest=digest, replace_month=replace_month,
@@ -371,11 +546,11 @@ def check(
 
 def apply(
     db: Session, *, platform_id: int, month_: date, fmt: str, data: bytes, file_name: str | None, actor_user_id: int,
-    replace_month: bool = False, approver: bool = False, **scope,
+    replace_month: bool = False, approver: bool = False, mapping: dict | None = None, **scope,
 ) -> dict:  # fmt: skip
     the_month = month_start(month_)
     digest = hashlib.sha256(data).hexdigest()
-    parsed = _parse(db, platform_id=platform_id, the_month=the_month, fmt=fmt, data=data, scope=scope)
+    parsed = _parse(db, platform_id=platform_id, the_month=the_month, fmt=fmt, data=data, scope=scope, mapping=mapping)
     report = _report(
         db, parsed, platform_id=platform_id, the_month=the_month, digest=digest, replace_month=replace_month,
         approver=approver,
@@ -412,7 +587,7 @@ def apply(
             continue  # the same rows: nothing changes
         ref = people.ref(db, emp)
         month._put(db, ref, the_month, key, sub, e["value"], source="import", actor_user_id=actor_user_id,
-                   import_id=imp.id)  # fmt: skip
+                   import_id=imp.id, period=e["period"])  # fmt: skip
         applied.add(emp)
     for x in parsed.exceptions:
         ref = people.ref(db, x["profile"]["id"])
@@ -440,6 +615,13 @@ def apply(
             )  # fmt: skip
         )
         applied.add(ref.id)
+    if fmt == "mapped":  # the next file of this platform starts from these columns
+        from app.modules.payroll.models import Platform
+
+        db.get(Platform, platform_id).import_mapping = {
+            "sheet": (mapping or {}).get("sheet"),
+            "columns": {k: cell_text(v) for k, v in ((mapping or {}).get("columns") or {}).items() if cell_text(v)},
+        }
     db.flush()
     audit.record(
         db,

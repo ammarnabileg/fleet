@@ -363,7 +363,7 @@ class _State:
     penalized: bool = False
     fixed_salary: Decimal | None = None
     groups: dict = field(default_factory=dict)
-    batch_prices: list = field(default_factory=list)  # (batch, orders, rate, period end) as a batch price block priced them
+    batch_prices: list = field(default_factory=list)  # (batch, orders, rate, period end) as a batch block priced
 
 
 def _d(v) -> Decimal:

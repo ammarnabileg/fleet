@@ -75,7 +75,7 @@ def test_a_chart_in_use_is_kept_and_the_drivers_salaries_start_on_its_salaries_a
 
 def test_the_platforms_are_seeded_only_on_an_install_without_any(database_url, admin_engine, db):
     """Migration 0045: a fresh install gets the two platforms, once; an install that already set its own platforms
-    keeps them and gets nothing added."""
+    keeps them. Migration 0071: the two core platforms are built in, added beside the install's own when missing."""
     import uuid
 
     from alembic import command
@@ -104,9 +104,9 @@ def test_the_platforms_are_seeded_only_on_an_install_without_any(database_url, a
             c.execute(text("""INSERT INTO payroll.platforms (code, name) VALUES ('own', '{"ar": "س", "en": "x"}')"""))
         command.upgrade(cfg, "head")
         with engine.connect() as c:
-            codes = list(c.scalars(text("SELECT code FROM payroll.platforms")))
+            codes = c.execute(text("SELECT code, is_core FROM payroll.platforms ORDER BY code")).all()
         engine.dispose()
-        assert codes == ["own"]
+        assert [tuple(r) for r in codes] == [("keeta", True), ("own", False), ("talabat", True)]
     finally:
         with admin_engine.connect() as c:
             c.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))

@@ -50,7 +50,7 @@ class MonthImport(Base):
     __tablename__ = "month_imports"
     __table_args__ = (
         CheckConstraint("extract(day FROM month) = 1", name="month"),
-        CheckConstraint("format IN ('partner_batches', 'generic')", name="format"),
+        CheckConstraint("format IN ('partner_batches', 'generic', 'mapped')", name="format"),
         SCHEMA,
     )
 
@@ -75,6 +75,10 @@ class MonthValue(Base):
         CheckConstraint("extract(day FROM month) = 1", name="month"),
         CheckConstraint("key ~ '^[a-z][a-z0-9_]{0,39}$'", name="key"),
         CheckConstraint("source IN ('manual', 'import')", name="source"),
+        CheckConstraint(
+            "(period_start IS NULL) = (period_end IS NULL) AND (period_end IS NULL OR period_end >= period_start)",
+            name="period",
+        ),
         Index("month_values_month_idx", "month", "employee_id"),
         SCHEMA,
     )
@@ -85,10 +89,12 @@ class MonthValue(Base):
     platform_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("payroll.platforms.id"))
     month: Mapped[date] = mapped_column(Date)
     key: Mapped[str] = mapped_column(Text)
-    sub: Mapped[str] = mapped_column(Text, server_default=text("''"))
+    sub: Mapped[str] = mapped_column(Text, server_default=text("''"))  # a batch row: «batch» or «batch@period start»
     value: Mapped[Decimal] = mapped_column(Numeric(12, 3))
     source: Mapped[str] = mapped_column(Text)
     import_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.month_imports.id"))
+    period_start: Mapped[date | None] = mapped_column(Date)  # a batch row of a week (the platform's period)
+    period_end: Mapped[date | None] = mapped_column(Date)
     set_by: Mapped[int | None] = mapped_column(BigInteger)
     set_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

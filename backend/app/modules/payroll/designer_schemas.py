@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.core.types import LocalizedText
 
@@ -45,6 +45,17 @@ class BatchRow(BaseModel):
 
     batch: int = Field(ge=1, le=20)
     orders: int = Field(ge=0, le=100000)
+    # the period of the row, when the platform sets the batch week by week (both or neither)
+    period_start: date | None = None
+    period_end: date | None = None
+
+    @model_validator(mode="after")
+    def _period(self):
+        if (self.period_start is None) != (self.period_end is None) or (
+            self.period_start and self.period_end < self.period_start
+        ):
+            raise ValueError("period_start and period_end go together, the end not before the start")
+        return self
 
 
 class MonthValuesIn(BaseModel):
@@ -52,7 +63,7 @@ class MonthValuesIn(BaseModel):
 
     month: date
     values: dict[Key, bool | int | Decimal | None] = Field(default_factory=dict, max_length=40)
-    batches: list[BatchRow] | None = Field(None, max_length=20)  # sent: replaces his batch rows for the month
+    batches: list[BatchRow] | None = Field(None, max_length=40)  # sent: replaces his batch rows for the month
     tasks: dict[Key, Annotated[int, Field(ge=0, le=100000)]] | None = None
 
 
