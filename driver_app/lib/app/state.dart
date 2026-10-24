@@ -261,6 +261,50 @@ class AppState extends ChangeNotifier {
   /// This session's report of today still waiting for the network.
   OutboxItem? get todaysQueuedReport => queuedReport(kuwaitDay(DateTime.now()), sessionsToday);
 
+  /// The day's report can go with the orders count alone: the platform asks nothing else of it (no cash, no
+  /// valid-day answer, no screenshot, none of its own fields required).
+  bool get reportIsOrdersOnly =>
+      reportForm.fields.length == 1 &&
+      reportForm.fields.single == 'orders' &&
+      !reportForm.screenshot &&
+      reportForm.custom.every((f) => !f.required);
+
+  /// The orders count typed when ending the day, when the report could not go with it alone: the report screen
+  /// starts with it, for the same day and session.
+  Map<String, int> _draftOrders = {};
+
+  int? draftOrders(String day, int session) => _draftOrders['$day#$session'];
+
+  Future<void> keepDraftOrders(String day, int session, int orders) async {
+    _draftOrders = {
+      for (final e in _draftOrders.entries)
+        if (e.key.compareTo(kuwaitDay(DateTime.now().subtract(const Duration(days: 3)))) > 0) e.key: e.value,
+      '$day#$session': orders,
+    };
+    await db.put('draft_orders', jsonEncode(_draftOrders));
+  }
+
+  void _applyDraftOrders(String? raw) {
+    if (raw == null) return;
+    try {
+      _draftOrders = {for (final e in (jsonDecode(raw) as Map).entries) e.key as String: (e.value as num).toInt()};
+    } catch (_) {
+      // unreadable: the driver types it again
+    }
+  }
+
+  /// Ending the day without the report screen (the setting does not tie the reading to the report): the orders
+  /// count right after the reading. Sent as this session's report when the platform asks nothing more; otherwise kept
+  /// for the report screen. Returns how the report went (null: kept, not sent).
+  Future<SendResult?> endDayOrders({required int orders, required int session, required bool readingQueued}) async {
+    final day = kuwaitDay(DateTime.now());
+    if (!reportIsOrdersOnly) {
+      await keepDraftOrders(day, session, orders);
+      return null;
+    }
+    return sendReport(queueOnly: readingQueued, businessDate: day, orders: orders, session: session, extra: const {});
+  }
+
   /// Today's work sessions as known, the starts still queued included.
   int get sessionsToday => (today?.sessions ?? 0) + _queuedDay.where((k) => k == 'start_day').length;
 
@@ -309,6 +353,7 @@ class AppState extends ChangeNotifier {
     }
     _applyConfig(await db.get('app_config'));
     _applyReportForm(await db.get('report_form'));
+    _applyDraftOrders(await db.get('draft_orders'));
     _applyMaintenanceForm(await db.get('maintenance_form'));
     _applyFuel(await db.get('fuel'));
     _applyPetty(await db.get('petty'));

@@ -641,7 +641,8 @@
     "pettyNote": "Tala",
     "pettySend": "Ipadala para suriin",
     "kind_petty": "Gastos mula sa petty cash",
-    "kind_petty_cancel": "Pagkansela ng gastos mula sa petty cash"
+    "kind_petty_cancel": "Pagkansela ng gastos mula sa petty cash",
+    "endOrdersKept": "Itatabi ito at lalabas sa ulat ngayong araw, kung saan pupunan mo ang iba pa"
   },
   "server": {
     "deduction_source": {

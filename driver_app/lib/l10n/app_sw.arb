@@ -640,5 +640,6 @@
   "pettyNote": "Maelezo",
   "pettySend": "Tuma kwa ukaguzi",
   "kind_petty": "Matumizi ya fedha ndogo",
-  "kind_petty_cancel": "Kughairi matumizi ya fedha ndogo"
+  "kind_petty_cancel": "Kughairi matumizi ya fedha ndogo",
+  "endOrdersKept": "Imehifadhiwa na itaonekana kwenye ripoti ya leo, ambapo utajaza sehemu zilizobaki"
 }

@@ -640,5 +640,6 @@
   "pettyNote": "Remarque",
   "pettySend": "Envoyer pour vérification",
   "kind_petty": "Dépense de caisse",
-  "kind_petty_cancel": "Annulation d'une dépense de caisse"
+  "kind_petty_cancel": "Annulation d'une dépense de caisse",
+  "endOrdersKept": "Conservé et affiché dans le rapport du jour, où vous remplissez le reste"
 }

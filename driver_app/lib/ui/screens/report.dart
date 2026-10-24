@@ -97,6 +97,9 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   void initState() {
     super.initState();
+    // the orders typed when the day was ended (the platform asks more than them): this report starts with them
+    final kept = widget.report == null ? widget.state.draftOrders(_day(0), widget.state.sessionsToday) : null;
+    if (kept != null) _orders.text = '$kept';
     final r = _editing;
     if (r != null) {
       _orders.text = r.orders?.toString() ?? '';
@@ -295,6 +298,21 @@ class _ReportScreenState extends State<ReportScreen> {
     final sent = editing == null ? _sent : null;
     // sent with no signal: in the outbox, it goes by itself (a second one would be dropped as the day's duplicate)
     final waiting = editing == null && sent == null ? widget.state.queuedReport(_day(daysBack), _session) : null;
+    // ending the day: the orders count is asked directly after the odometer reading
+    final ordersAfterReading = _endDue && asks.contains('orders');
+    List<Widget> ordersField() => [
+      FieldLabel(l.ordersCount, required: true),
+      TextFormField(
+        key: const Key('orders'),
+        controller: _orders,
+        keyboardType: TextInputType.number,
+        textDirection: TextDirection.ltr,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        decoration: const InputDecoration(hintText: '0', hintTextDirection: TextDirection.ltr),
+        validator: (v) => int.tryParse(v ?? '') == null ? l.required : null,
+      ),
+    ];
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -408,11 +426,15 @@ class _ReportScreenState extends State<ReportScreen> {
                         ),
                         validator: (v) => int.tryParse(v ?? '') == null ? l.kmInvalid : null,
                       ),
+                      // the orders count right after the reading: the end of the day asks both at once
+                      if (ordersAfterReading) ...[const SizedBox(height: 14), ...ordersField()],
                     ],
                   ),
                 ),
               ],
-              if (asks.contains('valid_day') || asks.contains('orders') || asks.contains('cash')) ...[
+              if (asks.contains('valid_day') ||
+                  (asks.contains('orders') && !ordersAfterReading) ||
+                  asks.contains('cash')) ...[
                 const SizedBox(height: 12),
                 DCard(
                   child: Column(
@@ -451,25 +473,13 @@ class _ReportScreenState extends State<ReportScreen> {
                           ),
                         ),
                       ],
-                      if (asks.contains('orders')) ...[
+                      if (asks.contains('orders') && !ordersAfterReading) ...[
                         if (asks.contains('valid_day')) const SizedBox(height: 14),
-                        FieldLabel(l.ordersCount, required: true),
-                        TextFormField(
-                          key: const Key('orders'),
-                          controller: _orders,
-                          keyboardType: TextInputType.number,
-                          textDirection: TextDirection.ltr,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(4),
-                          ],
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                          decoration: const InputDecoration(hintText: '0', hintTextDirection: TextDirection.ltr),
-                          validator: (v) => int.tryParse(v ?? '') == null ? l.required : null,
-                        ),
+                        ...ordersField(),
                       ],
                       if (asks.contains('cash')) ...[
-                        const SizedBox(height: 14),
+                        if (asks.contains('valid_day') || (asks.contains('orders') && !ordersAfterReading))
+                          const SizedBox(height: 14),
                         FieldLabel(l.cashAmount, required: true),
                         TextFormField(
                           key: const Key('cash'),
