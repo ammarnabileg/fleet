@@ -650,7 +650,7 @@
         replace = !!v.replace_month;
         var f = v.file && v.file[0];
         if (!f) return false;
-        var ready = (f !== file || !info) ? (file = f, read(d)) : Promise.resolve();
+        var ready = f !== file ? (file = f, read(d)) : (reading || read(d)); // the file's columns read once
         ready.then(function () {
           return post('/payroll/month-imports/check').then(function (c) {
             BT.render(d.panel.querySelector('[data-check]'), checkView(c));

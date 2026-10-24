@@ -1,13 +1,16 @@
-"""A platform's month from Excel, checked before it is applied: the platform's partner report of orders by batch
-(Rider ID, Batch No., Total Completed Deliveries; the rider found by the platform driver ID on his file), or a simple
-template (the driver's civil ID or platform driver ID, the month, a column per monthly field, and an approved
-exception with what it excuses and its note).
+"""A platform's month from Excel, checked before it is applied. The client keeps no fixed column names: the panel reads
+the file first (its sheets, header row and first rows) and the office chooses, for each field (the platform driver
+ID or civil ID, the month, a batch row's batch, completed orders and period, each monthly field of the platform, an
+approved exception), the column that feeds it; that mapping is kept for the platform's next file (matched by header
+text). The partner's report (Rider ID, Batch No., Total Completed Deliveries) and the simple template are presets of
+the same reader, so their files still import as they are.
 
 The check lists what would happen and what stops it: riders the system does not know, rows that cannot be read
 (none is applied in part: the file is corrected first), rows given twice with different figures, batch orders that
 differ from the approved daily reports, months already paid. A month that already has batch rows takes another
 file only when «استبدال الشهر كله» is chosen: its batch rows are then replaced as a whole by the file's; the same file
-again changes nothing, so a month is never counted twice."""
+again changes nothing, so a month is never counted twice. A batch row with a period is a week of its own: the same
+batch twice in a month, in two weeks, is two rows."""
 
 import hashlib
 import io

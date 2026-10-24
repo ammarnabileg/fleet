@@ -5,21 +5,26 @@ const { test, expect, settled } = require('./fixtures');
 const PAGES = [
   'dashboard', 'tracking', 'driver-status', 'alerts', 'vehicles', 'custody', 'odometer', 'daily', 'maintenance', 'accidents', 'fines',
   'cash', 'finance', 'deductions', 'payroll', 'employees', 'attendance', 'reports', 'report-center', 'approvals', 'import', 'settings',
-  'broadcasts', 'integrations', 'audit', 'guide',
+  'broadcasts', 'integrations', 'audit', 'guide', 'platforms',
 ];
 
 async function open(page, key) {
   await page.goto('/admin.html#/' + key);
-  await page.waitForFunction((k) => window.BT.A.router && window.BT.A.router.current === k, key);
+  const route = key.replace(/^platforms\/\d+$/, 'platforms/:id'); // each contracted platform's own page
+  await page.waitForFunction((k) => window.BT.A.router && window.BT.A.router.current === k, route);
   await settled(page);
   await expect(page.locator('#tb-title h1')).not.toBeEmpty();
 }
 
 test('every page and every tab opens without an error', async ({ admin }) => {
   admin.allow(/\/maps\//); // the map extract is not in the repository (deploy/maps/update-map.sh on the server)
+  await admin.goto('/admin.html#/platforms');
+  await expect(admin.locator('#nav .nav-item[href^="#/platforms/"]').first()).toBeVisible(); // the platforms, once read
   const menu = await admin.locator('#nav .nav-item').evaluateAll((els) => els.map((a) => a.getAttribute('href').slice(2)));
-  expect(menu.sort()).toEqual([...PAGES].sort()); // a page added to the menu is added here
-  for (const key of PAGES) {
+  const platformPages = menu.filter((k) => /^platforms\/\d+$/.test(k));
+  expect(platformPages.length).toBeGreaterThanOrEqual(2); // the two core platforms at least
+  expect(menu.filter((k) => !platformPages.includes(k)).sort()).toEqual([...PAGES].sort()); // a page added to the menu is added here
+  for (const key of [...PAGES, ...platformPages.slice(0, 2)]) {
     await test.step(key, async () => {
       await open(admin, key);
       const tabs = admin.locator('#view [role=tab]');
