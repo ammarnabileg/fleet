@@ -1173,7 +1173,12 @@
       "broadcast_text_required": "{field} इन भाषाओं में आवश्यक है: {langs}",
       "invalid_audience": "चुनें कि प्रसारण किसे भेजा जाए",
       "invalid_broadcast": "अमान्य प्रसारण: {detail}",
-      "unknown_channel": "अज्ञात चैनल: {channel}"
+      "unknown_channel": "अज्ञात चैनल: {channel}",
+      "print_template_variable_unknown": "{field} में अज्ञात वेरिएबल {variable}",
+      "print_template_invalid": "प्रिंट टेम्पलेट में अमान्य मान: {field}",
+      "print_template_image_missing": "छवि नहीं मिली: इसे फिर से अपलोड करें",
+      "print_config_changed": "किसी और ने प्रिंट टेम्पलेट बदल दिए: पेज फिर से खोलें",
+      "print_config_no_previous": "वापस जाने के लिए कोई पिछली सेटिंग नहीं है"
     },
     "finance_source": {
       "cash_journal": "कैश लेजर: {kind} {reason}",

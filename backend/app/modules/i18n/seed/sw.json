@@ -1173,7 +1173,12 @@
       "broadcast_text_required": "Sehemu ya {field} inahitajika kwa: {langs}",
       "invalid_audience": "Chagua tangazo linaenda kwa nani",
       "invalid_broadcast": "Tangazo si sahihi: {detail}",
-      "unknown_channel": "Njia isiyojulikana: {channel}"
+      "unknown_channel": "Njia isiyojulikana: {channel}",
+      "print_template_variable_unknown": "Kigezo kisichojulikana {variable} katika {field}",
+      "print_template_invalid": "Thamani batili katika kiolezo cha uchapishaji: {field}",
+      "print_template_image_missing": "Picha haipo: ipakie tena",
+      "print_config_changed": "Mtu mwingine amebadilisha violezo vya uchapishaji: fungua ukurasa tena",
+      "print_config_no_previous": "Hakuna mpangilio wa awali wa kurudi"
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",

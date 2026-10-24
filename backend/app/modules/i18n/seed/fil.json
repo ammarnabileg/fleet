@@ -1173,7 +1173,12 @@
       "broadcast_text_required": "Kailangan ang {field} sa: {langs}",
       "invalid_audience": "Piliin kung para kanino ang broadcast",
       "invalid_broadcast": "Hindi wastong broadcast: {detail}",
-      "unknown_channel": "Hindi kilalang channel: {channel}"
+      "unknown_channel": "Hindi kilalang channel: {channel}",
+      "print_template_variable_unknown": "Hindi kilalang variable {variable} sa {field}",
+      "print_template_invalid": "Hindi wastong value sa print template: {field}",
+      "print_template_image_missing": "Wala ang larawan: i-upload itong muli",
+      "print_config_changed": "May ibang nagbago ng mga print template: buksan muli ang page",
+      "print_config_no_previous": "Walang naunang setting na mababalikan"
     },
     "finance_source": {
       "cash_journal": "Cash ledger: {kind} {reason}",

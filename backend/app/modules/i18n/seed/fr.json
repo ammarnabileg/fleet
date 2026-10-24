@@ -1173,7 +1173,12 @@
       "broadcast_text_required": "Le champ {field} est requis en : {langs}",
       "invalid_audience": "Choisissez les destinataires de la diffusion",
       "invalid_broadcast": "Diffusion invalide : {detail}",
-      "unknown_channel": "Canal inconnu : {channel}"
+      "unknown_channel": "Canal inconnu : {channel}",
+      "print_template_variable_unknown": "Variable inconnue {variable} dans {field}",
+      "print_template_invalid": "Valeur invalide dans le modèle d'impression : {field}",
+      "print_template_image_missing": "L'image est introuvable : téléversez-la à nouveau",
+      "print_config_changed": "Quelqu'un d'autre a modifié les modèles d'impression : rouvrez la page",
+      "print_config_no_previous": "Il n'y a pas de réglage précédent auquel revenir"
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",
