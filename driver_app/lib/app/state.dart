@@ -19,6 +19,7 @@ import '../core/models.dart';
 import '../core/outbox.dart';
 import '../core/tokens.dart';
 import '../core/translations.dart';
+import '../core/remote_version.dart';
 import '../core/updater.dart';
 import '../status/engine.dart';
 import '../l10n/app_localizations.dart';
@@ -42,7 +43,11 @@ class PhoneHooks {
     this.openLocationSettings,
     this.updates,
     this.notices,
+    this.remoteVersion,
   });
+
+  /// Firebase Remote Config's newest version (null: the server's check only, as in most tests).
+  final RemoteVersionSource? remoteVersion;
 
   /// The phone's notifications (null: none, as in most tests): the current situations are posted there.
   final NoticePoster? notices;
@@ -100,6 +105,7 @@ class AppState extends ChangeNotifier {
       currentBuild: AppConfig.appBuild,
       client: downloadClient,
       beforeBlock: flushQueued,
+      remote: platform.remoteVersion,
     )..addListener(notifyListeners);
   }
 

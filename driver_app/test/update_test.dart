@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:fleet_driver/app/state.dart';
 import 'package:fleet_driver/core/api.dart';
 import 'package:fleet_driver/core/db.dart';
+import 'package:fleet_driver/core/remote_version.dart';
 import 'package:fleet_driver/core/tokens.dart';
 import 'package:fleet_driver/core/updater.dart';
 import 'package:fleet_driver/l10n/app_localizations.dart';
@@ -90,6 +91,7 @@ Updater updater(
   http.Client? client,
   DateTime Function()? now,
   Future<void> Function()? beforeBlock,
+  RemoteVersionSource? remote,
 }) => Updater(
   db: db,
   api: api,
@@ -98,7 +100,31 @@ Updater updater(
   client: client,
   now: now,
   beforeBlock: beforeBlock,
+  remote: remote,
 );
+
+/// Firebase Remote Config as the updater sees it: the values the dashboard published, or not available.
+class FakeRemote implements RemoteVersionSource {
+  FakeRemote(this.values, {this.fails = false});
+  Map<String, String>? values; // null: Firebase not started / nothing fetched
+  bool fails;
+  var reads = 0;
+
+  @override
+  Future<RemoteVersion?> read() async {
+    reads++;
+    if (fails) throw StateError('fetch failed');
+    final v = values;
+    return v == null ? null : RemoteVersion.fromValues(v);
+  }
+}
+
+Map<String, String> rc(int code, {bool force = false}) => {
+  'driver_latest_version_code': '$code',
+  'driver_latest_version_name': '0.1.$code',
+  'driver_force_update': '$force',
+  'driver_download_url': 'https://fleet.example.com/app/download',
+};
 
 void main() {
   group('the check', () {
@@ -146,6 +172,110 @@ void main() {
       final u = updater(db, api, phone);
       expect(await u.check(), isFalse);
       expect(u.available, isNull);
+    });
+  });
+
+  group('Firebase Remote Config first, the server as fallback', () {
+    test('the values: a version code above 0, the force flag, the link', () {
+      final v = RemoteVersion.fromValues(rc(1057, force: true))!;
+      expect((v.code, v.name, v.force, v.url), (1057, '0.1.1057', true, 'https://fleet.example.com/app/download'));
+      expect(RemoteVersion.fromValues({'driver_latest_version_code': '0'}), isNull, reason: 'never published');
+      expect(RemoteVersion.fromValues({'driver_latest_version_code': 'x'}), isNull);
+      expect(RemoteVersion.fromValues({}), isNull);
+      expect(
+        RemoteVersion.fromValues({'driver_latest_version_code': '9', 'driver_force_update': 'TRUE'})!.force,
+        isTrue,
+      );
+    });
+
+    test('Remote Config says this build is the newest: no request to the server', () async {
+      final (db, api, server, phone) = await setUpPhone();
+      server.on('GET', '/api/v1/driver/app-update', (r) => (200, latest(code: 9)));
+      final remote = FakeRemote(rc(5));
+      final u = updater(db, api, phone, remote: remote);
+      expect(await u.check(), isTrue);
+      expect(u.available, isNull);
+      expect(u.source, 'remote');
+      expect(server.calls('/api/v1/driver/app-update'), isEmpty);
+      expect(remote.reads, 1);
+    });
+
+    test('Remote Config names a newer one: the server gives its file; optional is the banner', () async {
+      final (db, api, server, phone) = await setUpPhone(phone: Phone(wifi: false));
+      server.on('GET', '/api/v1/driver/app-update', (r) => (200, latest(code: 9)));
+      final u = updater(db, api, phone, remote: FakeRemote(rc(9)));
+      await u.check();
+      expect(u.available?.versionCode, 9);
+      expect(u.available?.sha256, apkSha);
+      expect(u.showBanner, isTrue);
+      expect(u.blocking, isFalse);
+      expect(u.source, 'remote');
+    });
+
+    test('forced in Remote Config: the blocking screen, even when the server calls it optional', () async {
+      final (db, api, server, phone) = await setUpPhone(phone: Phone(wifi: false));
+      server.on('GET', '/api/v1/driver/app-update', (r) => (200, latest(code: 9)));
+      final u = updater(db, api, phone, remote: FakeRemote(rc(9, force: true)));
+      await u.check();
+      expect(u.blocking, isTrue);
+      expect(u.showBanner, isFalse);
+      // kept: still required offline at the next start
+      final later = updater(db, api, phone);
+      await later.load();
+      expect(later.blocking, isTrue);
+    });
+
+    test(
+      'forced for an older version than the server offers: still required; the server\'s own flag counts too',
+      () async {
+        final (db, api, server, phone) = await setUpPhone(phone: Phone(wifi: false));
+        server.on('GET', '/api/v1/driver/app-update', (r) => (200, latest(code: 9)));
+        final u = updater(db, api, phone, remote: FakeRemote(rc(8, force: true)));
+        await u.check();
+        expect(u.available?.versionCode, 9);
+        expect(u.blocking, isTrue);
+        server.on('GET', '/api/v1/driver/app-update', (r) => (200, latest(code: 9, required: true)));
+        final v = updater(db, api, phone, remote: FakeRemote(rc(9)));
+        await v.check(force: true);
+        expect(v.blocking, isTrue, reason: 'required on the server, optional in Remote Config: required');
+      },
+    );
+
+    test('Remote Config newer but the server has no file for it: nothing offered', () async {
+      final (db, api, server, phone) = await setUpPhone();
+      server.on('GET', '/api/v1/driver/app-update', (r) => (200, {'latest': null, 'required': false}));
+      final u = updater(db, api, phone, remote: FakeRemote(rc(12, force: true)));
+      await u.check();
+      expect(u.available, isNull);
+      expect(u.blocking, isFalse);
+    });
+
+    test('Remote Config not available (Firebase off, never fetched, a failed fetch): the server decides', () async {
+      for (final remote in [
+        FakeRemote(null),
+        FakeRemote(rc(5), fails: true),
+        FakeRemote({'driver_latest_version_code': '0'}),
+        null,
+      ]) {
+        final (db, api, server, phone) = await setUpPhone(phone: Phone(wifi: false));
+        server.on('GET', '/api/v1/driver/app-update', (r) => (200, latest(code: 9, required: true)));
+        final u = updater(db, api, phone, remote: remote);
+        expect(await u.check(), isTrue);
+        expect(server.calls('/api/v1/driver/app-update'), hasLength(1));
+        expect(u.available?.versionCode, 9);
+        expect(u.blocking, isTrue);
+        expect(u.source, 'server');
+      }
+    });
+
+    test('Remote Config available, the server unreachable for the file: nothing changes, tried again later', () async {
+      final (db, _, _, phone) = await setUpPhone();
+      final client = MockClient((req) async => throw const SocketException('offline'));
+      final api = Api(baseUrl: 'http://fleet.test', tokens: TokenStore(db), client: client);
+      final u = updater(db, api, phone, remote: FakeRemote(rc(9, force: true)));
+      expect(await u.check(), isFalse);
+      expect(u.available, isNull);
+      expect(u.blocking, isFalse);
     });
   });
 
