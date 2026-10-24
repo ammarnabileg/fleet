@@ -26,6 +26,7 @@ EXCEPTION_KINDS = ("accepted_excuse", "company_error", "exception_day")
 EXCUSES = ("star_day", "marks", "lateness", "absence", "valid_days")
 EXPENSE_KINDS = ("gas", "maintenance", "phone", "housing", "advance")
 ON_EXCEPTION = ("none", "neutralize", "count_valid")
+BATCH_PICKS = ("last", "most_orders")  # whose price a missing order takes when the month has several batches
 
 
 @dataclass(frozen=True)
@@ -207,7 +208,15 @@ TYPES: dict[str, BlockType] = {
         BlockType(
             "missing_orders",
             "deduction",
-            (SOURCE, Param("target", "int"), Param("rate", "money")),
+            (
+                SOURCE,
+                Param("target", "int"),
+                # the price of a missing order: an amount, or the price per order of the driver's batch that month
+                Param("rate_from", "choice", default="fixed", options=("fixed", "batch")),
+                Param("rate", "money", when=("rate_from", "fixed")),
+                # several batch rows in the month: the batch he is on now (the latest row), or the one with most orders
+                Param("batch_pick", "choice", required=False, options=BATCH_PICKS, when=("rate_from", "batch")),
+            ),
             ("missing_target",),
             exceptions=ATTENDANCE_EXC,
         ),

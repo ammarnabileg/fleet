@@ -1300,7 +1300,9 @@
     "group": "Priority group",
     "label": "Rule name (optional)",
     "condition": "Condition",
-    "on_exception": "On an exception"
+    "on_exception": "On an exception",
+    "rate_from": "Price of a missing order",
+    "batch_pick": "Several batches in the month"
   },
   "rule_choice": {
     "amount": "Fixed amount",
@@ -1332,7 +1334,10 @@
     "accepted_excuse": "Accepted excuse",
     "company_error": "Company data error",
     "exception_day": "Approved exception day",
-    "any": "Any exception"
+    "any": "Any exception",
+    "batch": "The price per order of the driver's batch",
+    "most_orders": "The batch with the most orders",
+    "last": "His current batch (the month's latest)"
   },
   "rule_fact": {
     "star_day_failed": "Star day missed",
@@ -1394,7 +1399,8 @@
     "below_tiers": "Below the first tier",
     "no_batches": "No orders by batch",
     "applied": "Applied",
-    "batch_rate_missing": "A batch the scheme has no price for: priced as the highest batch below it, the line held for review"
+    "batch_rate_missing": "A batch the scheme has no price for: priced as the highest batch below it, the line held for review",
+    "no_batch_price": "No batch price above it: add a «price by batch» rule before it"
   },
   "expense": {
     "maintenance": "Maintenance",

@@ -52,7 +52,9 @@ class Facts:
     attendance_marks: int | None = None
     late_count: int | None = None
     absent_days: int | None = None
-    batches: tuple[tuple[int, int], ...] | None = None  # (batch, orders): a month may have several batch rows
+    # (batch, orders) or (batch, orders, period start, period end): a month may have several batch rows, the same
+    # batch more than once when the platform sets it week by week (each row its own period)
+    batches: tuple[tuple, ...] | None = None
     batch_level: int | None = None  # one batch for the whole month (the statement's figure)
     tasks: dict | None = None  # task type -> count
     basic_salary: Decimal | None = None  # his contract's basic salary
@@ -314,6 +316,10 @@ def needs(blocks: list[dict], facts: Facts) -> list[str]:
             names = [n for n in names if n != "valid_days"]  # for information only: nothing waits for it
         if b["type"] == "batch_rate" and facts.personal_rate is not None and p.get("personal_rate", True):
             names = ["orders"]
+        if b["type"] == "missing_orders" and p.get("rate_from") == "batch" and facts.personal_rate is None:
+            names = [n for n in names if n != "orders"] + ["batches"]  # counted on the batch rows
+        if b["type"] == "attendance_marks" and not _marks_cost(p):
+            names = [n for n in names if n != "attendance_marks"]  # every amount zero: for information, waits for none
         for c in b["condition"]:
             if c["fact"] == "field":
                 names.append(c["key"])
@@ -323,6 +329,12 @@ def needs(blocks: list[dict], facts: Facts) -> list[str]:
             if n not in wanted:
                 wanted.append(n)
     return [n for n in wanted if _raw(facts, n) is None]
+
+
+def _marks_cost(p: dict) -> bool:
+    """Whether a marks block can take anything (an amount above zero)."""
+    amounts = [p.get("amount")] if p.get("mode") == "per_mark" else [r["amount"] for r in p.get("table") or []]
+    return any(a is not None and Decimal(str(a)) > 0 for a in amounts)
 
 
 def _raw(facts: Facts, name: str):
@@ -341,7 +353,7 @@ def _raw(facts: Facts, name: str):
 @dataclass
 class _State:
     values: dict
-    batches: list
+    batches: list  # (batch, orders, period or None), in the month's order
     lines: list[Line] = field(default_factory=list)
     trace: list[dict] = field(default_factory=list)
     orders_lines: list[int] = field(default_factory=list)  # the lines that priced the month's orders
@@ -351,6 +363,7 @@ class _State:
     penalized: bool = False
     fixed_salary: Decimal | None = None
     groups: dict = field(default_factory=dict)
+    batch_prices: list = field(default_factory=list)  # (batch, orders, rate, period end) as a batch price block priced them
 
 
 def _d(v) -> Decimal:
@@ -415,7 +428,7 @@ def _holds(c: dict, v: dict, st: _State, facts: Facts) -> bool:
         found = bool(kinds) if c["value"] == "any" else c["value"] in kinds
         return found if op == "has" else not found
     if fact == "batch":
-        return any(b == c["value"] and n for b, n in st.batches)
+        return any(b == c["value"] and n for b, n, _ in st.batches)
     value = (
         {
             "star_day_failed": v.get("star_day_failed"),
@@ -463,6 +476,20 @@ def _reduced_by(b: dict) -> str | None:
     if "marks" in facts:
         return "marks"
     return None
+
+
+def _batch_price(prices: list, pick: str) -> tuple:
+    """The batch whose price a missing order takes, and that price: the batch he is on now (the month's latest batch
+    row, the default), or the batch with the most orders in the month (its rows added up; a tie: the later row's)."""
+    if pick == "last":  # the batch he is on now: the row whose period ends last (rows without a period: the last)
+        at = max(range(len(prices)), key=lambda i: (str(prices[i][3] or ""), i))
+        return prices[at][0], prices[at][2]
+    totals: dict = {}
+    for i, (batch, n, rate, _) in enumerate(prices):
+        total, _, _ = totals.get(batch, (0, 0, rate))
+        totals[batch] = (total + n, i, rate)
+    batch = max(totals, key=lambda k: (totals[k][0], totals[k][1]))
+    return batch, totals[batch][2]
 
 
 def _apply(st: _State, facts: Facts, b: dict, pos: int, v: dict) -> str | None:
@@ -515,22 +542,27 @@ def _apply(st: _State, facts: Facts, b: dict, pos: int, v: dict) -> str | None:
         return None
     if t == "batch_rate":
         if facts.personal_rate is not None and p.get("personal_rate", True):
-            n = sum(x for _, x in st.batches) if st.batches else int(_d(v.get("orders")))
+            n = sum(x for _, x, _ in st.batches) if st.batches else int(_d(v.get("orders")))
             rate = Decimal(facts.personal_rate)
             amount = money(n * rate)
             why = {"orders": n, "rate": str(rate), "personal": True}
             _line(st, b, pos, "orders_pay", amount, why, f"{n} × {rate} = {amount}")
             st.orders_lines.append(len(st.lines) - 1)
+            st.batch_prices = [(None, n, rate, None)]
             return None
-        for batch, n in st.batches:
+        st.batch_prices = []
+        for batch, n, period in st.batches:
             if not any(r["batch"] == batch for r in p["rates"]):  # priced as the highest batch below it, flagged
                 st.problems.append("batch_rate_missing")
                 st.trace.append({"block": pos, "type": t, "info": "batch_rate_missing", "batch": batch})
             rate = _rate_for(p["rates"], "batch", batch) or ZERO
             amount = money(n * rate)
             why = {"orders": n, "rate": str(rate), "batch_level": batch}
+            if period:
+                why["period"] = {"from": period[0], "to": period[1]}
             _line(st, b, pos, "orders_pay", amount, why, f"{n} × {rate} = {amount}")
             st.orders_lines.append(len(st.lines) - 1)
+            st.batch_prices.append((batch, n, rate, period[1] if period else None))
         return None if st.batches else "no_batches"
     if t == "per_task_type":
         tasks = facts.tasks or {}
@@ -649,13 +681,24 @@ def _apply(st: _State, facts: Facts, b: dict, pos: int, v: dict) -> str | None:
         st.trace.append({"block": pos, "type": t, "info": "month_invalid"})
         return None
     if t == "missing_orders":
-        n, target = _d(_value(v, p.get("source", "orders"))), p["target"]
+        source, target = p.get("source", "orders"), p["target"]
+        n, why = _d(_value(v, source)), {}
+        if p.get("rate_from", "fixed") == "batch":
+            if not st.batch_prices:  # no batch price block above priced his orders: nothing to take the price from
+                st.problems.append("batch_rate_missing")
+                return "no_batch_price"
+            if source == "orders":  # the target is on the month's orders as the batch rows count them
+                n = Decimal(sum(x[1] for x in st.batch_prices))
+            pick = p.get("batch_pick") or "last"
+            batch, rate = _batch_price(st.batch_prices, pick)
+            why = {"batch_level": batch, "pick": pick} if batch is not None else {}
+        else:
+            rate = Decimal(p["rate"])
         short = max(ZERO, target - n)
         if not short:
             return "target_reached"
-        rate = Decimal(p["rate"])
         amount = money(short * rate)
-        why = {"target": target, "missing": int(short), "rate": str(rate)}
+        why = {"target": target, "missing": int(short), "rate": str(rate)} | why
         _line(st, b, pos, "missing_target", -amount, why, f"({target} − {_n(n)}) × {rate} = −{amount}")
         return None
     if t == "attendance_marks":
@@ -736,9 +779,12 @@ def _start(facts: Facts) -> tuple[dict, list]:
                     values[k] = x
                 else:
                     values["fields"][k] = x
-    batches = list(facts.batches or [])
+    batches = []
+    for row in facts.batches or []:
+        period = (str(row[2]), str(row[3] or row[2])) if len(row) > 2 and row[2] else None
+        batches.append((int(row[0]), int(row[1]), period))
     if not batches and facts.batch_level is not None:
-        batches = [(facts.batch_level, int(values.get("orders") or 0))]
+        batches = [(facts.batch_level, int(values.get("orders") or 0), None)]
     return values, batches
 
 

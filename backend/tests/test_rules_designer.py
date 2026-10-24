@@ -13,7 +13,7 @@ def test_the_catalog_lists_the_seven_categories_and_the_templates(admin_client, 
     assert {t["type"] for t in cat["types"]} >= {"per_order", "price_change", "missing_orders", "special_day_violation"}
     price = next(t for t in cat["types"] if t["type"] == "price_change")
     assert price["needs_condition"] and [p["name"] for p in price["params"]] == ["rate", "mode"]
-    assert len(cat["templates"]) == 7 and all(t["blocks"] for t in cat["templates"])
+    assert len(cat["templates"]) == 8 and all(t["blocks"] for t in cat["templates"])
     make_user(admin_client, "nobody", permissions=[])
     c = new_client()
     login(c, "nobody")

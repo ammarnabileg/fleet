@@ -323,6 +323,72 @@ def test_talabat_as_actually_paid_split_batches():
     assert run(blocks, Facts(batches=((1, 100), (3, 50)), personal_rate=D("1.000"))).pay == D("150.000")
 
 
+def keeta_month(**facts):
+    facts.setdefault("star_day_failed", False)
+    facts.setdefault("attendance_marks", 0)
+    return run(tpl("keeta_batches"), Facts(**facts))
+
+
+def test_keeta_batches_worked_months():
+    """Per order by batch (0.475, 0.392, 0.350), no basic, no bonus; below 420 orders each missing one at his batch's
+    price; a missed star day takes its amount (100), each attendance mark (X) 20; valid days for information."""
+    out = keeta_month(batches=((1, 500),))
+    assert net(out) == D("237.500") and lines(out) == [("orders_pay", D("237.500"))]  # above the target: nothing taken
+    out = keeta_month(batches=((2, 400),))
+    assert lines(out) == [("orders_pay", D("156.800")), ("missing_target", D("-7.840"))]  # 400×0.392 − 20×0.392
+    assert net(out) == D("148.960")
+    assert out.items[1].why == {"target": 420, "missing": 20, "rate": "0.392", "batch_level": 2, "pick": "last"}
+    assert net(keeta_month(batches=((3, 420),))) == D("147.000")  # the target exactly: nothing missing
+    star = keeta_month(batches=((1, 500),), star_day_failed=True)
+    assert lines(star) == [("orders_pay", D("237.500")), ("special_day_deduction", D("-100.000"))]
+    assert net(star) == D("137.500")
+    excused = keeta_month(batches=((1, 500),), star_day_failed=True,
+                          exceptions=(MonthException("accepted_excuse", excuses=("star_day",)),))  # fmt: skip
+    assert net(excused) == D("237.500")
+    marks = keeta_month(batches=((1, 500),), attendance_marks=3)  # X still applies: 3 × 20
+    assert lines(marks) == [("orders_pay", D("237.500")), ("marks_deduction", D("-60.000"))]
+    assert net(keeta_month(batches=((1, 500),), valid_days=10)) == D("237.500")  # valid days: no effect by default
+    full = dict(star_day_failed=False, attendance_marks=0)
+    assert needs(tpl("keeta_batches"), Facts(batches=((1, 500),), **full)) == []
+    assert needs(tpl("keeta_batches"), Facts(orders=500, **full)) == ["batches"]
+    assert needs(tpl("keeta_batches"), Facts(batches=((1, 500),))) == ["star_day_failed", "attendance_marks"]
+
+
+def test_keeta_split_batches_take_his_current_batch():
+    """Keeta sets the batch and may change it during the month: each batch row is paid at its own price, the 420
+    target is on the month's total, and the missing orders take the price of the batch he is on now (the row whose
+    period ends last; rows without a period: the last row). The template's parameter can take the batch with the most
+    orders instead."""
+    out = keeta_month(batches=((2, 250), (1, 150)))  # 98.000 + 71.250; 20 missing at batch 1's 0.475 (the latest)
+    assert lines(out) == [("orders_pay", D("98.000")), ("orders_pay", D("71.250")), ("missing_target", D("-9.500"))]
+    assert net(out) == D("159.750")
+    weekly = ((1, 60, "2026-09-01", "2026-09-07"), (2, 120, "2026-09-08", "2026-09-14"),
+              (1, 70, "2026-09-15", "2026-09-21"), (3, 100, "2026-09-22", "2026-09-30"))  # fmt: skip
+    out = keeta_month(batches=weekly)  # 350 orders: 70 missing at batch 3's 0.350, his batch in the last week
+    assert lines(out)[-1] == ("missing_target", D("-24.500")) and out.items[-1].why["batch_level"] == 3
+    assert out.items[0].why["period"] == {"from": "2026-09-01", "to": "2026-09-07"}
+    shuffled = (weekly[3], weekly[0], weekly[2], weekly[1])  # by the period's end, not the order the rows came in
+    assert keeta_month(batches=shuffled).items[-1].why["batch_level"] == 3
+    blocks = tpl("keeta_batches")
+    next(b for b in blocks if b["type"] == "missing_orders")["params"]["batch_pick"] = "most_orders"
+    out = run(validate(blocks), Facts(batches=weekly, star_day_failed=False, attendance_marks=0))
+    assert lines(out)[-1] == ("missing_target", D("-33.250")) and out.items[-1].why["batch_level"] == 1  # 130 orders
+    tie = run(validate(blocks), Facts(batches=((3, 200), (1, 200)), star_day_failed=False, attendance_marks=0))
+    assert lines(tie)[-1] == ("missing_target", D("-9.500"))  # a tie: the later row's batch
+    # a personal rate replaces the batch prices: the missing orders take it too
+    out = keeta_month(batches=((1, 150), (2, 250)), personal_rate=D("0.400"))
+    assert lines(out) == [("orders_pay", D("160.000")), ("missing_target", D("-8.000"))]
+
+
+def test_missing_orders_at_the_batch_price_needs_a_batch_price_above():
+    blocks = [blk("per_order", rate="0.300"), blk("missing_orders", target=100, rate_from="batch")]
+    out = go(blocks, orders=50)
+    assert lines(out) == [("orders_pay", D("15.000"))] and out.problems == ["batch_rate_missing"]
+    with pytest.raises(AppError):  # a fixed price still needs its amount
+        validate([PAY, blk("missing_orders", target=100)])
+    assert validate([PAY, blk("missing_orders", target=100, rate="0.1")])[1]["params"]["rate_from"] == "fixed"
+
+
 def test_plan_document_templates_with_decisions_a_to_j():
     k = tpl("keeta_plan")
 
@@ -362,6 +428,7 @@ def test_templates_are_valid_and_marked():
         "talabat_fixed_350",
         "talabat_fixed_550",
         "talabat_fixed_680",
+        "keeta_batches",
         "keeta_plan",
         "keeta_paid",
     ]
@@ -372,6 +439,12 @@ def test_templates_are_valid_and_marked():
         "talabat_fixed_680",
         "keeta_plan",
     }
+    # Keeta's batch rule is its default; the two before it stay as legacy starting points
+    assert [(t["code"], t.get("default", False), t.get("legacy", False)) for t in ts if t["platform_hint"] == "keeta"] == [
+        ("keeta_batches", True, False),
+        ("keeta_plan", False, True),
+        ("keeta_paid", False, True),
+    ]
     ts[0]["blocks"].clear()  # a copy: the next caller gets them whole
     assert rules.templates()[0]["blocks"]
 

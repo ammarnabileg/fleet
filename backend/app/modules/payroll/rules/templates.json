@@ -360,6 +360,101 @@
   ]
  },
  {
+  "code": "keeta_batches",
+  "platform_hint": "keeta",
+  "default": true,
+  "name": {
+   "ar": "كيتا — نظام الباتشات (تارجت 420)",
+   "en": "Keeta — batches (target 420)"
+  },
+  "description": {
+   "ar": "سعر الطلب حسب باتش السائق (تحدده كيتا وقد يتغير خلال الشهر، وكل صف باتش بسعره): 1=0.475، 2=0.392، 3=0.350، بلا راتب أساسي ولا بونص. التارجت 420 طلباً في الشهر: كل طلب ناقص يُخصم بسعر الباتش الحالي (آخر باتش في الشهر). تفويت Star Day يُخصم منه 100، وكل علامة حضور (X) تُخصم 20. الأيام الصالحة للعلم فقط (تُفعّل من القاعدة عند الحاجة).",
+   "en": "Price per order by the driver's batch (set by Keeta, it may change during the month, each batch row at its own price): 1=0.475, 2=0.392, 3=0.350; no basic salary, no bonus. Target 420 orders a month: each missing order is deducted at his current batch's price (the month's latest batch). A missed star day takes 100, each attendance mark (X) 20. Valid days for information only (switch the rule on when needed)."
+  },
+  "needs_confirmation": false,
+  "blocks": [
+   {
+    "type": "batch_rate",
+    "params": {
+     "rates": [
+      {
+       "batch": 1,
+       "rate": "0.475"
+      },
+      {
+       "batch": 2,
+       "rate": "0.392"
+      },
+      {
+       "batch": 3,
+       "rate": "0.350"
+      }
+     ],
+     "personal_rate": true
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "star_day",
+    "params": {},
+    "condition": [],
+    "on_exception": "neutralize",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "special_day_violation",
+    "params": {
+     "amount": "100.000",
+     "when": "month_invalid"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "missing_orders",
+    "params": {
+     "source": "orders",
+     "target": 420,
+     "rate_from": "batch",
+     "batch_pick": "last"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "attendance_marks",
+    "params": {
+     "mode": "per_mark",
+     "amount": "20.000"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "required_days",
+    "params": {
+     "days": 28,
+     "invalidates": false,
+     "deduction": "none"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   }
+  ]
+ },
+ {
   "code": "keeta_plan",
   "platform_hint": "keeta",
   "name": {
@@ -517,7 +612,8 @@
     "group": null,
     "label": null
    }
-  ]
+  ],
+  "legacy": true
  },
  {
   "code": "keeta_paid",
@@ -585,6 +681,7 @@
     "group": null,
     "label": null
    }
-  ]
+  ],
+  "legacy": true
  }
 ]
