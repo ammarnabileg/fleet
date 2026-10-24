@@ -427,6 +427,15 @@
       if (o.addon) ctl = h`<div class="input-group">${ctl}<span class="addon">${o.addon}</span></div>`;
       return wrap(o, ctl);
     },
+    /* رقم اللوحة: خانتان والشرطة «/» ثابتة بينهما (18/23456): الرمز (رقم أو رقمان) ثم الرقم (حتى 5). القيمة في حقل مخفي
+       باسم الحقل؛ لوحة قديمة بصيغة أخرى تُعرض كما هي في حقل عادي حتى لا تُغيَّر من غير قصد */
+    plate: function (o) {
+      var m = /^\s*(\d{1,2})\s*\/\s*(\d{1,5})\s*$/.exec(o.value || '');
+      if (o.value && !m) return BT.f.input(o);
+      var ro = o.readonly ? raw(' readonly') : '', req = o.required ? raw(' required') : '';
+      var ctl = h`<div class="plate-in" dir="ltr" data-plate><input class="input plate-code" inputmode="numeric" maxlength="2" placeholder="18" aria-label="رمز اللوحة" data-plate-part="code" value="${m ? m[1] : ''}"${ro}${req}><span class="plate-slash" aria-hidden="true">/</span><input class="input plate-num" inputmode="numeric" maxlength="5" placeholder="23456" aria-label="رقم اللوحة" data-plate-part="num" value="${m ? m[2] : ''}"${ro}${req}><input type="hidden" name="${o.name}" value="${m ? m[1] + '/' + m[2] : ''}"></div>`;
+      return wrap(Object.assign({}, o, { name: null }), ctl);
+    },
     money: function (o) { return BT.f.input(Object.assign({ num: true, addon: BT.config.currency, placeholder: '0.000' }, o)); },
     date: function (o) { return BT.f.input(Object.assign({ type: 'date' }, o)); },
     select: function (o) {
@@ -480,6 +489,33 @@
   });
   ['dragenter', 'dragover'].forEach(function (ev) { document.addEventListener(ev, function (e) { var dz = e.target.closest && e.target.closest('.dropzone'); if (dz) dz.classList.add('drag'); }); });
   ['dragleave', 'drop'].forEach(function (ev) { document.addEventListener(ev, function (e) { var dz = e.target.closest && e.target.closest('.dropzone'); if (dz) dz.classList.remove('drag'); }); });
+
+  /* ---------- رقم اللوحة: أرقام فقط (العربية تتحول)، الانتقال للخانة الثانية بعد رقمين أو عند كتابة «/» ---------- */
+  function plateSync(box) {
+    var c = box.querySelector('[data-plate-part=code]').value, n = box.querySelector('[data-plate-part=num]').value;
+    box.querySelector('input[type=hidden]').value = c && n ? c + '/' + n : '';
+  }
+  document.addEventListener('input', function (e) {
+    var inp = e.target, box = inp.closest && inp.closest('[data-plate]'); if (!box || !inp.hasAttribute('data-plate-part')) return;
+    var raw_ = inp.value.replace(/[\u0660-\u0669]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); }).replace(/[\u06F0-\u06F9]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); });
+    var moveOn = inp.getAttribute('data-plate-part') === 'code' && /[\/\-\s]/.test(raw_);
+    inp.value = raw_.replace(/\D/g, '').slice(0, inp.maxLength);
+    plateSync(box);
+    if (inp.getAttribute('data-plate-part') === 'code' && (moveOn || inp.value.length === 2)) box.querySelector('[data-plate-part=num]').focus();
+  });
+  document.addEventListener('keydown', function (e) {
+    var inp = e.target; if (!inp.getAttribute || inp.getAttribute('data-plate-part') !== 'num') return;
+    if (e.key === 'Backspace' && !inp.value) { e.preventDefault(); inp.closest('[data-plate]').querySelector('[data-plate-part=code]').focus(); }
+  });
+  document.addEventListener('paste', function (e) {
+    var inp = e.target; if (!inp.getAttribute || !inp.hasAttribute('data-plate-part')) return;
+    var m = /(\d{1,2})\D+(\d{1,5})/.exec((e.clipboardData.getData('text') || '').replace(/[\u0660-\u0669]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); }));
+    if (!m) return;
+    e.preventDefault();
+    var box = inp.closest('[data-plate]');
+    box.querySelector('[data-plate-part=code]').value = m[1]; box.querySelector('[data-plate-part=num]').value = m[2];
+    plateSync(box);
+  });
 
   /* ---------- OTP input: <div class="otp" data-otp="6"></div> ---------- */
   BT.otp = {

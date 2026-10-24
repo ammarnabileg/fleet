@@ -113,7 +113,7 @@
     else if (step === 2) body = h`<div class="d-card col" style="gap:12px">
         ${BT.f.switch({ name: 'none', label: 'لا توجد سيارة معي الآن', checked: !!d.none })}
         <div id="ob-car" class="col${d.none ? ' hidden' : ''}" style="gap:12px">
-          ${BT.f.input({ name: 'plate', label: 'رقم اللوحة', required: true, value: d.plate || '', placeholder: '18/23456', hint: 'كما هو مكتوب على اللوحة' })}
+          ${BT.f.plate({ name: 'plate', label: 'رقم اللوحة', required: true, value: d.plate || '', hint: 'كما هو مكتوب على اللوحة' })}
           ${BT.f.camera({ name: 'odo-ph', label: 'صورة العداد', required: true, cta: 'التقط صورة العداد', msg: 'صورة العداد مطلوبة' })}
           ${BT.f.input({ name: 'odo', label: 'قراءة العداد', required: true, num: true, lg: true, value: d.odo || '', placeholder: '000000' })}
           <div class="field"><div class="label mb-8">صور السيارة <span class="t-danger">*</span></div><div class="cam-grid">${OB_SIDES.map(function (s) { return h`<label class="cam-tile"><span class="cam-ic">${icon('camera', 18)}</span><span>${s[1]}</span><input type="file" accept="image/*" capture="environment" name="ph-${s[0]}" required data-msg="التقط الصور الأربع من الكاميرا"></label>`; })}</div><div class="err-msg"></div></div>
