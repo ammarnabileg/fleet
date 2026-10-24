@@ -417,13 +417,13 @@ def _finish_if_done(db: Session, b: Broadcast) -> None:
         b.status, b.sent_at = "sent", func.now()
 
 
-def _mark_interrupted(db: Session, now: datetime) -> int:
+def _mark_interrupted(db: Session) -> int:
     n = db.execute(
         update(BroadcastDelivery)
         .where(
             BroadcastDelivery.status == "queued",
             BroadcastDelivery.claimed_at.is_not(None),
-            BroadcastDelivery.claimed_at < now - INTERRUPTED_AFTER,
+            BroadcastDelivery.claimed_at < utcnow() - INTERRUPTED_AFTER,
         )
         .values(status="failed", reason="interrupted", updated_at=func.now())
     ).rowcount
@@ -484,7 +484,7 @@ def run(db: Session, now: datetime | None = None) -> dict:
         _start(db, b, None)
         db.commit()
         started += 1
-    _mark_interrupted(db, now)
+    _mark_interrupted(db)
     pushed = 0
     for b in db.scalars(select(Broadcast).where(Broadcast.status == "sending").order_by(Broadcast.id)).all():
         for name, channel in ch.CHANNELS.items():
