@@ -23,16 +23,19 @@
     return key;
   }
 
-  /* «4:118, 2:39» → [{batch, orders}]; null when an entry is not batch:orders (said, never dropped silently) */
+  /* «4:118, 2:39» → [{batch, orders}]; a weekly row carries its period: «2:120@2026-10-01/2026-10-07»;
+     null when an entry is not batch:orders (said, never dropped silently) */
   A.parseBatches = function (text) {
     var out = [], bad = false;
     String(text || '').split(/[,،]/).map(function (x) { return x.trim(); }).filter(Boolean).forEach(function (x) {
-      var m = /^(\d{1,2})\s*:\s*(\d{1,6})$/.exec(x);
-      if (!m || +m[1] < 1 || +m[1] > 20) { bad = true; return; }
-      out.push({ batch: +m[1], orders: +m[2] });
+      var m = /^(\d{1,2})\s*:\s*(\d{1,6})(?:\s*@\s*(\d{4}-\d{2}-\d{2})\s*\/\s*(\d{4}-\d{2}-\d{2}))?$/.exec(x);
+      if (!m || +m[1] < 1 || +m[1] > 20 || (m[3] && m[4] < m[3])) { bad = true; return; }
+      out.push(m[3] ? { batch: +m[1], orders: +m[2], period_start: m[3], period_end: m[4] } : { batch: +m[1], orders: +m[2] });
     });
     return bad ? null : out;
   };
+  /* a batch row as the office reads and types it */
+  A.batchText = function (b) { return b.batch + ':' + b.orders + (b.period_start ? '@' + b.period_start + '/' + b.period_end : ''); };
 
   var catalog = null;
   A.rulesCatalog = function () {
@@ -73,6 +76,10 @@
   /* ================= نظام جديد: من قالب أو فارغ ================= */
   A.newBlockScheme = function (platform, done) {
     A.rulesCatalog().then(function (cat) {
+      // the platform's own templates first, its default one chosen (Keeta's batch rule); the legacy ones last
+      var mine = function (t) { return t.platform_hint === platform.code ? 0 : 1; };
+      var templates = cat.templates.slice().sort(function (a, b) { return (mine(a) - mine(b)) || ((a.legacy ? 1 : 0) - (b.legacy ? 1 : 0)) || ((b.default ? 1 : 0) - (a.default ? 1 : 0)); });
+      var preset = templates.find(function (t) { return t.default && t.platform_hint === platform.code; });
       A.formModal({
         title: 'نظام دفع جديد', subtitle: api.name(platform.name), icon: 'banknote', size: 'lg', done: 'أُنشئ النظام',
         body: h`<div class="form-grid">
@@ -83,8 +90,8 @@
           </div>
           <div class="section-t mt-12">ابدأ من</div>
           <div class="options" data-templates>
-            <label class="option-card"><input class="radio-in" type="radio" name="template" value="" checked><span><b>فارغ</b><small>أضف القواعد بنفسك من لوحة القواعد</small></span></label>
-            ${cat.templates.map(function (t) { return h`<label class="option-card"><input class="radio-in" type="radio" name="template" value="${t.code}"><span><b>${api.name(t.name)}</b> ${t.needs_confirmation ? BT.pill('قيم أولية تحتاج تأكيد', 'o') : BT.pill('كما صُرف فعلياً', 'g')}<small>${api.name(t.description)}</small></span></label>`; })}
+            <label class="option-card"><input class="radio-in" type="radio" name="template" value=""${preset ? '' : raw(' checked')}><span><b>فارغ</b><small>أضف القواعد بنفسك من لوحة القواعد</small></span></label>
+            ${templates.map(function (t) { return h`<label class="option-card"><input class="radio-in" type="radio" name="template" value="${t.code}"${preset && preset.code === t.code ? raw(' checked') : ''}><span><b>${api.name(t.name)}</b> ${t.default ? BT.pill('الافتراضي للمنصة', 'b') : t.legacy ? BT.pill('قديم', 'n') : ''} ${t.needs_confirmation ? BT.pill('قيم أولية تحتاج تأكيد', 'o') : t.default ? '' : BT.pill('كما صُرف فعلياً', 'g')}<small>${api.name(t.description)}</small></span></label>`; })}
           </div>
           <div class="hint">القالب يُنسخ في النظام الجديد وكل قيمه قابلة للتعديل: لا سعر فيه قاعدة على الجميع.</div>`,
         submit: function (v) {
@@ -97,10 +104,14 @@
 
   /* ================= مصمم القواعد ================= */
   BT.pages['payroll/scheme/:id'] = function (p) {
-    A.setTitle('مصمم القواعد', [['الرواتب', 'payroll?tab=schemes'], ['مصمم القواعد']]);
+    A.setTitle('مصمم القواعد', [['الشركات المتعاقد معها', 'platforms'], ['مصمم القواعد']]);
     var v = A.view();
     A.load(v, Promise.all([api.get('/payroll/schemes/' + p.id + '/designer'), A.rulesCatalog()]), function (r) { return h`<div data-designer></div>`; })
-      .then(function (r) { if (r) designer(v.querySelector('[data-designer]'), r[0], r[1]); }).catch(function () {});
+      .then(function (r) {
+        if (!r) return;
+        A.setTitle('مصمم القواعد', [['الشركات المتعاقد معها', 'platforms'], [api.name(r[0].platform.name), 'platforms/' + r[0].platform.id + '?tab=schemes'], ['مصمم القواعد']]);
+        designer(v.querySelector('[data-designer]'), r[0], r[1]);
+      }).catch(function () {});
   };
 
   function designer(el, d, cat) {
@@ -151,7 +162,7 @@
     render();
 
     A.delegate(el, 'click', '[data-ver]', function (e, b) { shown = versions.find(function (x) { return String(x.version_no) === b.getAttribute('data-ver'); }); render(); });
-    A.delegate(el, 'click', '#ds-back', function () { A.go('payroll?tab=schemes'); });
+    A.delegate(el, 'click', '#ds-back', function () { A.go('platforms/' + d.platform.id + '?tab=schemes'); });
     A.delegate(el, 'change', '[name=floor]', function (e, x) { floor = x.checked; });
     A.delegate(el, 'click', '[data-up]', function (e, b) { var i = +b.getAttribute('data-up'); if (i > 0) { draft.splice(i - 1, 0, draft.splice(i, 1)[0]); render(); } });
     A.delegate(el, 'click', '[data-down]', function (e, b) { var i = +b.getAttribute('data-down'); if (i < draft.length - 1) { draft.splice(i + 1, 0, draft.splice(i, 1)[0]); render(); } });
@@ -446,14 +457,14 @@
 
   /* ================= بيانات الشهر ================= */
   var PROBLEM = { values_missing: 'أرقام ناقصة', orders_conflict: 'الباتش ≠ الطلبات اليومية', daily_pending: 'تقرير بانتظار المراجعة', scheme_missing: 'بلا نظام', driver_id_missing: 'بلا رقم في المنصة' };
-  A.monthPanel = function (el, q) {
-    var month = (q.month || thisMonth()).slice(0, 7), platformId = q.platform ? +q.platform : null;
+  A.monthPanel = function (el, q, fixed) { // fixed: one platform's page (its import tab), no platform to pick
+    var month = (q.month || thisMonth()).slice(0, 7), platformId = fixed || (q.platform ? +q.platform : null);
     A.platforms().then(function (plats) {
       plats = plats.filter(function (p) { return p.is_active; });
       if (!platformId && plats.length) platformId = plats[0].id;
       BT.render(el, h`<div data-stepper-box></div><div class="card"><div class="flex gap-8 items-end wrap mb-12">
           <div class="field" style="max-width:200px"><label for="f-mi-month">الشهر</label><input class="input" type="month" id="f-mi-month" value="${month}"></div>
-          <div class="field" style="max-width:240px"><label for="f-mi-plat">المنصة</label><select class="select" id="f-mi-plat">${plats.map(function (p) { return h`<option value="${p.id}"${p.id === platformId ? raw(' selected') : ''}>${api.name(p.name)}</option>`; })}</select></div>
+          <div class="field${fixed ? ' hidden' : ''}" style="max-width:240px"><label for="f-mi-plat">المنصة</label><select class="select" id="f-mi-plat">${plats.map(function (p) { return h`<option value="${p.id}"${p.id === platformId ? raw(' selected') : ''}>${api.name(p.name)}</option>`; })}</select></div>
           <span class="spacer"></span>
           ${api.can('payroll.view') ? A.btn('نموذج Excel فارغ', { icon: 'download', cls: 'btn-ghost', id: 'mi-template' }) : ''}
           ${api.can('payroll.prepare') ? A.btn('استيراد من Excel', { icon: 'file-spreadsheet', cls: 'btn-primary', id: 'mi-import' }) : ''}
@@ -473,7 +484,7 @@
           <div class="table-wrap"><table class="t compact" data-month-grid><thead><tr><th>السائق</th><th>النظام</th><th class="num">الطلبات</th><th class="num">الأيام الصالحة</th>${hasBatches ? h`<th>حسب الباتش</th>` : ''}${monthly.map(function (x) { return h`<th class="num">${api.name(x.label)}</th>`; })}${daily.map(function (x) { return h`<th class="num">${api.name(x.label)} <span class="muted fs-sm">(شهري)</span></th>`; })}<th>استثناءات</th><th>ملاحظات</th></tr></thead><tbody>
             ${r.rows.map(function (x) {
               return h`<tr class="clickable" data-mrow="${x.employee.id}"><td>${A.person(x.employee, x.platform_driver_id || '')}</td><td>${x.scheme ? api.name(x.scheme.name) : h`<span class="muted">—</span>`}</td><td class="num">${x.orders}</td><td class="num">${x.valid_days == null ? '—' : x.valid_days}</td>
-                ${hasBatches ? h`<td class="ltr fs-sm">${x.batches.map(function (b) { return b.batch + ':' + b.orders; }).join('  ') || '—'}</td>` : ''}
+                ${hasBatches ? h`<td class="ltr fs-sm">${x.batches.map(A.batchText).join('  ') || '—'}</td>` : ''}
                 ${monthly.map(function (f) { var val = x.values[f.key]; return h`<td class="num">${val == null ? h`<span class="${x.missing.indexOf(f.key) >= 0 ? 't-danger' : 'muted'}">—</span>` : f.type === 'bool' ? (Number(val) ? 'نعم' : 'لا') : Number(val)}</td>`; })}
                 ${daily.map(function (f) { return h`<td class="num">${x.daily[f.key] == null ? '—' : Number(x.daily[f.key])}</td>`; })}
                 <td>${x.exceptions.length ? BT.pill(x.exceptions.length, 'p') : ''}</td><td>${x.problems.map(function (k) { return BT.pill(PROBLEM[k], k === 'driver_id_missing' ? 'o' : 'r'); })}${x.locked ? BT.pill('مقفل', 'n') : ''}</td></tr>`;
@@ -519,7 +530,7 @@
             if (f.type === 'bool') return BT.f.select({ name: 'v_' + f.key, label: api.name(f.label), value: val == null ? '' : (Number(val) ? 'true' : 'false'), placeholder: 'لم يُدخل', options: [{ v: 'false', t: 'لا' }, { v: 'true', t: 'نعم' }], disabled: !can });
             return BT.f.input({ name: 'v_' + f.key, label: api.name(f.label), value: val == null ? '' : Number(val), num: true, optional: true, disabled: !can });
           })}
-          ${BT.f.input({ name: 'batches', label: 'الطلبات حسب الباتش', value: row.batches.map(function (b) { return b.batch + ':' + b.orders; }).join(', '), optional: true, placeholder: '4:118, 2:39', hint: 'باتش:طلبات لكل صف؛ الطلبات قد تنقسم على أكثر من باتش في الشهر', disabled: !can })}
+          ${BT.f.input({ name: 'batches', label: 'الطلبات حسب الباتش', value: row.batches.map(A.batchText).join(', '), optional: true, placeholder: '4:118, 2:39', hint: 'باتش:طلبات لكل صف؛ الطلبات قد تنقسم على أكثر من باتش في الشهر. باتش أسبوعي: 2:120@2026-10-01/2026-10-07', disabled: !can })}
           ${tasks.map(function (o) { return BT.f.input({ name: 't_' + o.value, label: api.name(o.label), value: row.tasks[o.value] == null ? '' : row.tasks[o.value], num: true, optional: true, disabled: !can }); })}
         </div></form>
         <div class="section-t mt-16">الاستثناءات المعتمدة</div>
@@ -552,33 +563,100 @@
     });
   }
 
+  /* ================= استيراد الشهر: ربط أعمدة الملف بحقول النظام =================
+     يُقرأ الملف أولاً (أوراقه وعناوينه وأول صفوفه)، ولكل حقل يُختار العمود الذي يغذيه (المرة السابقة مختارة مسبقاً
+     بمطابقة نص العنوان)، ثم «فحص» كما كان، ثم «تطبيق» ويُحفظ الربط للمنصة. */
+  var FIELD_LABEL = {
+    platform_driver_id: 'رقم السائق في المنصة', civil_id: 'الرقم المدني', month: 'الشهر', batch: 'رقم الباتش',
+    orders: 'الطلبات المكتملة (للباتش)', period_start: 'بداية الفترة/الأسبوع', period_end: 'نهاية الفترة/الأسبوع',
+    exception_kind: 'نوع الاستثناء', exception_days: 'أيام الاستثناء', exception_excuses: 'ما يعذر عنه', exception_note: 'ملاحظة الاستثناء'
+  };
+  var FIELD_GROUP = { base: 'السائق والباتش', field: 'حقول المنصة الشهرية', task: 'المهام حسب النوع', exception: 'استثناء معتمد' };
+  function fieldLabel(f) { return f.label ? api.name(f.label) : (FIELD_LABEL[f.key] || f.key); }
+  function mappingForm(info, sheetName, mapping) {
+    var sheet = info.sheets.find(function (x) { return x.name === sheetName; }) || info.sheets[0];
+    var opts = function (key) {
+      return h`<option value="">— لا شيء —</option>${sheet.headers.filter(Boolean).map(function (hd) { return h`<option value="${hd}"${mapping[key] === hd ? raw(' selected') : ''}>${hd}</option>`; })}`;
+    };
+    var groups = ['base', 'field', 'task', 'exception'];
+    var mapped = info.fields.filter(function (f) { return mapping[f.key] && sheet.headers.indexOf(mapping[f.key]) >= 0; });
+    return h`<div data-mapping>
+      ${info.sheets.filter(function (x) { return x.headers.length; }).length > 1 ? h`<div class="field" style="max-width:280px"><label for="f-map-sheet">الورقة</label><select class="select" id="f-map-sheet" data-map-sheet>${info.sheets.filter(function (x) { return x.headers.length; }).map(function (x) { return h`<option value="${x.name}"${x.name === sheet.name ? raw(' selected') : ''}>${x.name}</option>`; })}</select></div>` : ''}
+      <div class="hint mb-8">صف العناوين: ${sheet.header_row}. ${info.saved ? 'الأعمدة المختارة في المرة السابقة مختارة مسبقاً (بنص العنوان)، ويمكن تغييرها.' : 'اختر لكل حقل العمود الذي يغذيه من الملف؛ ما لا يوجد في الملف اتركه «لا شيء».'}</div>
+      ${groups.map(function (g) {
+        var fs = info.fields.filter(function (f) { return f.group === g; });
+        if (!fs.length) return '';
+        return h`<div class="section-t mt-8">${FIELD_GROUP[g]}</div><div class="form-grid">${fs.map(function (f) {
+          return h`<div class="field"><label for="map-${f.key}">${fieldLabel(f)}</label><select class="select" id="map-${f.key}" data-map="${f.key}">${opts(f.key)}</select></div>`;
+        })}</div>`;
+      })}
+      <div class="section-t mt-12">معاينة أول الصفوف بعد الربط</div>
+      ${mapped.length ? h`<div class="table-wrap"><table class="t compact" data-map-preview><thead><tr>${mapped.map(function (f) { return h`<th>${fieldLabel(f)}</th>`; })}</tr></thead><tbody>${sheet.sample.map(function (r) {
+        return h`<tr>${mapped.map(function (f) { var v = r[sheet.headers.indexOf(mapping[f.key])]; return h`<td class="ltr">${v == null || v === '' ? '—' : v}</td>`; })}</tr>`;
+      })}</tbody></table></div>` : h`<div class="muted fs-sm">لم يُختر عمود بعد.</div>`}
+    </div>`;
+  }
   function importMonth(platform, month, done) {
-    var file = null, format = 'partner_batches', replace = false;
+    var file = null, replace = false, info = null, sheetName = null, mapping = {}, reading = null;
     function post(path) {
       var fd = new FormData();
       fd.append('file', file, file.name || 'month.xlsx');
       fd.append('platform_id', String(platform.id));
       fd.append('month', month + '-01');
-      fd.append('format', format);
+      fd.append('format', 'mapped');
+      fd.append('mapping', JSON.stringify({ sheet: sheetName, columns: mapping }));
       fd.append('replace_month', replace ? 'true' : 'false');
       return api.request('POST', path, { form: fd });
     }
+    function drawMapping(d) {
+      BT.render(d.panel.querySelector('[data-map-box]'), mappingForm(info, sheetName, mapping));
+      BT.render(d.panel.querySelector('[data-check]'), '');
+      d.btn(2).disabled = true;
+    }
+    function read(d) { // the file's sheets and headers, the columns pre-selected
+      var fd = new FormData();
+      fd.append('file', file, file.name || 'month.xlsx');
+      fd.append('platform_id', String(platform.id));
+      BT.render(d.panel.querySelector('[data-map-box]'), A.spinner('قراءة الملف…'));
+      reading = api.request('POST', '/payroll/month-imports/columns', { form: fd }).then(function (r) {
+        info = r; sheetName = r.sheet; mapping = Object.assign({}, r.mapping);
+        drawMapping(d);
+      }, function (e) { info = null; BT.render(d.panel.querySelector('[data-map-box]'), ''); throw e; });
+      return reading;
+    }
     var dlg = BT.modal.open({
       title: 'استيراد بيانات الشهر', subtitle: api.name(platform.name) + ' · ' + monthLabel(month + '-01'), icon: 'file-spreadsheet', size: 'lg', form: true,
-      body: h`<div class="form">${BT.f.radios({ name: 'format', label: 'الملف', value: 'partner_batches', options: [{ v: 'partner_batches', t: 'تقرير المنصة للشركاء', d: 'Rider ID، Batch No.، Total Completed Deliveries: السائق برقمه في المنصة' }, { v: 'generic', t: 'النموذج البسيط', d: 'الرقم المدني أو رقم المنصة، الشهر، عمود لكل حقل شهري' }] })}
-        ${BT.f.upload({ name: 'file', label: 'ملف Excel', accept: '.xlsx', accept_label: 'xlsx', required: true })}
-        ${BT.f.check({ name: 'replace_month', label: 'استبدال الشهر كله: صفوف الباتش لهذا الشهر تُستبدل كلها بصفوف الملف' })}</div><div data-check class="mt-12"></div>`,
+      body: h`<div class="form">${BT.f.upload({ name: 'file', label: 'ملف Excel (أي أعمدة: تختار بعد الرفع أي عمود يغذي أي حقل)', accept: '.xlsx', accept_label: 'xlsx', required: true })}
+        ${BT.f.check({ name: 'replace_month', label: 'استبدال الشهر كله: صفوف الباتش لهذا الشهر تُستبدل كلها بصفوف الملف' })}</div>
+        <div data-map-box class="mt-12"></div><div data-check class="mt-12"></div>`,
       buttons: [{ label: 'إغلاق', cls: 'btn-ghost' }, { label: 'فحص', cls: 'btn-outline', submit: true }, { label: 'تطبيق', cls: 'btn-primary', icon: 'check', close: false, disabled: true, onClick: function (d) {
         d.busy(2, true);
         post('/payroll/month-imports').then(function (r) { BT.toast('طُبق الملف على ' + r.applied + ' سائق'); d.close(); done(); }, function (e) { d.busy(2, false); api.fail(e); });
       } }],
+      onOpen: function (d) {
+        d.panel.addEventListener('change', function (e) {
+          var t = e.target;
+          if (t.matches('input[type=file]')) { file = t.files && t.files[0]; if (file) read(d).catch(api.fail); return; }
+          if (t.matches('[data-map-sheet]')) {
+            sheetName = t.value;
+            var sh = info.sheets.find(function (x) { return x.name === sheetName; });
+            Object.keys(mapping).forEach(function (k) { if (sh.headers.indexOf(mapping[k]) < 0) delete mapping[k]; });
+            drawMapping(d); return;
+          }
+          if (t.matches('[data-map]')) { if (t.value) mapping[t.getAttribute('data-map')] = t.value; else delete mapping[t.getAttribute('data-map')]; drawMapping(d); }
+        });
+      },
       onSubmit: function (v, d) {
-        file = v.file && v.file[0]; format = v.format || 'partner_batches'; replace = !!v.replace_month;
-        if (!file) return false;
-        post('/payroll/month-imports/check').then(function (c) {
-          BT.render(d.panel.querySelector('[data-check]'), checkView(c));
-          var apply = d.btn(2); apply.disabled = !!c.blocking;
-        }, api.fail);
+        replace = !!v.replace_month;
+        var f = v.file && v.file[0];
+        if (!f) return false;
+        var ready = (f !== file || !info) ? (file = f, read(d)) : Promise.resolve();
+        ready.then(function () {
+          return post('/payroll/month-imports/check').then(function (c) {
+            BT.render(d.panel.querySelector('[data-check]'), checkView(c));
+            d.btn(2).disabled = !!c.blocking;
+          });
+        }).catch(api.fail);
         return false;
       }
     });
@@ -592,6 +670,7 @@
     month_has_batches: 'لهذا الشهر صفوف باتش من قبل: اختر «استبدال الشهر كله» ثم افحص من جديد',
     exceptions_need_approval: 'في الملف استثناءات، واعتمادها يحتاج صلاحية اعتماد الرواتب'
   };
+  A.importMonth = importMonth;
   function checkView(c) {
     var differing = c.duplicates.filter(function (x) { return !x.same; });
     return h`<div data-import-check><div class="flex gap-8 wrap mb-8">${BT.pill(c.rows + ' صف', 'n')}${BT.pill(c.drivers.length + ' سائق', 'g')}${c.unknown.length ? BT.pill(c.unknown.length + ' غير معروف', 'o') : ''}${c.duplicates.length ? BT.pill(c.duplicates.length + ' مكرر', differing.length ? 'r' : 'o') : ''}${c.conflicts.length ? BT.pill(c.conflicts.length + ' تعارض مع التقارير اليومية', 'o') : ''}${c.other_month.length ? BT.pill(c.other_month.length + ' صف لشهر آخر (يُتجاهل)', 'n') : ''}${c.imported_before ? BT.pill('استورد هذا الملف من قبل: يحل محل نفسه ولا يُجمع مرتين', 'b') : ''}</div>
@@ -601,6 +680,6 @@
       ${c.unknown.length ? h`<div class="section-t">لا نعرفهم (لم يُطابق رقمهم في المنصة)</div><div class="fs-sm ltr">${c.unknown.map(function (u) { return '#' + u.row + ' ' + u.rider; }).join(' · ')}</div>` : ''}
       ${c.conflicts.length ? h`<div class="section-t mt-8">طلبات الملف ≠ التقارير اليومية المعتمدة</div><ul class="fs-sm">${c.conflicts.map(function (x) { return h`<li>${api.name(x.employee.name)}: الملف ${x.file_orders}، التقارير ${x.daily_orders}</li>`; })}</ul>` : ''}
       ${c.duplicates.length ? h`<div class="section-t mt-8">صفوف مكررة</div><ul class="fs-sm">${c.duplicates.map(function (x) { return h`<li class="${x.same ? '' : 't-danger'}">#${x.row} (مثل #${x.first_row}) ${api.name(x.employee.name)}${x.sub ? ' باتش ' + x.sub : ''}: ${x.same ? 'نفس الرقم، يُحسب مرة' : 'رقم مختلف'}</li>`; })}</ul>` : ''}
-      <div class="table-wrap mt-8"><table class="t compact"><thead><tr><th>السائق</th><th>حسب الباتش</th><th>حقول</th><th></th></tr></thead><tbody>${c.drivers.map(function (x) { return h`<tr><td>${api.name(x.employee.name)}<span class="sub ltr">${x.employee.platform_driver_id || ''}</span></td><td class="ltr">${x.batches.map(function (b) { return b.batch + ':' + b.orders; }).join('  ')}</td><td class="fs-sm">${Object.keys(x.values).map(function (k) { return k + '=' + Number(x.values[k]); }).join('، ')}</td><td>${x.replaces ? BT.pill('يستبدل ما سبق', 'b') : ''}</td></tr>`; })}</tbody></table></div></div>`;
+      <div class="table-wrap mt-8"><table class="t compact"><thead><tr><th>السائق</th><th>حسب الباتش</th><th>حقول</th><th></th></tr></thead><tbody>${c.drivers.map(function (x) { return h`<tr><td>${api.name(x.employee.name)}<span class="sub ltr">${x.employee.platform_driver_id || ''}</span></td><td class="ltr">${x.batches.map(A.batchText).join('  ')}</td><td class="fs-sm">${Object.keys(x.values).map(function (k) { return k + '=' + Number(x.values[k]); }).join('، ')}</td><td>${x.replaces ? BT.pill('يستبدل ما سبق', 'b') : ''}</td></tr>`; })}</tbody></table></div></div>`;
   }
 })();

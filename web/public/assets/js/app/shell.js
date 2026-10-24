@@ -11,6 +11,7 @@
   BT.pages = BT.pages || {};
   A.counts = {};
 
+  var PLATFORM_PERMS = ['payroll.view', 'settings.update'];
   var IMPORT_PERMS = ['employees.create', 'employees.update', 'vehicles.create', 'vehicles.update', 'documents.manage'];
 
   /* ---------- القائمة الجانبية: مجموعات بأسماء واضحة، ولا يظهر إلا ما يملك المستخدم صلاحيته ----------
@@ -42,6 +43,10 @@
       { key: 'payroll', icon: 'banknote', label: 'الرواتب', any: ['payroll.view', 'settings.update'], count: 'payroll' },
       { key: 'guide', icon: 'book-open', label: 'إرشادات المحاسبة', any: ['finance.view', 'cash.view', 'treasury.view'] }
     ] },
+    // the delivery platforms the drivers work with: each its own page (added below once the list is read)
+    { sec: 'الشركات المتعاقد معها', id: 'platforms', icon: 'building-2', items: [
+      { key: 'platforms', icon: 'store', label: 'كل الشركات والطلبات', any: PLATFORM_PERMS, count: 'platform_requests', hot: true }
+    ] },
     { sec: 'الموظفون', id: 'people', icon: 'users', items: [
       { key: 'employees', icon: 'users', label: 'الموظفون والسائقون', any: ['employees.view'], count: 'onboarding' },
       { key: 'attendance', icon: 'calendar-x', label: 'الغياب والإجازات', any: ['leaves.view'], count: 'leaves' }
@@ -59,6 +64,17 @@
     if (it.all) return it.all.every(api.can);
     return !it.any || api.canAny(it.any);
   };
+  /* each active platform (the core ones first) as an item of its section, with its drivers' requests waiting */
+  A.refreshNavPlatforms = function () {
+    if (!api.canAny(PLATFORM_PERMS) || !A.platforms) return Promise.resolve();
+    return A.platforms(true).then(function (list) {
+      var sec = A.NAV.find(function (x) { return x.id === 'platforms'; });
+      sec.items = sec.items.filter(function (it) { return !it.sub; }).concat(list.filter(function (p) { return p.is_active; }).map(function (p) {
+        return { key: 'platforms/' + p.id, icon: p.is_core ? 'badge-check' : 'package', label: api.name(p.name), any: PLATFORM_PERMS, count: 'preq_' + p.id, hot: true, sub: true };
+      }));
+      A.renderNav(A._navActive);
+    }, function () {});
+  };
   A.navItem = function (key) { var f = null; A.NAV.forEach(function (s) { s.items.forEach(function (i) { if (i.key === key) f = i; }); }); return f; };
   A.firstAllowed = function () { var f = null; A.NAV.forEach(function (s) { s.items.forEach(function (i) { if (!f && A.allowed(i)) f = i.key; }); }); return f || 'alerts'; };
 
@@ -75,15 +91,18 @@
   A.renderNav = function (active) {
     A._navActive = active;
     var shut = shutGroups();
+    var path = location.hash.replace(/^#\/?/, '').split('?')[0];
+    var exact = A.NAV.some(function (s) { return s.items.some(function (it) { return it.sub && it.key === path; }); });
     function link(it) {
       var c = it.count ? A.counts[it.count] : null;
-      return h`<a class="nav-item${it.key === active ? ' active' : ''}" href="#/${it.key}"${it.key === active ? raw(' aria-current="page"') : ''}>${icon(it.icon, 17)}<span>${it.label}</span>${c ? h`<span class="count${it.hot ? ' hot' : ''}">${c >= 200 ? '200+' : c}</span>` : ''}</a>`;
+      var on = it.sub ? it.key === path : it.key === active && !exact;
+      return h`<a class="nav-item${on ? ' active' : ''}" href="#/${it.key}"${on ? raw(' aria-current="page"') : ''}>${icon(it.icon, 17)}<span>${it.label}</span>${c ? h`<span class="count${it.hot ? ' hot' : ''}">${c >= 200 ? '200+' : c}</span>` : ''}</a>`;
     }
     BT.render(document.getElementById('nav'), h`${A.NAV.map(function (s) {
       var items = s.items.filter(A.allowed);
       if (!items.length) return '';
       if (!s.id) return h`<div class="nav-top">${items.map(link)}</div>`;
-      var here = items.some(function (it) { return it.key === active; });
+      var here = items.some(function (it) { return it.key === active || it.key === path; });
       var open = here || shut.indexOf(s.id) < 0;
       // مطوية: مجموع ما ينتظر فيها يظهر على عنوانها، فلا يختفي شيء
       var waiting = open ? 0 : items.reduce(function (n, it) { return n + ((it.count && A.counts[it.count]) || 0); }, 0);
@@ -263,6 +282,11 @@
     // what the drivers ask about cars and wait for: a car registered from the app, a change of car
     if (api.can('custody.assign')) jobs.push(Promise.all([api.get('/vehicle-claims'), api.get('/vehicle-change-requests')]).then(function (r) { A.counts.custody = r[0].length + r[1].length; }, function () {}));
     if (api.can('payroll.view')) jobs.push(api.get('/payroll/scheme-requests/counts').then(function (r) { A.counts.scheme_requests = r.pending; }, function () {}));
+    if (api.can('payroll.view')) jobs.push(api.get('/payroll/platform-requests/counts').then(function (r) {
+      A.counts.platform_requests = r.pending;
+      Object.keys(A.counts).forEach(function (k) { if (k.indexOf('preq_') === 0) delete A.counts[k]; });
+      Object.keys(r.by_platform || {}).forEach(function (id) { A.counts['preq_' + id] = r.by_platform[id]; });
+    }, function () {}));
     if (api.can('payroll.view')) jobs.push(api.get('/payroll/uncollected/counts').then(function (r) { A.counts.uncollected = r.review; }, function () {}));
     if (api.can('payroll.view')) jobs.push(api.get('/payroll/objections/counts').then(function (r) { A.counts.objections = r.waiting; }, function () {}));
     return Promise.all(jobs).then(function () {
@@ -358,6 +382,7 @@
     fine: { perm: ['fines.view'], open: function (a, after) { A.fine(a.entity_id, after); } },
     fuel_claim: { perm: ['cash.fuel_review'], label: 'مراجعة', open: function () { A.go('cash?tab=fuel'); } },
     petty_expense: { perm: ['treasury.manage'], label: 'مراجعة', open: function () { A.go('cash?tab=petty'); } },
+    platform_request: { perm: ['payroll.view'], label: 'مراجعة', open: function (a, after) { A.platformRequestView(a.entity_id, after); } },
     leave: { perm: ['leaves.view'], label: 'فتح الطلب', open: function (a, after) { A.leaveView(a.entity_id, after); } },
     payroll_objection: { perm: ['payroll.view'], label: 'مراجعة', open: function (a, after) { A.objectionView(a.entity_id, after); } },
     branch: { perm: ['treasury.view'], open: function () { A.go('cash?tab=treasury'); } } // the treasury's deposit rule
@@ -516,6 +541,7 @@
       var start = function () {
         A.router.start();
         A.refreshCounts();
+        A.refreshNavPlatforms();
         A.pollAlerts();
         setInterval(function () { if (!document.hidden) A.refreshCounts(); }, (BT.config.refreshCountsSec || 60) * 1000);
         setInterval(function () { if (!document.hidden) A.pollAlerts(); }, (BT.config.alertsPollSec || 15) * 1000);

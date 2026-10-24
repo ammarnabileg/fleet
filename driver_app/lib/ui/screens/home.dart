@@ -13,6 +13,7 @@ import '../widgets/language_picker.dart';
 import '../widgets/live_status.dart';
 import 'accident.dart';
 import 'claim.dart';
+import 'company.dart';
 import 'fines.dart';
 import 'fuel.dart';
 import 'leave.dart';
@@ -416,6 +417,7 @@ class HomeTab extends StatelessWidget {
           ],
           // a car ready at its center, an accident waiting for its police report: in the inbox's «current» section
           // and as system notifications, never here
+          CompanyPendingBanner(state: state),
           if (state.needsAttention > 0) ...[
             Banner2(
               key: const Key('outbox-attention'),

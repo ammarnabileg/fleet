@@ -641,7 +641,15 @@
     "pettyNote": "Remarque",
     "pettySend": "Envoyer pour vérification",
     "kind_petty": "Dépense de caisse",
-    "kind_petty_cancel": "Annulation d'une dépense de caisse"
+    "kind_petty_cancel": "Annulation d'une dépense de caisse",
+    "companyTitle": "Avec quelle société travaillez-vous ?",
+    "companyIntro": "Choisissez la société pour laquelle vous livrez. Votre choix est envoyé au bureau pour approbation ; vous pouvez continuer à travailler en attendant.",
+    "companyNote": "Note pour le bureau (facultatif)",
+    "companySend": "Envoyer au bureau",
+    "companyRejected": "Le bureau a refusé votre choix ({platform}) : {reason}. Choisissez à nouveau.",
+    "companyPending": "Votre demande pour travailler avec {platform} attend le bureau",
+    "companyChange": "Changer mon choix",
+    "companyNone": "Aucune société n'est disponible pour le moment. Contactez le bureau."
   },
   "server": {
     "deduction_source": {

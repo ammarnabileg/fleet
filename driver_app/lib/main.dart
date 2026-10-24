@@ -20,6 +20,7 @@ import 'l10n/app_localizations.dart';
 import 'tracking/notice.dart';
 import 'tracking/service.dart';
 import 'tracking/system_notices.dart';
+import 'ui/screens/company.dart';
 import 'ui/screens/home.dart';
 import 'ui/screens/onboarding.dart';
 import 'ui/screens/permissions.dart';
@@ -227,6 +228,7 @@ class _DriverAppState extends State<DriverApp> with WidgetsBindingObserver {
       Phase.permissions => PermissionsScreen(state: s),
       Phase.onboarding => OnboardingScreen(key: ValueKey(s.onboarding?.status), state: s),
       Phase.waiting => WaitingScreen(state: s),
+      Phase.company => CompanyScreen(state: s),
       Phase.blocked => WaitingScreen(state: s, blocked: true),
       Phase.ready => HomeScreen(state: s),
       Phase.failed => StartFailedScreen(onRetry: () => unawaited(s.retryStart())),

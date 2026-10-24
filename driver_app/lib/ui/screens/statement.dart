@@ -433,11 +433,16 @@ class PayItemRow extends StatelessWidget {
       'orders_pay' => [
         l.payWhyOrders(_n(w['orders']), _n(w['rate'])),
         if (w['batch_level'] != null) l.payWhyBatch(_n(w['batch_level'])),
+        // a batch row of a week: its dates
+        if (w['period'] is Map) _n('${(w['period'] as Map)['from']} → ${(w['period'] as Map)['to']}'),
         if (w['reduced_by'] == 'star_day') l.payWhyReducedStar,
         if (w['reduced_by'] == 'marks') l.payWhyReducedMarks,
       ].join(' · '),
       'tier_bonus' => l.payWhyTier(_n(w['orders']), _n(w['from'])),
-      'missing_target' => l.payWhyMissing(_n(w['missing']), _n(w['target']), _n(w['rate'])),
+      'missing_target' => [
+        l.payWhyMissing(_n(w['missing']), _n(w['target']), _n(w['rate'])),
+        if (w['batch_level'] != null) l.payWhyBatch(_n(w['batch_level'])),
+      ].join(' · '),
       'marks_deduction' => l.payWhyMarks(_n(w['marks'])),
       'uncovered_penalty' => l.payWhyUncovered,
       _ => b.formula == null ? '' : _n(b.formula), // a rule designed in the dashboard: its formula

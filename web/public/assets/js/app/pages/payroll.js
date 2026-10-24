@@ -1,8 +1,8 @@
 /* =====================================================================
    app/pages/payroll.js — الرواتب: كشوف المنصات الشهرية (لقطات الشاشة والأيام
    الصالحة من السائق، ومراجعة المكتب)، كشوف الرواتب (تحضير، اعتماد، إعادة فتح،
-   دفع، وتصدير Excel بأعمدة العميل)، والمنصات (قاعدة الدفع وأعمدة الكشف من نموذج
-   العميل).
+   دفع، وتصدير Excel بأعمدة العميل). المنصات وأنظمة الدفع في «الشركات المتعاقد
+   معها» (platforms.js).
    ===================================================================== */
 (function () {
   'use strict';
@@ -41,14 +41,19 @@
   A.allEmployees = allEmployees;
 
   BT.pages['payroll'] = function (p, q) {
+    // pay schemes and platforms moved to «الشركات المتعاقد معها»: the old links still land there
+    if (q.tab === 'schemes' || q.tab === 'platforms') {
+      history.replaceState(null, '', '#/platforms' + (q.tab === 'schemes' ? '?tab=schemes' : ''));
+      A.router.refresh();
+      return;
+    }
     A.setTitle('الرواتب');
     var v = A.view();
     var tabs = [];
     if (api.can('payroll.view')) tabs.push(['month', 'بيانات الشهر'], ['statements', 'كشوف المنصات'], ['runs', 'كشوف الرواتب']);
-    if (api.can('payroll.view')) tabs.push(['schemes', 'أنظمة الدفع'], ['requests', 'طلبات تغيير النظام' + (A.counts.scheme_requests ? ' (' + A.counts.scheme_requests + ')' : '')]);
+    if (api.can('payroll.view')) tabs.push(['requests', 'طلبات تغيير النظام' + (A.counts.scheme_requests ? ' (' + A.counts.scheme_requests + ')' : '')]);
     if (api.can('payroll.view')) tabs.push(['uncollected', 'خصومات غير محصلة' + (A.counts.uncollected ? ' (' + A.counts.uncollected + ')' : '')]);
     if (api.can('payroll.view')) tabs.push(['objections', 'الاعتراضات' + (A.counts.objections ? ' (' + A.counts.objections + ')' : '')]);
-    if (api.can('payroll.view') || api.can('settings.update')) tabs.push(['platforms', 'المنصات']);
     if (!tabs.length) { BT.render(v, A.forbidden()); return; }
     var tab = tabs.some(function (t) { return t[0] === q.tab; }) ? q.tab : tabs[0][0];
     BT.render(v, h`${A.head('الرواتب', 'كشف المنصة الشهري لكل سائق، ثم كشف الرواتب لكل شركة وشهر بأعمدة نموذجكم، والحد الأقصى للخصم وترحيل الباقي')}
@@ -59,7 +64,7 @@
     var drawn = {};
     function show(t) {
       if (drawn[t]) return; drawn[t] = true;
-      ({ month: A.monthPanel, statements: statementsPanel, runs: runsPanel, schemes: A.schemesPanel, requests: A.schemeRequestsPanel, uncollected: uncollectedPanel, objections: objectionsPanel, platforms: platformsPanel })[t](v.querySelector('[data-p="' + t + '"]'), q);
+      ({ month: A.monthPanel, statements: statementsPanel, runs: runsPanel, requests: A.schemeRequestsPanel, uncollected: uncollectedPanel, objections: objectionsPanel })[t](v.querySelector('[data-p="' + t + '"]'), q);
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/payroll?tab=' + e.detail); });
     show(tab);
@@ -249,9 +254,9 @@
   function why(b) {
     var w = b.why || {};
     if (b.formula) return fmt.ltr(b.formula); // a rule designed in the dashboard: what it read and how
-    if (b.code === 'orders_pay') return w.orders + ' طلب × ' + fmt.money(w.rate) + (w.batch_level != null ? ' · باتش ' + w.batch_level : '') + (w.reduced_by ? ' · السعر المخفض: ' + (w.reduced_by === 'star_day' ? 'فوّت Star Day' : 'علامات الحضور') : '');
+    if (b.code === 'orders_pay') return w.orders + ' طلب × ' + fmt.money(w.rate) + (w.batch_level != null ? ' · باتش ' + w.batch_level : '') + (w.period ? ' · ' + fmt.ltr(w.period.from + ' → ' + w.period.to) : '') + (w.reduced_by ? ' · السعر المخفض: ' + (w.reduced_by === 'star_day' ? 'فوّت Star Day' : 'علامات الحضور') : '');
     if (b.code === 'tier_bonus') return 'وصل ' + w.orders + ' طلب: شريحة ' + w.from;
-    if (b.code === 'missing_target') return w.missing + ' طلب ناقص عن ' + w.target + ' × ' + fmt.money(w.rate);
+    if (b.code === 'missing_target') return w.missing + ' طلب ناقص عن ' + w.target + ' × ' + fmt.money(w.rate) + (w.batch_level != null ? ' (سعر باتش ' + w.batch_level + (w.pick === 'most_orders' ? '، الأكثر طلبات' : '، الباتش الحالي') + ')' : '');
     if (b.code === 'marks_deduction') return w.marks + ' علامات حضور';
     if (b.code === 'uncovered_penalty') return 'خصومات أكبر من المستحق: لم تُخصم، تظهر للمراجعة في «خصومات غير محصلة»';
     return '';
@@ -435,91 +440,6 @@
       });
     }, api.fail);
   };
-
-  /* ================= المنصات ================= */
-  var RULE_HINT = 'طريقة حساب كل منصة تُصمم من لوحة التحكم: أنظمة الدفع ← مصمم القواعد. وحقول كل منصة (ما يرسله السائق يومياً وما يُدخل شهرياً) من «حقول المنصة».';
-  function platformsPanel(el) {
-    var canEdit = api.can('settings.update');
-    A.load(el, A.platforms(true), function (list) {
-      A.delegate(el, 'click', '[data-edit]', function (e, x) { var p = list.find(function (y) { return y.id === +x.getAttribute('data-edit'); }); platformForm(p, null, function () { platformsPanel(el); }); });
-      A.delegate(el, 'click', '[data-fields]', function (e, x) { var p = list.find(function (y) { return y.id === +x.getAttribute('data-fields'); }); A.platformFields(p, function () { platformsPanel(el); }); });
-      setTimeout(function () {
-        var b = el.querySelector('#plat-template'); if (b) b.onclick = function () { fromTemplate(function () { platformsPanel(el); }); };
-        var n = el.querySelector('#plat-new'); if (n) n.onclick = function () { platformForm(null, null, function () { platformsPanel(el); }); };
-      });
-      return h`<div class="flex gap-8 items-center mb-12"><div class="muted fs-sm">${RULE_HINT}</div><span class="spacer"></span>${canEdit ? h`${A.btn('من نموذج Excel', { icon: 'file-spreadsheet', cls: 'btn-outline', id: 'plat-template' })}${A.btn('منصة جديدة', { icon: 'plus', cls: 'btn-primary', id: 'plat-new' })}` : ''}</div>
-        ${list.length ? h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(360px,1fr))">${list.map(function (p) {
-          return h`<div class="card"><div class="card-h"><div class="card-t">${api.name(p.name)}</div><span class="muted fs-sm ltr">${p.code}</span>${p.is_active ? '' : BT.pill('موقوفة', 'n')}${canEdit ? h`<span class="ms-auto nowrap"><button type="button" class="btn btn-sm btn-ghost" data-fields="${p.id}">${icon('list-checks', 14)} حقول المنصة</button><button type="button" class="btn btn-sm btn-ghost" data-edit="${p.id}">${icon('pencil', 14)} تعديل</button></span>` : ''}</div>
-            <div class="card-b">${BT.kv([
-              ['السائقون', fmt.int(p.drivers)],
-              ['التقرير اليومي', (p.daily_fields || []).length ? p.daily_fields.map(function (f) { return api.t('daily_field', f); }).join('، ') : 'لقطة الشاشة فقط'],
-              ['كشف الشهر من السائق', p.driver_fields.length ? p.driver_fields.map(function (f) { return api.t('driver_field', f); }).join('، ') + ' مع لقطات الشاشة' : 'لا يُطلب: الشهر من التقارير اليومية المعتمدة'],
-              ['طريقة الحساب', h`<a href="#/payroll?tab=schemes">أنظمة الدفع ← مصمم القواعد</a>`],
-              ['أعمدة الكشف', p.columns.length ? p.columns.length + ' عموداً: ' + p.columns.slice(0, 4).map(function (c) { return c.header; }).join('، ') + '…' : 'كل الأعمدة (لا نموذج)']
-            ])}</div></div>`;
-        })}</div>` : h`<div class="card"><div class="card-b">${BT.empty('banknote', 'لا توجد منصات بعد', 'أضف منصة جديدة واختر ما يرسله السائق في تقريره اليومي، أو ارفع نموذج كشف الرواتب الذي تستخدمونه (Excel): كل ورقة فيه تصبح منصة بأعمدتها وترتيبها.')}</div></div>`}`;
-    }).catch(function () {});
-  }
-  function fromTemplate(done) {
-    A.formModal({
-      title: 'منصة من نموذج كشف الرواتب', icon: 'file-spreadsheet', size: 'sm', submitText: 'قراءة النموذج', done: false,
-      body: h`<div class="form">${BT.f.upload({ name: 'file', label: 'نموذج Excel', accept: '.xlsx', accept_label: 'كل ورقة بصف عناوين = منصة', required: true })}</div>`,
-      submit: function (v) { return api.uploadForm('/payroll/platforms/template', v.file[0]); },
-      after: function (sheets) {
-        if (!sheets.length) { BT.toast('لم يُعثر على ورقة بعناوين أعمدة في الملف', { type: 'error' }); return; }
-        (function next(i) { if (i < sheets.length) platformForm(null, sheets[i], function () { next(i + 1); }); else done(); })(0);
-      }
-    });
-  }
-  function columnRows(cols) {
-    var codes = Object.keys(api.cat.payroll_column || {}).length ? Object.keys(api.cat.payroll_column) : ['platform_driver_id', 'name', 'job_title', 'civil_id', 'iban', 'bank_name', 'payment_method', 'basic', 'hours', 'orders', 'working_days', 'valid_days', 'bonus', 'tips', 'gross', 'invalid_days_deduction', 'car_repair', 'traffic_fines', 'cancelled_orders', 'platform_deductions', 'sim', 'advance', 'cash_shortage', 'late', 'other_deductions', 'carried', 'net', 'blank'];
-    return h`${cols.map(function (c, i) { return h`<tr><td class="num">${i + 1}</td><td><input class="input" data-col-h="${i}" value="${c.header}" maxlength="80"></td><td><select class="select" data-col-c="${i}">${codes.map(function (k) { return h`<option value="${k}"${k === c.code ? raw(' selected') : ''}>${api.t('payroll_column', k)}</option>`; })}</select></td></tr>`; })}`;
-  }
-  // ما يرسله السائق كل يوم: منصة تحتسب اليوم صالحاً أو لا، وأخرى بالطلبات والكاش
-  var DAILY = [
-    ['valid_day', 'اليوم صالح', 'هل احتسبت المنصة يومه صالحاً (نعم أو لا)'],
-    ['orders', 'عدد الطلبات', 'طلبات اليوم كما في تطبيق المنصة'],
-    ['cash', 'الكاش', 'المبلغ الذي حصّله نقداً'],
-  ];
-  function platformForm(p, sheet, done) {
-    var editing = !!p;
-    // بلا نموذج Excel: منصة فارغة، وكشف الراتب بكل الأعمدة
-    p = p || { code: '', name: { ar: sheet ? sheet.suggested_name : '', en: '' }, driver_fields: sheet ? sheet.driver_fields : [], daily_fields: ['orders', 'cash'], pay_basic: false, per_order: '0.000', per_hour: '0.000', per_valid_day: '0.000', invalid_days: sheet ? sheet.invalid_days : 'none', invalid_day_amount: null, day_divisor: 30, columns: sheet ? sheet.columns : [] };
-    var cols = p.columns.map(function (c) { return { code: c.code, header: c.header }; });
-    var unknown = cols.filter(function (c) { return c.code === 'blank'; }).length;
-    A.formModal({
-      title: editing ? 'تعديل المنصة' : 'منصة جديدة' + (sheet ? ': ' + sheet.sheet : ''), icon: 'banknote', size: 'lg', done: editing ? 'حُفظت المنصة' : 'أُضيفت المنصة',
-      body: h`<div class="form-grid">
-          ${editing ? '' : BT.f.input({ name: 'code', label: 'الرمز', required: true, value: p.code, pattern: '[a-z][a-z0-9_]{1,30}', msg: 'حروف إنجليزية صغيرة وأرقام وشرطة سفلية', hint: 'لا يتغير بعد الحفظ' })}
-          ${BT.f.input({ name: 'name_ar', label: 'الاسم بالعربية', required: true, value: p.name.ar || '' })}
-          ${BT.f.input({ name: 'name_en', label: 'الاسم بالإنجليزية', required: true, value: p.name.en || '' })}
-          ${editing ? BT.f.switch({ name: 'is_active', label: 'نشطة', checked: p.is_active }) : ''}
-        </div>
-        <div class="section-t mt-12">التقرير اليومي في تطبيق السائق: ما يُسأل عنه مع لقطة شاشة يومه من تطبيق المنصة</div>
-        <div class="flex gap-12 wrap" data-daily>${DAILY.map(function (f) { return BT.f.check({ name: 'dy_' + f[0], label: h`<b>${f[1]}</b> <span class="muted fs-sm">${f[2]}</span>`, checked: (p.daily_fields || []).indexOf(f[0]) >= 0 }); })}</div>
-        <div class="hint">مثلاً: منصة تحتسب اليوم صالحاً أو لا ← «اليوم صالح» وحده؛ منصة بالطلبات والدفع نقداً ← «عدد الطلبات» و«الكاش». لا شيء محدداً: لقطة الشاشة فقط. الطلبات والأيام الصالحة في الشهر تُجمع من التقارير اليومية المعتمدة؛ وتقرير لم يُراجع يوقف رواتب صاحبه حتى يُراجع.</div>
-        <div class="section-t mt-12">ما يرسله السائق كل شهر مع لقطات الشاشة (اتركه فارغاً إن كان الشهر من التقارير اليومية)</div>
-        <div class="flex gap-12 wrap">${['valid_days', 'orders', 'hours'].map(function (f) { return BT.f.check({ name: 'df_' + f, label: api.t('driver_field', f), checked: p.driver_fields.indexOf(f) >= 0 }); })}</div>
-        <div class="section-t mt-12">طريقة الحساب</div>
-        <div class="banner note fs-sm mb-8">${icon('info', 15)}<div>لا تُضبط هنا: تُصمم أنظمة دفع المنصة من «أنظمة الدفع ← مصمم القواعد» (من قالب أو قاعدة قاعدة)، وحقولها الخاصة من «حقول المنصة».</div></div>
-        <div class="section-t mt-12">أعمدة كشف الراتب (بترتيب نموذجكم)</div>
-        ${unknown ? h`<div class="banner warn fs-sm mb-8">${icon('triangle-alert', 15)}<div>${unknown} عمود لم يُعرف معناه: اختر له المعنى أو اتركه «عمود فارغ».</div></div>` : ''}
-        ${cols.length ? h`<div class="table-wrap"><table class="t compact"><thead><tr><th class="num">#</th><th>العنوان في الكشف</th><th>ما يحتويه</th></tr></thead><tbody data-cols>${columnRows(cols)}</tbody></table></div>` : h`<div class="hint">بلا نموذج: كشف الراتب بكل الأعمدة. لترتيب أعمدة نموذجكم أنشئ المنصة «من نموذج Excel».</div>`}`,
-      submit: function (v, dlg) {
-        var panel = dlg && dlg.panel ? dlg.panel : document;
-        var columns = cols.map(function (c, i) { return { header: (panel.querySelector('[data-col-h="' + i + '"]') || {}).value || c.header, code: (panel.querySelector('[data-col-c="' + i + '"]') || {}).value || c.code }; });
-        var body = {
-          name: Object.assign({}, p.name, { ar: v.name_ar, en: v.name_en }),
-          driver_fields: ['valid_days', 'orders', 'hours'].filter(function (f) { return v['df_' + f]; }),
-          daily_fields: ['orders', 'cash', 'valid_day'].filter(function (f) { return v['dy_' + f]; }),
-          columns: columns
-        };
-        if (editing) return api.patch('/payroll/platforms/' + p.id, Object.assign(body, { version: p.version, is_active: !!v.is_active }));
-        return api.post('/payroll/platforms', Object.assign(body, { code: v.code }));
-      },
-      after: function () { A.platforms(true); done(); }
-    });
-  }
 
   /* ================= خصم يدوي: سلفة أو شريحة هاتف ================= */
   A.manualDeduction = function (done, preset) { // preset: {employee_id, reason, start, source_type} (a settlement)

@@ -1219,3 +1219,60 @@ class Petty {
   final List<PettyMovement> movements;
   final List<PettyExpense> expenses;
 }
+
+/// A delivery company the driver may work with (GET /driver/platform-request).
+class Company {
+  Company({required this.id, required this.code, required this.name, this.isCore = false});
+
+  factory Company.fromJson(Map<String, dynamic> j) => Company(
+    id: (j['id'] as num).toInt(),
+    code: j['code'] as String,
+    name: Map<String, String>.from(j['name'] as Map),
+    isCore: j['is_core'] == true,
+  );
+
+  final int id;
+  final String code;
+  final Map<String, String> name;
+  final bool isCore;
+
+  String nameIn(String lang) => FormItem.pick(name, lang);
+}
+
+/// GET /driver/platform-request: his company as the office set it, the companies he may pick, his latest request,
+/// and whether the company screen is due (no company, nothing waiting).
+class CompanyChoice {
+  CompanyChoice({
+    this.company,
+    required this.offered,
+    this.requestId,
+    this.status,
+    this.requested,
+    this.adminNote,
+    this.ask = false,
+  });
+
+  factory CompanyChoice.fromJson(Map<String, dynamic> j) {
+    final r = j['request'] as Map<String, dynamic>?;
+    return CompanyChoice(
+      company: j['platform'] == null ? null : Company.fromJson(j['platform'] as Map<String, dynamic>),
+      offered: [for (final p in j['platforms'] as List? ?? const []) Company.fromJson(p as Map<String, dynamic>)],
+      requestId: r?['id'] as String?,
+      status: r?['status'] as String?,
+      requested: r?['platform'] == null ? null : Company.fromJson(r!['platform'] as Map<String, dynamic>),
+      adminNote: r?['admin_note'] as String?,
+      ask: j['ask'] == true,
+    );
+  }
+
+  final Company? company;
+  final List<Company> offered;
+  final String? requestId;
+  final String? status; // pending | approved | rejected
+  final Company? requested;
+  final String? adminNote;
+  final bool ask;
+
+  /// Picked, the office not answered yet: the daily report asks that company's fields meanwhile.
+  bool get pending => company == null && status == 'pending';
+}

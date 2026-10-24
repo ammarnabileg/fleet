@@ -640,5 +640,13 @@
   "pettyNote": "Maelezo",
   "pettySend": "Tuma kwa ukaguzi",
   "kind_petty": "Matumizi ya fedha ndogo",
-  "kind_petty_cancel": "Kughairi matumizi ya fedha ndogo"
+  "kind_petty_cancel": "Kughairi matumizi ya fedha ndogo",
+  "companyTitle": "Unafanya kazi na kampuni gani?",
+  "companyIntro": "Chagua kampuni unayosafirishia. Chaguo lako linaenda ofisini kuidhinishwa; unaweza kuendelea na kazi ukisubiri.",
+  "companyNote": "Ujumbe kwa ofisi (si lazima)",
+  "companySend": "Tuma kwa ofisi",
+  "companyRejected": "Ofisi imekataa chaguo lako ({platform}): {reason}. Tafadhali chagua tena.",
+  "companyPending": "Ombi lako la kufanya kazi na {platform} linasubiri ofisi",
+  "companyChange": "Badilisha chaguo langu",
+  "companyNone": "Hakuna kampuni inayopatikana sasa. Wasiliana na ofisi."
 }

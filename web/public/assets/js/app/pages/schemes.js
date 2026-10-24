@@ -44,16 +44,17 @@
   };
 
   /* ================= أنظمة الدفع ================= */
-  A.schemesPanel = function (el) {
+  A.schemesPanel = function (el, q, only) { // only: one platform's page
     var canEdit = api.can('payroll.schemes');
+    var again = function () { A.schemesPanel(el, q, only); };
     A.load(el, Promise.all([A.platforms(true), api.get('/payroll/schemes')]), function (r) {
       var plats = r[0], schemes = r[1];
       // a new scheme starts in the rules designer (from a template or a single price); a scheme built there opens
       // there, one still on its old calculator in the old form (its versions to view, its terms by version)
-      A.delegate(el, 'click', '[data-new]', function (e, b) { var p = plats.find(function (x) { return String(x.id) === b.getAttribute('data-new'); }); A.newBlockScheme(p, function () { A.schemesPanel(el); }); });
-      A.delegate(el, 'click', '[data-scheme]', function (e, b) { var s = schemes.find(function (x) { return x.id === b.getAttribute('data-scheme'); }); if (s.designed) { A.go('payroll/scheme/' + s.id); return; } var p = plats.find(function (x) { return x.id === s.platform_id; }); schemeForm(p, s, function () { A.schemesPanel(el); }); });
-      return h`<div class="hint mb-12">كل منصة تعرض أنظمتها، وكل سائق على نظام واحد في الشهر. تغيير شروط نظام نسخة جديدة «يسري من شهر»: كل شهر يُحسب على نسخة شهره، فلا يُعاد حساب شهر صُرف بسعر لم يكن له. طريقة الحساب لا تتغير لنظام مستخدم: نظام جديد تنقل السائقين إليه من شهر (قائمة الموظفين ← حدّدهم ← «نظام الدفع»). منصة بلا أنظمة تبقى على قاعدتها في تبويب المنصات.</div>
-        ${plats.filter(function (p) { return p.is_active; }).map(function (p) {
+      A.delegate(el, 'click', '[data-new]', function (e, b) { var p = plats.find(function (x) { return String(x.id) === b.getAttribute('data-new'); }); A.newBlockScheme(p, again); });
+      A.delegate(el, 'click', '[data-scheme]', function (e, b) { var s = schemes.find(function (x) { return x.id === b.getAttribute('data-scheme'); }); if (s.designed) { A.go('payroll/scheme/' + s.id); return; } var p = plats.find(function (x) { return x.id === s.platform_id; }); schemeForm(p, s, again); });
+      return h`<div class="hint mb-12">كل منصة تعرض أنظمتها، وكل سائق على نظام واحد في الشهر. تغيير شروط نظام نسخة جديدة «يسري من شهر»: كل شهر يُحسب على نسخة شهره، فلا يُعاد حساب شهر صُرف بسعر لم يكن له. طريقة الحساب لا تتغير لنظام مستخدم: نظام جديد تنقل السائقين إليه من شهر (قائمة الموظفين ← حدّدهم ← «نظام الدفع»). منصة بلا أنظمة تبقى على قاعدتها (صفحة الشركة).</div>
+        ${plats.filter(function (p) { return p.is_active && (!only || p.id === only); }).map(function (p) {
           var mine = schemes.filter(function (s) { return s.platform_id === p.id; });
           return h`<div class="card mb-12"><div class="card-h"><div class="card-t">${api.name(p.name)}</div><span class="muted fs-sm">${mine.length ? mine.length + ' نظام' : 'بلا أنظمة: قاعدة المنصة'}</span>${canEdit ? h`<button type="button" class="btn btn-sm btn-primary ms-auto" data-new="${p.id}">${icon('plus', 14)} نظام جديد</button>` : ''}</div>
             ${mine.length ? h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;padding:12px">${mine.map(function (s) {
@@ -119,7 +120,7 @@
           <div data-for="per_order batch tiered_target">${BT.f.check({ name: 'floor_at_zero', label: 'عقوبات النظام لا تتجاوز أجر النظام (لا تمس البونص والبقشيش). والصافي لا ينزل تحت الصفر أبداً: الباقي «خصومات غير محصلة» للمراجعة', checked: latest.floor_at_zero })}
             <div class="section-t mt-12">ما تتحمله الشركة (الباقي على السائق، للعلم فقط: لا يُخصم من راتبه)</div>
             <div class="flex gap-12 wrap">${COVERS.map(function (c) { return BT.f.check({ name: 'cover_' + c, label: api.t('expense', c), checked: latest.company_covers.indexOf(c) >= 0 }); })}</div></div>
-          <div data-for="platform_rates" class="hint">الأساسي والأسعار والأيام غير الصالحة من قاعدة المنصة نفسها (تبويب المنصات).</div>
+          <div data-for="platform_rates" class="hint">الأساسي والأسعار والأيام غير الصالحة من قاعدة المنصة نفسها (صفحة الشركة).</div>
         </div>
         ${editing && s.versions.length ? versionsTable(s) : ''}`,
       submit: function (v, d) {

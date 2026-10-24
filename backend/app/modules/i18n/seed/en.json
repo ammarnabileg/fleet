@@ -640,7 +640,15 @@
     "pettyNote": "Note",
     "pettySend": "Send for review",
     "kind_petty": "Petty cash spending",
-    "kind_petty_cancel": "Cancelling a petty cash spending"
+    "kind_petty_cancel": "Cancelling a petty cash spending",
+    "companyTitle": "Which company do you work with?",
+    "companyIntro": "Pick the company you deliver for. Your choice goes to the office for approval; you can keep working while you wait.",
+    "companyNote": "Note for the office (optional)",
+    "companySend": "Send to the office",
+    "companyRejected": "The office rejected your choice ({platform}): {reason}. Please choose again.",
+    "companyPending": "Your request to work with {platform} is waiting for the office",
+    "companyChange": "Change my choice",
+    "companyNone": "No company is available now. Contact the office."
   },
   "status_templates": {
     "shift_working.name": "Working",

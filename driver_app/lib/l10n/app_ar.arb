@@ -1374,5 +1374,15 @@
   "pettyNote": "ملاحظة",
   "pettySend": "إرسال للمراجعة",
   "kind_petty": "مصروف من العهدة",
-  "kind_petty_cancel": "إلغاء مصروف من العهدة"
+  "kind_petty_cancel": "إلغاء مصروف من العهدة",
+  "companyTitle": "أنت شغال مع أنهي شركة؟",
+  "companyIntro": "اختر الشركة اللي بتوصّل معاها. اختيارك يروح للمكتب يراجعه ويوافق عليه، وتقدر تكمل شغلك وأنت مستني.",
+  "companyNote": "ملاحظة للمكتب (اختياري)",
+  "companySend": "إرسال للمكتب",
+  "companyRejected": "رفض المكتب اختيارك ({platform}): {reason}. اختر من جديد.",
+  "@companyRejected": {"placeholders": {"platform": {"type": "String"}, "reason": {"type": "String"}}},
+  "companyPending": "طلبك للعمل مع {platform} بانتظار موافقة المكتب",
+  "@companyPending": {"placeholders": {"platform": {"type": "String"}}},
+  "companyChange": "تغيير الاختيار",
+  "companyNone": "لا توجد شركات متاحة الآن. تواصل مع المكتب."
 }

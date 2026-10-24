@@ -641,7 +641,15 @@
     "pettyNote": "Tala",
     "pettySend": "Ipadala para suriin",
     "kind_petty": "Gastos mula sa petty cash",
-    "kind_petty_cancel": "Pagkansela ng gastos mula sa petty cash"
+    "kind_petty_cancel": "Pagkansela ng gastos mula sa petty cash",
+    "companyTitle": "Saang kumpanya ka nagtatrabaho?",
+    "companyIntro": "Piliin ang kumpanyang pinagdedeliveran mo. Ipapadala sa opisina ang pinili mo para maaprubahan; puwede kang magpatuloy sa trabaho habang naghihintay.",
+    "companyNote": "Tala para sa opisina (opsyonal)",
+    "companySend": "Ipadala sa opisina",
+    "companyRejected": "Tinanggihan ng opisina ang pinili mo ({platform}): {reason}. Pumili ulit.",
+    "companyPending": "Naghihintay sa opisina ang request mong magtrabaho sa {platform}",
+    "companyChange": "Palitan ang pinili ko",
+    "companyNone": "Walang available na kumpanya ngayon. Kontakin ang opisina."
   },
   "server": {
     "deduction_source": {

@@ -28,7 +28,7 @@ import '../tracking/system_notices.dart';
 
 /// [failed]: the start itself failed in a way no retry inside could fix (an answer it could not read, a database
 /// error); the screen says so and offers to try again, never an endless spinner.
-enum Phase { booting, signedOut, permissions, onboarding, waiting, ready, blocked, failed }
+enum Phase { booting, signedOut, permissions, onboarding, waiting, company, ready, blocked, failed }
 
 /// What needs the phone (camera, gallery, permissions, the background service). Replaced by fakes in tests.
 class PhoneHooks {
@@ -566,6 +566,7 @@ class AppState extends ChangeNotifier {
     schemes = null;
     fuel = null;
     petty = null;
+    company = null;
     leaves = null;
     notices = null;
     queued = [];
@@ -584,6 +585,8 @@ class AppState extends ChangeNotifier {
       if (onboarding!.mustFill) return _set(Phase.onboarding);
       if (onboarding!.waiting) return _set(Phase.waiting);
       if (!await platform.permissionsOk()) return _set(Phase.permissions);
+      // no company yet: he says which one he works with (the office approves) before the home screen
+      if (await _companyDue()) return _set(Phase.company);
       // the home screen does not wait for the tracking service to come up, nor fails with it
       unawaited(platform.startTracking().catchError((Object _) {}));
       await Future.wait([
@@ -620,6 +623,36 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> permissionsGranted() => refresh();
+
+  /// His company as the office set it, or his request to work with one (null: an older server, or not read yet).
+  CompanyChoice? company;
+
+  Future<bool> _companyDue() async {
+    try {
+      company = CompanyChoice.fromJson(await api.get('/driver/platform-request') as Map<String, dynamic>);
+    } on ApiError catch (e) {
+      if (e.status == 404) company = null; // an older server: no company screen
+      return false; // offline: the home screen with what is known
+    }
+    return company!.ask;
+  }
+
+  /// He picks the company he works with: sent to the office as a request; the home screen opens meanwhile.
+  Future<void> chooseCompany(int platformId, {String? note}) async {
+    company = CompanyChoice.fromJson(
+      await api.post('/driver/platform-request', body: {'platform_id': platformId, 'note': ?note})
+          as Map<String, dynamic>,
+    );
+    await refresh();
+  }
+
+  /// He changes his mind while the office has not answered: back to the company screen.
+  Future<void> cancelCompanyRequest() async {
+    final id = company?.requestId;
+    if (id == null) return;
+    company = CompanyChoice.fromJson(await api.post('/driver/platform-request/$id/cancel') as Map<String, dynamic>);
+    await refresh();
+  }
 
   Future<void> loadToday() async {
     final before = today?.custody?.id;

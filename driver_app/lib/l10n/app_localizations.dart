@@ -66,8 +66,7 @@ import 'app_localizations_sw.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale)
-    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -75,8 +74,7 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate =
-      _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -88,13 +86,12 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
-      <LocalizationsDelegate<dynamic>>[
-        delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-      ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
+    delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+  ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
@@ -3951,10 +3948,57 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'إلغاء مصروف من العهدة'**
   String get kind_petty_cancel;
+
+  /// No description provided for @companyTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'أنت شغال مع أنهي شركة؟'**
+  String get companyTitle;
+
+  /// No description provided for @companyIntro.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختر الشركة اللي بتوصّل معاها. اختيارك يروح للمكتب يراجعه ويوافق عليه، وتقدر تكمل شغلك وأنت مستني.'**
+  String get companyIntro;
+
+  /// No description provided for @companyNote.
+  ///
+  /// In ar, this message translates to:
+  /// **'ملاحظة للمكتب (اختياري)'**
+  String get companyNote;
+
+  /// No description provided for @companySend.
+  ///
+  /// In ar, this message translates to:
+  /// **'إرسال للمكتب'**
+  String get companySend;
+
+  /// No description provided for @companyRejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'رفض المكتب اختيارك ({platform}): {reason}. اختر من جديد.'**
+  String companyRejected(String platform, String reason);
+
+  /// No description provided for @companyPending.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلبك للعمل مع {platform} بانتظار موافقة المكتب'**
+  String companyPending(String platform);
+
+  /// No description provided for @companyChange.
+  ///
+  /// In ar, this message translates to:
+  /// **'تغيير الاختيار'**
+  String get companyChange;
+
+  /// No description provided for @companyNone.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد شركات متاحة الآن. تواصل مع المكتب.'**
+  String get companyNone;
 }
 
-class _AppLocalizationsDelegate
-    extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -3963,14 +4007,7 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) => <String>[
-    'ar',
-    'en',
-    'fil',
-    'fr',
-    'hi',
-    'sw',
-  ].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>['ar', 'en', 'fil', 'fr', 'hi', 'sw'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;

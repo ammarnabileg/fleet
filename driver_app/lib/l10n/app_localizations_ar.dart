@@ -49,8 +49,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get signInTitle => 'تسجيل الدخول';
 
   @override
-  String get signInHint =>
-      'أدخل رقم جوالك المسجل لدى الشركة. سيصلك رمز الدخول على واتساب.';
+  String get signInHint => 'أدخل رقم جوالك المسجل لدى الشركة. سيصلك رمز الدخول على واتساب.';
 
   @override
   String get phoneLabel => 'الهاتف';
@@ -62,8 +61,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get sendCode => 'إرسال الرمز';
 
   @override
-  String get activationTip =>
-      'إذا وصلك رابط التفعيل على واتساب، افتحه من هذا الهاتف ولن تحتاج رمزاً.';
+  String get activationTip => 'إذا وصلك رابط التفعيل على واتساب، افتحه من هذا الهاتف ولن تحتاج رمزاً.';
 
   @override
   String get otpTitle => 'رمز الدخول';
@@ -105,8 +103,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get permNotifications => 'الإشعارات';
 
   @override
-  String get permNotificationsWhy =>
-      'يظهر إشعار ثابت أثناء التتبع (شرط من أندرويد).';
+  String get permNotificationsWhy => 'يظهر إشعار ثابت أثناء التتبع (شرط من أندرويد).';
 
   @override
   String get permBattery => 'تجاهل تحسين البطارية';
@@ -133,8 +130,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get obTitle => 'إكمال التسجيل';
 
   @override
-  String get obIntro =>
-      'أدخل بياناتك وصوّر مستنداتك وسيارتك. لا يدخل شيء في السجلات قبل مراجعة الشركة.';
+  String get obIntro => 'أدخل بياناتك وصوّر مستنداتك وسيارتك. لا يدخل شيء في السجلات قبل مراجعة الشركة.';
 
   @override
   String obRejected(String reason) {
@@ -219,8 +215,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get obWaitingTitle => 'بياناتك قيد المراجعة';
 
   @override
-  String get obWaitingText =>
-      'سيصلك إشعار على واتساب عند الاعتماد أو إذا احتاج شيء للتصحيح.';
+  String get obWaitingText => 'سيصلك إشعار على واتساب عند الاعتماد أو إذا احتاج شيء للتصحيح.';
 
   @override
   String get refresh => 'تحديث';
@@ -256,8 +251,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get noCustody => 'لا توجد سيارة في عهدتك الآن';
 
   @override
-  String get noCustodyHint =>
-      'عند تسليمك سيارة تظهر هنا ويبدأ التتبع تلقائياً.';
+  String get noCustodyHint => 'عند تسليمك سيارة تظهر هنا ويبدأ التتبع تلقائياً.';
 
   @override
   String custodySince(String when) {
@@ -332,8 +326,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get endReadingIntro =>
-      'قبل إرسال تقرير اليوم: صورة عداد نهاية اليوم ورقمه. تُرسل القراءة أولاً ثم التقرير.';
+  String get endReadingIntro => 'قبل إرسال تقرير اليوم: صورة عداد نهاية اليوم ورقمه. تُرسل القراءة أولاً ثم التقرير.';
 
   @override
   String get status_returned => 'أُعيد للتصحيح';
@@ -345,8 +338,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get changeReportTitle => 'طلب تعديل تقرير معتمد';
 
   @override
-  String get changeReportIntro =>
-      'التقرير معتمد: يصل طلبك للمكتب، ويُعدَّل بعد الموافقة.';
+  String get changeReportIntro => 'التقرير معتمد: يصل طلبك للمكتب، ويُعدَّل بعد الموافقة.';
 
   @override
   String get changeReason => 'سبب التعديل';
@@ -355,8 +347,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get newScreenshotOptional => 'لقطة جديدة (اختياري)';
 
   @override
-  String get reportExistsForDay =>
-      'أرسلت تقرير هذا اليوم بالفعل. عدّله بدلاً من إرسال تقرير ثانٍ.';
+  String get reportExistsForDay => 'أرسلت تقرير هذا اليوم بالفعل. عدّله بدلاً من إرسال تقرير ثانٍ.';
 
   @override
   String get editReport => 'تعديل التقرير';
@@ -488,8 +479,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get endDayTitle => 'نهاية اليوم';
 
   @override
-  String get odometerIntro =>
-      'صوّر العداد بوضوح ثم اكتب القراءة كما تظهر في الصورة.';
+  String get odometerIntro => 'صوّر العداد بوضوح ثم اكتب القراءة كما تظهر في الصورة.';
 
   @override
   String get retake => 'إعادة التصوير';
@@ -515,8 +505,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get sentText => 'وصل للشركة.';
 
   @override
-  String get queuedText =>
-      'لا توجد شبكة الآن. سيُرسل تلقائياً بوقته الأصلي عند عودة الاتصال.';
+  String get queuedText => 'لا توجد شبكة الآن. سيُرسل تلقائياً بوقته الأصلي عند عودة الاتصال.';
 
   @override
   String get reportTitle => 'التقرير اليومي';
@@ -651,8 +640,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get mntNew => 'طلب صيانة جديد';
 
   @override
-  String get mntIntro =>
-      'صِف المشكلة وصوّرها من الكاميرا. سيارة في حادث يمر إصلاحها بالمكتب.';
+  String get mntIntro => 'صِف المشكلة وصوّرها من الكاميرا. سيارة في حادث يمر إصلاحها بالمكتب.';
 
   @override
   String get mntDirectIntro =>
@@ -675,8 +663,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get kind_pickup => 'استلام سيارة من الصيانة';
 
   @override
-  String get mntNoVehicle =>
-      'تطلب الصيانة للسيارة التي في عهدتك. لا توجد سيارة معك الآن.';
+  String get mntNoVehicle => 'تطلب الصيانة للسيارة التي في عهدتك. لا توجد سيارة معك الآن.';
 
   @override
   String get mntKind => 'النوع';
@@ -796,8 +783,7 @@ class AppLocalizationsAr extends AppLocalizations {
       'صوّر السيارة من عدة زوايا: الأمام والخلف والجانبين ومكان الضرر. يُسجّل الوقت والموقع تلقائياً.';
 
   @override
-  String get accNoVehicle =>
-      'يُبلّغ عن الحادث للسيارة التي في عهدتك. لا توجد سيارة معك الآن؛ كلّم المشرف.';
+  String get accNoVehicle => 'يُبلّغ عن الحادث للسيارة التي في عهدتك. لا توجد سيارة معك الآن؛ كلّم المشرف.';
 
   @override
   String get accDescription => 'ماذا حدث؟';
@@ -828,8 +814,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get accPoliceReportNo => 'رقم المحضر';
 
   @override
-  String get accPoliceLater =>
-      'لم يصدر المحضر بعد؟ أرسل البلاغ الآن وأرسل صورة المحضر لاحقاً من قائمة حوادثك.';
+  String get accPoliceLater => 'لم يصدر المحضر بعد؟ أرسل البلاغ الآن وأرسل صورة المحضر لاحقاً من قائمة حوادثك.';
 
   @override
   String get accSendPolice => 'إرسال محضر الشرطة';
@@ -920,8 +905,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get statementNoPlatform => 'لم تُحدَّد منصتك بعد. تواصل مع المكتب.';
 
   @override
-  String get statementNoMonth =>
-      'أرسلت كشف كل الأشهر المفتوحة. انتظر مراجعة المكتب.';
+  String get statementNoMonth => 'أرسلت كشف كل الأشهر المفتوحة. انتظر مراجعة المكتب.';
 
   @override
   String get statementMonth => 'الشهر';
@@ -1016,8 +1000,7 @@ class AppLocalizationsAr extends AppLocalizations {
       'ادخل برقمك المدني وكلمة مرورك. أول مرة: كلمة المرور المبدئية التي أعطاك إياها المكتب، ثم تختار كلمة مرورك.';
 
   @override
-  String get forgotPassword =>
-      'نسيت كلمة المرور؟ اطلب من المشرف كلمة مرور مبدئية جديدة.';
+  String get forgotPassword => 'نسيت كلمة المرور؟ اطلب من المشرف كلمة مرور مبدئية جديدة.';
 
   @override
   String choosePassword(String name) {
@@ -1043,8 +1026,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get saveAndSignIn => 'حفظ والدخول';
 
   @override
-  String get validDayQuestion =>
-      'هل احتسب تطبيق المنصة هذا اليوم يوماً صالحاً؟';
+  String get validDayQuestion => 'هل احتسب تطبيق المنصة هذا اليوم يوماً صالحاً؟';
 
   @override
   String get validDayYes => 'يوم صالح';
@@ -1169,12 +1151,10 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get schemeCoversNone =>
-      'المصاريف عليك: الصيانة والسكن والبنزين والشريحة';
+  String get schemeCoversNone => 'المصاريف عليك: الصيانة والسكن والبنزين والشريحة';
 
   @override
-  String get schemePlatformRates =>
-      'حسب قاعدة المنصة: راتب أساسي وأسعار الشركة';
+  String get schemePlatformRates => 'حسب قاعدة المنصة: راتب أساسي وأسعار الشركة';
 
   @override
   String get expense_maintenance => 'الصيانة';
@@ -1260,8 +1240,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get nameLabel => 'الاسم';
 
   @override
-  String get obOnFile =>
-      'الخانات المقفولة مسجّلة لدى الشركة. لو فيها خطأ كلّم المكتب يعدّلها.';
+  String get obOnFile => 'الخانات المقفولة مسجّلة لدى الشركة. لو فيها خطأ كلّم المكتب يعدّلها.';
 
   @override
   String get nationalityPick => 'اختر الجنسية';
@@ -1273,8 +1252,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get noMatches => 'لا توجد نتائج';
 
   @override
-  String get ibanInvalid =>
-      'في الآيبان حرف أو رقم غلط (أرقام التحقق لا تطابق): انسخه من تطبيق البنك';
+  String get ibanInvalid => 'في الآيبان حرف أو رقم غلط (أرقام التحقق لا تطابق): انسخه من تطبيق البنك';
 
   @override
   String obFieldsInvalid(String fields) {
@@ -1460,8 +1438,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get workReportDueHintDays =>
-      'أرسل عدد الطلبات وهل احتُسب اليوم يوماً صالحاً';
+  String get workReportDueHintDays => 'أرسل عدد الطلبات وهل احتُسب اليوم يوماً صالحاً';
 
   @override
   String get qaReportSubDays => 'طلبات اليوم واحتسابه';
@@ -1529,16 +1506,13 @@ class AppLocalizationsAr extends AppLocalizations {
   String get fuelRejected => 'مرفوض';
 
   @override
-  String get fuelOff_fuel_card =>
-      'لديك كارت بنزين من الشركة: يُعبّأ الكارت من المكتب، ولا يُسجَّل البنزين من الكاش.';
+  String get fuelOff_fuel_card => 'لديك كارت بنزين من الشركة: يُعبّأ الكارت من المكتب، ولا يُسجَّل البنزين من الكاش.';
 
   @override
-  String get fuelOff_not_covered =>
-      'البنزين عليك حسب نظام الدفع الخاص بك، فلا يُسجَّل على الشركة.';
+  String get fuelOff_not_covered => 'البنزين عليك حسب نظام الدفع الخاص بك، فلا يُسجَّل على الشركة.';
 
   @override
-  String get fuelOff_no_vehicle =>
-      'لا توجد سيارة في عهدتك الآن: يُسجَّل البنزين للسيارة التي معك.';
+  String get fuelOff_no_vehicle => 'لا توجد سيارة في عهدتك الآن: يُسجَّل البنزين للسيارة التي معك.';
 
   @override
   String get kind_fuel => 'فاتورة بنزين';
@@ -1561,8 +1535,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get claimVehicle => 'تسجيل عربية جديدة';
 
   @override
-  String get claimVehicleHint =>
-      'استلمت عربية؟ سجّلها هنا بقراءة عدادها، وتبدأ عهدتك لما المكتب يوافق.';
+  String get claimVehicleHint => 'استلمت عربية؟ سجّلها هنا بقراءة عدادها، وتبدأ عهدتك لما المكتب يوافق.';
 
   @override
   String get claimTitle => 'تسجيل عربية جديدة';
@@ -1703,8 +1676,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get pickupReplacementHint =>
-      'تُرجعها وأنت تستلم سيارتك: صوّر عدادها واكتب قراءتها.';
+  String get pickupReplacementHint => 'تُرجعها وأنت تستلم سيارتك: صوّر عدادها واكتب قراءتها.';
 
   @override
   String get pickupReplacementPhoto => 'صورة عداد السيارة البديلة';
@@ -1741,8 +1713,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get startFailedTitle => 'تعذّر تشغيل التطبيق';
 
   @override
-  String get startFailedBody =>
-      'حدث خطأ أثناء التحميل. تحقق من الاتصال وأعد المحاولة.';
+  String get startFailedBody => 'حدث خطأ أثناء التحميل. تحقق من الاتصال وأعد المحاولة.';
 
   @override
   String get activationReplaceTitle => 'استبدال السائق المسجّل؟';
@@ -1774,8 +1745,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get noticeBigStaleNever =>
-      'لم يُرسل أي موقع بعد. افتح التطبيق وتحقق من إعدادات الموقع';
+  String get noticeBigStaleNever => 'لم يُرسل أي موقع بعد. افتح التطبيق وتحقق من إعدادات الموقع';
 
   @override
   String get noticeBigOff => 'لا يُتتبَّع موقعك الآن';
@@ -1888,8 +1858,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get leavePreviewOffline =>
-      'الحساب يحتاج اتصالاً: يُرسل الطلب ويُراجع في المكتب';
+  String get leavePreviewOffline => 'الحساب يحتاج اتصالاً: يُرسل الطلب ويُراجع في المكتب';
 
   @override
   String get leaveSend => 'إرسال الطلب';
@@ -1977,8 +1946,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get headsUpLocationBodyNever =>
-      'افتح التطبيق وتحقق من إعدادات الموقع.';
+  String get headsUpLocationBodyNever => 'افتح التطبيق وتحقق من إعدادات الموقع.';
 
   @override
   String get actionOpenLocationSettings => 'فتح إعدادات الموقع';
@@ -2013,8 +1981,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get updateRequiredTitle => 'لازم تحدّث التطبيق عشان تكمل';
 
   @override
-  String get updateRequiredBody =>
-      'ما حُفظ على الهاتف يُرسل كالمعتاد، والتتبع مستمر.';
+  String get updateRequiredBody => 'ما حُفظ على الهاتف يُرسل كالمعتاد، والتتبع مستمر.';
 
   @override
   String updateQueued(String count) {
@@ -2038,22 +2005,19 @@ class AppLocalizationsAr extends AppLocalizations {
   String get updateInstall => 'تثبيت';
 
   @override
-  String get updateInstallHint =>
-      'سيطلب أندرويد تأكيد التثبيت. افتح التطبيق بعد التحديث.';
+  String get updateInstallHint => 'سيطلب أندرويد تأكيد التثبيت. افتح التطبيق بعد التحديث.';
 
   @override
   String get updatePermissionTitle => 'اسمح بتثبيت التحديث';
 
   @override
-  String get updatePermissionBody =>
-      'في الصفحة التالية فعّل «السماح من هذا المصدر» لهذا التطبيق، ثم ارجع.';
+  String get updatePermissionBody => 'في الصفحة التالية فعّل «السماح من هذا المصدر» لهذا التطبيق، ثم ارجع.';
 
   @override
   String get updateOpenSettings => 'فتح الإعدادات';
 
   @override
-  String get updateChecksum =>
-      'الملف الذي نُزّل غير سليم وحُذف. حاول مرة أخرى.';
+  String get updateChecksum => 'الملف الذي نُزّل غير سليم وحُذف. حاول مرة أخرى.';
 
   @override
   String get updateFailed => 'تعذّر التنزيل. حاول مرة أخرى.';
@@ -2095,8 +2059,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get pettyCashRow => 'عهدتك النقدية';
 
   @override
-  String get pettyNone =>
-      'ليست معك عهدة نقدية الآن. يصرفها لك المكتب من خزينة الفرع.';
+  String get pettyNone => 'ليست معك عهدة نقدية الآن. يصرفها لك المكتب من خزينة الفرع.';
 
   @override
   String get pettyBalance => 'رصيد العهدة';
@@ -2203,4 +2166,33 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get kind_petty_cancel => 'إلغاء مصروف من العهدة';
+
+  @override
+  String get companyTitle => 'أنت شغال مع أنهي شركة؟';
+
+  @override
+  String get companyIntro =>
+      'اختر الشركة اللي بتوصّل معاها. اختيارك يروح للمكتب يراجعه ويوافق عليه، وتقدر تكمل شغلك وأنت مستني.';
+
+  @override
+  String get companyNote => 'ملاحظة للمكتب (اختياري)';
+
+  @override
+  String get companySend => 'إرسال للمكتب';
+
+  @override
+  String companyRejected(String platform, String reason) {
+    return 'رفض المكتب اختيارك ($platform): $reason. اختر من جديد.';
+  }
+
+  @override
+  String companyPending(String platform) {
+    return 'طلبك للعمل مع $platform بانتظار موافقة المكتب';
+  }
+
+  @override
+  String get companyChange => 'تغيير الاختيار';
+
+  @override
+  String get companyNone => 'لا توجد شركات متاحة الآن. تواصل مع المكتب.';
 }
