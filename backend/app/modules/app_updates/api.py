@@ -7,11 +7,13 @@ from sqlalchemy.orm import Session
 from app.core import ratelimit
 from app.core.config import get_settings
 from app.core.db import get_session
-from app.modules.app_updates import schemas, service
+from app.core.errors import AppError
+from app.modules.app_updates import github, schemas, service
 from app.modules.files import service as files
 from app.modules.identity.service import Principal, require_permission
 
 router = APIRouter(prefix="/api/v1", tags=["app updates"])
+public = APIRouter(tags=["app download"])
 
 
 @router.get("/app-releases", response_model=schemas.OverviewOut)
@@ -78,6 +80,59 @@ def download(
 ):
     row, info = service.file_of(db, public_id)
     return files.response(db, info, filename=f"driver-app-{row.version_code}.apk")
+
+
+# ------------------------------------------------------------------ «تحديث التطبيق», GitHub, the download page
+
+
+@router.get("/app-update", response_model=schemas.AppUpdateOut)
+def app_update(_: Principal = Depends(require_permission("settings.view")), db: Session = Depends(get_session)):
+    """The announced version, whether it is forced, the public link, and what Remote Config and GitHub last said."""
+    return service.settings_out(db)
+
+
+@router.put("/app-update", response_model=schemas.AppUpdateOut)
+def save_app_update(
+    body: schemas.AppUpdateIn,
+    principal: Principal = Depends(require_permission("settings.update")),
+    db: Session = Depends(get_session),
+):
+    return service.save_settings(db, body.value, expected_version=body.version, actor_user_id=principal.user_id)
+
+
+@router.post("/app-update/remote-config", response_model=schemas.AppUpdateOut)
+def republish_remote(_: Principal = Depends(require_permission("settings.update")), db: Session = Depends(get_session)):
+    """Writes Firebase Remote Config again (after its permission was fixed, say)."""
+    service.publish_remote(db)
+    return service.settings_out(db)
+
+
+@router.post("/app-update/github-import", response_model=schemas.ImportOut)
+def import_from_github(
+    principal: Principal = Depends(require_permission("settings.update")), db: Session = Depends(get_session)
+):
+    """The repository's latest GitHub release, downloaded once into our store as a draft release."""
+    ratelimit.hit("upload", f"user:{principal.user_id}")
+    return github.import_latest(db, actor_user_id=principal.user_id)
+
+
+@router.get("/app-download", response_model=schemas.DownloadInfoOut)
+def download_page(_: Principal = Depends(require_permission("settings.view")), db: Session = Depends(get_session)):
+    """What the «تنزيل التطبيق» page shows: the announced release and its public link."""
+    return service.download_info(db)
+
+
+@public.api_route("/app/download", methods=["GET", "HEAD"], include_in_schema=False)
+@public.api_route("/app/download/{version}", methods=["GET", "HEAD"], include_in_schema=False)
+def public_download(version: str | None = None, db: Session = Depends(get_session)):
+    """The shareable link: the announced APK (or a published version) under our own address, saved on the phone
+    as "<name>-<version>.apk". Served from our store, never redirected to where the CI keeps it; limited per
+    address."""
+    if version is not None and (len(version) > 30 or not all(c.isalnum() or c in "._-" for c in version)):
+        raise AppError(404, "app_release_not_found")
+    ratelimit.hit("app_download")
+    info, name = service.public_file(db, version)
+    return files.response(db, info, filename=name, headers={"Cache-Control": "no-cache", "X-Robots-Tag": "noindex"})
 
 
 # ------------------------------------------------------------------ the app: before sign-in too (the sign-in screen

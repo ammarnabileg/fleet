@@ -25,13 +25,18 @@ class Settings(BaseSettings):
     rate_uploads_per_hour: int = 600
     rate_public_texts_per_15min: int = 120
     rate_app_update_per_15min: int = 120
+    rate_app_download_per_15min: int = 20  # the public download link (/app/download): a whole APK each time
     rate_limit_exempt: str = ""  # addresses or networks never limited, comma separated (the office, on sign-up day)
 
     files_dir: str = "/data/files"
     max_upload_mb: int = 10
     max_apk_mb: int = 150  # the driver app's releases (web/nginx.conf allows this size on that endpoint only)
     android_package: str = ""  # the driver app's package; the dashboard's setting replaces it
-    public_url: str = "http://localhost:8080"  # the address drivers open (activation links)
+    public_url: str = "http://localhost:8080"  # the address drivers open (activation links, the download link)
+    # the driver app's GitHub releases (built by CI): "owner/repo" when the dashboard's setting is empty, and a
+    # token for a private repository (fine-grained, read-only "Contents"); a public one needs none
+    github_releases_repo: str = ""
+    github_token: str = ""
     messaging_provider: str = "log"  # "whatsapp" in production (Evolution API)
     evolution_api_url: str = ""
     evolution_api_key: str = ""

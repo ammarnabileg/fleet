@@ -49,6 +49,7 @@
     { sec: 'الإدارة', id: 'admin', icon: 'settings', items: [
       { key: 'import', icon: 'file-spreadsheet', label: 'استيراد من إكسل', all: IMPORT_PERMS },
       { key: 'settings', icon: 'settings', label: 'الإعدادات والصلاحيات', any: ['settings.view', 'users.view', 'roles.view', 'companies.view', 'branches.manage', 'i18n.manage'] },
+      { key: 'app-download', icon: 'smartphone', label: 'تنزيل التطبيق', any: ['settings.view'] },
       { key: 'broadcasts', icon: 'send', label: 'ركن الإشعارات', any: ['broadcasts.view', 'broadcasts.send'] },
       { key: 'integrations', icon: 'puzzle', label: 'التكاملات', any: ['integrations.manage', 'settings.view'] },
       { key: 'audit', icon: 'shield-check', label: 'سجل التدقيق', any: ['audit.view'] }

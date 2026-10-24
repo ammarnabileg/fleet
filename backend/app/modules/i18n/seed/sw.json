@@ -641,7 +641,8 @@
     "pettyNote": "Maelezo",
     "pettySend": "Tuma kwa ukaguzi",
     "kind_petty": "Matumizi ya fedha ndogo",
-    "kind_petty_cancel": "Kughairi matumizi ya fedha ndogo"
+    "kind_petty_cancel": "Kughairi matumizi ya fedha ndogo",
+    "endOrdersKept": "Imehifadhiwa na itaonekana kwenye ripoti ya leo, ambapo utajaza sehemu zilizobaki"
   },
   "server": {
     "deduction_source": {
@@ -1242,7 +1243,14 @@
       "config_file_invalid": "Faili si faili sahihi ya mipangilio ya mfumo huu",
       "config_version_newer": "Faili ni la toleo jipya zaidi (muundo {version}); mfumo huu unasoma hadi muundo {supported}: usasishe kwanza",
       "config_section_unknown": "Sehemu zisizojulikana: {sections}",
-      "config_owner_only": "Kuingiza, na kuhamisha siri, ni kwa mtumiaji mwenye ruhusa zote tu"
+      "config_owner_only": "Kuingiza, na kuhamisha siri, ni kwa mtumiaji mwenye ruhusa zote tu",
+      "app_update_release_missing": "Toleo {version_code} halipo kwenye masasisho ya programu: lipakie au liingize kutoka GitHub kwanza",
+      "app_release_announced": "Toleo {version_code} ndilo lililotangazwa katika sasisho la programu: tangaza jingine kabla ya kuliondoa",
+      "github_not_configured": "Hakuna hazina ya GitHub iliyowekwa: iandike kwenye sasisho la programu au kwenye kigezo cha seva GITHUB_RELEASES_REPO",
+      "github_unreachable": "GitHub haipatikani (hali {status}): angalia hazina na tokeni, kisha jaribu baadaye",
+      "github_no_release": "Hazina ya GitHub {repo} haina toleo lililochapishwa",
+      "github_no_apk": "Toleo la GitHub {tag} halina APK yenye jina la toleo",
+      "github_apk_mismatch": "Faili {name} ina namba ya toleo {version_code}: hailingani na jina lake"
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",

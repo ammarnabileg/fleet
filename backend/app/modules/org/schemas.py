@@ -124,6 +124,40 @@ class DriverAppSettings(_Section):
         return self
 
 
+VERSION_CODE_MAX = 2_100_000_000  # Android's limit for a versionCode
+
+
+class AppUpdateSettings(_Section):
+    """What the driver app is told about its newest version («تحديث التطبيق»), here and in Firebase Remote Config.
+
+    latest_version: the versionCode the apps update to, written as the CI names a build, "0.1.1057" (major.minor
+    of pubspec.yaml, then the versionCode), or the versionCode alone, "1057"; the last number is the versionCode
+    either way. The release with that versionCode must be in «تحديثات التطبيق» (uploaded or imported from GitHub);
+    saving publishes it. Empty: the newest published release, as before this setting.
+    force_update: every older app must update (the blocking screen); otherwise an optional banner.
+    download_name: the file name the public download link gives, "<download_name>-<version>.apk"."""
+
+    latest_version: str = Field("", max_length=25, pattern=r"^$|^(\d{1,3}\.\d{1,3}\.)?[1-9]\d{0,9}$")
+    force_update: bool = False
+    notes: str = Field("", max_length=500)
+    download_name: str = Field("Driver-App", pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,59}$")
+    github_repo: str = Field("", max_length=140, pattern=r"^$|^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$")
+    github_auto_import: bool = False  # every hour: the repository's latest release imported as a draft
+
+    @property
+    def version_code(self) -> int | None:
+        return int(self.latest_version.rsplit(".", 1)[-1]) if self.latest_version else None
+
+    @model_validator(mode="after")
+    def _check(self):
+        if self.version_code is not None and self.version_code > VERSION_CODE_MAX:
+            raise ValueError(f"latest_version: the versionCode is above {VERSION_CODE_MAX}")
+        if self.force_update and not self.latest_version:
+            raise ValueError("force_update: a forced update needs latest_version")
+        self.notes = self.notes.strip()
+        return self
+
+
 class MaintenanceSettings(_Section):
     approval_limit: Decimal = Field(Decimal("100.000"), ge=0, max_digits=12, decimal_places=3)  # quotes above it
     close_requires_invoice: bool = True  # a picked-up request closes once its invoice is approved
@@ -219,6 +253,7 @@ SECTIONS: dict[str, type[_Section]] = {
     "messaging": MessagingSettings,
     "driver_sign_in": DriverSignInSettings,
     "driver_app": DriverAppSettings,
+    "app_update": AppUpdateSettings,
     "maintenance": MaintenanceSettings,
     "accidents": AccidentsSettings,
     "payroll": PayrollSettings,

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/state.dart';
+import '../../core/models.dart';
+import '../../core/outbox.dart';
 import '../photos.dart';
 import '../widgets/common.dart';
 import 'home.dart';
@@ -25,7 +27,19 @@ class _OdometerScreenState extends State<OdometerScreen> {
   TakenPhoto? sparePhoto;
   final _km = TextEditingController();
   final _spareKm = TextEditingController();
+  final _orders = TextEditingController();
   final _form = GlobalKey<FormState>();
+
+  /// Ending the day here (not on the report screen): the orders count right after the reading, when the driver's
+  /// platform asks orders and this session's report is not sent yet. The report screen hidden by the office: no
+  /// report at all, so no orders either (the server refuses reports then).
+  late final bool _asksOrders = _ordersAsked();
+
+  bool _ordersAsked() {
+    final s = widget.state;
+    if (widget.kind != 'end_day' || !s.shows('daily_report') || !s.reportForm.fields.contains('orders')) return false;
+    return s.todaysReport == null && s.queuedReport(kuwaitDay(DateTime.now()), s.sessionsToday) == null;
+  }
 
   bool get _spare => widget.kind == 'pickup' && widget.replacementPlate != null;
 
@@ -33,6 +47,7 @@ class _OdometerScreenState extends State<OdometerScreen> {
   void dispose() {
     _km.dispose();
     _spareKm.dispose();
+    _orders.dispose();
     super.dispose();
   }
 
@@ -50,8 +65,9 @@ class _OdometerScreenState extends State<OdometerScreen> {
       return;
     }
     if (!_form.currentState!.validate()) return;
+    final session = widget.state.sessionsToday; // fixed before the reading changes what is known
     try {
-      final r = widget.kind == 'pickup'
+      var r = widget.kind == 'pickup'
           ? await widget.state.sendPickup(
               requestId: widget.requestId!,
               km: int.parse(_km.text),
@@ -68,6 +84,14 @@ class _OdometerScreenState extends State<OdometerScreen> {
               lat: photo!.lat,
               lng: photo!.lng,
             );
+      if (_asksOrders) {
+        final report = await widget.state.endDayOrders(
+          orders: int.parse(_orders.text),
+          session: session,
+          readingQueued: r == SendResult.queued,
+        );
+        if (report == SendResult.queued) r = SendResult.queued;
+      }
       if (mounted) Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ResultScreen(result: r)));
     } catch (e) {
       if (mounted) showError(context, widget.state, e);
@@ -131,6 +155,26 @@ class _OdometerScreenState extends State<OdometerScreen> {
                     onChanged: (_) => setState(() {}),
                     validator: (v) => int.tryParse(v ?? '') == null ? l.kmInvalid : null,
                   ),
+                  // the end of the day asks the orders count right after the reading
+                  if (_asksOrders) ...[
+                    const SizedBox(height: 14),
+                    FieldLabel(l.ordersCount, required: true),
+                    TextFormField(
+                      key: const Key('end-orders'),
+                      controller: _orders,
+                      keyboardType: TextInputType.number,
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                      decoration: InputDecoration(
+                        hintText: '0',
+                        hintTextDirection: TextDirection.ltr,
+                        helperText: widget.state.reportIsOrdersOnly ? null : l.endOrdersKept,
+                        helperMaxLines: 3,
+                      ),
+                      validator: (v) => int.tryParse(v ?? '') == null ? l.required : null,
+                    ),
+                  ],
                 ],
               ),
             ),

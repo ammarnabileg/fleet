@@ -7,6 +7,12 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 class FirebasePush {
   static bool _ready = false;
 
+  /// Firebase is started on this phone (push is switched on and the driver signed in): Remote Config can be read.
+  static bool get ready => _ready;
+
+  /// Called once Firebase has started (the app fetches Remote Config then, in the background).
+  static void Function()? onReady;
+
   /// A push the driver tapped (the app in the background or closed): its data, so the app opens at its place.
   static void Function(Map<String, dynamic> data)? onOpened;
 
@@ -25,6 +31,7 @@ class FirebasePush {
         ),
       );
       _ready = true;
+      onReady?.call();
       FirebaseMessaging.instance.onTokenRefresh.listen(onRefresh);
       FirebaseMessaging.onMessage.listen((_) => onMessage()); // in the foreground: the badge, not a banner
       FirebaseMessaging.onMessageOpenedApp.listen((m) => onOpened?.call(m.data));

@@ -640,7 +640,8 @@
     "pettyNote": "Note",
     "pettySend": "Send for review",
     "kind_petty": "Petty cash spending",
-    "kind_petty_cancel": "Cancelling a petty cash spending"
+    "kind_petty_cancel": "Cancelling a petty cash spending",
+    "endOrdersKept": "Kept and shown in today's report, where you fill in the rest"
   },
   "status_templates": {
     "shift_working.name": "Working",

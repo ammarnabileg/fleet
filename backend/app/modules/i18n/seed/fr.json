@@ -641,7 +641,8 @@
     "pettyNote": "Remarque",
     "pettySend": "Envoyer pour vérification",
     "kind_petty": "Dépense de caisse",
-    "kind_petty_cancel": "Annulation d'une dépense de caisse"
+    "kind_petty_cancel": "Annulation d'une dépense de caisse",
+    "endOrdersKept": "Conservé et affiché dans le rapport du jour, où vous remplissez le reste"
   },
   "server": {
     "deduction_source": {
@@ -1242,7 +1243,14 @@
       "config_file_invalid": "Le fichier n'est pas un fichier de configuration valide de ce système",
       "config_version_newer": "Le fichier provient d'une version plus récente (format {version}) ; ce système lit jusqu'au format {supported} : mettez-le à jour d'abord",
       "config_section_unknown": "Sections inconnues : {sections}",
-      "config_owner_only": "L'importation, et l'export des secrets, sont réservés à un utilisateur ayant toutes les permissions"
+      "config_owner_only": "L'importation, et l'export des secrets, sont réservés à un utilisateur ayant toutes les permissions",
+      "app_update_release_missing": "La version {version_code} n'est pas dans les mises à jour de l'application : téléversez-la ou importez-la depuis GitHub d'abord",
+      "app_release_announced": "La version {version_code} est celle annoncée dans la mise à jour de l'application : annoncez-en une autre avant de la dépublier",
+      "github_not_configured": "Aucun dépôt GitHub défini : saisissez-le dans la mise à jour de l'application ou dans la variable du serveur GITHUB_RELEASES_REPO",
+      "github_unreachable": "GitHub est injoignable (statut {status}) : vérifiez le dépôt et le jeton, puis réessayez plus tard",
+      "github_no_release": "Le dépôt GitHub {repo} n'a aucune version publiée",
+      "github_no_apk": "La version GitHub {tag} n'a pas d'APK portant le nom de la version",
+      "github_apk_mismatch": "Le fichier {name} a le code de version {version_code} : il ne correspond pas à son nom"
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",

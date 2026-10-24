@@ -16,6 +16,7 @@ import 'package:fleet_driver/ui/screens/fuel.dart';
 import 'package:fleet_driver/ui/screens/petty.dart';
 import 'package:fleet_driver/ui/photos.dart';
 import 'package:fleet_driver/ui/theme.dart';
+import 'package:fleet_driver/ui/widgets/common.dart' show DCard;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -569,6 +570,155 @@ void main() {
     await settle(tester);
     expect(find.text('أنهيت اليوم'), findsOneWidget);
     expect(find.byKey(const Key('end-day')), findsNothing);
+  });
+
+  group('ending the day asks the orders count right after the odometer reading', () {
+    Map<String, dynamic> started(bool ended) => {
+      'custody': {
+        'id': 'c1',
+        'plate_number': '18/23456',
+        'started_at': '2026-10-02T05:00:00Z',
+        'last_odometer_km': 45210,
+      },
+      'start_day_done': true,
+      'end_day_done': ended,
+    };
+
+    Future<World> endDayWorld(
+      WidgetTester tester, {
+      required List<String> fields,
+      required bool screenshot,
+      required bool endReading,
+      List<String> hidden = const [],
+    }) async {
+      var ended = false;
+      final w = (await tester.runAsync(() => world(today: started(false))))!;
+      final img = await tester.runAsync(testImage);
+      Photos.camera = (_) async => TakenPhoto(img!, DateTime.now().toUtc());
+      w.server.on(
+        'GET',
+        '/api/v1/driver/app-config',
+        (r) => (200, {'phone_codes': true, 'hidden_screens': hidden, 'splash': null}),
+      );
+      w.server.on(
+        'GET',
+        '/api/v1/driver/reports/form',
+        (r) => (200, {'fields': fields, 'screenshot': screenshot, 'end_reading': endReading}),
+      );
+      w.server.on('POST', '/api/v1/driver/files', (r) => (201, {'sha256': 'c' * 64}));
+      w.server.on('POST', '/api/v1/driver/odometer', (r) {
+        ended = true;
+        return (201, {'id': 'e'});
+      });
+      w.server.on('GET', '/api/v1/driver/today', (r) => (200, started(ended)));
+      w.server.on('POST', '/api/v1/driver/reports', (r) => (201, {'id': 'n'}));
+      return w;
+    }
+
+    Future<void> reach(WidgetTester tester, String key) async {
+      await reveal(tester, find.byKey(Key(key)));
+      await tester.pumpAndSettle();
+    }
+
+    double top(WidgetTester tester, String key) => tester.getTopLeft(find.byKey(Key(key))).dy;
+
+    testWidgets('on the report screen: the orders field is in the reading\'s card, right after the reading', (
+      tester,
+    ) async {
+      final w = await endDayWorld(tester, fields: ['orders', 'cash'], screenshot: true, endReading: true);
+      await pumpApp(tester, w);
+      await tester.tap(find.byKey(const Key('end-day')));
+      await settle(tester);
+      expect(find.byKey(const Key('end-reading')), findsOneWidget);
+      await reach(tester, 'orders');
+      final card = find.ancestor(of: find.byKey(const Key('end-km')), matching: find.byType(DCard));
+      expect(find.descendant(of: card, matching: find.byKey(const Key('orders'))), findsOneWidget);
+      expect(top(tester, 'orders'), greaterThan(top(tester, 'end-km')));
+      await reach(tester, 'cash');
+      expect(top(tester, 'cash'), greaterThan(top(tester, 'orders')), reason: 'the cash after the orders');
+      expect(find.byKey(const Key('orders')), findsOneWidget, reason: 'asked once');
+      // another day's report has no reading: the orders back in their usual card
+      await tester.scrollUntilVisible(find.text('أمس'), -200, scrollable: find.byType(Scrollable).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('أمس'));
+      await settle(tester);
+      expect(find.byKey(const Key('end-km')), findsNothing);
+      expect(find.byKey(const Key('orders')), findsOneWidget);
+    });
+
+    testWidgets('without the report screen, a platform that asks only orders: sent as today\'s report', (tester) async {
+      final w = await endDayWorld(tester, fields: ['orders'], screenshot: false, endReading: false);
+      await pumpApp(tester, w);
+      await tester.tap(find.byKey(const Key('end-day')));
+      await settle(tester);
+      expect(find.byKey(const Key('end-reading')), findsNothing, reason: 'the odometer screen');
+      await tester.tap(find.byKey(const Key('odo-photo')));
+      await idle(tester);
+      await tester.enterText(find.byKey(const Key('km')), '45390');
+      await reach(tester, 'end-orders');
+      expect(top(tester, 'end-orders'), greaterThan(top(tester, 'km')), reason: 'right after the reading');
+      await reach(tester, 'send-reading');
+      await tester.tap(find.byKey(const Key('send-reading')));
+      await idle(tester);
+      expect(w.server.calls('/api/v1/driver/odometer'), isEmpty, reason: 'the orders count is required');
+      await reach(tester, 'end-orders');
+      await tester.enterText(find.byKey(const Key('end-orders')), '41');
+      await reach(tester, 'send-reading');
+      await tester.tap(find.byKey(const Key('send-reading')));
+      await idle(tester);
+      final sent = [
+        for (final r in w.server.requests)
+          if (r.method == 'POST' && r.url.path != '/api/v1/driver/files') r.url.path,
+      ];
+      expect(sent, ['/api/v1/driver/odometer', '/api/v1/driver/reports'], reason: 'the reading first');
+      expect((jsonDecode(w.server.calls('/api/v1/driver/odometer').single.body) as Map)['kind'], 'end_day');
+      final report = jsonDecode(w.server.calls('/api/v1/driver/reports', method: 'POST').single.body) as Map;
+      expect(report['orders_count'], 41);
+      expect(report['business_date'], kuwaitDay(DateTime.now()));
+      expect(report['extra'], <String, dynamic>{});
+      expect(report.containsKey('cash_amount'), isFalse);
+    });
+
+    testWidgets('without the report screen, a platform that asks more: kept, and the report starts with it', (
+      tester,
+    ) async {
+      final w = await endDayWorld(tester, fields: ['orders', 'cash'], screenshot: true, endReading: false);
+      await pumpApp(tester, w);
+      await tester.tap(find.byKey(const Key('end-day')));
+      await settle(tester);
+      await tester.tap(find.byKey(const Key('odo-photo')));
+      await idle(tester);
+      await tester.enterText(find.byKey(const Key('km')), '45390');
+      await reach(tester, 'end-orders');
+      expect(find.text('يُحفظ هنا ويظهر في تقرير اليوم لتكمل باقي حقوله'), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('end-orders')), '33');
+      await reach(tester, 'send-reading');
+      await tester.tap(find.byKey(const Key('send-reading')));
+      await idle(tester);
+      expect(w.server.calls('/api/v1/driver/odometer').length, 1);
+      expect(w.server.calls('/api/v1/driver/reports', method: 'POST'), isEmpty, reason: 'cash and screenshot missing');
+      await tester.tap(find.text('تم'));
+      await settle(tester);
+      await tester.tap(find.byKey(const Key('daily-report')));
+      await settle(tester);
+      await reach(tester, 'orders');
+      expect(tester.widget<TextFormField>(find.byKey(const Key('orders'))).controller!.text, '33');
+    });
+
+    testWidgets('daily reports hidden by the office: no report, so no orders field', (tester) async {
+      final w = await endDayWorld(
+        tester,
+        fields: ['orders'],
+        screenshot: false,
+        endReading: false,
+        hidden: ['daily_report'],
+      );
+      await pumpApp(tester, w);
+      await tester.tap(find.byKey(const Key('end-day')));
+      await settle(tester);
+      expect(find.byKey(const Key('km')), findsOneWidget);
+      expect(find.byKey(const Key('end-orders')), findsNothing);
+    });
   });
 
   Map<String, dynamic> sentReport(String id, String day, String status, {String? note, bool pending = false}) => {

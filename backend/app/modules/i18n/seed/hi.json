@@ -641,7 +641,8 @@
     "pettyNote": "टिप्पणी",
     "pettySend": "समीक्षा के लिए भेजें",
     "kind_petty": "छोटी नकदी का खर्च",
-    "kind_petty_cancel": "छोटी नकदी का खर्च रद्द करना"
+    "kind_petty_cancel": "छोटी नकदी का खर्च रद्द करना",
+    "endOrdersKept": "यह सहेजा जाएगा और आज की रिपोर्ट में दिखेगा, जहाँ आप बाकी भरेंगे"
   },
   "server": {
     "deduction_source": {
@@ -1242,7 +1243,14 @@
       "config_file_invalid": "यह फ़ाइल इस सिस्टम की मान्य सेटिंग्स फ़ाइल नहीं है",
       "config_version_newer": "फ़ाइल नए संस्करण की है (फ़ॉर्मेट {version}); यह सिस्टम फ़ॉर्मेट {supported} तक पढ़ता है: पहले इसे अपडेट करें",
       "config_section_unknown": "अज्ञात सेक्शन: {sections}",
-      "config_owner_only": "आयात और रहस्यों का निर्यात केवल सभी अनुमतियों वाले उपयोगकर्ता के लिए है"
+      "config_owner_only": "आयात और रहस्यों का निर्यात केवल सभी अनुमतियों वाले उपयोगकर्ता के लिए है",
+      "app_update_release_missing": "संस्करण {version_code} ऐप अपडेट में नहीं है: पहले इसे अपलोड करें या GitHub से आयात करें",
+      "app_release_announced": "संस्करण {version_code} ऐप अपडेट में घोषित है: इसे अप्रकाशित करने से पहले कोई दूसरा घोषित करें",
+      "github_not_configured": "कोई GitHub रिपॉज़िटरी सेट नहीं है: इसे ऐप अपडेट में या सर्वर वेरिएबल GITHUB_RELEASES_REPO में लिखें",
+      "github_unreachable": "GitHub तक नहीं पहुँच सके (स्थिति {status}): रिपॉज़िटरी और टोकन जाँचें, फिर बाद में प्रयास करें",
+      "github_no_release": "GitHub रिपॉज़िटरी {repo} में कोई प्रकाशित रिलीज़ नहीं है",
+      "github_no_apk": "GitHub रिलीज़ {tag} में रिलीज़ के नाम वाली कोई APK नहीं है",
+      "github_apk_mismatch": "फ़ाइल {name} का संस्करण कोड {version_code} है: यह उसके नाम से मेल नहीं खाता"
     },
     "finance_source": {
       "cash_journal": "कैश लेजर: {kind} {reason}",

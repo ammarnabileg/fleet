@@ -424,7 +424,7 @@
           });
         });
       });
-      return h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr))">${Object.keys(sections).filter(function (name) { return name !== 'driver_app'; }).map(function (name) {
+      return h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr))">${Object.keys(sections).filter(function (name) { return name !== 'driver_app' && name !== 'app_update'; }).map(function (name) {
         var s = sections[name];
         return h`<form class="card" data-sec="${name}" novalidate><div class="card-h"><div class="card-t">${api.t('settings', name)}</div><span class="muted fs-sm">نسخة ${s.version}</span></div><div class="form">${Object.keys(s.value).filter(function (k) { return !HIDDEN[name + '.' + k]; }).map(function (k) {
           var val = s.value[k], label = api.t('settings', name + '.' + k), key = name + '.' + k, hint = HINTS[key];
@@ -531,8 +531,8 @@
   /* ---------- تحديثات التطبيق: التطبيق يُثبَّت من ملف APK (ليس من متجر)، فالإصدار الجديد يُرفع هنا ويُنشر ---------- */
   function mb(bytes) { return fmt.ltr((bytes / 1048576).toFixed(1) + ' MB'); }
   function updatesPanel(el) {
-    A.load(el, Promise.all([api.get('/app-releases'), api.get('/settings'), api.get('/i18n/languages').catch(function () { return []; })]), function (r) {
-      var data = r[0], app = r[1].driver_app, langs = r[2], canEdit = api.can('settings.update');
+    A.load(el, Promise.all([api.get('/app-releases'), api.get('/settings'), api.get('/i18n/languages').catch(function () { return []; }), api.get('/app-update')]), function (r) {
+      var data = r[0], app = r[1].driver_app, langs = r[2], upd = r[3], canEdit = api.can('settings.update');
       var codes = ['ar', 'en'].concat(langs.map(function (l) { return l.code; }).filter(function (c) { return c !== 'ar' && c !== 'en'; }));
       var langName = function (c) { var l = langs.find(function (x) { return x.code === c; }); return l ? l.name_native : ({ ar: 'العربية', en: 'English' })[c] || c; };
       var reload = function () { updatesPanel(el); };
@@ -572,6 +572,7 @@
             submit: function (v) { var notes = {}; codes.forEach(function (c) { notes[c] = v['n_' + c] || ''; }); return api.patch('/app-releases/' + x.id, { notes: notes }); } });
         });
         A.delegate(el, 'click', '[data-file]', function (e, b) { A.download('/app-releases/' + b.getAttribute('data-file') + '/file'); });
+        appUpdateWire(el, upd, reload);
         var pkg = el.querySelector('form[data-pkg]');
         if (pkg) pkg.addEventListener('submit', function (e) {
           e.preventDefault();
@@ -581,23 +582,119 @@
         });
       });
       var behind = data.drivers.filter(function (d) { return d.outdated; });
-      return h`<div class="card mb-16"><div class="card-h"><div class="card-t">رفع إصدار جديد</div></div><div class="card-b form" style="max-width:640px">
+      return h`${appUpdateCard(upd, data, canEdit)}<div class="card mb-16"><div class="card-h"><div class="card-t">رفع إصدار جديد</div></div><div class="card-b form" style="max-width:640px">
           <div class="hint">التطبيق لا يُثبَّت من متجر: نزّل ملف APK من آخر بناء في CI، ارفعه هنا، ثم «نشر». يقرأ النظام اسم الحزمة ورقم الإصدار (versionCode) من الملف نفسه، ويرفض تطبيقاً آخر أو رقماً ليس أعلى من آخر إصدار منشور. يطلب أندرويد من السائق تأكيد التثبيت دائماً: لا يمكن التثبيت الصامت لتطبيق من خارج المتجر.</div>
           ${canEdit ? h`${BT.f.upload({ name: 'apk', label: 'ملف التطبيق (APK)', accept: '.apk,application/vnd.android.package-archive', accept_label: 'APK · حتى ' + data.max_mb + 'MB' })}<div data-uploading class="hidden muted fs-sm">${icon('upload', 14)} جارٍ الرفع والفحص…</div>` : ''}
           <div class="muted fs-sm">الحزمة المطلوبة: <b class="ltr">${data.package || 'أي حزمة (تُعتمد حزمة أول إصدار)'}</b></div>
           ${canEdit ? h`<form data-pkg class="flex gap-8" style="align-items:flex-end" novalidate>${BT.f.input({ name: 'android_package', label: 'حزمة تطبيق أندرويد', value: app.value.android_package || '', pattern: '[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+', msg: 'مثل com.example.app', hint: 'فارغ: إعداد الخادم ANDROID_PACKAGE' })}<button type="submit" class="btn btn-sm btn-outline">${icon('check', 14)} حفظ</button></form>` : ''}
         </div></div>
         <div class="card mb-16"><div class="card-h"><div class="card-t">الإصدارات</div><span class="muted fs-sm">${data.unknown_version ? data.unknown_version + ' هاتف بنسخة قديمة لا تذكر رقمها' : ''}</span></div>
-          <div class="table-wrap"><table class="t compact" data-releases><thead><tr><th>الإصدار</th><th>رقم الإصدار</th><th>الحجم</th><th>الحالة</th><th>إلزامي</th><th>المثبّت</th><th>الملاحظات</th><th></th></tr></thead><tbody>${data.releases.length ? data.releases.map(function (x) {
-            return h`<tr data-release="${x.version_code}"><td class="ltr">${x.version_name}</td><td class="ltr">${x.version_code}</td><td>${mb(x.size_bytes)}</td><td>${x.status === 'published' ? BT.pill('منشور', 'g') : BT.pill('مسودة', 'n')}</td><td>${x.required ? BT.pill('إلزامي', 'r') : '—'}</td><td>${fmt.int(x.installed)}</td><td class="fs-sm">${x.notes.ar || x.notes.en || '—'}</td>
+          <div class="table-wrap"><table class="t compact" data-releases><thead><tr><th>الإصدار</th><th>رقم الإصدار</th><th>المصدر</th><th>الحجم</th><th>الحالة</th><th>إلزامي</th><th>المثبّت</th><th>الملاحظات</th><th></th></tr></thead><tbody>${data.releases.length ? data.releases.map(function (x) {
+            return h`<tr data-release="${x.version_code}"><td class="ltr">${x.version_name}</td><td class="ltr">${x.version_code}</td><td>${x.origin === 'github' ? BT.pill('GitHub', 'b') : 'رفع يدوي'}</td><td>${mb(x.size_bytes)}</td><td>${x.status === 'published' ? BT.pill('منشور', 'g') : BT.pill('مسودة', 'n')}</td><td>${x.required ? BT.pill('إلزامي', 'r') : '—'}</td><td>${fmt.int(x.installed)}</td><td class="fs-sm">${x.notes.ar || x.notes.en || '—'}</td>
               <td class="actions nowrap">${canEdit ? h`${x.status === 'published' ? h`<button type="button" class="btn btn-sm btn-ghost" data-unpublish="${x.id}">إلغاء النشر</button>` : h`<button type="button" class="btn btn-sm btn-success" data-publish="${x.id}">نشر</button>`}<button type="button" class="btn btn-sm btn-ghost" data-required="${x.id}">${x.required ? 'اختياري' : 'إلزامي'}</button><button type="button" class="btn btn-sm btn-ghost" data-notes="${x.id}">الملاحظات</button>${x.status === 'draft' ? h`<button type="button" class="btn btn-sm btn-ghost" data-delete="${x.id}">حذف</button>` : ''}` : ''}<button type="button" class="btn btn-sm btn-ghost" data-file="${x.id}" title="تنزيل">${icon('download', 14)}</button></td></tr>`;
-          }) : h`<tr><td colspan="8" class="muted">لا توجد إصدارات بعد</td></tr>`}</tbody></table></div></div>
+          }) : h`<tr><td colspan="9" class="muted">لا توجد إصدارات بعد</td></tr>`}</tbody></table></div></div>
         <div class="card"><div class="card-h"><div class="card-t">السائقون على نسخة أقدم</div><span class="muted fs-sm">${data.latest ? behind.length + ' من ' + data.drivers.length + ' هاتف' : 'لا يوجد إصدار منشور'}</span></div>
           <div class="table-wrap"><table class="t compact" data-behind><thead><tr><th>السائق</th><th>النسخة</th><th>آخر ظهور</th></tr></thead><tbody>${behind.length ? behind.map(function (d) {
             return h`<tr><td>${api.name(d.name)}</td><td class="ltr">${d.app_version || '—'}</td><td>${d.last_seen_at ? fmt.date(d.last_seen_at.slice(0, 10)) : '—'}</td></tr>`;
           }) : h`<tr><td colspan="3" class="muted">${data.latest ? 'كل الهواتف على آخر إصدار' : '—'}</td></tr>`}</tbody></table></div></div>`;
     }).catch(function () {});
   }
+
+  /* ---------- «تحديث التطبيق»: الإصدار المعلن للتطبيقات والتحديث الإجباري، في إعداداتنا وفي Firebase Remote Config ---------- */
+  var REMOTE_STATE = { published: ['نُشر في Remote Config', 'g'], failed: ['فشل النشر في Remote Config', 'r'], not_configured: ['Firebase غير مفعّل', 'n'], never: ['لم يُنشر بعد', 'n'] };
+  var GITHUB_STATE = { imported: ['استُورد', 'g'], up_to_date: ['لا جديد', 'g'], failed: ['فشل', 'r'], never: ['لم يُستورد بعد', 'n'] };
+  A.copyText = function (text) {
+    var done = function () { BT.toast('تم نسخ الرابط'); };
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text).then(done, function () { BT.toast(text, { timeout: 8000 }); });
+    var ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { BT.toast(text, { timeout: 8000 }); }
+    ta.remove();
+    return Promise.resolve();
+  };
+  function appUpdateCard(u, data, canEdit) {
+    var v = u.value, a = u.announced, rs = REMOTE_STATE[u.remote.state] || [u.remote.state, 'n'], gs = GITHUB_STATE[u.github.state] || [u.github.state, 'n'];
+    var options = data.releases.map(function (x) { return x.version_name + ' (' + x.version_code + ')'; });
+    return h`<form class="card mb-16" data-app-update novalidate><div class="card-h"><div class="card-t">${icon('smartphone', 16)} تحديث التطبيق</div><span class="muted fs-sm">نسخة ${u.version}</span></div>
+      <div class="card-b form" style="max-width:720px">
+        <div class="hint">يقارن التطبيق رقم نسخته بالرقم هنا: من Firebase Remote Config إن كان Firebase مفعّلاً، وإلا من الخادم مباشرة. الحفظ ينشر الإصدار المختار إن كان مسودة ويكتب القيم في Remote Config. الإجباري يوقف شاشات النسخ الأقدم حتى تُحدَّث، والاختياري يظهر شريطاً يمكن تأجيله.</div>
+        <div data-announced class="banner ${a ? (a.forced ? 'warn' : 'success') : 'info'} fs-sm">${icon(a ? 'circle-check' : 'info', 15)}<div>${a ? h`المعلن الآن: <b class="ltr">${a.version_name}</b> (رقم ${a.version_code})${a.forced ? ' · إجباري' : ' · اختياري'}${v.latest_version ? '' : ' · أحدث إصدار منشور'}` : 'لا يوجد إصدار منشور بعد'}</div></div>
+        ${BT.f.input({ name: 'latest_version', label: 'رقم الإصدار الجديد', value: v.latest_version, readonly: !canEdit, pattern: '(\\d{1,3}\\.\\d{1,3}\\.)?[1-9]\\d{0,9}', msg: 'مثل 0.1.1057 أو 1057', hint: 'كما يسمّيه البناء: 0.1.1057 (الرقم الأخير هو versionCode)، أو versionCode وحده. يجب أن يكون الإصدار في جدول الإصدارات أدناه. فارغ: أحدث إصدار منشور.' + (options.length ? ' المتاح: ' + options.slice(0, 5).join('، ') : '') })}
+        ${BT.f.switch({ name: 'force_update', label: 'تحديث إجباري', checked: v.force_update, disabled: !canEdit })}
+        ${BT.f.textarea({ name: 'notes', label: 'ملاحظات الإصدار', value: v.notes, optional: true, rows: 2, readonly: !canEdit, hint: 'تظهر للسائق إن لم يكن للإصدار ملاحظات بلغته' })}
+        <div class="field"><label class="label">رابط التنزيل</label><div class="input-group"><input class="input ltr fs-sm" readonly name="download_url_view" value="${u.download_url}"><button type="button" class="addon" data-copy-url style="cursor:pointer" aria-label="نسخ الرابط">${icon('copy', 15)}</button></div><div class="hint">تلقائي: رابط صفحة «تنزيل التطبيق» على عنوان النظام نفسه (لا يظهر أين يُحفظ الملف).</div></div>
+        ${BT.f.input({ name: 'download_name', label: 'اسم ملف التنزيل', value: v.download_name, readonly: !canEdit, pattern: '[A-Za-z0-9][A-Za-z0-9._\\-]{0,59}', msg: 'حروف إنجليزية وأرقام و - _ .', hint: 'يُحفظ على الهاتف باسم «الاسم-الإصدار.apk»' })}
+        <div data-remote class="flex gap-8 fs-sm" style="align-items:center;flex-wrap:wrap">${BT.pill(rs[0], rs[1])}${u.remote.at ? h`<span class="muted">${fmt.dt(u.remote.at)}</span>` : ''}${u.remote.configured ? '' : h`<span class="muted">يُفعَّل مع إشعارات Firebase من «التكاملات»</span>`}${canEdit && u.remote.configured ? h`<button type="button" class="btn btn-sm btn-ghost" data-republish>${icon('refresh-cw', 14)} نشر مرة أخرى</button>` : ''}</div>
+        ${u.remote.error ? h`<div class="banner danger fs-sm" data-remote-error>${icon('circle-alert', 15)}<div class="ltr">${u.remote.error}</div></div>` : ''}
+        <div class="section-t mt-12">GitHub</div>
+        ${BT.f.input({ name: 'github_repo', label: 'مستودع GitHub', value: v.github_repo, optional: true, readonly: !canEdit, pattern: '[A-Za-z0-9][A-Za-z0-9\\-]{0,38}/[A-Za-z0-9._\\-]{1,100}', msg: 'owner/repo', hint: u.github.repo && !v.github_repo ? 'من إعداد الخادم: ' + u.github.repo : 'owner/repo — المستودع الخاص يحتاج GITHUB_TOKEN على الخادم' + (u.github.token ? ' (موجود)' : '') })}
+        ${BT.f.switch({ name: 'github_auto_import', label: 'استيراد آخر إصدار من GitHub كل ساعة (كمسودة)', checked: v.github_auto_import, disabled: !canEdit })}
+        <div data-github class="flex gap-8 fs-sm" style="align-items:center;flex-wrap:wrap">${BT.pill(gs[0], gs[1])}${u.github.release ? h`<span class="ltr">${u.github.release}</span>` : ''}${u.github.at ? h`<span class="muted">${fmt.dt(u.github.at)}</span>` : ''}${u.github.error ? h`<span class="t-danger">${api.t('errors', u.github.error, null, u.github.error)}</span>` : ''}${canEdit ? h`<button type="button" class="btn btn-sm btn-outline" data-github-import>${icon('download', 14)} استيراد آخر إصدار من GitHub</button>` : ''}</div>
+        ${canEdit ? h`<div><button type="submit" class="btn btn-primary">${icon('check', 15)} حفظ</button></div>` : ''}
+      </div></form>`;
+  }
+  function appUpdateWire(el, u, reload) {
+    var form = el.querySelector('form[data-app-update]');
+    if (!form) return;
+    form.querySelector('[data-copy-url]').onclick = function () { A.copyText(u.download_url); };
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!BT.form.validate(form)) return;
+      var vals = BT.form.values(form);
+      var value = Object.assign({}, u.value, { latest_version: (vals.latest_version || '').trim(), force_update: !!vals.force_update, notes: vals.notes || '', download_name: vals.download_name || u.value.download_name, github_repo: (vals.github_repo || '').trim(), github_auto_import: !!vals.github_auto_import });
+      var b = form.querySelector('[type=submit]'); b.classList.add('is-loading');
+      api.put('/app-update', { version: u.version, value: value }).then(function (r) {
+        b.classList.remove('is-loading');
+        BT.toast(r.remote.state === 'failed' ? 'حُفظ، لكن النشر في Remote Config فشل: انظر السبب' : 'حُفظ «تحديث التطبيق»', { type: r.remote.state === 'failed' ? 'error' : 'success', timeout: 6000 });
+        reload();
+      }, function (err) { b.classList.remove('is-loading'); BT.toast(api.message(err), { type: 'error', timeout: 8000 }); });
+    });
+    var rp = form.querySelector('[data-republish]');
+    if (rp) rp.onclick = function () {
+      rp.classList.add('is-loading');
+      api.post('/app-update/remote-config').then(function (r) { BT.toast(r.remote.state === 'published' ? 'نُشر في Remote Config' : 'فشل النشر في Remote Config', { type: r.remote.state === 'published' ? 'success' : 'error' }); reload(); }, function (err) { rp.classList.remove('is-loading'); api.fail(err); }).catch(function () {});
+    };
+    var gi = form.querySelector('[data-github-import]');
+    if (gi) gi.onclick = function () {
+      gi.classList.add('is-loading'); gi.disabled = true;
+      api.post('/app-update/github-import').then(function (r) {
+        BT.toast((r.created ? 'استُورد الإصدار ' : 'الإصدار موجود: ') + r.release.version_name + ' (' + r.release.version_code + ') — ' + (r.release.status === 'draft' ? 'مسودة: اكتب رقمه في «رقم الإصدار الجديد» واحفظ لإعلانه' : 'منشور'), { timeout: 8000 });
+        reload();
+      }, function (err) { gi.classList.remove('is-loading'); gi.disabled = false; BT.toast(api.message(err), { type: 'error', timeout: 8000 }); reload(); });
+    };
+  }
+
+  /* ---------- تنزيل التطبيق: الإصدار المعلن، زر كبير، رمز QR، ورابط على عنوان النظام يُنسخ ويُرسل للسائقين ---------- */
+  BT.pages['app-download'] = function () {
+    A.setTitle('تنزيل التطبيق');
+    var v = A.view();
+    BT.render(v, h`${A.head('تنزيل تطبيق السائق', 'رابط عام على عنوان النظام: يُرسل للسائق أو يُمسح رمزه، فينزل الملف من خادمنا مباشرة', '')}<div data-dl></div>`);
+    var el = v.querySelector('[data-dl]');
+    A.load(el, api.get('/app-download'), function (d) {
+      var r = d.release;
+      if (r) setTimeout(function () {
+        el.querySelector('[data-copy-link]').onclick = function () { A.copyText(d.url); };
+        A.loadScript('assets/vendor/qrcode/qrcode.js').then(function () {
+          var box = el.querySelector('[data-qr]'); if (!box) return;
+          var qr = window.qrcode(0, 'M'); qr.addData(d.url); qr.make();
+          BT.render(box, raw(qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true }).replace('<svg ', '<svg role="img" aria-label="رمز QR لرابط التنزيل" style="width:180px;height:180px;background:#fff;border-radius:10px" ')));
+        }).catch(function () {});
+      });
+      if (!r) return BT.empty('smartphone', 'لا يوجد إصدار منشور', 'انشر إصداراً من «الإعدادات ← تحديثات التطبيق» ليظهر هنا رابط التنزيل');
+      return h`<div class="card"><div class="card-b"><div class="flex gap-16" style="flex-wrap:wrap;align-items:center">
+          <div class="flex-1" style="min-width:240px">
+            <div class="fs-sm muted">الإصدار الحالي</div>
+            <div data-version style="font-size:28px;font-weight:700" class="ltr">${r.version_name}</div>
+            <div class="muted fs-sm">رقم ${r.version_code} · ${mb(r.size_bytes)} · ${r.published_at ? fmt.date(r.published_at.slice(0, 10)) : '—'}${r.forced ? ' · تحديث إجباري' : ''}</div>
+            <div class="muted fs-sm ltr mt-8">${r.file_name}</div>
+            <a class="btn btn-primary btn-lg mt-16" data-download href="${d.url}" download="${r.file_name}" style="font-size:17px;padding:14px 28px">${icon('download', 20)} تنزيل التطبيق</a>
+            <div class="input-group mt-16" style="max-width:520px"><input class="input ltr fs-sm" readonly data-link value="${d.url}" aria-label="رابط التنزيل"><button type="button" class="btn btn-outline" data-copy-link>${icon('copy', 15)} نسخ الرابط</button></div>
+            <div class="hint mt-8">الرابط يعطي دائماً الإصدار المعلن. لرابط هذا الإصدار فقط: <span class="ltr">${d.version_url}</span></div>
+          </div>
+          <div data-qr class="center" style="min-width:180px"></div>
+        </div></div></div>`;
+    }).catch(function () {});
+  };
 
   /* ---------- الحالات الوظيفية ---------- */
   function statusesPanel(el) {

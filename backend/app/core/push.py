@@ -45,23 +45,24 @@ def parse_service_account(raw: str) -> dict:
     return key
 
 
-class FcmSender:
-    def __init__(self, service_account: str, *, transport=None, timeout: float = 10.0) -> None:
-        self._key = parse_service_account(service_account)
-        self._private = serialization.load_pem_private_key(self._key["private_key"].encode(), password=None)
-        self._client = httpx.Client(timeout=timeout, transport=transport)
-        self._token: tuple[str, float] | None = None
+class ServiceAccountAuth:
+    """A Google service account's OAuth access token for one scope: a short JWT signed with its private key,
+    exchanged for a token kept until it nearly expires. Shared by FCM and Remote Config; failures raise `error`."""
 
-    @property
-    def project_id(self) -> str:
-        return self._key["project_id"]
+    def __init__(self, key: dict, scope: str, client: httpx.Client, error: type[Exception] = PushError) -> None:
+        self._key = key
+        self._scope = scope
+        self._client = client
+        self._error = error
+        self._private = serialization.load_pem_private_key(key["private_key"].encode(), password=None)
+        self._token: tuple[str, float] | None = None
 
     def _assertion(self) -> str:
         now = int(time.time())
         header = {"alg": "RS256", "typ": "JWT"}
         claims = {
             "iss": self._key["client_email"],
-            "scope": SCOPE,
+            "scope": self._scope,
             "aud": self._key.get("token_uri") or TOKEN_URL,
             "iat": now,
             "exp": now + 3600,
@@ -70,7 +71,10 @@ class FcmSender:
         signature = self._private.sign(signing.encode(), padding.PKCS1v15(), hashes.SHA256())
         return f"{signing}.{_b64(signature)}"
 
-    def _access_token(self) -> str:
+    def reset(self) -> None:
+        self._token = None
+
+    def token(self) -> str:
         if self._token and self._token[1] > time.monotonic():
             return self._token[0]
         try:
@@ -79,16 +83,30 @@ class FcmSender:
                 data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": self._assertion()},
             )
         except httpx.HTTPError as exc:
-            raise PushError(f"token request failed: {exc}") from None
+            raise self._error(f"token request failed: {exc}") from None
         if r.status_code != 200:
-            raise PushError(f"token refused ({r.status_code}): {r.text[:200]}")
+            raise self._error(f"token refused ({r.status_code}): {r.text[:200]}")
         body = r.json()
         self._token = (body["access_token"], time.monotonic() + int(body.get("expires_in", 3600)) - 120)
         return self._token[0]
 
+
+class FcmSender:
+    def __init__(self, service_account: str, *, transport=None, timeout: float = 10.0) -> None:
+        self._key = parse_service_account(service_account)
+        self._client = httpx.Client(timeout=timeout, transport=transport)
+        self._auth = ServiceAccountAuth(self._key, SCOPE, self._client)
+
+    @property
+    def project_id(self) -> str:
+        return self._key["project_id"]
+
+    def _access_token(self) -> str:
+        return self._auth.token()
+
     def check(self) -> None:
         """The key is accepted by Google (the panel's test): an access token is issued."""
-        self._token = None
+        self._auth.reset()
         self._access_token()
 
     def send(
@@ -127,5 +145,5 @@ class FcmSender:
         if r.status_code == 404 or "UNREGISTERED" in r.text or ("INVALID_ARGUMENT" in r.text and "token" in r.text):
             raise InvalidToken(r.text[:200])
         if r.status_code == 401:
-            self._token = None  # expired early: the next message asks again
+            self._auth.reset()  # expired early: the next message asks again
         raise PushError(f"FCM refused ({r.status_code}): {r.text[:200]}")

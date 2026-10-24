@@ -56,8 +56,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get phoneLabel => 'Simu';
 
   @override
-  String get phoneInvalid =>
-      'Tarakimu 8 za Kuwait, au nambari ya kimataifa inayoanza na +';
+  String get phoneInvalid => 'Tarakimu 8 za Kuwait, au nambari ya kimataifa inayoanza na +';
 
   @override
   String get sendCode => 'Tuma msimbo';
@@ -100,15 +99,13 @@ class AppLocalizationsSw extends AppLocalizations {
   String get permLocation => 'Eneo: “Ruhusu kila wakati”';
 
   @override
-  String get permLocationWhy =>
-      'Ili msimamizi aone gari likiwa chini ya jukumu lako.';
+  String get permLocationWhy => 'Ili msimamizi aone gari likiwa chini ya jukumu lako.';
 
   @override
   String get permNotifications => 'Arifa';
 
   @override
-  String get permNotificationsWhy =>
-      'Arifa ya kudumu huonekana wakati wa kufuatilia (sheria ya Android).';
+  String get permNotificationsWhy => 'Arifa ya kudumu huonekana wakati wa kufuatilia (sheria ya Android).';
 
   @override
   String get permBattery => 'Puuza uboreshaji wa betri';
@@ -126,8 +123,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get permSettings => 'Fungua mipangilio';
 
   @override
-  String get permLocationRequired =>
-      'Ruhusa ya eneo inahitajika ili kuendelea.';
+  String get permLocationRequired => 'Ruhusa ya eneo inahitajika ili kuendelea.';
 
   @override
   String get gpsOff => 'GPS imezimwa: iwashe kwenye mipangilio ya simu.';
@@ -222,8 +218,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get obWaitingTitle => 'Taarifa zako zinakaguliwa';
 
   @override
-  String get obWaitingText =>
-      'Utapata ujumbe wa WhatsApp zikikubaliwa au kama kuna kitu cha kurekebisha.';
+  String get obWaitingText => 'Utapata ujumbe wa WhatsApp zikikubaliwa au kama kuna kitu cha kurekebisha.';
 
   @override
   String get refresh => 'Onyesha upya';
@@ -259,8 +254,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get noCustody => 'Hakuna gari chini ya jukumu lako sasa';
 
   @override
-  String get noCustodyHint =>
-      'Ukikabidhiwa gari litaonekana hapa na ufuatiliaji utaanza wenyewe.';
+  String get noCustodyHint => 'Ukikabidhiwa gari litaonekana hapa na ufuatiliaji utaanza wenyewe.';
 
   @override
   String custodySince(String when) {
@@ -348,8 +342,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get changeReportTitle => 'Omba kubadilisha ripoti iliyokubaliwa';
 
   @override
-  String get changeReportIntro =>
-      'Ripoti hii imekubaliwa: ombi lako linaenda ofisini na litatumika likikubaliwa.';
+  String get changeReportIntro => 'Ripoti hii imekubaliwa: ombi lako linaenda ofisini na litatumika likikubaliwa.';
 
   @override
   String get changeReason => 'Sababu ya mabadiliko';
@@ -358,8 +351,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get newScreenshotOptional => 'Picha mpya ya skrini (si lazima)';
 
   @override
-  String get reportExistsForDay =>
-      'Tayari umetuma ripoti ya siku hii. Ihariri badala ya kutuma ripoti ya pili.';
+  String get reportExistsForDay => 'Tayari umetuma ripoti ya siku hii. Ihariri badala ya kutuma ripoti ya pili.';
 
   @override
   String get editReport => 'Hariri ripoti';
@@ -391,8 +383,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get vehicleChangeReason => 'Sababu';
 
   @override
-  String get vehicleChangePending =>
-      'Ombi lako la gari jingine liko kwa msimamizi';
+  String get vehicleChangePending => 'Ombi lako la gari jingine liko kwa msimamizi';
 
   @override
   String vehicleChangeRejected(Object note) {
@@ -519,8 +510,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get sentText => 'Kampuni imeipokea.';
 
   @override
-  String get queuedText =>
-      'Hakuna mtandao sasa. Itatumwa yenyewe, pamoja na muda wake halisi, muunganisho ukirudi.';
+  String get queuedText => 'Hakuna mtandao sasa. Itatumwa yenyewe, pamoja na muda wake halisi, muunganisho ukirudi.';
 
   @override
   String get reportTitle => 'Ripoti ya siku';
@@ -547,8 +537,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get cashInvalid => 'Kiasi chenye desimali zisizozidi tatu';
 
   @override
-  String get screenshot =>
-      'Picha ya skrini ya muhtasari wa siku kutoka programu ya usafirishaji';
+  String get screenshot => 'Picha ya skrini ya muhtasari wa siku kutoka programu ya usafirishaji';
 
   @override
   String get notes => 'Maelezo';
@@ -632,8 +621,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get signOut => 'Toka';
 
   @override
-  String get signOutQ =>
-      'Ufuatiliaji utasimama na utahitaji kuwezeshwa upya ili kuingia. Uendelee?';
+  String get signOutQ => 'Ufuatiliaji utasimama na utahitaji kuwezeshwa upya ili kuingia. Uendelee?';
 
   @override
   String get blockedTitle => 'Akaunti yako imesimamishwa';
@@ -657,8 +645,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get mntNew => 'Ombi jipya la matengenezo';
 
   @override
-  String get mntIntro =>
-      'Eleza tatizo na upige picha. Gari lililopata ajali hutengenezwa kupitia ofisi.';
+  String get mntIntro => 'Eleza tatizo na upige picha. Gari lililopata ajali hutengenezwa kupitia ofisi.';
 
   @override
   String get mntDirectIntro =>
@@ -681,8 +668,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get kind_pickup => 'Gari limechukuliwa kutoka matengenezo';
 
   @override
-  String get mntNoVehicle =>
-      'Matengenezo huombwa kwa gari lililo chini ya jukumu lako. Huna gari kwa sasa.';
+  String get mntNoVehicle => 'Matengenezo huombwa kwa gari lililo chini ya jukumu lako. Huna gari kwa sasa.';
 
   @override
   String get mntKind => 'Aina';
@@ -802,8 +788,7 @@ class AppLocalizationsSw extends AppLocalizations {
       'Piga picha za gari kutoka pande kadhaa: mbele, nyuma, pande zote mbili na uharibifu. Muda na mahali vinarekodiwa vyenyewe.';
 
   @override
-  String get accNoVehicle =>
-      'Ajali inaripotiwa kwa gari ulilonalo. Huna gari kwa sasa: mpigie msimamizi wako.';
+  String get accNoVehicle => 'Ajali inaripotiwa kwa gari ulilonalo. Huna gari kwa sasa: mpigie msimamizi wako.';
 
   @override
   String get accDescription => 'Nini kilitokea?';
@@ -923,19 +908,16 @@ class AppLocalizationsSw extends AppLocalizations {
   }
 
   @override
-  String get statementNoPlatform =>
-      'Jukwaa lako bado halijawekwa. Wasiliana na ofisi.';
+  String get statementNoPlatform => 'Jukwaa lako bado halijawekwa. Wasiliana na ofisi.';
 
   @override
-  String get statementNoMonth =>
-      'Umetuma kila mwezi ulio wazi. Subiri ukaguzi wa ofisi.';
+  String get statementNoMonth => 'Umetuma kila mwezi ulio wazi. Subiri ukaguzi wa ofisi.';
 
   @override
   String get statementMonth => 'Mwezi';
 
   @override
-  String get statementShots =>
-      'Picha za skrini kutoka programu ya jukwaa (hadi 6)';
+  String get statementShots => 'Picha za skrini kutoka programu ya jukwaa (hadi 6)';
 
   @override
   String get statementShotRequired => 'Ongeza angalau picha moja ya skrini';
@@ -993,8 +975,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get iban => 'IBAN';
 
   @override
-  String get ibanHint =>
-      'Mshahara wako hulipwa kwake: inakili kutoka programu ya benki yako';
+  String get ibanHint => 'Mshahara wako hulipwa kwake: inakili kutoka programu ya benki yako';
 
   @override
   String get bankName => 'Jina la benki';
@@ -1025,8 +1006,7 @@ class AppLocalizationsSw extends AppLocalizations {
       'Ingia kwa kitambulisho chako cha kiraia na nenosiri lako. Mara ya kwanza: nenosiri la awali ulilopewa na ofisi, kisha utachagua lako mwenyewe.';
 
   @override
-  String get forgotPassword =>
-      'Umesahau nenosiri? Muombe msimamizi wako nenosiri jipya la awali.';
+  String get forgotPassword => 'Umesahau nenosiri? Muombe msimamizi wako nenosiri jipya la awali.';
 
   @override
   String choosePassword(String name) {
@@ -1046,15 +1026,13 @@ class AppLocalizationsSw extends AppLocalizations {
   String get passwordsDiffer => 'Manenosiri mawili hayafanani';
 
   @override
-  String get passwordIsCivilId =>
-      'Usitumie kitambulisho chako cha kiraia kama nenosiri';
+  String get passwordIsCivilId => 'Usitumie kitambulisho chako cha kiraia kama nenosiri';
 
   @override
   String get saveAndSignIn => 'Hifadhi na uingie';
 
   @override
-  String get validDayQuestion =>
-      'Je, programu ya jukwaa ilihesabu siku hii kuwa halali?';
+  String get validDayQuestion => 'Je, programu ya jukwaa ilihesabu siku hii kuwa halali?';
 
   @override
   String get validDayYes => 'Siku halali';
@@ -1124,8 +1102,7 @@ class AppLocalizationsSw extends AppLocalizations {
   }
 
   @override
-  String get schemeBatchRates =>
-      'Bei ya kila oda kulingana na kiwango cha batch cha mwezi:';
+  String get schemeBatchRates => 'Bei ya kila oda kulingana na kiwango cha batch cha mwezi:';
 
   @override
   String schemeBatchRow(String level, String rate) {
@@ -1146,8 +1123,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get schemeReducedLoses => 'Mwezi uliopunguzwa haulipi bonasi ya ngazi';
 
   @override
-  String get schemeTiers =>
-      'Bonasi ya ngazi (ngazi ya juu kabisa unayofikia tu):';
+  String get schemeTiers => 'Bonasi ya ngazi (ngazi ya juu kabisa unayofikia tu):';
 
   @override
   String schemeTierRow(String orders, String amount) {
@@ -1173,8 +1149,7 @@ class AppLocalizationsSw extends AppLocalizations {
   }
 
   @override
-  String get schemeNoMissing =>
-      'Hakuna makato kwa oda zilizopungua kwenye lengo';
+  String get schemeNoMissing => 'Hakuna makato kwa oda zilizopungua kwenye lengo';
 
   @override
   String schemeCovers(String items) {
@@ -1182,12 +1157,10 @@ class AppLocalizationsSw extends AppLocalizations {
   }
 
   @override
-  String get schemeCoversNone =>
-      'Unalipa gharama: matengenezo, makazi, mafuta na laini ya simu';
+  String get schemeCoversNone => 'Unalipa gharama: matengenezo, makazi, mafuta na laini ya simu';
 
   @override
-  String get schemePlatformRates =>
-      'Kanuni ya jukwaa yenyewe: mshahara wa msingi na viwango vya kampuni';
+  String get schemePlatformRates => 'Kanuni ya jukwaa yenyewe: mshahara wa msingi na viwango vya kampuni';
 
   @override
   String get expense_maintenance => 'matengenezo';
@@ -1406,8 +1379,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get workReportDue => 'Ripoti ya leo bado haijatumwa';
 
   @override
-  String get workReportDueHint =>
-      'Tuma oda na pesa taslimu kama zinavyoonekana kwenye programu ya jukwaa';
+  String get workReportDueHint => 'Tuma oda na pesa taslimu kama zinavyoonekana kwenye programu ya jukwaa';
 
   @override
   String get sendDailyReport => 'Tuma ripoti ya siku';
@@ -1453,8 +1425,7 @@ class AppLocalizationsSw extends AppLocalizations {
   }
 
   @override
-  String get cashHint =>
-      'Kama inavyoonekana kwenye programu ya kampuni ya usafirishaji';
+  String get cashHint => 'Kama inavyoonekana kwenye programu ya kampuni ya usafirishaji';
 
   @override
   String get mntDescriptionHint => 'mf. kelele wakati wa kufunga breki';
@@ -1475,8 +1446,7 @@ class AppLocalizationsSw extends AppLocalizations {
   }
 
   @override
-  String get workReportDueHintDays =>
-      'Tuma oda na kama siku ilihesabiwa kuwa halali';
+  String get workReportDueHintDays => 'Tuma oda na kama siku ilihesabiwa kuwa halali';
 
   @override
   String get qaReportSubDays => 'Oda za leo na siku halali';
@@ -1552,8 +1522,7 @@ class AppLocalizationsSw extends AppLocalizations {
       'Mafuta ni jukumu lako kulingana na mpango wako wa malipo, kwa hiyo hayatozwi kwa kampuni.';
 
   @override
-  String get fuelOff_no_vehicle =>
-      'Hakuna gari chini ya jukumu lako sasa: mafuta yanarekodiwa kwa gari ulilonalo.';
+  String get fuelOff_no_vehicle => 'Hakuna gari chini ya jukumu lako sasa: mafuta yanarekodiwa kwa gari ulilonalo.';
 
   @override
   String get kind_fuel => 'Risiti ya mafuta';
@@ -1609,8 +1578,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get kind_vehicle_claim => 'Usajili wa gari';
 
   @override
-  String get mntNoCenter =>
-      'Hakuna kituo cha matengenezo kinachopatikana: piga simu ofisini';
+  String get mntNoCenter => 'Hakuna kituo cha matengenezo kinachopatikana: piga simu ofisini';
 
   @override
   String mntInMaintenance(String center) {
@@ -1729,8 +1697,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get fuelLitres => 'Lita (si lazima)';
 
   @override
-  String get fuelLitresInvalid =>
-      'Weka lita kama zilivyo kwenye risiti (hadi 500)';
+  String get fuelLitresInvalid => 'Weka lita kama zilivyo kwenye risiti (hadi 500)';
 
   @override
   String get fuelLitresUnit => 'L';
@@ -1758,8 +1725,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get startFailedTitle => 'Programu imeshindwa kuanza';
 
   @override
-  String get startFailedBody =>
-      'Hitilafu imetokea wakati wa kupakia. Angalia muunganisho na ujaribu tena.';
+  String get startFailedBody => 'Hitilafu imetokea wakati wa kupakia. Angalia muunganisho na ujaribu tena.';
 
   @override
   String get activationReplaceTitle => 'Badilisha dereva aliyeingia?';
@@ -1791,8 +1757,7 @@ class AppLocalizationsSw extends AppLocalizations {
   }
 
   @override
-  String get noticeBigStaleNever =>
-      'Hakuna eneo lililotumwa bado. Fungua programu na uangalie mipangilio ya eneo';
+  String get noticeBigStaleNever => 'Hakuna eneo lililotumwa bado. Fungua programu na uangalie mipangilio ya eneo';
 
   @override
   String get noticeBigOff => 'Eneo lako halifuatiliwi sasa';
@@ -1905,8 +1870,7 @@ class AppLocalizationsSw extends AppLocalizations {
   }
 
   @override
-  String get leavePreviewOffline =>
-      'Hesabu inahitaji mtandao: ombi litatumwa na kukaguliwa ofisini';
+  String get leavePreviewOffline => 'Hesabu inahitaji mtandao: ombi litatumwa na kukaguliwa ofisini';
 
   @override
   String get leaveSend => 'Tuma ombi';
@@ -1994,8 +1958,7 @@ class AppLocalizationsSw extends AppLocalizations {
   }
 
   @override
-  String get headsUpLocationBodyNever =>
-      'Fungua programu na uangalie mipangilio ya eneo.';
+  String get headsUpLocationBodyNever => 'Fungua programu na uangalie mipangilio ya eneo.';
 
   @override
   String get actionOpenLocationSettings => 'Fungua mipangilio ya eneo';
@@ -2027,12 +1990,10 @@ class AppLocalizationsSw extends AppLocalizations {
   String get updateLater => 'Baadaye';
 
   @override
-  String get updateRequiredTitle =>
-      'Unahitaji kusasisha programu ili kuendelea';
+  String get updateRequiredTitle => 'Unahitaji kusasisha programu ili kuendelea';
 
   @override
-  String get updateRequiredBody =>
-      'Kilichohifadhiwa kwenye simu kinaendelea kutumwa, na ufuatiliaji unaendelea.';
+  String get updateRequiredBody => 'Kilichohifadhiwa kwenye simu kinaendelea kutumwa, na ufuatiliaji unaendelea.';
 
   @override
   String updateQueued(String count) {
@@ -2045,8 +2006,7 @@ class AppLocalizationsSw extends AppLocalizations {
   }
 
   @override
-  String get updateMobileData =>
-      'Uko kwenye data ya simu: upakuaji utatumia kifurushi chako.';
+  String get updateMobileData => 'Uko kwenye data ya simu: upakuaji utatumia kifurushi chako.';
 
   @override
   String updateDownloading(String percent) {
@@ -2071,8 +2031,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get updateOpenSettings => 'Fungua mipangilio';
 
   @override
-  String get updateChecksum =>
-      'Faili lililopakuliwa lilikuwa na hitilafu na limefutwa. Jaribu tena.';
+  String get updateChecksum => 'Faili lililopakuliwa lilikuwa na hitilafu na limefutwa. Jaribu tena.';
 
   @override
   String get updateFailed => 'Upakuaji umeshindwa. Jaribu tena.';
@@ -2114,8 +2073,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get pettyCashRow => 'Fedha zako ndogo za dhamana';
 
   @override
-  String get pettyNone =>
-      'Huna fedha ndogo za dhamana sasa. Ofisi hukupa kutoka hazina ya tawi.';
+  String get pettyNone => 'Huna fedha ndogo za dhamana sasa. Ofisi hukupa kutoka hazina ya tawi.';
 
   @override
   String get pettyBalance => 'Salio la dhamana';
@@ -2222,4 +2180,7 @@ class AppLocalizationsSw extends AppLocalizations {
 
   @override
   String get kind_petty_cancel => 'Kughairi matumizi ya fedha ndogo';
+
+  @override
+  String get endOrdersKept => 'Imehifadhiwa na itaonekana kwenye ripoti ya leo, ambapo utajaza sehemu zilizobaki';
 }
