@@ -300,7 +300,7 @@ def test_the_style_layout_image_and_action_reach_the_inbox_push_and_whatsapp(
     assert b["action"] == {"target": "cash", "label": {"ar": "افتح العهدة", "en": "Open cash"}}
     assert admin_client.get(B).json()[0]["style"] == "urgent"  # the history shows it
     for _ in range(3):
-        broadcasts.run(db)
+        broadcasts.run(db, NOON)  # within the WhatsApp sending hours whatever the hour the suite runs at
     [m] = google.sent
     assert m["notification"]["title"] == "\u26a0\ufe0f Important notice"  # urgent: marked
     assert m["android"] == {"priority": "high", "notification": {"channel_id": "driver_alerts"}}
@@ -318,7 +318,7 @@ def test_the_style_layout_image_and_action_reach_the_inbox_push_and_whatsapp(
 
     # a plain one: defaults, and quietly on the normal channel
     b2 = compose(admin_client, channels_=["push"], style="reminder")
-    broadcasts.run(db)
+    broadcasts.run(db, NOON)
     assert google.sent[-1]["android"]["notification"]["channel_id"] == "driver_messages"
     assert google.sent[-1]["notification"]["title"] == "Important notice"
     assert (b2["layout"], b2["image"], b2["action"]) == ("standard", None, None)

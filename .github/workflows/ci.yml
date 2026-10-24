@@ -272,13 +272,13 @@ jobs:
           path: driver_app/build/app/outputs/flutter-apk/${{ steps.build.outputs.version }}.apk
           retention-days: 14
 
-  # Each successful build of the deployed branch (DEPLOY_BRANCH, main by default) signed with the real release key
+  # Each successful build of the deployed branch (DEPLOY_BRANCH, by default the branch the server deploys) signed with the real release key
   # becomes a GitHub release named exactly its version, tag v<version>, with the APK named <version>.apk. Never for a
   # pull request, never for a debug-signed build (it could not update an installed app). The panel imports it
   # (Settings -> App updates -> «استيراد آخر إصدار من GitHub»); announcing and forcing it stay the office's decisions.
   driver-release:
     needs: driver-app
-    if: github.event_name == 'push' && github.ref_name == (vars.DEPLOY_BRANCH || 'main') && needs.driver-app.outputs.signed == 'true'
+    if: github.event_name == 'push' && github.ref_name == (vars.DEPLOY_BRANCH || 'claude/sharp-bardeen-t7t73k') && needs.driver-app.outputs.signed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
