@@ -1896,5 +1896,25 @@
     "above_fleet": "The car uses more than the fleet's median",
     "few_stretches": "Too few consecutive fills",
     "short_distance": "Too little distance"
+  },
+  "daily_column": {
+    "title": "Daily reports",
+    "driver": "Driver",
+    "vehicle": "Vehicle",
+    "business_date": "Business day",
+    "session": "Session",
+    "orders": "Orders",
+    "valid_day": "Day per platform",
+    "cash": "Cash",
+    "approved_cash": "Approved cash",
+    "status": "Status",
+    "late": "Late",
+    "submitted_at": "Sent at",
+    "reviewed_at": "Reviewed at",
+    "review_note": "Reviewer's note",
+    "notes": "Driver's notes",
+    "yes": "Yes",
+    "no": "No",
+    "all": "All statuses"
   }
 }

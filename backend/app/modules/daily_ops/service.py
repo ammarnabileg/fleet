@@ -217,7 +217,9 @@ def list_reports(
     company_ids: Iterable[int],
     limit: int = 100,
     offset: int = 0,
+    cap: int = 500,
 ) -> list[dict]:
+    """cap: the most one call returns (a page of the panel's list; the Excel export takes more)."""
     q = _scoped(select(Report), all_companies, company_ids)
     if status:
         q = q.where(Report.status == status)
@@ -225,7 +227,7 @@ def list_reports(
         q = q.where(Report.business_date == business_date)
     if employee_id:
         q = q.where(Report.employee_id == employee_id)
-    q = q.order_by(Report.submitted_at).limit(min(limit, 500)).offset(offset)
+    q = q.order_by(Report.submitted_at).limit(min(limit, cap)).offset(offset)
     reports = list(db.scalars(q))
     out = _many(db, reports)
     if reports:
