@@ -19,7 +19,7 @@ from decimal import Decimal
 from typing import Any
 
 from pydantic import ValidationError
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
@@ -94,7 +94,6 @@ class ImportContext:
     actor_user_id: int | None
     files: dict[str, dict] = field(default_factory=dict)
     secrets: dict[str, dict] | None = None  # decrypted with the passphrase: None when the file has none or none given
-    _stored: dict[str, bool] = field(default_factory=dict)
     after_commit: list[Callable[[], None]] = field(default_factory=list)
 
     def file(self, sha256: str | None) -> bool:
@@ -104,22 +103,20 @@ class ImportContext:
 
         if not sha256:
             return False
-        if sha256 in self._stored:
-            return self._stored[sha256]
-        ok = True
         try:
-            files.get(self.db, sha256)
+            files.get(self.db, sha256)  # asked each time: a savepoint rolled back may have taken a stored row away
+            return True
         except AppError:
-            entry = self.files.get(sha256) or {}
-            try:
-                data = base64.b64decode(entry.get("data") or "", validate=True)
-            except ValueError:
-                data = b""
-            ok = bool(data) and hashlib.sha256(data).hexdigest() == sha256
-            if ok:
-                files.store(self.db, data, source="upload", uploaded_by_user=self.actor_user_id, images_only=True)
-        self._stored[sha256] = ok
-        return ok
+            pass
+        entry = self.files.get(sha256) or {}
+        try:
+            data = base64.b64decode(entry.get("data") or "", validate=True)
+        except ValueError:
+            data = b""
+        if not data or hashlib.sha256(data).hexdigest() != sha256:
+            return False
+        files.store(self.db, data, source="upload", uploaded_by_user=self.actor_user_id, images_only=True)
+        return True
 
     def section_secrets(self, key: str) -> dict | None:
         return None if self.secrets is None else self.secrets.get(key)
@@ -157,6 +154,8 @@ def each(db: Session, report: Report, items: Any, label: Callable[[Any], str], f
             report.skip(name, "config_item_invalid", field=".".join(str(x) for x in err["loc"]), detail=err["msg"])
         except IntegrityError:
             report.skip(name, "config_item_conflict")
+        except DBAPIError as exc:  # a value the database refuses (out of range, a check constraint of another kind)
+            report.skip(name, "config_item_invalid", field="", detail=str(getattr(exc, "orig", exc))[:200])
         except (KeyError, TypeError, ValueError, AttributeError) as exc:
             report.skip(name, "config_item_invalid", field="", detail=str(exc)[:200])
 

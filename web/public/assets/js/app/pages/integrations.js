@@ -164,6 +164,7 @@
   }
   function transferCard(el, sections) {
     var owner = !!(api.me && api.me.all_permissions);
+    sections = sections.filter(function (s) { return s.key !== 'integrations' || api.can('integrations.manage'); });
     BT.render(el, h`<div class="card mb-16" data-transfer>
       <div class="card-h"><div class="card-t">${icon('file-text', 16)} نقل الإعدادات (JSON)</div></div>
       <div class="card-b">

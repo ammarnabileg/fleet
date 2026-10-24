@@ -104,6 +104,11 @@ def _apply_settings(ctx: ImportContext, data, report: Report) -> None:
         before = None if row is None else model.model_validate(row.value).model_dump(mode="json")
         if row is not None and same(before, new):
             return UNCHANGED
+        if name == "finance":  # the books start moves only while nothing hangs on it (as the settings page)
+            from app.modules.finance import service as finance
+
+            old_start = model.model_validate(before).books_start_date if before else None
+            finance.check_books_start_change(db, old_start, model.model_validate(new).books_start_date)
         if row is None:
             row = Setting(key=name, value=new, version=1, updated_by=ctx.actor_user_id)
             db.add(row)
@@ -122,9 +127,21 @@ def _apply_settings(ctx: ImportContext, data, report: Report) -> None:
         )
         emit(db, "settings.changed", uuid.uuid5(SETTINGS_NAMESPACE, name), {"section": name, "version": row.version})
         ctx.after_commit.append(lambda n=name: _cache.pop(n, None))
+        if name == "cash":  # a new limit or deposit days apply now, not at the next scan (after the cache is cleared)
+            ctx.after_commit.append(_recheck_cash)
         return CREATED if before is None else UPDATED
 
     each(db, report, sorted(data.items()), lambda i: i[0], one)
+
+
+def _recheck_cash() -> None:
+    from app.core.db import new_session
+    from app.modules.cash import service as cash
+
+    with new_session() as db:
+        cash.check_treasury(db)
+        cash.recheck_deposit_day(db)
+        db.commit()
 
 
 # ------------------------------------------------------------------ companies

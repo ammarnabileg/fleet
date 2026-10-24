@@ -245,7 +245,9 @@ def test_permissions(admin_client, new_client):
     doc = export(admin_client, "settings")
     v = new_client()
     login(v, "viewer")
-    assert v.get(f"{C}/export").status_code == 200
+    everything = v.get(f"{C}/export")
+    assert everything.status_code == 200 and "integrations" not in everything.json()["sections"]
+    assert v.get(f"{C}/export", params={"sections": "integrations"}).status_code == 403
     assert v.get(f"{C}/sections").status_code == 200
     r = v.post(f"{C}/export", json={"include_secrets": True, "passphrase": PASS})
     assert r.status_code == 403 and r.json()["code"] == "config_owner_only"

@@ -31,6 +31,18 @@ def _file(doc: dict) -> Response:
     )
 
 
+def _visible(principal: Principal, keys: list[str] | None) -> list[str] | None:
+    """The integrations' settings (without their secrets, still the bucket and the accounts) are for whoever manages
+    the integrations: left out of an export of everything, refused when asked for by name."""
+    if principal.has("integrations.manage"):
+        return keys
+    if keys is None:
+        return [s["key"] for s in service.sections() if s["key"] != "integrations"]
+    if "integrations" in keys:
+        raise AppError(403, "permission_denied", permission="integrations.manage")
+    return keys
+
+
 def _owner(principal: Principal) -> None:
     if not principal.all_permissions:
         raise AppError(403, "config_owner_only")
@@ -49,7 +61,8 @@ def export(
     db: Session = Depends(get_session),
 ):
     """The configuration as a JSON file, without any secret (comma-separated section keys; none: every section)."""
-    doc = service.export(db, _keys(sections), source=request.url.hostname, actor_user_id=principal.user_id)
+    keys = _visible(principal, _keys(sections))
+    doc = service.export(db, keys, source=request.url.hostname, actor_user_id=principal.user_id)
     return _file(doc)
 
 
@@ -67,7 +80,7 @@ def export_with_options(
             raise AppError(422, "config_passphrase_short", min=service.sealed.MIN_PASSPHRASE)
     doc = service.export(
         db,
-        body.sections or None,
+        _visible(principal, body.sections or None),
         source=request.url.hostname,
         actor_user_id=principal.user_id,
         passphrase=body.passphrase if body.include_secrets else None,
