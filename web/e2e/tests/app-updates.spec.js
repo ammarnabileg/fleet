@@ -30,7 +30,8 @@ test('an APK uploaded, published and marked required reaches the driver API', as
   await expect(row).toContainText('منشور');
   await row.locator('[data-required]').click();
   await admin.locator('.modal').getByRole('button', { name: 'تأكيد' }).click();
-  await expect(row).toContainText('إلزامي');
+  // saved: the button now offers the opposite (its own label was «إلزامي», so the row's text alone proves nothing)
+  await expect(row.locator('[data-required]')).toHaveText('اختياري');
 
   const res = await api.ctx.fetch(`/api/v1/driver/app-update?version_code=${code - 1}`, { headers: { Cookie: '' } });
   expect(res.ok()).toBeTruthy();
