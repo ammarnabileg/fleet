@@ -33,6 +33,7 @@ from app.modules.org.api import router as org_router
 from app.modules.org.print_api import router as print_router
 from app.modules.payroll.api import router as payroll_router
 from app.modules.payroll.designer_api import router as payroll_rules_router
+from app.modules.payroll.hub_api import router as payroll_hub_router
 from app.modules.people.api import router as people_router
 from app.modules.reports.api import router as reports_router
 from app.modules.tracking.api import router as tracking_router
@@ -93,6 +94,7 @@ def create_app() -> FastAPI:
         fines_router,
         payroll_router,
         payroll_rules_router,
+        payroll_hub_router,
         attendance_router,
         finance_router,
         approvals_router,

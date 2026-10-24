@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.clock import today
 from app.core.db import violated_constraint
 from app.core.errors import AppError
 from app.modules.audit import service as audit
@@ -44,6 +45,7 @@ def _out(p: Platform, counts: dict) -> dict:
         "day_divisor": p.day_divisor,
         "columns": p.columns,
         "drivers": counts.get(p.id, 0),
+        "is_core": p.is_core,
         "version": p.version,
     }
 
@@ -68,7 +70,8 @@ def _check(data: dict) -> None:
 
 def list_platforms(db: Session) -> list[dict]:
     counts = people.platform_counts(db)
-    return [_out(p, counts) for p in db.scalars(select(Platform).order_by(Platform.is_active.desc(), Platform.id))]
+    q = select(Platform).order_by(Platform.is_core.desc(), Platform.is_active.desc(), Platform.id)
+    return [_out(p, counts) for p in db.scalars(q)]
 
 
 def get(db: Session, platform_id: int | None) -> Platform | None:
@@ -135,3 +138,87 @@ def update(db: Session, platform_id: int, *, version: int, changes: dict, actor_
     )
     db.commit()
     return _out(p, people.platform_counts(db))
+
+
+def delete(db: Session, platform_id: int, *, actor_user_id: int) -> None:
+    """A platform added by hand, never used (no driver, scheme, statement or month data on it): removed. The core
+    platforms stay."""
+    p = db.get(Platform, platform_id, with_for_update=True)
+    if p is None:
+        raise AppError(404, "platform_not_found")
+    if p.is_core:
+        raise AppError(409, "platform_core")
+    snapshot = {"code": p.code, "name": p.name}
+    try:
+        with db.begin_nested():
+            db.delete(p)
+            db.flush()
+    except IntegrityError:
+        raise AppError(409, "platform_in_use") from None
+    audit.record(
+        db,
+        action="platform.deleted",
+        entity_type="platform",
+        entity_id=p.public_id,
+        actor_user_id=actor_user_id,
+        before=snapshot,
+    )
+    db.commit()
+
+
+def _platform(db: Session, platform_id: int) -> Platform:
+    p = db.get(Platform, platform_id)
+    if p is None:
+        raise AppError(404, "platform_not_found")
+    return p
+
+
+def drivers(db: Session, platform_id: int, *, missing: bool = False, **scope) -> list[dict]:
+    """The platform's drivers (still at work) with their ID on it; `missing`: those with none yet."""
+    from app.modules.payroll import schemes
+    from app.modules.payroll.service import month_start
+
+    _platform(db, platform_id)
+    rows = [x for x in people.platform_profiles(db, platform_id, **scope) if x["platform_id"] == platform_id]
+    if missing:
+        rows = [x for x in rows if not x["platform_driver_id"]]
+    on = schemes.for_month(db, [x["id"] for x in rows], month_start(today()))
+    return [
+        {
+            "id": x["public_id"],
+            "employee_number": x["employee_number"],
+            "name": x["name"],
+            "company_id": x["company_id"],
+            "platform_driver_id": x["platform_driver_id"],
+            "scheme": {"id": str(on[x["id"]].public_id), "name": on[x["id"]].name} if x["id"] in on else None,
+        }
+        for x in rows
+    ]
+
+
+def overview(db: Session, platform_id: int, **scope) -> dict:
+    """The platform page's first tab: its drivers, how many have their ID on it, its schemes, the requests waiting."""
+    from app.modules.payroll import platform_requests, schemes
+
+    p = _platform(db, platform_id)
+    rows = drivers(db, platform_id, **scope)
+    offered = [s for s in schemes.list_schemes(db, platform_id=platform_id) if s["is_active"]]
+    waiting = platform_requests.counts(db, **scope)["by_platform"].get(str(platform_id), 0)
+    return {
+        "platform": _out(p, people.platform_counts(db)),
+        "drivers": len(rows),
+        "with_driver_id": sum(1 for x in rows if x["platform_driver_id"]),
+        "missing_driver_id": sum(1 for x in rows if not x["platform_driver_id"]),
+        "schemes": len(offered),
+        "by_scheme": {s["id"]: s["drivers"] for s in offered},
+        "pending_requests": waiting,
+    }
+
+
+def set_driver_id(db: Session, platform_id: int, employee_public_id, *, value: str | None, actor_user_id: int,
+                  **scope) -> dict:  # fmt: skip
+    _platform(db, platform_id)
+    e = people.set_platform_driver_id(
+        db, employee_public_id, platform_id=platform_id, value=value, actor_user_id=actor_user_id, **scope
+    )
+    return next(x for x in drivers(db, platform_id, **scope) if x["id"] == str(e.public_id))

@@ -587,6 +587,16 @@ def deductions_for_posting(db: Session, first: date, last: date) -> list[dict]:
     return runs.deductions_for_posting(db, first, last)
 
 
+def form_platform(db: Session, driver) -> int | None:
+    """The platform whose daily form a driver fills: his own, or, with none yet, the one he asked for in the app while
+    the office decides (provisional: nothing of payroll reads a request)."""
+    if driver.platform_id:
+        return driver.platform_id
+    from app.modules.payroll import platform_requests
+
+    return platform_requests.pending_platform(db, driver.id)
+
+
 def platform_is_active(db: Session, platform_id: int) -> bool:
     p = db.get(Platform, platform_id)
     return bool(p and p.is_active)

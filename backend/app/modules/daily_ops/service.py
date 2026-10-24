@@ -77,13 +77,14 @@ def form(db: Session, driver: people.EmployeeRef) -> dict:
     """What this driver sends: his platform's daily fields (orders and cash for one, orders and whether the platform
     counted the day for another), or without a platform the settings; and whether the screenshot is required."""
     rules = org.get_section(db, "daily_report")
-    fields = payroll.daily_fields(db, driver.platform_id)
-    items = payroll.daily_form(db, driver.platform_id)
+    pid = payroll.form_platform(db, driver)  # his platform, or the one he asked for while the office decides
+    fields = payroll.daily_fields(db, pid)
+    items = payroll.daily_form(db, pid)
     if fields is None:
         fields = [f for f, on in (("orders", rules.require_orders_count), ("cash", rules.require_cash)) if on]
     if items is None:  # no platform: the settings' fields, as built-in items
         items = [payroll.builtin_daily_item(db, f) for f in fields]
-    shot = payroll.daily_screenshot(db, driver.platform_id)  # the platform's own choice, else the setting
+    shot = payroll.daily_screenshot(db, pid)  # the platform's own choice, else the setting
     return {
         "fields": fields,  # the built-in ones, what every app version knows
         "items": items,  # the whole form in order, the platform's own fields too (newer apps draw it)
@@ -111,7 +112,8 @@ def submit(db: Session, *, employee_id: int, device_id: int, data: dict) -> dict
     if not today() - timedelta(days=MAX_DAYS_BACK) <= day <= today():
         raise AppError(422, "invalid_business_date")
     asked = _validate(db, driver, device_id, data)
-    extra = payroll.check_daily_extra(db, driver.platform_id, data.get("extra"))  # none from an older app
+    pid = payroll.form_platform(db, driver)
+    extra = payroll.check_daily_extra(db, pid, data.get("extra"))  # none from an older app
     started = fleet.driver_days(db, employee_id, day, day).get(day)
     if started is None and (
         day in fleet.days_at_center(db, [employee_id], day, day)[employee_id]
@@ -627,7 +629,7 @@ def _with_extra(db: Session, report: Report, driver: people.EmployeeRef, data: d
         data.pop("extra", None)
     else:
         data["extra"] = dict(report.extra or {}) | payroll.check_daily_extra(
-            db, driver.platform_id, data["extra"], partial=True
+            db, payroll.form_platform(db, driver), data["extra"], partial=True
         )
     return data
 

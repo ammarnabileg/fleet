@@ -692,7 +692,9 @@
       "leave_rejected": "Votre demande d'absence ({kind}) du {from} au {to} a été refusée : {reason}",
       "broadcast": "{title}\n{body}",
       "petty_approved": "Votre dépense de caisse de {amount} KWD a été approuvée et déduite de votre caisse",
-      "petty_rejected": "Votre dépense de caisse de {amount} KWD a été refusée : {reason}"
+      "petty_rejected": "Votre dépense de caisse de {amount} KWD a été refusée : {reason}",
+      "platform_request_approved": "Le bureau a approuvé : vous êtes maintenant sur {platform}",
+      "platform_request_rejected": "Le bureau a refusé votre demande pour {platform} : {reason}"
     },
     "errors": {
       "accident_exists": "Cet accident est déjà enregistré",
@@ -1225,7 +1227,21 @@
       "print_template_invalid": "Valeur invalide dans le modèle d'impression : {field}",
       "print_template_image_missing": "L'image est introuvable : téléversez-la à nouveau",
       "print_config_changed": "Quelqu'un d'autre a modifié les modèles d'impression : rouvrez la page",
-      "print_config_no_previous": "Il n'y a pas de réglage précédent auquel revenir"
+      "print_config_no_previous": "Il n'y a pas de réglage précédent auquel revenir",
+      "batch_period_outside": "La période du lot {batch} est hors du mois",
+      "month_import_sheet": "La feuille « {sheet} » n'est pas dans le fichier",
+      "month_import_field_unknown": "Champ inconnu dans la correspondance des colonnes : {field}",
+      "month_import_driver_column": "Choisissez la colonne de l'identifiant plateforme ou du numéro civil",
+      "month_import_batch_columns": "Le lot et ses commandes vont ensemble, et la fin de la période avec son début",
+      "month_import_column": "La colonne « {column} » n'est pas dans le fichier",
+      "month_import_mapping": "La correspondance des colonnes n'est pas valide",
+      "platform_core": "Les plateformes de base ne peuvent pas être supprimées",
+      "platform_in_use": "La plateforme est utilisée (chauffeurs, formules ou données du mois) : désactivez-la plutôt",
+      "driver_not_on_platform": "Le chauffeur n'est pas sur cette plateforme",
+      "platform_already_set": "Votre société est déjà définie par le bureau",
+      "platform_request_pending": "Votre demande précédente attend encore le bureau",
+      "platform_request_decided": "Cette demande a déjà été tranchée",
+      "platform_request_not_found": "Demande introuvable"
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",

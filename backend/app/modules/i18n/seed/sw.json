@@ -692,7 +692,9 @@
       "leave_rejected": "Ombi lako la kutokuwepo ({kind}) kuanzia {from} hadi {to} limekataliwa: {reason}",
       "broadcast": "{title}\n{body}",
       "petty_approved": "Matumizi yako ya fedha ndogo ya {amount} KWD yamekubaliwa na kutolewa kwenye dhamana yako",
-      "petty_rejected": "Matumizi yako ya fedha ndogo ya {amount} KWD yamekataliwa: {reason}"
+      "petty_rejected": "Matumizi yako ya fedha ndogo ya {amount} KWD yamekataliwa: {reason}",
+      "platform_request_approved": "Ofisi imekubali: sasa uko kwenye {platform}",
+      "platform_request_rejected": "Ofisi imekataa ombi lako la {platform}: {reason}"
     },
     "errors": {
       "accident_exists": "Ajali hii tayari imerekodiwa",
@@ -1225,7 +1227,21 @@
       "print_template_invalid": "Thamani batili katika kiolezo cha uchapishaji: {field}",
       "print_template_image_missing": "Picha haipo: ipakie tena",
       "print_config_changed": "Mtu mwingine amebadilisha violezo vya uchapishaji: fungua ukurasa tena",
-      "print_config_no_previous": "Hakuna mpangilio wa awali wa kurudi"
+      "print_config_no_previous": "Hakuna mpangilio wa awali wa kurudi",
+      "batch_period_outside": "Kipindi cha kundi {batch} kiko nje ya mwezi",
+      "month_import_sheet": "Karatasi «{sheet}» haipo kwenye faili",
+      "month_import_field_unknown": "Sehemu isiyojulikana katika ulinganisho wa safu: {field}",
+      "month_import_driver_column": "Chagua safu ya kitambulisho cha dereva kwenye jukwaa au namba ya kiraia",
+      "month_import_batch_columns": "Kundi na oda zake huenda pamoja, na mwisho wa kipindi pamoja na mwanzo wake",
+      "month_import_column": "Safu «{column}» haipo kwenye faili",
+      "month_import_mapping": "Ulinganisho wa safu si sahihi",
+      "platform_core": "Majukwaa ya msingi hayawezi kufutwa",
+      "platform_in_use": "Jukwaa linatumika (madereva, mipango ya malipo au data ya mwezi): lizime badala yake",
+      "driver_not_on_platform": "Dereva hayuko kwenye jukwaa hili",
+      "platform_already_set": "Kampuni yako tayari imewekwa na ofisi",
+      "platform_request_pending": "Ombi lako la awali bado linasubiri ofisi",
+      "platform_request_decided": "Ombi hili tayari limeamuliwa",
+      "platform_request_not_found": "Ombi halikupatikana"
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",

@@ -692,7 +692,9 @@
       "leave_rejected": "आपका अनुपस्थिति अनुरोध ({kind}) {from} से {to} तक अस्वीकार हुआ: {reason}",
       "broadcast": "{title}\n{body}",
       "petty_approved": "छोटी नकदी से आपका {amount} KWD का खर्च मंज़ूर हुआ और आपकी अमानत से घटा दिया गया",
-      "petty_rejected": "छोटी नकदी से आपका {amount} KWD का खर्च अस्वीकार हुआ: {reason}"
+      "petty_rejected": "छोटी नकदी से आपका {amount} KWD का खर्च अस्वीकार हुआ: {reason}",
+      "platform_request_approved": "ऑफ़िस ने मंज़ूरी दी: अब आप {platform} पर हैं",
+      "platform_request_rejected": "ऑफ़िस ने {platform} के लिए आपका अनुरोध अस्वीकार किया: {reason}"
     },
     "errors": {
       "accident_exists": "यह दुर्घटना पहले से दर्ज है",
@@ -1225,7 +1227,21 @@
       "print_template_invalid": "प्रिंट टेम्पलेट में अमान्य मान: {field}",
       "print_template_image_missing": "छवि नहीं मिली: इसे फिर से अपलोड करें",
       "print_config_changed": "किसी और ने प्रिंट टेम्पलेट बदल दिए: पेज फिर से खोलें",
-      "print_config_no_previous": "वापस जाने के लिए कोई पिछली सेटिंग नहीं है"
+      "print_config_no_previous": "वापस जाने के लिए कोई पिछली सेटिंग नहीं है",
+      "batch_period_outside": "बैच {batch} की अवधि महीने से बाहर है",
+      "month_import_sheet": "शीट «{sheet}» फ़ाइल में नहीं है",
+      "month_import_field_unknown": "कॉलम मिलान में अज्ञात फ़ील्ड: {field}",
+      "month_import_driver_column": "प्लेटफ़ॉर्म ड्राइवर ID या सिविल ID का कॉलम चुनें",
+      "month_import_batch_columns": "बैच और उसके ऑर्डर साथ चुने जाते हैं, और अवधि का अंत उसकी शुरुआत के साथ",
+      "month_import_column": "कॉलम «{column}» फ़ाइल में नहीं है",
+      "month_import_mapping": "कॉलम मिलान मान्य नहीं है",
+      "platform_core": "मुख्य प्लेटफ़ॉर्म हटाए नहीं जा सकते",
+      "platform_in_use": "प्लेटफ़ॉर्म उपयोग में है (ड्राइवर, वेतन योजनाएँ या महीने का डेटा): इसके बजाय इसे बंद करें",
+      "driver_not_on_platform": "ड्राइवर इस प्लेटफ़ॉर्म पर नहीं है",
+      "platform_already_set": "आपकी कंपनी पहले से ही ऑफ़िस ने तय कर दी है",
+      "platform_request_pending": "आपका पिछला अनुरोध अभी भी ऑफ़िस के पास लंबित है",
+      "platform_request_decided": "इस अनुरोध पर पहले ही निर्णय हो चुका है",
+      "platform_request_not_found": "अनुरोध नहीं मिला"
     },
     "finance_source": {
       "cash_journal": "कैश लेजर: {kind} {reason}",

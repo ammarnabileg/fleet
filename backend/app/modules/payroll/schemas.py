@@ -105,6 +105,7 @@ class PlatformOut(BaseModel):
     day_divisor: int
     columns: list[SheetColumn]
     drivers: int  # employees on this platform now
+    is_core: bool = False  # built in (seeded, never deleted)
     version: int
 
 

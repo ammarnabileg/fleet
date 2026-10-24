@@ -663,7 +663,21 @@
     "print_template_invalid": "قيمة غير صالحة في قالب الطباعة: {field}",
     "print_template_image_missing": "الصورة غير موجودة: ارفعها من جديد",
     "print_config_changed": "غيّر شخص آخر قوالب الطباعة: أعد فتح الصفحة",
-    "print_config_no_previous": "لا يوجد إعداد سابق للرجوع إليه"
+    "print_config_no_previous": "لا يوجد إعداد سابق للرجوع إليه",
+    "batch_period_outside": "فترة الباتش {batch} خارج الشهر",
+    "month_import_sheet": "الورقة «{sheet}» غير موجودة في الملف",
+    "month_import_field_unknown": "حقل غير معروف في ربط الأعمدة: {field}",
+    "month_import_driver_column": "اختر عمود رقم السائق في المنصة أو الرقم المدني",
+    "month_import_batch_columns": "الباتش وعدد طلباته يُختاران معاً، ونهاية الفترة مع بدايتها",
+    "month_import_column": "العمود «{column}» غير موجود في الملف",
+    "month_import_mapping": "ربط الأعمدة غير صالح",
+    "platform_core": "الشركات الأساسية لا تُحذف",
+    "platform_in_use": "المنصة مستخدمة (سائقون أو أنظمة دفع أو بيانات شهر): أوقفها بدل حذفها",
+    "driver_not_on_platform": "السائق ليس على هذه المنصة",
+    "platform_already_set": "شركتك محددة بالفعل من المكتب",
+    "platform_request_pending": "طلبك السابق ما زال بانتظار المكتب",
+    "platform_request_decided": "تم البت في هذا الطلب بالفعل",
+    "platform_request_not_found": "الطلب غير موجود"
   },
   "settings": {
     "branding": "الهوية",
@@ -823,7 +837,8 @@
     "absence_consecutive": "غياب بدون إذن {days} يوماً متتالية لـ {driver} ({from} - {to}): قد يبرر الفصل بدون مكافأة — راجع الإجراءات القانونية (إنذار مسبق)",
     "absence_yearly": "غياب بدون إذن {days} يوماً في سنة {year} لـ {driver}: قد يبرر الفصل بدون مكافأة — راجع الإجراءات القانونية (إنذار مسبق)",
     "absence_followup": "متابعة طلب تغيب ({kind}) لـ {driver} من {from} إلى {to}: مضى {days} يوماً",
-    "petty_expense": "مصروف من العهدة من {name} بمبلغ {amount} د.ك بانتظار المراجعة"
+    "petty_expense": "مصروف من العهدة من {name} بمبلغ {amount} د.ك بانتظار المراجعة",
+    "platform_request": "{driver} يقول إنه يعمل مع {platform}: بانتظار الموافقة وتسجيل رقمه في المنصة"
   },
   "alert_kind": {
     "device_replaced": "ربط جهاز جديد لسائق",
@@ -883,7 +898,8 @@
     "absence_consecutive": "غياب متتالٍ (المادة 41)",
     "absence_yearly": "غياب سنوي (المادة 41)",
     "absence_followup": "متابعة طلب تغيب",
-    "petty_expense": "مصروف من العهدة النقدية"
+    "petty_expense": "مصروف من العهدة النقدية",
+    "platform_request": "طلب شركة من سائق"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
@@ -1586,7 +1602,8 @@
     "leave_type": "نوع إجازة",
     "app_release": "إصدار التطبيق",
     "petty_expense": "مصروف من العهدة النقدية",
-    "print_template": "قالب الطباعة"
+    "print_template": "قالب الطباعة",
+    "platform_request": "طلب شركة من سائق"
   },
   "audit_actor": {
     "user": "مستخدم",
@@ -1790,7 +1807,9 @@
     "leave_rejected": "رُفض طلب التغيب ({kind}) من {from} إلى {to}: {reason}",
     "broadcast": "{title}\n{body}",
     "petty_approved": "تمت الموافقة على مصروفك من العهدة بمبلغ {amount} د.ك وخُصم من عهدتك",
-    "petty_rejected": "تم رفض مصروفك من العهدة بمبلغ {amount} د.ك: {reason}"
+    "petty_rejected": "تم رفض مصروفك من العهدة بمبلغ {amount} د.ك: {reason}",
+    "platform_request_approved": "وافق المكتب: أنت الآن على {platform}",
+    "platform_request_rejected": "رفض المكتب طلبك للعمل مع {platform}: {reason}"
   },
   "cash_account": {
     "driver": "كاش السائق",

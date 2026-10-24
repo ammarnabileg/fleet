@@ -692,7 +692,9 @@
       "leave_rejected": "Tinanggihan ang iyong kahilingan sa pagliban ({kind}) mula {from} hanggang {to}: {reason}",
       "broadcast": "{title}\n{body}",
       "petty_approved": "Naaprubahan ang iyong gastos na {amount} KWD mula sa petty cash at ibinawas sa iyong hawak",
-      "petty_rejected": "Tinanggihan ang iyong gastos na {amount} KWD mula sa petty cash: {reason}"
+      "petty_rejected": "Tinanggihan ang iyong gastos na {amount} KWD mula sa petty cash: {reason}",
+      "platform_request_approved": "Inaprubahan ng opisina: nasa {platform} ka na ngayon",
+      "platform_request_rejected": "Tinanggihan ng opisina ang request mo para sa {platform}: {reason}"
     },
     "errors": {
       "accident_exists": "Naka-record na ang aksidenteng ito",
@@ -1225,7 +1227,21 @@
       "print_template_invalid": "Hindi wastong value sa print template: {field}",
       "print_template_image_missing": "Wala ang larawan: i-upload itong muli",
       "print_config_changed": "May ibang nagbago ng mga print template: buksan muli ang page",
-      "print_config_no_previous": "Walang naunang setting na mababalikan"
+      "print_config_no_previous": "Walang naunang setting na mababalikan",
+      "batch_period_outside": "Ang panahon ng batch {batch} ay labas sa buwan",
+      "month_import_sheet": "Wala sa file ang sheet na «{sheet}»",
+      "month_import_field_unknown": "Hindi kilalang field sa pagtutugma ng column: {field}",
+      "month_import_driver_column": "Piliin ang column ng platform driver ID o civil ID",
+      "month_import_batch_columns": "Magkasama ang batch at ang mga order nito, at ang katapusan ng panahon kasama ang simula nito",
+      "month_import_column": "Wala sa file ang column na «{column}»",
+      "month_import_mapping": "Hindi wasto ang pagtutugma ng column",
+      "platform_core": "Hindi mabubura ang mga pangunahing platform",
+      "platform_in_use": "Ginagamit ang platform (mga driver, pay scheme o datos ng buwan): i-deactivate na lang ito",
+      "driver_not_on_platform": "Wala sa platform na ito ang driver",
+      "platform_already_set": "Naitakda na ng opisina ang kumpanya mo",
+      "platform_request_pending": "Naghihintay pa sa opisina ang naunang request mo",
+      "platform_request_decided": "Napagpasyahan na ang request na ito",
+      "platform_request_not_found": "Hindi nakita ang request"
     },
     "finance_source": {
       "cash_journal": "Cash ledger: {kind} {reason}",

@@ -663,7 +663,21 @@
     "print_template_invalid": "Invalid value in the print template: {field}",
     "print_template_image_missing": "The image is not there: upload it again",
     "print_config_changed": "Someone else changed the print templates: reopen the page",
-    "print_config_no_previous": "There is no previous setting to go back to"
+    "print_config_no_previous": "There is no previous setting to go back to",
+    "batch_period_outside": "Batch {batch}'s period is outside the month",
+    "month_import_sheet": "The sheet «{sheet}» is not in the file",
+    "month_import_field_unknown": "Unknown field in the column mapping: {field}",
+    "month_import_driver_column": "Choose the column of the platform driver ID or the civil ID",
+    "month_import_batch_columns": "The batch and its orders go together, and the period's end with its start",
+    "month_import_column": "The column «{column}» is not in the file",
+    "month_import_mapping": "The column mapping is not valid",
+    "platform_core": "The core platforms cannot be deleted",
+    "platform_in_use": "The platform is in use (drivers, pay schemes or month data): deactivate it instead",
+    "driver_not_on_platform": "The driver is not on this platform",
+    "platform_already_set": "Your company is already set by the office",
+    "platform_request_pending": "Your earlier request is still waiting for the office",
+    "platform_request_decided": "This request was already decided",
+    "platform_request_not_found": "Request not found"
   },
   "settings": {
     "branding": "Branding",
@@ -823,7 +837,8 @@
     "absence_consecutive": "{driver} absent without permission {days} consecutive days ({from} - {to}): may justify dismissal without indemnity — review the legal procedure (prior warning)",
     "absence_yearly": "{driver} absent without permission {days} days in {year}: may justify dismissal without indemnity — review the legal procedure (prior warning)",
     "absence_followup": "Follow up the absence request ({kind}) of {driver}, {from} to {to}: {days} days passed",
-    "petty_expense": "Petty cash spending from {name} for {amount} KWD awaits review"
+    "petty_expense": "Petty cash spending from {name} for {amount} KWD awaits review",
+    "platform_request": "{driver} says he works with {platform}: waiting for approval and his platform ID"
   },
   "alert_kind": {
     "device_replaced": "Driver's phone replaced",
@@ -883,7 +898,8 @@
     "absence_consecutive": "Consecutive absence (Art. 41)",
     "absence_yearly": "Yearly absence (Art. 41)",
     "absence_followup": "Absence request follow-up",
-    "petty_expense": "Petty cash spending"
+    "petty_expense": "Petty cash spending",
+    "platform_request": "Driver's company request"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -1586,7 +1602,8 @@
     "leave_type": "Leave type",
     "app_release": "App release",
     "petty_expense": "Petty cash spending",
-    "print_template": "Print template"
+    "print_template": "Print template",
+    "platform_request": "Driver's company request"
   },
   "audit_actor": {
     "user": "User",
@@ -1790,7 +1807,9 @@
     "leave_rejected": "Your absence request ({kind}) from {from} to {to} was rejected: {reason}",
     "broadcast": "{title}\n{body}",
     "petty_approved": "Your petty cash spending of {amount} KWD was approved and taken off your custody",
-    "petty_rejected": "Your petty cash spending of {amount} KWD was rejected: {reason}"
+    "petty_rejected": "Your petty cash spending of {amount} KWD was rejected: {reason}",
+    "platform_request_approved": "The office approved: you are now on {platform}",
+    "platform_request_rejected": "The office rejected your request for {platform}: {reason}"
   },
   "cash_account": {
     "driver": "Driver's cash",

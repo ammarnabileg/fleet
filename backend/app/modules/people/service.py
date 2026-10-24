@@ -419,6 +419,46 @@ def assign_platform(
     return counts
 
 
+def put_on_platform(
+    db: Session,
+    public_id,
+    *,
+    platform_id: int,
+    platform_driver_id: str | None,
+    actor_user_id: int,
+    commit: bool = True,
+    **scope,
+) -> EmployeeRef:
+    """A driver put on a delivery platform with his ID on it (an empty ID: none yet), audited as an edit of the
+    employee; an ID another driver of the platform has is refused (platform_driver_id_taken)."""
+    employee = _get(db, public_id, lock=True, **scope)
+    if not employee.is_driver:
+        raise AppError(422, "not_a_driver")
+    update_employee(
+        db,
+        public_id,
+        version=employee.version,
+        changes={"platform_id": platform_id, "platform_driver_id": (platform_driver_id or "").strip() or None},
+        can_set_salary=False,
+        actor_user_id=actor_user_id,
+        commit=commit,
+        **scope,
+    )
+    return ref(db, employee.id)
+
+
+def set_platform_driver_id(
+    db: Session, public_id, *, platform_id: int, value: str | None, actor_user_id: int, **scope
+) -> EmployeeRef:
+    """His ID on the platform he is on (linked, changed or cleared)."""
+    employee = _get(db, public_id, **scope)
+    if employee.platform_id != platform_id:
+        raise AppError(409, "driver_not_on_platform")
+    return put_on_platform(
+        db, public_id, platform_id=platform_id, platform_driver_id=value, actor_user_id=actor_user_id, **scope
+    )
+
+
 def change_status(
     db: Session, public_id, *, status_code: str, note: str | None, actor_user_id: int, commit: bool = True, **scope
 ) -> tuple[EmployeeRef, bool]:
