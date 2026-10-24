@@ -663,7 +663,14 @@
     "print_template_invalid": "Invalid value in the print template: {field}",
     "print_template_image_missing": "The image is not there: upload it again",
     "print_config_changed": "Someone else changed the print templates: reopen the page",
-    "print_config_no_previous": "There is no previous setting to go back to"
+    "print_config_no_previous": "There is no previous setting to go back to",
+    "app_update_release_missing": "Version {version_code} is not in App updates: upload it or import it from GitHub first",
+    "app_release_announced": "Version {version_code} is the one announced in App update: announce another before unpublishing it",
+    "github_not_configured": "No GitHub repository set: enter it in App update or in the server variable GITHUB_RELEASES_REPO",
+    "github_unreachable": "GitHub could not be reached (status {status}): check the repository and the token, then try later",
+    "github_no_release": "The GitHub repository {repo} has no published release",
+    "github_no_apk": "The GitHub release {tag} has no APK named as the release",
+    "github_apk_mismatch": "The file {name} has version code {version_code}: it does not match its name"
   },
   "settings": {
     "branding": "Branding",
@@ -736,7 +743,14 @@
     "leaves.absence_alert_year_days": "Yearly absence alert above (days, Art. 41)",
     "leaves.annual_carry_over_years": "Annual leave carry-over (years)",
     "leaves.weekend_days": "Weekly rest days (0 Monday … 6 Sunday)",
-    "driver_app.android_package": "Android package"
+    "driver_app.android_package": "Android package",
+    "app_update": "App update: announced version and forced update",
+    "app_update.latest_version": "New version number",
+    "app_update.force_update": "Force update",
+    "app_update.notes": "Release notes",
+    "app_update.download_name": "Download file name",
+    "app_update.github_repo": "GitHub repository",
+    "app_update.github_auto_import": "Import the latest GitHub release every hour"
   },
   "common": {
     "active": "Active",

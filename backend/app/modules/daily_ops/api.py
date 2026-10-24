@@ -14,7 +14,6 @@ from app.modules.daily_ops import schemas, service
 from app.modules.files import service as files
 from app.modules.i18n import service as i18n
 from app.modules.identity.service import DevicePrincipal, Principal, require_device, require_permission
-from app.modules.org import printing
 from app.modules.org import service as org
 from app.modules.people import service as people
 
@@ -251,9 +250,8 @@ def export_reports(
         filters.append(business_date.isoformat())
     if employee:
         filters.append(i18n.pick(employee.name, lang, default))
-    layout = printing.layout(db, None, **principal.scope)
     heading = {
-        "company": layout["identity"]["company"],
+        "company": org.print_company(db, None, **principal.scope),
         "title": title,
         "filters": " · ".join(filters),
         "printed_at": utcnow().astimezone(KUWAIT).strftime("%Y-%m-%d %H:%M"),

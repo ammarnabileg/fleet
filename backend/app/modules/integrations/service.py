@@ -9,6 +9,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.core import crypto, messaging, push
+from app.core import remote_config as remote_config_api
 from app.core.clock import utcnow
 from app.core.config import get_settings
 from app.core.db import new_session
@@ -521,3 +522,16 @@ def push_client(db: Session) -> dict | None:
     except push.PushError:
         return None
     return {"project_id": project, "app_id": c.app_id, "api_key": c.api_key, "sender_id": c.sender_id}
+
+
+def remote_config(db: Session) -> remote_config_api.RemoteConfigClient | None:
+    """Firebase Remote Config with push's service account, once push is switched on in the control panel (the app
+    starts Firebase only then, so a value written before would reach no phone)."""
+    loaded = load(db, "push")
+    if not loaded.config.enabled or _missing("push", loaded):
+        return None
+    return _cached_build(
+        "remote_config",
+        loaded,
+        lambda x: remote_config_api.RemoteConfigClient(x.secrets["service_account"], transport=_fcm_transport(x)),
+    )

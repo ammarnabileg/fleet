@@ -1225,7 +1225,14 @@
       "print_template_invalid": "प्रिंट टेम्पलेट में अमान्य मान: {field}",
       "print_template_image_missing": "छवि नहीं मिली: इसे फिर से अपलोड करें",
       "print_config_changed": "किसी और ने प्रिंट टेम्पलेट बदल दिए: पेज फिर से खोलें",
-      "print_config_no_previous": "वापस जाने के लिए कोई पिछली सेटिंग नहीं है"
+      "print_config_no_previous": "वापस जाने के लिए कोई पिछली सेटिंग नहीं है",
+      "app_update_release_missing": "संस्करण {version_code} ऐप अपडेट में नहीं है: पहले इसे अपलोड करें या GitHub से आयात करें",
+      "app_release_announced": "संस्करण {version_code} ऐप अपडेट में घोषित है: इसे अप्रकाशित करने से पहले कोई दूसरा घोषित करें",
+      "github_not_configured": "कोई GitHub रिपॉज़िटरी सेट नहीं है: इसे ऐप अपडेट में या सर्वर वेरिएबल GITHUB_RELEASES_REPO में लिखें",
+      "github_unreachable": "GitHub तक नहीं पहुँच सके (स्थिति {status}): रिपॉज़िटरी और टोकन जाँचें, फिर बाद में प्रयास करें",
+      "github_no_release": "GitHub रिपॉज़िटरी {repo} में कोई प्रकाशित रिलीज़ नहीं है",
+      "github_no_apk": "GitHub रिलीज़ {tag} में रिलीज़ के नाम वाली कोई APK नहीं है",
+      "github_apk_mismatch": "फ़ाइल {name} का संस्करण कोड {version_code} है: यह उसके नाम से मेल नहीं खाता"
     },
     "finance_source": {
       "cash_journal": "कैश लेजर: {kind} {reason}",

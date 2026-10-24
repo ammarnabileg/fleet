@@ -1225,7 +1225,14 @@
       "print_template_invalid": "Valeur invalide dans le modèle d'impression : {field}",
       "print_template_image_missing": "L'image est introuvable : téléversez-la à nouveau",
       "print_config_changed": "Quelqu'un d'autre a modifié les modèles d'impression : rouvrez la page",
-      "print_config_no_previous": "Il n'y a pas de réglage précédent auquel revenir"
+      "print_config_no_previous": "Il n'y a pas de réglage précédent auquel revenir",
+      "app_update_release_missing": "La version {version_code} n'est pas dans les mises à jour de l'application : téléversez-la ou importez-la depuis GitHub d'abord",
+      "app_release_announced": "La version {version_code} est celle annoncée dans la mise à jour de l'application : annoncez-en une autre avant de la dépublier",
+      "github_not_configured": "Aucun dépôt GitHub défini : saisissez-le dans la mise à jour de l'application ou dans la variable du serveur GITHUB_RELEASES_REPO",
+      "github_unreachable": "GitHub est injoignable (statut {status}) : vérifiez le dépôt et le jeton, puis réessayez plus tard",
+      "github_no_release": "Le dépôt GitHub {repo} n'a aucune version publiée",
+      "github_no_apk": "La version GitHub {tag} n'a pas d'APK portant le nom de la version",
+      "github_apk_mismatch": "Le fichier {name} a le code de version {version_code} : il ne correspond pas à son nom"
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",

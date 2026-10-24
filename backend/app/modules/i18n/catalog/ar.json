@@ -663,7 +663,14 @@
     "print_template_invalid": "قيمة غير صالحة في قالب الطباعة: {field}",
     "print_template_image_missing": "الصورة غير موجودة: ارفعها من جديد",
     "print_config_changed": "غيّر شخص آخر قوالب الطباعة: أعد فتح الصفحة",
-    "print_config_no_previous": "لا يوجد إعداد سابق للرجوع إليه"
+    "print_config_no_previous": "لا يوجد إعداد سابق للرجوع إليه",
+    "app_update_release_missing": "الإصدار {version_code} غير موجود في «تحديثات التطبيق»: ارفعه أو استورده من GitHub أولاً",
+    "app_release_announced": "الإصدار {version_code} هو المعلن في «تحديث التطبيق»: أعلن إصداراً آخر قبل إلغاء نشره",
+    "github_not_configured": "لم يُحدَّد مستودع GitHub: اكتبه في «تحديث التطبيق» أو في متغير الخادم GITHUB_RELEASES_REPO",
+    "github_unreachable": "تعذّر الوصول إلى GitHub (الرمز {status}): تحقّق من اسم المستودع والرمز، ثم حاول لاحقاً",
+    "github_no_release": "لا يوجد إصدار منشور في مستودع {repo} على GitHub",
+    "github_no_apk": "إصدار GitHub {tag} بلا ملف APK باسم الإصدار",
+    "github_apk_mismatch": "الملف {name} رقم إصداره {version_code}: لا يطابق اسمه"
   },
   "settings": {
     "branding": "الهوية",
@@ -736,7 +743,14 @@
     "leaves.absence_alert_year_days": "تنبيه الغياب السنوي بعد (أيام، المادة 41)",
     "leaves.annual_carry_over_years": "ترحيل رصيد الإجازة السنوية (سنوات)",
     "leaves.weekend_days": "أيام الراحة الأسبوعية (0 الاثنين … 6 الأحد)",
-    "driver_app.android_package": "حزمة تطبيق أندرويد"
+    "driver_app.android_package": "حزمة تطبيق أندرويد",
+    "app_update": "تحديث التطبيق: الإصدار المعلن والتحديث الإجباري",
+    "app_update.latest_version": "رقم الإصدار الجديد",
+    "app_update.force_update": "تحديث إجباري",
+    "app_update.notes": "ملاحظات الإصدار",
+    "app_update.download_name": "اسم ملف التنزيل",
+    "app_update.github_repo": "مستودع GitHub",
+    "app_update.github_auto_import": "استيراد آخر إصدار من GitHub كل ساعة"
   },
   "common": {
     "active": "نشط",

@@ -1225,7 +1225,14 @@
       "print_template_invalid": "Thamani batili katika kiolezo cha uchapishaji: {field}",
       "print_template_image_missing": "Picha haipo: ipakie tena",
       "print_config_changed": "Mtu mwingine amebadilisha violezo vya uchapishaji: fungua ukurasa tena",
-      "print_config_no_previous": "Hakuna mpangilio wa awali wa kurudi"
+      "print_config_no_previous": "Hakuna mpangilio wa awali wa kurudi",
+      "app_update_release_missing": "Toleo {version_code} halipo kwenye masasisho ya programu: lipakie au liingize kutoka GitHub kwanza",
+      "app_release_announced": "Toleo {version_code} ndilo lililotangazwa katika sasisho la programu: tangaza jingine kabla ya kuliondoa",
+      "github_not_configured": "Hakuna hazina ya GitHub iliyowekwa: iandike kwenye sasisho la programu au kwenye kigezo cha seva GITHUB_RELEASES_REPO",
+      "github_unreachable": "GitHub haipatikani (hali {status}): angalia hazina na tokeni, kisha jaribu baadaye",
+      "github_no_release": "Hazina ya GitHub {repo} haina toleo lililochapishwa",
+      "github_no_apk": "Toleo la GitHub {tag} halina APK yenye jina la toleo",
+      "github_apk_mismatch": "Faili {name} ina namba ya toleo {version_code}: hailingani na jina lake"
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",

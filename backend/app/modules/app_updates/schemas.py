@@ -17,6 +17,8 @@ class ReleaseOut(BaseModel):
     published_at: datetime | None
     created_at: datetime
     installed: int = 0  # signed-in phones that reported this versionCode
+    origin: str = "upload"  # upload | github
+    github_tag: str | None = None
 
 
 class DriverVersionOut(BaseModel):
@@ -54,3 +56,64 @@ class LatestOut(BaseModel):
 class UpdateCheckOut(BaseModel):
     latest: LatestOut | None
     required: bool
+
+
+class AnnouncedOut(BaseModel):
+    version_code: int
+    version_name: str
+    forced: bool
+    size_bytes: int
+    published_at: datetime | None
+
+
+class RemoteOut(BaseModel):
+    configured: bool  # push's service account is set up and switched on
+    state: str  # never | published | failed | not_configured
+    error: str | None
+    at: datetime | None
+    values: dict | None  # what was last written
+
+
+class GithubOut(BaseModel):
+    repo: str
+    token: bool  # the server has a token (private repository)
+    state: str  # never | imported | up_to_date | failed
+    error: str | None  # an error code
+    release: str | None
+    at: datetime | None
+
+
+class AppUpdateOut(BaseModel):
+    version: int
+    value: dict
+    download_url: str
+    announced: AnnouncedOut | None
+    remote: RemoteOut
+    github: GithubOut
+
+
+class AppUpdateIn(BaseModel):
+    version: int = Field(ge=0)
+    value: dict
+
+
+class ImportOut(BaseModel):
+    created: bool
+    release: ReleaseOut
+    tag: str
+
+
+class DownloadReleaseOut(BaseModel):
+    version_code: int
+    version_name: str
+    size_bytes: int
+    sha256: str
+    published_at: datetime | None
+    forced: bool
+    file_name: str
+
+
+class DownloadInfoOut(BaseModel):
+    release: DownloadReleaseOut | None
+    url: str  # always the announced release
+    version_url: str | None  # this version only
