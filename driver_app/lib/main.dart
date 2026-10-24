@@ -15,6 +15,7 @@ import 'core/db.dart';
 import 'core/device.dart';
 import 'core/error_log.dart';
 import 'core/translations.dart';
+import 'core/updater.dart';
 import 'l10n/app_localizations.dart';
 import 'tracking/notice.dart';
 import 'tracking/service.dart';
@@ -23,12 +24,24 @@ import 'ui/screens/onboarding.dart';
 import 'ui/screens/permissions.dart';
 import 'ui/screens/sign_in.dart';
 import 'ui/screens/splash.dart';
+import 'ui/screens/update.dart';
 import 'ui/screens/waiting.dart';
 import 'ui/theme.dart';
 import 'ui/widgets/common.dart';
 
 final _theme = appTheme(); // built once, not on every rebuild
 const _phone = MethodChannel('fleet/phone'); // the dialer (MainActivity): no call permission, the driver presses call
+const _update = MethodChannel('fleet/update'); // the in-app update's installer side (MainActivity)
+
+Future<bool> _ask(String method, [Object? arg]) async {
+  try {
+    return await _update.invokeMethod<bool>(method, arg) ?? false;
+  } on PlatformException {
+    return false;
+  } on MissingPluginException {
+    return false;
+  }
+}
 
 Future<void> main() async {
   // whatever escapes goes to the phone's local error log (no outside service, no driver data in it)
@@ -71,6 +84,14 @@ Future<void> _main(AppDb db) async {
         }
       },
       openLocationSettings: () async => Geolocator.openLocationSettings(),
+      updates: UpdateHooks(
+        // the cache's "updates" folder: the only one the FileProvider shares with the installer
+        dir: () async => Directory('${(await getTemporaryDirectory()).path}/updates'),
+        canInstall: () => _ask('canInstall'),
+        openInstallSettings: () => _ask('openInstallSettings'),
+        install: (path) => _ask('install', path),
+        unmetered: () => _ask('unmetered'),
+      ),
     ),
   );
   final links = AppLinks();
@@ -189,6 +210,8 @@ class _DriverAppState extends State<DriverApp> with WidgetsBindingObserver {
     if (s.splashing && s.splashImage != null && s.splash != null) {
       return SplashView(image: s.splashImage!, color: s.splash!.color);
     }
+    // a required update: the screens wait (the tracking service and the outbox keep sending behind)
+    if (s.updater.blocking && s.phase != Phase.booting) return UpdateRequiredScreen(state: s);
     return switch (s.phase) {
       Phase.booting => const Scaffold(body: Center(child: CircularProgressIndicator())),
       Phase.signedOut => SignInScreen(state: s),

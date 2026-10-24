@@ -258,7 +258,7 @@ Future<void> _run(ServiceInstance service, AppDb db) async {
       trackingRunning: trackingRunning,
       queueSize: queueSize,
       lastUploadAt: lastUploadAt,
-      appVersion: AppConfig.appVersion,
+      appVersion: AppConfig.reportedVersion,
     ),
     notifyState: (state) => notice.show(lang: api.lang, state: state),
     // the live status and its important alerts: shown, never a reason to start tracking

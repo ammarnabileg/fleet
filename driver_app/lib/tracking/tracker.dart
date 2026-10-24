@@ -443,7 +443,7 @@ class Tracker {
         'last_upload_at': last,
         'queue': size,
         'updated_at': _now().toUtc().toIso8601String(),
-        'app_version': AppConfig.appVersion,
+        'app_version': AppConfig.reportedVersion,
         'on_duty': onDuty,
         'company': company,
         'tracking': trackingState,

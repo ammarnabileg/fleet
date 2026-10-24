@@ -13,7 +13,10 @@ class StoredFile(Base):
     __table_args__ = (
         CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name="sha256"),
         CheckConstraint("size_bytes > 0", name="size_bytes"),
-        CheckConstraint("content_type IN ('image/jpeg', 'image/png', 'application/pdf')", name="content_type"),
+        CheckConstraint(
+            "content_type IN ('image/jpeg', 'image/png', 'application/pdf', 'application/vnd.android.package-archive')",
+            name="content_type",
+        ),
         CheckConstraint("source IN ('camera', 'upload')", name="source"),
         CheckConstraint("storage IN ('local', 'r2')", name="storage"),
         Index("files_storage_idx", "storage"),

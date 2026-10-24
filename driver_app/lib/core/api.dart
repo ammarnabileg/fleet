@@ -17,6 +17,9 @@ class Api {
   final String baseUrl;
   final TokenStore tokens;
   final http.Client _http;
+
+  /// The HTTP client (the in-app update downloads its APK with it).
+  http.Client get client => _http;
   String lang;
   void Function()? onSessionEnded;
 

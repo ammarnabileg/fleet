@@ -629,7 +629,16 @@
     "leave_exists": "هذا الطلب مسجّل من قبل",
     "followup_out_of_range": "تاريخ بداية المتابعة يجب أن يكون في حدود سنة من اليوم",
     "leave_tiers_open_end": "الشريحة الأخيرة وحدها يمكن أن تكون بلا عدد أيام",
-    "leave_followed_up": "تمت متابعة هذا الطلب من قبل"
+    "leave_followed_up": "تمت متابعة هذا الطلب من قبل",
+    "apk_not_zip": "الملف ليس تطبيق أندرويد (APK)",
+    "apk_no_manifest": "الملف ليس تطبيق أندرويد: لا يوجد فيه AndroidManifest.xml",
+    "apk_manifest_unreadable": "تعذّرت قراءة اسم الحزمة ورقم الإصدار من التطبيق",
+    "apk_wrong_package": "هذا تطبيق آخر ({got})، والمتوقع {expected}",
+    "apk_version_not_higher": "رقم الإصدار {version_code} ليس أعلى من آخر إصدار منشور ({latest})",
+    "app_release_exists": "الإصدار {version_code} مرفوع من قبل",
+    "app_release_not_found": "الإصدار غير موجود",
+    "app_release_published": "الإصدار منشور: ألغِ نشره أولاً",
+    "app_release_notes_too_long": "ملاحظات الإصدار أطول من {max} حرف"
   },
   "settings": {
     "branding": "الهوية",
@@ -701,7 +710,8 @@
     "leaves.absence_alert_consecutive_days": "تنبيه الغياب المتتالي بعد (أيام، المادة 41)",
     "leaves.absence_alert_year_days": "تنبيه الغياب السنوي بعد (أيام، المادة 41)",
     "leaves.annual_carry_over_years": "ترحيل رصيد الإجازة السنوية (سنوات)",
-    "leaves.weekend_days": "أيام الراحة الأسبوعية (0 الاثنين … 6 الأحد)"
+    "leaves.weekend_days": "أيام الراحة الأسبوعية (0 الاثنين … 6 الأحد)",
+    "driver_app.android_package": "حزمة تطبيق أندرويد"
   },
   "common": {
     "active": "نشط",
@@ -1539,7 +1549,8 @@
     "uncollected": "خصومات غير محصلة",
     "payroll_objection": "اعتراض على كشف راتب",
     "maintenance_schedule": "جدول صيانة دورية",
-    "leave_type": "نوع إجازة"
+    "leave_type": "نوع إجازة",
+    "app_release": "إصدار التطبيق"
   },
   "audit_actor": {
     "user": "مستخدم",

@@ -5,7 +5,11 @@ class AppConfig {
   static const appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0');
 
   /// This build's number: a translation bundle that needs a newer app (its min_app_build) is not used.
+  /// The CI passes the APK's versionCode here too: the in-app update compares it with the published releases.
   static const appBuild = int.fromEnvironment('APP_BUILD', defaultValue: 1);
+
+  /// What the app reports to the server ("0.2.0+57"): the office sees which phones run which release.
+  static const reportedVersion = '$appVersion+$appBuild';
 
   /// How long a queued action (a reading, a report) is kept before it is shown as failed. The server accepts
   /// readings up to 48 hours late and reports up to two days back, so waiting longer is pointless.

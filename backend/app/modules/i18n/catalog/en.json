@@ -629,7 +629,16 @@
     "leave_exists": "This request is already recorded",
     "followup_out_of_range": "The follow-up start date must be within a year of today",
     "leave_tiers_open_end": "Only the last tier may have no number of days",
-    "leave_followed_up": "This request was already followed up"
+    "leave_followed_up": "This request was already followed up",
+    "apk_not_zip": "The file is not an Android app (APK)",
+    "apk_no_manifest": "Not an Android app: it has no AndroidManifest.xml",
+    "apk_manifest_unreadable": "The package name and version code could not be read from the APK",
+    "apk_wrong_package": "This is another app ({got}); expected {expected}",
+    "apk_version_not_higher": "Version code {version_code} is not higher than the latest published ({latest})",
+    "app_release_exists": "Version {version_code} was uploaded already",
+    "app_release_not_found": "Release not found",
+    "app_release_published": "The release is published: unpublish it first",
+    "app_release_notes_too_long": "Release notes are longer than {max} characters"
   },
   "settings": {
     "branding": "Branding",
@@ -701,7 +710,8 @@
     "leaves.absence_alert_consecutive_days": "Consecutive absence alert above (days, Art. 41)",
     "leaves.absence_alert_year_days": "Yearly absence alert above (days, Art. 41)",
     "leaves.annual_carry_over_years": "Annual leave carry-over (years)",
-    "leaves.weekend_days": "Weekly rest days (0 Monday … 6 Sunday)"
+    "leaves.weekend_days": "Weekly rest days (0 Monday … 6 Sunday)",
+    "driver_app.android_package": "Android package"
   },
   "common": {
     "active": "Active",
@@ -1539,7 +1549,8 @@
     "uncollected": "Uncollected deductions",
     "payroll_objection": "Payslip objection",
     "maintenance_schedule": "Maintenance schedule",
-    "leave_type": "Leave type"
+    "leave_type": "Leave type",
+    "app_release": "App release"
   },
   "audit_actor": {
     "user": "User",

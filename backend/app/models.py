@@ -1,6 +1,7 @@
 """Imports every module's models so that Base.metadata is complete (Alembic, tests)."""
 
 from app.modules.accidents import models as accidents  # noqa: F401
+from app.modules.app_updates import models as app_updates  # noqa: F401
 from app.modules.approvals import models as approvals  # noqa: F401
 from app.modules.attendance import models as attendance  # noqa: F401
 from app.modules.audit import models as audit  # noqa: F401

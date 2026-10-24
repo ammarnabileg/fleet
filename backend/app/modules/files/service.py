@@ -29,6 +29,7 @@ SIGNATURES = (
     (b"%PDF-", "application/pdf"),
 )
 IMAGES = {"image/jpeg", "image/png"}
+APK = "application/vnd.android.package-archive"  # stored only through store(apk=True): the app's own releases
 
 
 @dataclass(frozen=True)
@@ -42,12 +43,13 @@ class FileInfo:
     storage: str = "local"
 
 
-def read_upload(file) -> bytes:
+def read_upload(file, max_mb: int | None = None) -> bytes:
     """An uploaded file (FastAPI UploadFile), refused beyond the size limit without reading all of it."""
-    limit = get_settings().max_upload_mb * 1024 * 1024
+    max_mb = max_mb or get_settings().max_upload_mb
+    limit = max_mb * 1024 * 1024
     data = file.file.read(limit + 1)
     if len(data) > limit:
-        raise AppError(413, "file_too_large", max_mb=get_settings().max_upload_mb)
+        raise AppError(413, "file_too_large", max_mb=max_mb)
     return data
 
 
@@ -63,13 +65,16 @@ def store(
     uploaded_by_user: int | None = None,
     uploaded_by_device: int | None = None,
     images_only: bool = False,
+    apk: bool = False,
 ) -> FileInfo:
-    """Writes the file (if new) and adds its row to the caller's transaction."""
+    """Writes the file (if new) and adds its row to the caller's transaction. apk: an Android package (the caller
+    has read its manifest), with its own size limit; nothing else is accepted then."""
     if not data:
         raise AppError(422, "file_empty")
-    if len(data) > get_settings().max_upload_mb * 1024 * 1024:
-        raise AppError(413, "file_too_large", max_mb=get_settings().max_upload_mb)
-    ctype = sniff(data)
+    max_mb = get_settings().max_apk_mb if apk else get_settings().max_upload_mb
+    if len(data) > max_mb * 1024 * 1024:
+        raise AppError(413, "file_too_large", max_mb=max_mb)
+    ctype = (APK if data.startswith(b"PK\x03\x04") else None) if apk else sniff(data)
     if ctype is None or (images_only and ctype not in IMAGES):
         raise AppError(415, "file_type_not_allowed")
     sha = hashlib.sha256(data).hexdigest()
@@ -121,17 +126,21 @@ def _backend(db: Session, name: str | None = None):
 HEADERS = {"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"}
 
 
-def response(db: Session, info: FileInfo):
+def response(db: Session, info: FileInfo, *, filename: str | None = None, headers: dict | None = None):
     """The file's bytes for a download endpoint (after the caller checked who may see it): from the disk, or
-    streamed from R2 through the server, so the bucket stays private and every read is checked here."""
+    streamed from R2 through the server, so the bucket stays private and every read is checked here. From the disk
+    a Range request gets its part (206), so a large download can resume."""
     backend = _backend(db, info.storage)
+    headers = HEADERS | (headers or {})
     if info.storage == "local":
-        return FileResponse(backend.path(info.sha256), media_type=info.content_type, headers=HEADERS)
+        return FileResponse(backend.path(info.sha256), media_type=info.content_type, headers=headers, filename=filename)
     try:
         blob = backend.open(info.sha256)
     except StorageError as exc:
         raise AppError(503, "storage_unavailable") from exc
-    headers = HEADERS | {"Content-Length": str(blob.size)}
+    headers = headers | {"Content-Length": str(blob.size)}
+    if filename:
+        headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return StreamingResponse(blob.chunks, media_type=info.content_type, headers=headers)
 
 

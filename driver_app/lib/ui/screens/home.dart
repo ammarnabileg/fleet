@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat, NumberFormat;
 
 import '../../app/state.dart';
-import '../../core/config.dart';
 import '../../core/errors.dart';
 import '../../core/models.dart';
 import '../../core/outbox.dart';
@@ -24,6 +23,7 @@ import 'odometer.dart';
 import 'report.dart';
 import 'schemes.dart';
 import 'statement.dart';
+import 'update.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.state});
@@ -128,7 +128,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
         ],
       ),
-      body: tabs[index].$2,
+      body: Column(
+        children: [
+          UpdateBanner(state: s),
+          Expanded(child: tabs[index].$2),
+        ],
+      ),
       bottomNavigationBar: DecoratedBox(
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: AppColors.border)),
@@ -1299,12 +1304,7 @@ class AccountTab extends StatelessWidget {
                 title: l.language,
                 trailing: LanguagePicker(state: state),
               ),
-              DRow(
-                divider: false,
-                leading: const Icon(Icons.smartphone_rounded, size: 19, color: AppColors.text3),
-                title: l.thisPhone,
-                subtitle: l.appVersion(AppConfig.appVersion),
-              ),
+              UpdateRow(state: state),
             ],
           ),
         ),

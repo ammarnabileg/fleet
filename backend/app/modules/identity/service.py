@@ -27,6 +27,7 @@ from app.modules.identity.devices import (  # noqa: F401  (driver devices, used 
     DevicePrincipal,
     activate,
     active_phones,
+    app_versions,
     check_messaging_channel,
     create_activation_link,
     device_status,

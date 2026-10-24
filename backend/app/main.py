@@ -8,6 +8,7 @@ from app.core import errors, messaging, middleware
 from app.core.config import get_settings
 from app.core.db import new_session
 from app.modules.accidents.api import router as accidents_router
+from app.modules.app_updates.api import router as app_updates_router
 from app.modules.approvals.api import router as approvals_router
 from app.modules.attendance.api import router as attendance_router
 from app.modules.audit.api import router as audit_router
@@ -69,6 +70,7 @@ def create_app() -> FastAPI:
     for router in (
         identity_router,
         org_router,
+        app_updates_router,
         i18n_router,
         i18n_driver_router,
         audit_router,

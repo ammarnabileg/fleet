@@ -66,8 +66,7 @@ import 'app_localizations_sw.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale)
-    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -75,8 +74,7 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate =
-      _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -88,13 +86,12 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
-      <LocalizationsDelegate<dynamic>>[
-        delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-      ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
+    delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+  ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
@@ -3585,10 +3582,135 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'المستندات والراتب'**
   String get noticeCatDocuments;
+
+  /// No description provided for @updateAvailable.
+  ///
+  /// In ar, this message translates to:
+  /// **'إصدار جديد {version} متاح'**
+  String updateAvailable(String version);
+
+  /// No description provided for @updateNow.
+  ///
+  /// In ar, this message translates to:
+  /// **'تحديث'**
+  String get updateNow;
+
+  /// No description provided for @updateLater.
+  ///
+  /// In ar, this message translates to:
+  /// **'لاحقاً'**
+  String get updateLater;
+
+  /// No description provided for @updateRequiredTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'لازم تحدّث التطبيق عشان تكمل'**
+  String get updateRequiredTitle;
+
+  /// No description provided for @updateRequiredBody.
+  ///
+  /// In ar, this message translates to:
+  /// **'ما حُفظ على الهاتف يُرسل كالمعتاد، والتتبع مستمر.'**
+  String get updateRequiredBody;
+
+  /// No description provided for @updateQueued.
+  ///
+  /// In ar, this message translates to:
+  /// **'بانتظار الإرسال: {count}'**
+  String updateQueued(String count);
+
+  /// No description provided for @updateSize.
+  ///
+  /// In ar, this message translates to:
+  /// **'الحجم {size}'**
+  String updateSize(String size);
+
+  /// No description provided for @updateMobileData.
+  ///
+  /// In ar, this message translates to:
+  /// **'أنت على بيانات الجوال: التنزيل من باقتك.'**
+  String get updateMobileData;
+
+  /// No description provided for @updateDownloading.
+  ///
+  /// In ar, this message translates to:
+  /// **'جارٍ التنزيل {percent}'**
+  String updateDownloading(String percent);
+
+  /// No description provided for @updateInstall.
+  ///
+  /// In ar, this message translates to:
+  /// **'تثبيت'**
+  String get updateInstall;
+
+  /// No description provided for @updateInstallHint.
+  ///
+  /// In ar, this message translates to:
+  /// **'سيطلب أندرويد تأكيد التثبيت. افتح التطبيق بعد التحديث.'**
+  String get updateInstallHint;
+
+  /// No description provided for @updatePermissionTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'اسمح بتثبيت التحديث'**
+  String get updatePermissionTitle;
+
+  /// No description provided for @updatePermissionBody.
+  ///
+  /// In ar, this message translates to:
+  /// **'في الصفحة التالية فعّل «السماح من هذا المصدر» لهذا التطبيق، ثم ارجع.'**
+  String get updatePermissionBody;
+
+  /// No description provided for @updateOpenSettings.
+  ///
+  /// In ar, this message translates to:
+  /// **'فتح الإعدادات'**
+  String get updateOpenSettings;
+
+  /// No description provided for @updateChecksum.
+  ///
+  /// In ar, this message translates to:
+  /// **'الملف الذي نُزّل غير سليم وحُذف. حاول مرة أخرى.'**
+  String get updateChecksum;
+
+  /// No description provided for @updateFailed.
+  ///
+  /// In ar, this message translates to:
+  /// **'تعذّر التنزيل. حاول مرة أخرى.'**
+  String get updateFailed;
+
+  /// No description provided for @updateInstallFailed.
+  ///
+  /// In ar, this message translates to:
+  /// **'تعذّر فتح المثبّت.'**
+  String get updateInstallFailed;
+
+  /// No description provided for @checkUpdates.
+  ///
+  /// In ar, this message translates to:
+  /// **'تحقق من التحديثات'**
+  String get checkUpdates;
+
+  /// No description provided for @upToDate.
+  ///
+  /// In ar, this message translates to:
+  /// **'عندك أحدث إصدار'**
+  String get upToDate;
+
+  /// No description provided for @updateCheckFailed.
+  ///
+  /// In ar, this message translates to:
+  /// **'تعذّر التحقق: لا يوجد اتصال'**
+  String get updateCheckFailed;
+
+  /// No description provided for @whatsNew.
+  ///
+  /// In ar, this message translates to:
+  /// **'الجديد'**
+  String get whatsNew;
 }
 
-class _AppLocalizationsDelegate
-    extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -3597,14 +3719,7 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) => <String>[
-    'ar',
-    'en',
-    'fil',
-    'fr',
-    'hi',
-    'sw',
-  ].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>['ar', 'en', 'fil', 'fr', 'hi', 'sw'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;

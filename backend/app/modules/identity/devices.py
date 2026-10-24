@@ -592,6 +592,17 @@ def forget_push_token(db: Session, device_id: int) -> None:
     db.execute(update(Device).where(Device.id == device_id).values(push_token=None))
 
 
+def app_versions(db: Session) -> dict[int, tuple[str | None, datetime | None]]:
+    """For each driver with a signed-in phone: the app version it reported last (its health report, else what it
+    said when it was bound) and when it was last seen."""
+    q = (
+        select(Device.employee_id, func.coalesce(DeviceStatus.app_version, Device.app_version), Device.last_seen_at)
+        .outerjoin(DeviceStatus, DeviceStatus.device_id == Device.id)
+        .where(Device.revoked_at.is_(None))
+    )
+    return {e: (v, t) for e, v, t in db.execute(q)}
+
+
 def last_seen(db: Session, employee_ids) -> dict[int, datetime]:
     ids = list(employee_ids)
     if not ids:

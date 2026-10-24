@@ -168,7 +168,7 @@
   /* ================= الإعدادات والصلاحيات ================= */
   var TABS = [
     ['users', 'المستخدمون', 'users.view'], ['roles', 'الأدوار والصلاحيات', 'roles.view'], ['companies', 'الشركات', 'companies.view'],
-    ['branches', 'الفروع', null], ['system', 'إعدادات النظام', 'settings.view'], ['app', 'تطبيق السائق', 'settings.view'], ['statuses', 'الحالات الوظيفية', null], ['languages', 'اللغات والترجمة', 'settings.view'], ['i18n', 'نصوص النظام', 'i18n.manage']
+    ['branches', 'الفروع', null], ['system', 'إعدادات النظام', 'settings.view'], ['app', 'تطبيق السائق', 'settings.view'], ['updates', 'تحديثات التطبيق', 'settings.view'], ['statuses', 'الحالات الوظيفية', null], ['languages', 'اللغات والترجمة', 'settings.view'], ['i18n', 'نصوص النظام', 'i18n.manage']
   ];
   BT.pages['settings'] = function (p, q) {
     A.setTitle('الإعدادات والصلاحيات');
@@ -180,7 +180,7 @@
     function show(t) {
       if (drawn[t]) return; drawn[t] = true;
       var el = v.querySelector('[data-p="' + t + '"]');
-      ({ users: usersPanel, roles: rolesPanel, companies: companiesPanel, branches: branchesPanel, system: systemPanel, app: appPanel, statuses: statusesPanel, languages: languagesPanel, i18n: i18nPanel })[t](el);
+      ({ users: usersPanel, roles: rolesPanel, companies: companiesPanel, branches: branchesPanel, system: systemPanel, app: appPanel, updates: updatesPanel, statuses: statusesPanel, languages: languagesPanel, i18n: i18nPanel })[t](el);
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/settings?tab=' + e.detail); });
     show(tab);
@@ -481,7 +481,8 @@
           var value = {
             hidden_screens: reg.screens.filter(function (k) { return shown.indexOf(k) < 0; }),
             splash_enabled: !!vals.splash_enabled, splash_image: image || null,
-            splash_color: vals.splash_color, splash_seconds: Math.round(Number(vals.splash_seconds || 2))
+            splash_color: vals.splash_color, splash_seconds: Math.round(Number(vals.splash_seconds || 2)),
+            android_package: v.android_package || '' // set on «تحديثات التطبيق»
           };
           if (value.splash_enabled && !value.splash_image) { BT.toast('اختر صورة شاشة البداية أولاً', { type: 'error' }); return; }
           var hiding = value.hidden_screens.filter(function (k) { return v.hidden_screens.indexOf(k) < 0; });
@@ -514,6 +515,77 @@
           <div data-preview></div>
           ${canEdit ? h`<div><button type="submit" class="btn btn-primary">${icon('check', 15)} حفظ</button></div>` : ''}
         </div></form>`;
+    }).catch(function () {});
+  }
+
+  /* ---------- تحديثات التطبيق: التطبيق يُثبَّت من ملف APK (ليس من متجر)، فالإصدار الجديد يُرفع هنا ويُنشر ---------- */
+  function mb(bytes) { return fmt.ltr((bytes / 1048576).toFixed(1) + ' MB'); }
+  function updatesPanel(el) {
+    A.load(el, Promise.all([api.get('/app-releases'), api.get('/settings'), api.get('/i18n/languages').catch(function () { return []; })]), function (r) {
+      var data = r[0], app = r[1].driver_app, langs = r[2], canEdit = api.can('settings.update');
+      var codes = ['ar', 'en'].concat(langs.map(function (l) { return l.code; }).filter(function (c) { return c !== 'ar' && c !== 'en'; }));
+      var langName = function (c) { var l = langs.find(function (x) { return x.code === c; }); return l ? l.name_native : ({ ar: 'العربية', en: 'English' })[c] || c; };
+      var reload = function () { updatesPanel(el); };
+      setTimeout(function () {
+        var input = el.querySelector('input[name=apk]');
+        if (input) input.addEventListener('change', function () {
+          var f = input.files[0]; if (!f) return;
+          if (f.size > data.max_mb * 1048576) { BT.toast('الملف أكبر من ' + data.max_mb + ' ميجابايت', { type: 'error' }); input.value = ''; return; }
+          var box = el.querySelector('[data-uploading]'); box.classList.remove('hidden');
+          api.uploadForm('/app-releases', f).then(function (x) { BT.toast('رُفع الإصدار ' + x.version_name + ' (' + x.version_code + '): مسودة حتى تنشره'); reload(); },
+            function (err) { box.classList.add('hidden'); input.value = ''; BT.toast(api.message(err), { type: 'error', timeout: 8000 }); });
+        });
+        A.delegate(el, 'click', '[data-publish]', function (e, b) {
+          var x = data.releases.find(function (y) { return y.id === b.getAttribute('data-publish'); });
+          A.confirmRun({ title: 'نشر الإصدار ' + x.version_name, icon: 'upload', tone: 'success', confirmText: 'نشر', done: 'نُشر: يظهر للسائقين عند فحص التطبيق التالي',
+            message: x.required ? 'الإصدار «إلزامي»: كل نسخة أقدم تتوقف شاشاتها حتى تُحدَّث (البيانات المحفوظة والتتبع يستمران).' : 'يظهر للسائقين إشعار «إصدار جديد متاح» ويمكنهم التأجيل.',
+            run: function () { return api.post('/app-releases/' + x.id + '/publish'); }, after: reload });
+        });
+        A.delegate(el, 'click', '[data-unpublish]', function (e, b) {
+          A.confirmRun({ title: 'إلغاء النشر', icon: 'eye-off', tone: 'danger', confirmText: 'إلغاء النشر', done: 'أُلغي النشر', message: 'لا يُعرض على السائقين بعد الآن. من ثبّته يبقى عليه.',
+            run: function () { return api.post('/app-releases/' + b.getAttribute('data-unpublish') + '/unpublish'); }, after: reload });
+        });
+        A.delegate(el, 'click', '[data-delete]', function (e, b) {
+          A.confirmRun({ title: 'حذف المسودة', icon: 'trash-2', tone: 'danger', confirmText: 'حذف', done: 'حُذفت المسودة',
+            run: function () { return api.del('/app-releases/' + b.getAttribute('data-delete')); }, after: reload });
+        });
+        A.delegate(el, 'click', '[data-required]', function (e, b) {
+          var x = data.releases.find(function (y) { return y.id === b.getAttribute('data-required'); });
+          A.confirmRun({ title: x.required ? 'جعله اختيارياً' : 'جعله إلزامياً', icon: 'shield-alert', tone: x.required ? 'success' : 'danger', confirmText: 'تأكيد', done: 'تم',
+            message: x.required ? 'النسخ الأقدم ترى «إصدار جديد متاح» ويمكنها التأجيل.' : 'كل نسخة أقدم من ' + x.version_code + ' تتوقف شاشاتها حتى تُحدَّث، ومنها شاشة الدخول. ما حُفظ على الهاتف يُرسل والتتبع مستمر.',
+            run: function () { return api.patch('/app-releases/' + x.id, { required: !x.required }); }, after: reload });
+        });
+        A.delegate(el, 'click', '[data-notes]', function (e, b) {
+          var x = data.releases.find(function (y) { return y.id === b.getAttribute('data-notes'); });
+          A.formModal({ title: 'ملاحظات الإصدار ' + x.version_name, icon: 'file-text', done: 'حُفظت الملاحظات', after: reload,
+            body: h`<div class="form">${codes.map(function (c) { return BT.f.textarea({ name: 'n_' + c, label: langName(c), value: x.notes[c] || '', optional: true, full: true, rows: 2 }); })}<div class="hint">تظهر للسائق بلغته، وإن لم تُكتب بلغته فبالإنجليزية ثم العربية.</div></div>`,
+            submit: function (v) { var notes = {}; codes.forEach(function (c) { notes[c] = v['n_' + c] || ''; }); return api.patch('/app-releases/' + x.id, { notes: notes }); } });
+        });
+        A.delegate(el, 'click', '[data-file]', function (e, b) { A.download('/app-releases/' + b.getAttribute('data-file') + '/file'); });
+        var pkg = el.querySelector('form[data-pkg]');
+        if (pkg) pkg.addEventListener('submit', function (e) {
+          e.preventDefault();
+          if (!BT.form.validate(pkg)) return;
+          var value = Object.assign({}, app.value, { android_package: BT.form.values(pkg).android_package || '' });
+          api.put('/settings/driver_app', { version: app.version, value: value }).then(function () { BT.toast('حُفظ'); reload(); }, api.fail).catch(function () {});
+        });
+      });
+      var behind = data.drivers.filter(function (d) { return d.outdated; });
+      return h`<div class="card mb-16"><div class="card-h"><div class="card-t">رفع إصدار جديد</div></div><div class="card-b form" style="max-width:640px">
+          <div class="hint">التطبيق لا يُثبَّت من متجر: نزّل ملف APK من آخر بناء في CI، ارفعه هنا، ثم «نشر». يقرأ النظام اسم الحزمة ورقم الإصدار (versionCode) من الملف نفسه، ويرفض تطبيقاً آخر أو رقماً ليس أعلى من آخر إصدار منشور. يطلب أندرويد من السائق تأكيد التثبيت دائماً: لا يمكن التثبيت الصامت لتطبيق من خارج المتجر.</div>
+          ${canEdit ? h`${BT.f.upload({ name: 'apk', label: 'ملف التطبيق (APK)', accept: '.apk,application/vnd.android.package-archive', accept_label: 'APK · حتى ' + data.max_mb + 'MB' })}<div data-uploading class="hidden muted fs-sm">${icon('loader', 14)} جارٍ الرفع والفحص…</div>` : ''}
+          <div class="muted fs-sm">الحزمة المطلوبة: <b class="ltr">${data.package || 'أي حزمة (تُعتمد حزمة أول إصدار)'}</b></div>
+          ${canEdit ? h`<form data-pkg class="flex gap-8" style="align-items:flex-end" novalidate>${BT.f.input({ name: 'android_package', label: 'حزمة تطبيق أندرويد', value: app.value.android_package || '', pattern: '[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+', msg: 'مثل com.example.app', hint: 'فارغ: إعداد الخادم ANDROID_PACKAGE' })}<button type="submit" class="btn btn-sm btn-outline">${icon('check', 14)} حفظ</button></form>` : ''}
+        </div></div>
+        <div class="card mb-16"><div class="card-h"><div class="card-t">الإصدارات</div><span class="muted fs-sm">${data.unknown_version ? data.unknown_version + ' هاتف بنسخة قديمة لا تذكر رقمها' : ''}</span></div>
+          <div class="table-wrap"><table class="t compact" data-releases><thead><tr><th>الإصدار</th><th>رقم الإصدار</th><th>الحجم</th><th>الحالة</th><th>إلزامي</th><th>المثبّت</th><th>الملاحظات</th><th></th></tr></thead><tbody>${data.releases.length ? data.releases.map(function (x) {
+            return h`<tr data-release="${x.version_code}"><td class="ltr">${x.version_name}</td><td class="ltr">${x.version_code}</td><td>${mb(x.size_bytes)}</td><td>${x.status === 'published' ? BT.pill('منشور', 'g') : BT.pill('مسودة', 'n')}</td><td>${x.required ? BT.pill('إلزامي', 'r') : '—'}</td><td>${fmt.int(x.installed)}</td><td class="fs-sm">${x.notes.ar || x.notes.en || '—'}</td>
+              <td class="actions nowrap">${canEdit ? h`${x.status === 'published' ? h`<button type="button" class="btn btn-sm btn-ghost" data-unpublish="${x.id}">إلغاء النشر</button>` : h`<button type="button" class="btn btn-sm btn-success" data-publish="${x.id}">نشر</button>`}<button type="button" class="btn btn-sm btn-ghost" data-required="${x.id}">${x.required ? 'اختياري' : 'إلزامي'}</button><button type="button" class="btn btn-sm btn-ghost" data-notes="${x.id}">الملاحظات</button>${x.status === 'draft' ? h`<button type="button" class="btn btn-sm btn-ghost" data-delete="${x.id}">حذف</button>` : ''}` : ''}<button type="button" class="btn btn-sm btn-ghost" data-file="${x.id}" title="تنزيل">${icon('download', 14)}</button></td></tr>`;
+          }) : h`<tr><td colspan="8" class="muted">لا توجد إصدارات بعد</td></tr>`}</tbody></table></div></div>
+        <div class="card"><div class="card-h"><div class="card-t">السائقون على نسخة أقدم</div><span class="muted fs-sm">${data.latest ? behind.length + ' من ' + data.drivers.length + ' هاتف' : 'لا يوجد إصدار منشور'}</span></div>
+          <div class="table-wrap"><table class="t compact" data-behind><thead><tr><th>السائق</th><th>النسخة</th><th>آخر ظهور</th></tr></thead><tbody>${behind.length ? behind.map(function (d) {
+            return h`<tr><td>${api.name(d.name)}</td><td class="ltr">${d.app_version || '—'}</td><td>${d.last_seen_at ? fmt.date(d.last_seen_at.slice(0, 10)) : '—'}</td></tr>`;
+          }) : h`<tr><td colspan="3" class="muted">${data.latest ? 'كل الهواتف على آخر إصدار' : '—'}</td></tr>`}</tbody></table></div></div>`;
     }).catch(function () {});
   }
 

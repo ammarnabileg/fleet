@@ -218,7 +218,13 @@ jobs:
           # measured, so the heap in android/gradle.properties is raised on evidence, not guessed
           [ -x /usr/bin/time ] || sudo apt-get install -y -qq time >/dev/null
           free -m | awk 'NR==2 {print "runner RAM: " $2 " MB"}'
-          /usr/bin/time -v -o build-mem.txt flutter build apk --release --dart-define=API_URL="$API_URL" --android-project-arg activationHost="$HOST" "${EXTRA[@]}"
+          # the versionCode grows with every run (the in-app update installs only a higher one; Android refuses a
+          # lower one). The offset keeps it above the 1 every APK had before; the app gets the same number to compare
+          NAME=$(sed -nE 's/^version: *([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' pubspec.yaml)
+          BUILD=$((GITHUB_RUN_NUMBER + 1000))
+          VERSION=(--build-name="$NAME" --build-number="$BUILD" --dart-define=APP_VERSION="$NAME" --dart-define=APP_BUILD="$BUILD")
+          echo "### Driver app version $NAME, versionCode $BUILD (upload the APK in Settings -> App updates, then publish)" >> "$GITHUB_STEP_SUMMARY"
+          /usr/bin/time -v -o build-mem.txt flutter build apk --release --dart-define=API_URL="$API_URL" --android-project-arg activationHost="$HOST" "${VERSION[@]}" "${EXTRA[@]}"
           PEAK=$(awk -F': ' '/Maximum resident set size/ {print int($2/1024)}' build-mem.txt)
           echo "### Driver app build: peak memory of the largest process ${PEAK} MB (runner RAM $(free -m | awk 'NR==2 {print $2}') MB)" >> "$GITHUB_STEP_SUMMARY"
       - name: check the APK
@@ -230,9 +236,14 @@ jobs:
           fi
           "$TOOLS/aapt" dump xmltree app-release.apk AndroidManifest.xml | grep -A2 'android:host' | head -4
           "$TOOLS/apksigner" verify --print-certs app-release.apk | tee certs.txt
+          # the server reads the package and versionCode of an uploaded APK itself (no aapt there): same answer as aapt
+          CODE=$("$TOOLS/aapt" dump badging app-release.apk | sed -nE "s/.*versionCode='([0-9]+)'.*/\1/p" | head -1)
+          APK="$PWD/app-release.apk" CODE="$CODE" python -c "import os, sys; sys.path.insert(0, os.environ['GITHUB_WORKSPACE'] + '/backend'); from app.modules.app_updates import apk; i = apk.read(open(os.environ['APK'], 'rb').read()); print(i); assert i.version_code == int(os.environ['CODE']), i"
           {
             echo "### Driver app"
             echo "Size: $(du -h app-release.apk | cut -f1)"
+            echo
+            "$TOOLS/aapt" dump badging app-release.apk | grep -oE "package: name='[^']+' versionCode='[0-9]+' versionName='[^']+'"
             echo
             echo "Signing certificate (put its SHA-256 in /.well-known/assetlinks.json):"
             echo '```'

@@ -111,6 +111,9 @@ class DriverAppSettings(_Section):
     splash_image: str | None = Field(None, pattern=r"^[0-9a-f]{64}$")  # an uploaded file's sha256
     splash_color: str = Field("#FFFFFF", pattern=r"^#[0-9A-Fa-f]{6}$")  # around the image on other screen shapes
     splash_seconds: int = Field(2, ge=1, le=5)
+    # the driver app's Android package: an uploaded release of another app is refused. Empty: the server's
+    # ANDROID_PACKAGE, else the package of the releases uploaded before
+    android_package: str = Field("", max_length=200, pattern=r"^$|^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$")
 
     @model_validator(mode="after")
     def _check(self):

@@ -27,7 +27,7 @@ class DeviceIdentity {
     } catch (_) {
       model = null;
     }
-    return {'platform': Platform.operatingSystem, 'model': _cut(model), 'app_version': AppConfig.appVersion};
+    return {'platform': Platform.operatingSystem, 'model': _cut(model), 'app_version': AppConfig.reportedVersion};
   }
 
   static String? _cut(String? s) => s == null || s.length <= 60 ? s : s.substring(0, 60);

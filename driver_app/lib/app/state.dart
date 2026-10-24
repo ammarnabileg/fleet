@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
 import '../core/api.dart';
@@ -17,6 +18,7 @@ import '../core/models.dart';
 import '../core/outbox.dart';
 import '../core/tokens.dart';
 import '../core/translations.dart';
+import '../core/updater.dart';
 import '../status/engine.dart';
 import '../tracking/positions.dart';
 
@@ -34,7 +36,11 @@ class PhoneHooks {
     this.pushToken,
     this.dial,
     this.openLocationSettings,
+    this.updates,
   });
+
+  /// The in-app update's Android side (null: no updates, as in most tests).
+  final UpdateHooks? updates;
 
   /// Opens the phone's dialer on the number (the driver presses call himself); false when it cannot.
   final Future<bool> Function(String phone)? dial;
@@ -64,7 +70,10 @@ class AppState extends ChangeNotifier {
     this.pollEvery = const Duration(seconds: 15),
     Future<Directory?> Function()? stringsDir,
     this.updateStringsAtStart = true,
-  }) : tokens = TokenStore(db),
+    bool? checkUpdates,
+    http.Client? downloadClient,
+  }) : checkUpdates = checkUpdates ?? updateStringsAtStart,
+       tokens = TokenStore(db),
        outbox = Outbox(db),
        catalog = Catalog(db),
        errors = ErrorLog(db) {
@@ -75,6 +84,40 @@ class AppState extends ChangeNotifier {
       BundleStore(stringsDir ?? () async => null, appBuild: AppConfig.appBuild),
       onError: (where, e, st) => errors.record(where, e, st),
     );
+    updater = Updater(
+      db: db,
+      api: this.api,
+      hooks: platform.updates ?? _noUpdates,
+      currentBuild: AppConfig.appBuild,
+      client: downloadClient,
+      beforeBlock: flushQueued,
+    )..addListener(notifyListeners);
+  }
+
+  /// Look for a new version of the app in the background (after the first screen, on resume every 6 hours).
+  final bool checkUpdates;
+
+  /// The app's new versions (the app is installed from an APK, not from a store).
+  late final Updater updater;
+
+  static final _noUpdates = UpdateHooks(
+    dir: () async => Directory.systemTemp,
+    canInstall: () async => false,
+    openInstallSettings: () async {},
+    install: (_) async => false,
+    unmetered: () async => false,
+  );
+
+  /// Sends what waits on the phone now (the outbox, the positions): before a required update blocks the screens.
+  /// Never throws; what cannot go stays queued.
+  Future<void> flushQueued() async {
+    try {
+      await outbox.flush(api);
+      await PositionQueue(db).upload(api);
+    } catch (_) {
+      // offline or signed out: kept, and the tracking service keeps trying
+    }
+    await _quietly(_readLocal);
   }
 
   /// Look for newer published strings in the background (after the first screen, on resume, on a language change);
@@ -260,6 +303,8 @@ class AppState extends ChangeNotifier {
     _applyFuel(await db.get('fuel'));
     _applyLeaves(await db.get('leaves'));
     await _showSplash();
+    if (platform.updates != null) await updater.load(); // a required update stays required offline
+    if (checkUpdates) unawaited(Future(() => updater.check()));
     unawaited(catalog.load(api, lang).catchError((Object e, StackTrace st) => errors.record('catalog', e, st)));
     if (!await tokens.hasSession()) {
       _set(Phase.signedOut);
@@ -636,6 +681,8 @@ class AppState extends ChangeNotifier {
   /// Back to the app: his car and day as they are now, and what he was told meanwhile.
   Future<void> resumed() async {
     if (updateStringsAtStart) unawaited(translations.check(api, lang)); // at most every 15 minutes
+    unawaited(updater.resumed()); // back from the installer or the "install unknown apps" setting
+    if (checkUpdates) unawaited(updater.check()); // at most every 6 hours
     if (phase != Phase.ready) return;
     await _quietly(loadToday);
     await _quietly(loadNotices);
