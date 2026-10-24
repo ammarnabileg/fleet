@@ -40,10 +40,40 @@ def _cell(value):
     return text, "@"  # text stays text, even "=1+1"
 
 
+def _hf(text: str) -> str:
+    return text.replace("&", "&&")[:250]  # Excel's header codes start with &
+
+
+def page_setup(ws, heading: dict | None) -> None:
+    """Printed from Excel like the panel's printouts: A4, and with a heading the company and the title on top of every
+    page, the filters, who printed it and when, and «page X of Y» at the bottom."""
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.print_title_rows = "1:1"  # the column headers on every page
+    if not heading:
+        return
+    ws.oddHeader.center.text = "&B" + _hf(heading.get("company", "")) + "&B\n" + _hf(heading.get("title", ""))
+    if heading.get("filters"):
+        ws.oddHeader.right.text = _hf(heading["filters"])
+    ws.oddFooter.center.text = _hf(heading.get("page", "&P / &N")).replace("&&P", "&P").replace("&&N", "&N")
+    printed = " · ".join(x for x in (heading.get("printed_at"), heading.get("printed_by")) if x)
+    if printed:
+        ws.oddFooter.right.text = _hf(printed)
+
+
 def to_xlsx(
-    title: str, header: list[str], rows: Iterable[list], *, rtl: bool, text_columns: Iterable[int] = ()
+    title: str,
+    header: list[str],
+    rows: Iterable[list],
+    *,
+    rtl: bool,
+    text_columns: Iterable[int] = (),
+    heading: dict | None = None,
 ) -> bytes:
-    """`text_columns`: positions kept as text however they look, such as account codes ("0101" stays "0101")."""
+    """`text_columns`: positions kept as text however they look, such as account codes ("0101" stays "0101").
+    `heading`: the print header (company, title, filters, printed_at, printed_by, page); every sheet prints on A4."""
     from openpyxl import Workbook
     from openpyxl.styles import Font
 
@@ -70,6 +100,7 @@ def to_xlsx(
     for i, w in enumerate(widths):
         ws.column_dimensions[ws.cell(row=1, column=i + 1).column_letter].width = min(max(w + 2, 8), 50)
     ws.freeze_panes = "A2"
+    page_setup(ws, heading)
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

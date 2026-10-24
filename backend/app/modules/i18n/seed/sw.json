@@ -1220,7 +1220,12 @@
       "petty_invoice_too_old": "Ankara ni ya zamani zaidi ya siku {days}",
       "petty_category_unknown": "Aina hii ya matumizi haiwezi kulipwa kwa fedha ndogo",
       "petty_expense_decided": "Matumizi haya tayari yameamuliwa",
-      "petty_expense_not_found": "Matumizi hayajapatikana"
+      "petty_expense_not_found": "Matumizi hayajapatikana",
+      "print_template_variable_unknown": "Kigezo kisichojulikana {variable} katika {field}",
+      "print_template_invalid": "Thamani batili katika kiolezo cha uchapishaji: {field}",
+      "print_template_image_missing": "Picha haipo: ipakie tena",
+      "print_config_changed": "Mtu mwingine amebadilisha violezo vya uchapishaji: fungua ukurasa tena",
+      "print_config_no_previous": "Hakuna mpangilio wa awali wa kurudi"
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",

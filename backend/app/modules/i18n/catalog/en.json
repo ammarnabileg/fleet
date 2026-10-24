@@ -658,7 +658,12 @@
     "petty_invoice_too_old": "The invoice is older than {days} days",
     "petty_category_unknown": "This expense type cannot be spent from petty cash",
     "petty_expense_decided": "This spending was already decided",
-    "petty_expense_not_found": "Spending not found"
+    "petty_expense_not_found": "Spending not found",
+    "print_template_variable_unknown": "Unknown variable {variable} in {field}",
+    "print_template_invalid": "Invalid value in the print template: {field}",
+    "print_template_image_missing": "The image is not there: upload it again",
+    "print_config_changed": "Someone else changed the print templates: reopen the page",
+    "print_config_no_previous": "There is no previous setting to go back to"
   },
   "settings": {
     "branding": "Branding",
@@ -1574,7 +1579,8 @@
     "maintenance_schedule": "Maintenance schedule",
     "leave_type": "Leave type",
     "app_release": "App release",
-    "petty_expense": "Petty cash spending"
+    "petty_expense": "Petty cash spending",
+    "print_template": "Print template"
   },
   "audit_actor": {
     "user": "User",

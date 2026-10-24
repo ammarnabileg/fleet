@@ -28,6 +28,16 @@ class ReceiptOut(BaseModel):
     unconfirmed_late: bool = False  # still not confirmed by the driver after 24 hours (FR-CSH-05)
 
 
+class ReceiptPrintOut(ReceiptOut):
+    """The receipt as printed, with what it was issued with (only here: lists do not carry the civil ID)."""
+
+    company_id: int | None
+    driver_name: dict | None
+    civil_id: str | None
+    plate_number: str | None
+    issued_by: str | None
+
+
 class UnconfirmedReceiptOut(ReceiptOut):
     driver: dict
 
@@ -102,6 +112,7 @@ class StatementLine(BaseModel):
     reason: str | None
     source_type: str
     created_at: datetime
+    receipt_id: str | None = None  # a receipt's deposit: the receipt to print again
 
 
 class StatementOut(BaseModel):

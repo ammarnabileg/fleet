@@ -11,6 +11,7 @@ driver -Y) with a number unique per branch. A posted journal is never changed: a
 or an adjustment corrects it.
 """
 
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -390,12 +391,21 @@ def record_receipt(db: Session, driver: people.EmployeeRef, *, amount: Decimal, 
     if amount <= 0:
         raise AppError(422, "amount_must_be_positive")
     _check_month(db, today())  # the month's lock before the receipt number's and the treasury's
+    from app.modules.fleet import service as fleet
+
+    custody = fleet.open_custody_for_driver(db, driver.id)  # the car he works with now (a replacement too)
+    plate = fleet.vehicles(db, [custody.vehicle_id])[custody.vehicle_id].plate_number if custody else None
     receipt = Receipt(
         branch_id=driver.branch_id,
         receipt_no=_next_receipt_no(db, driver.branch_id),
         driver_id=driver.id,
         amount=amount,
         created_by=actor_user_id,
+        # as issued: the printed receipt shows these even after a change of car or a corrected name
+        company_id=driver.company_id,
+        driver_name=driver.name,
+        civil_id=driver.civil_id,
+        plate_number=plate,
     )
     db.add(receipt)
     db.flush()
@@ -421,7 +431,7 @@ def record_receipt(db: Session, driver: people.EmployeeRef, *, amount: Decimal, 
         entity_type="receipt",
         entity_id=receipt.public_id,
     )
-    out = _receipt_out(receipt)
+    out = receipt_print(db, receipt)
     audit.record(
         db,
         action="cash.receipt",
@@ -439,6 +449,29 @@ def record_receipt(db: Session, driver: people.EmployeeRef, *, amount: Decimal, 
     )
     db.commit()
     return out
+
+
+def receipt_print(db: Session, r: Receipt, reversed_: bool = False) -> dict:
+    """The receipt as printed: what it was issued with (driver's name and civil ID, the car's plate, his company) and
+    who issued it. Only the receipt itself shows the civil ID: lists and logs do not."""
+    from app.modules.identity import service as identity
+
+    return _receipt_out(r, reversed_) | {
+        "company_id": r.company_id,
+        "driver_name": r.driver_name,
+        "civil_id": r.civil_id,
+        "plate_number": r.plate_number,
+        "issued_by": (identity.user_contact(db, r.created_by) or {}).get("name"),
+    }
+
+
+def get_receipt(db: Session, public_id, drivers: Iterable[people.EmployeeRef]) -> dict:
+    """One receipt to print again, for a driver in the user's scope."""
+    ids = {d.id for d in drivers}
+    receipt = db.scalar(select(Receipt).where(Receipt.public_id == public_id))
+    if receipt is None or receipt.driver_id not in ids:
+        raise AppError(404, "receipt_not_found")
+    return receipt_print(db, receipt, receipt.id in _reversed_receipts(db, [receipt.id]))
 
 
 def confirm_receipt(db: Session, employee_id: int, public_id) -> dict:
@@ -1010,6 +1043,12 @@ def statement(db: Session, driver: people.EmployeeRef, *, limit: int = 100) -> d
         .order_by(Journal.id.desc())
         .limit(min(limit, 500))
     ).all()
+    receipt_ids = [j.source_id for j, _ in rows if j.source_type == "receipt" and j.source_id]
+    receipts = (
+        dict(db.execute(select(Receipt.id, Receipt.public_id).where(Receipt.id.in_(receipt_ids))).all())
+        if receipt_ids
+        else {}
+    )
     return {
         "posted": balance.posted,
         "pending": balance.pending,
@@ -1024,6 +1063,9 @@ def statement(db: Session, driver: people.EmployeeRef, *, limit: int = 100) -> d
                 "reason": j.reason,
                 "source_type": j.source_type,
                 "created_at": j.created_at,
+                "receipt_id": (
+                    str(receipts[j.source_id]) if j.source_type == "receipt" and j.source_id in receipts else None
+                ),
             }
             for j, amount in rows
         ],
@@ -1981,3 +2023,47 @@ def check_invariants(db: Session) -> list[str]:
         )
     db.commit()
     return problems
+
+
+# ------------------------------------------------------------------ the receipt's driver search
+
+_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
+
+
+def _key(value: str | None) -> str:
+    """Compared without spaces, slashes or dashes, Arabic digits read as Latin: "12/3456" finds "123456"."""
+    return re.sub(r"[\W_]+", "", (value or "").translate(_DIGITS).lower())
+
+
+def search_drivers(db: Session, q: str, drivers: list[people.EmployeeRef], limit: int = 20) -> list[dict]:
+    """The cashier finds the driver handing in cash by the plate of the car he works with now, his civil ID or his
+    name (Arabic or English), in one box; each result shows the plate and the civil ID to pick the right person."""
+    from app.modules.fleet import service as fleet
+
+    key = _key(q)
+    if not key:
+        return []
+    by_id = {d.id: d for d in drivers}
+    custodies = sorted(
+        (c for c in fleet.open_custodies(db) if c.driver_id in by_id), key=lambda c: c.kind != "replacement"
+    )
+    cars = fleet.vehicles(db, {c.vehicle_id for c in custodies})
+    plate: dict[int, str] = {}
+    for c in custodies:  # a replacement first: the car he works with now
+        plate.setdefault(c.driver_id, cars[c.vehicle_id].plate_number)
+    out = []
+    for d in drivers:
+        names = [_key(n) for n in (d.name or {}).values()]
+        if key in _key(plate.get(d.id)) or key in _key(d.civil_id) or any(key in n for n in names):
+            out.append(
+                {
+                    "id": str(d.public_id),
+                    "name": d.name,
+                    "civil_id": d.civil_id,
+                    "plate_number": plate.get(d.id),
+                    "company_id": d.company_id,
+                }
+            )
+            if len(out) >= limit:
+                break
+    return out

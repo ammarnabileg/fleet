@@ -1220,7 +1220,12 @@
       "petty_invoice_too_old": "Mas luma sa {days} araw ang resibo",
       "petty_category_unknown": "Hindi maaaring bayaran mula sa petty cash ang uri ng gastos na ito",
       "petty_expense_decided": "Napagpasyahan na ang gastos na ito",
-      "petty_expense_not_found": "Hindi nahanap ang gastos"
+      "petty_expense_not_found": "Hindi nahanap ang gastos",
+      "print_template_variable_unknown": "Hindi kilalang variable {variable} sa {field}",
+      "print_template_invalid": "Hindi wastong value sa print template: {field}",
+      "print_template_image_missing": "Wala ang larawan: i-upload itong muli",
+      "print_config_changed": "May ibang nagbago ng mga print template: buksan muli ang page",
+      "print_config_no_previous": "Walang naunang setting na mababalikan"
     },
     "finance_source": {
       "cash_journal": "Cash ledger: {kind} {reason}",

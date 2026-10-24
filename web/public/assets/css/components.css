@@ -547,6 +547,31 @@ table.t td.ledger-cell { background: var(--surface-2); padding: 12px 16px 16px; 
   .doc-link, .li { min-height: var(--touch); }
 }
 
+/* the receipt dialog's driver search: plate and civil ID next to each name */
+.drv-results { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; max-height: 240px; overflow-y: auto; }
+.drv-hit, .drv-picked { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); text-align: start; min-height: var(--touch, 44px); }
+.drv-hit:hover, .drv-hit:focus-visible { border-color: var(--primary); background: var(--primary-soft); }
+.drv-picked { border-color: var(--primary); background: var(--primary-soft); }
+.drv-hit .sub, .drv-picked .sub { font-size: 12px; color: var(--muted); }
+
+/* report center: the reports grouped on the side, the open report beside them */
+.rc-grid { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.rc-list { padding: 10px; }
+.rc-group + .rc-group { margin-top: 10px; }
+.rc-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; padding: 8px 10px; border-radius: 9px; text-align: start; min-height: var(--touch, 44px); }
+.rc-item .sub { font-size: 12px; color: var(--muted); }
+.rc-item:hover { background: var(--surface-sunken); }
+.rc-item.active { background: var(--primary-soft); color: var(--primary-strong); }
+.rc-main { min-width: 0; }
+@media (max-width: 900px) { .rc-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* print templates designer: the fields beside the live A4 preview */
+.pt-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.pt-sec { border: 0; padding: 0; margin: 0 0 16px; }
+.pt-sec legend { font-weight: 700; margin-bottom: 8px; }
+.pt-side { position: sticky; top: 12px; }
+.pt-side .pd-page { zoom: .5; }
+@media (max-width: 1100px) { .pt-grid { grid-template-columns: minmax(0, 1fr); } .pt-side { position: static; } }
 /* رقم اللوحة: خانتان والشرطة ثابتة بينهما */
 .plate-in { display: flex; align-items: center; gap: 6px; }
 .plate-in .plate-code { width: 64px; flex: none; text-align: center; }

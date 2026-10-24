@@ -168,7 +168,7 @@
   /* ================= الإعدادات والصلاحيات ================= */
   var TABS = [
     ['users', 'المستخدمون', 'users.view'], ['roles', 'الأدوار والصلاحيات', 'roles.view'], ['companies', 'الشركات', 'companies.view'],
-    ['branches', 'الفروع', null], ['system', 'إعدادات النظام', 'settings.view'], ['app', 'تطبيق السائق', 'settings.view'], ['updates', 'تحديثات التطبيق', 'settings.view'], ['statuses', 'الحالات الوظيفية', null], ['languages', 'اللغات والترجمة', 'settings.view'], ['i18n', 'نصوص النظام', 'i18n.manage']
+    ['branches', 'الفروع', null], ['system', 'إعدادات النظام', 'settings.view'], ['app', 'تطبيق السائق', 'settings.view'], ['updates', 'تحديثات التطبيق', 'settings.view'], ['print', 'قوالب الطباعة', 'settings.view'], ['statuses', 'الحالات الوظيفية', null], ['languages', 'اللغات والترجمة', 'settings.view'], ['i18n', 'نصوص النظام', 'i18n.manage']
   ];
   BT.pages['settings'] = function (p, q) {
     A.setTitle('الإعدادات والصلاحيات');
@@ -180,7 +180,7 @@
     function show(t) {
       if (drawn[t]) return; drawn[t] = true;
       var el = v.querySelector('[data-p="' + t + '"]');
-      ({ users: usersPanel, roles: rolesPanel, companies: companiesPanel, branches: branchesPanel, system: systemPanel, app: appPanel, updates: updatesPanel, statuses: statusesPanel, languages: languagesPanel, i18n: i18nPanel })[t](el);
+      ({ users: usersPanel, roles: rolesPanel, companies: companiesPanel, branches: branchesPanel, system: systemPanel, app: appPanel, updates: updatesPanel, print: A.printTemplatesPanel, statuses: statusesPanel, languages: languagesPanel, i18n: i18nPanel })[t](el);
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/settings?tab=' + e.detail); });
     show(tab);

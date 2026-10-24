@@ -1220,7 +1220,12 @@
       "petty_invoice_too_old": "बिल {days} दिनों से पुराना है",
       "petty_category_unknown": "यह खर्च का प्रकार छोटी नकदी से नहीं दिया जा सकता",
       "petty_expense_decided": "इस खर्च पर पहले ही फ़ैसला हो चुका है",
-      "petty_expense_not_found": "खर्च नहीं मिला"
+      "petty_expense_not_found": "खर्च नहीं मिला",
+      "print_template_variable_unknown": "{field} में अज्ञात वेरिएबल {variable}",
+      "print_template_invalid": "प्रिंट टेम्पलेट में अमान्य मान: {field}",
+      "print_template_image_missing": "छवि नहीं मिली: इसे फिर से अपलोड करें",
+      "print_config_changed": "किसी और ने प्रिंट टेम्पलेट बदल दिए: पेज फिर से खोलें",
+      "print_config_no_previous": "वापस जाने के लिए कोई पिछली सेटिंग नहीं है"
     },
     "finance_source": {
       "cash_journal": "कैश लेजर: {kind} {reason}",

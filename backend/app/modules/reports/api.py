@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from typing import Annotated, Literal
 
@@ -5,11 +6,13 @@ from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.core.clock import KUWAIT, utcnow
 from app.core.db import get_session
 from app.core.errors import AppError
 from app.modules.cash import service as cash
 from app.modules.i18n import service as i18n
 from app.modules.identity.service import Principal, require_permission
+from app.modules.org import printing
 from app.modules.people import service as people
 from app.modules.reports import cash_report, drill, export, filters, kilometers, payroll_report, schemas, service
 
@@ -22,8 +25,8 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 class Out:
     """How a report leaves: CSV with the column keys for other systems, Excel in the user's language for people."""
 
-    def __init__(self, db: Session, principal: Principal, accept_language: str | None):
-        self.db, self.principal = db, principal
+    def __init__(self, db: Session, principal: Principal, accept_language: str | None, company_id: int | None = None):
+        self.db, self.principal, self.company_id = db, principal, company_id
         self.lang = i18n.negotiate(db, principal.locale, accept_language)
         self.default = i18n.default_language(db).code
 
@@ -36,6 +39,19 @@ class Out:
             return side or ""
         return i18n.t(self.db, self.lang, f"balance_side.{side}")
 
+    def heading(self, title: str, base: str) -> dict:
+        """The Excel file's print header: the identity of the company it was filtered by (the group's otherwise), the
+        title, the period, who printed it and when, as the panel's A4 printouts."""
+        layout = printing.layout(self.db, self.company_id, **self.principal.scope)
+        period = " → ".join(m.group(0) for m in re.finditer(r"\d{4}-\d{2}(?:-\d{2})?", base))
+        return {
+            "company": layout["identity"]["company"],
+            "title": title,
+            "filters": period,
+            "printed_at": utcnow().astimezone(KUWAIT).strftime("%Y-%m-%d %H:%M"),
+            "printed_by": self.principal.full_name,
+        }
+
     def send(self, fmt: str, base: str, title: str, header: list[str], rows) -> Response:
         if not self.principal.has("reports.export"):
             raise AppError(403, "permission_denied", permission="reports.export")
@@ -45,7 +61,7 @@ class Out:
             labels = [i18n.t(self.db, self.lang, f"report_column.{h}") for h in header]
             labels = [lab if not lab.startswith("report_column.") else h for lab, h in zip(labels, header, strict=True)]
             sheet = i18n.t(self.db, self.lang, f"report_title.{title}")
-            body = export.to_xlsx(sheet, labels, rows, rtl=self.lang == "ar")
+            body = export.to_xlsx(sheet, labels, rows, rtl=self.lang == "ar", heading=self.heading(sheet, base))
             media, ext = XLSX, "xlsx"
         return Response(body, media_type=media, headers={"Content-Disposition": f'attachment; filename="{base}.{ext}"'})
 
@@ -110,7 +126,7 @@ def daily_summary(
     data = service.daily_summary(db, date_from=date_from, date_to=date_to, filters=f, **scope)
     if format == "json":
         return data
-    out = Out(db, principal, accept_language)
+    out = Out(db, principal, accept_language, p.company_id)
     if section == "drivers":
         header = [
             "employee_number",
@@ -173,7 +189,7 @@ def fleet_report(
     data = service.fleet_report(db, date_from=date_from, date_to=date_to, filters=f, **scope)
     if format == "json":
         return data
-    out = Out(db, principal, accept_language)
+    out = Out(db, principal, accept_language, p.company_id)
     if section == "vehicles":
         header = ["plate", "make", "model", "status", "driver", "days_held", "use_percent"]
         rows = [
@@ -237,7 +253,7 @@ def maintenance_report(
     data = service.maintenance_report(db, date_from=date_from, date_to=date_to, filters=f, **scope)
     if format == "json":
         return data
-    out = Out(db, principal, accept_language)
+    out = Out(db, principal, accept_language, p.company_id)
     if section == "centers":
         header = [
             "center",
@@ -298,7 +314,7 @@ def accidents_report(
     data = service.accidents_report(db, date_from=date_from, date_to=date_to, filters=f, **scope)
     if format == "json":
         return data
-    out = Out(db, principal, accept_language)
+    out = Out(db, principal, accept_language, p.company_id)
     header = [
         "number",
         "occurred_at",
@@ -353,7 +369,7 @@ def kilometers_report(
     data = kilometers.kilometers_report(db, date_from=date_from, date_to=date_to, filters=f, **scope)
     if format == "json":
         return data
-    out = Out(db, principal, accept_language)
+    out = Out(db, principal, accept_language, p.company_id)
     if section == "vehicles":
         header = [
             "plate",
@@ -456,7 +472,7 @@ def cash_report_(
     )
     if format == "json":
         return data
-    out = Out(db, principal, accept_language)
+    out = Out(db, principal, accept_language, p.company_id)
     if section == "aging":
         header = ["driver", "approved", "unapproved", "d0_1", "d2_3", "d4_7", "d8_plus", "oldest", "total"]
         header.append("balance_side")
@@ -522,7 +538,7 @@ def payroll_report_(
     data = payroll_report.payroll_report(db, month_from=month_from, month_to=month_to, filters=f, **scope)
     if format == "json":
         return data
-    out = Out(db, principal, accept_language)
+    out = Out(db, principal, accept_language, p.company_id)
     if section == "runs":
         header = [
             "month",

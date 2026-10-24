@@ -658,7 +658,12 @@
     "petty_invoice_too_old": "الفاتورة أقدم من {days} يومًا",
     "petty_category_unknown": "نوع المصروف غير متاح للعهدة النقدية",
     "petty_expense_decided": "تم البت في هذا المصروف بالفعل",
-    "petty_expense_not_found": "المصروف غير موجود"
+    "petty_expense_not_found": "المصروف غير موجود",
+    "print_template_variable_unknown": "متغير غير معروف {variable} في {field}",
+    "print_template_invalid": "قيمة غير صالحة في قالب الطباعة: {field}",
+    "print_template_image_missing": "الصورة غير موجودة: ارفعها من جديد",
+    "print_config_changed": "غيّر شخص آخر قوالب الطباعة: أعد فتح الصفحة",
+    "print_config_no_previous": "لا يوجد إعداد سابق للرجوع إليه"
   },
   "settings": {
     "branding": "الهوية",
@@ -1574,7 +1579,8 @@
     "maintenance_schedule": "جدول صيانة دورية",
     "leave_type": "نوع إجازة",
     "app_release": "إصدار التطبيق",
-    "petty_expense": "مصروف من العهدة النقدية"
+    "petty_expense": "مصروف من العهدة النقدية",
+    "print_template": "قالب الطباعة"
   },
   "audit_actor": {
     "user": "مستخدم",

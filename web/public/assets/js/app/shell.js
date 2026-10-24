@@ -21,7 +21,8 @@
       { key: 'dashboard', icon: 'house', label: 'لوحة التحكم', any: ['dashboard.view'] },
       { key: 'alerts', icon: 'bell-ring', label: 'التنبيهات', count: 'alerts', hot: true },
       { key: 'approvals', icon: 'list-checks', label: 'طلبات تنتظر اعتمادك', any: ['approvals.view'], count: 'approvals', hot: true },
-      { key: 'reports', icon: 'chart-column', label: 'التقارير', any: ['reports.view', 'cash.view'] }
+      { key: 'reports', icon: 'chart-column', label: 'التقارير', any: ['reports.view', 'cash.view'] },
+      { key: 'report-center', icon: 'printer', label: 'مركز التقارير', any: ['reports.view'] }
     ] },
     { sec: 'السيارات والتشغيل', id: 'fleet', icon: 'car', items: [
       { key: 'tracking', icon: 'map', label: 'التتبع الحي', any: ['tracking.live'], count: 'signal_lost', hot: true },

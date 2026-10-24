@@ -3,14 +3,14 @@ invoice's camera photo and date, the vendor if he wants. The office approves it 
 custody: his petty balance goes down by the existing posting) or rejects it with a reason. Expense types say whether
 they may be spent from a custody (`petty`), and the app gets a screen "petty" an office may hide.
 
-Revision ID: 0068_petty_spending
-Revises: 0067_broadcast_style
+Revision ID: 0069_petty_spending
+Revises: 0068_print_templates
 """
 
 from alembic import op
 
-revision = "0068_petty_spending"
-down_revision = "0067_broadcast_style"
+revision = "0069_petty_spending"
+down_revision = "0068_print_templates"
 branch_labels = None
 depends_on = None
 

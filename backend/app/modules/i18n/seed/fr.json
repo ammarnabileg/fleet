@@ -1220,7 +1220,12 @@
       "petty_invoice_too_old": "La facture date de plus de {days} jours",
       "petty_category_unknown": "Ce type de dépense ne peut pas être payé par la caisse",
       "petty_expense_decided": "Cette dépense a déjà été tranchée",
-      "petty_expense_not_found": "Dépense introuvable"
+      "petty_expense_not_found": "Dépense introuvable",
+      "print_template_variable_unknown": "Variable inconnue {variable} dans {field}",
+      "print_template_invalid": "Valeur invalide dans le modèle d'impression : {field}",
+      "print_template_image_missing": "L'image est introuvable : téléversez-la à nouveau",
+      "print_config_changed": "Quelqu'un d'autre a modifié les modèles d'impression : rouvrez la page",
+      "print_config_no_previous": "Il n'y a pas de réglage précédent auquel revenir"
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",

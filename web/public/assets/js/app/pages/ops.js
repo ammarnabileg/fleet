@@ -257,9 +257,10 @@
       dlg.setBody(h`<div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">${BT.kpi({ label: 'معتمد', value: fmt.money(s.posted), dot: 'g' })}${BT.kpi({ label: 'غير معتمد', value: fmt.money(s.pending), dot: 'b' })}${BT.kpi({ label: t < 0 ? 'له عند الشركة (تسوية)' : 'عليه للشركة', value: fmt.money(Math.abs(t)), dot: t < 0 ? 'b' : 'o' })}</div>
         ${s.lines.length ? h`<div class="table-wrap"><table class="t compact"><thead><tr><th>الحركة</th><th class="num">اليوم</th><th class="num">المبلغ</th><th class="num">الحالة</th><th></th></tr></thead><tbody>${s.lines.map(function (l) {
           var canRev = l.status === 'posted' && api.can('cash.reverse') && l.kind !== 'reversal';
-          return h`<tr><td>${api.t('journal_kind', l.kind)}${l.reason ? h`<span class="sub">${l.reason}</span>` : ''}</td><td class="num">${fmt.date(l.business_date)}</td><td class="num"><span class="${Number(l.amount) > 0 ? '' : 't-success'}">${fmt.signed(Number(l.amount))}</span></td><td class="num">${A.pill('journal_status', l.status)}</td><td class="num">${canRev ? h`<button type="button" class="btn btn-sm btn-ghost" data-rev="${l.journal_id}">${icon('rotate-ccw', 13)} عكس</button>` : ''}</td></tr>`;
+          return h`<tr><td>${api.t('journal_kind', l.kind)}${l.reason ? h`<span class="sub">${l.reason}</span>` : ''}</td><td class="num">${fmt.date(l.business_date)}</td><td class="num"><span class="${Number(l.amount) > 0 ? '' : 't-success'}">${fmt.signed(Number(l.amount))}</span></td><td class="num">${A.pill('journal_status', l.status)}</td><td class="num">${l.receipt_id ? h`<button type="button" class="btn btn-sm btn-ghost" data-reprint="${l.receipt_id}">${icon('printer', 13)} الإيصال</button>` : ''}${canRev ? h`<button type="button" class="btn btn-sm btn-ghost" data-rev="${l.journal_id}">${icon('rotate-ccw', 13)} عكس</button>` : ''}</td></tr>`;
         })}</tbody></table></div>` : BT.empty('receipt-text', 'لا توجد حركات', '')}
         <div class="hint mt-8">موجب = يزيد ما في ذمة السائق (تحصيل)، سالب = ينقصه (إيداع أو تسوية).</div>`);
+      BT.on(dlg.body, 'click', '[data-reprint]', function (e, b) { A.reprintReceipt(b.getAttribute('data-reprint')); });
       BT.on(dlg.body, 'click', '[data-rev]', function (e, b) {
         A.confirmRun({ title: 'عكس الحركة', message: 'يُسجَّل قيد معاكس بنفس المبلغ ويبقى الأصل ظاهراً في السجل. يُعكس القيد مرة واحدة فقط.', confirmText: 'عكس', tone: 'danger', icon: 'rotate-ccw', reason: { label: 'السبب', required: true },
           run: function (reason) { return api.post('/cash/journals/' + b.getAttribute('data-rev') + '/reverse', { reason: reason }); }, done: 'تم عكس الحركة', after: function () { dlg.close(); A.statement(driver); refreshCash(); } });
@@ -272,35 +273,80 @@
     if (driver) return h`<div class="field"><label>السائق</label><div class="input" style="display:flex;align-items:center">${api.name(driver.name)}</div><input type="hidden" name="driver_id" value="${driver.id}"></div>`;
     return null;
   }
-  function withDrivers(driver, build) {
-    if (driver) { build(driverPicker(driver), function (v) { return v.driver_id; }); return; }
-    A.all('/employees', { is_driver: true }).then(function (rows) {
-      build(A.picker({ name: 'drv', label: 'السائق', required: true, items: rows.map(function (e) { return { id: e.id, label: api.name(e.name) + ' — ' + e.employee_number }; }) }), function (v) { return A.picked('drv', v.drv); });
-    }, api.fail).catch(function () {});
-  }
 
-  /* إيصال استلام كاش: رقم متسلسل، والسائق يؤكده من التطبيق */
-  A.receipt = function (driver) {
-    withDrivers(driver, function (field, idOf) {
-      A.formModal({
-        title: 'استلام كاش بإيصال', icon: 'hand-coins', size: 'sm', submitText: 'استلام وطباعة الإيصال', done: false,
-        body: h`<div class="form">${field}${BT.f.money({ name: 'amount', label: 'المبلغ المستلم', required: true, min: 0.001 })}<div class="hint">يُرحّل فوراً: ينقص رصيد السائق ويزيد خزينة فرعه، ويصل الإيصال لتطبيق السائق ليؤكده.</div></div>`,
-        submit: function (v) {
-          var did = idOf(v);
-          return api.post('/cash/receipts', { driver_id: did, amount: String(v.amount) }).then(function (rc) {
-            BT.toast('إيصال رقم ' + rc.receipt_no, { sub: fmt.money(rc.amount) + ' ' + BT.config.currency });
-            printReceipt(rc, driver ? api.name(driver.name) : v.drv);
-            refreshCash();
-          });
-        }
-      });
-    });
-  };
-  function printReceipt(rc, name) {
-    BT.print(h`<div style="font-family:inherit;padding:24px;max-width:420px" dir="rtl"><h2 style="margin:0">${A.brand || ''}</h2><div>إيصال استلام نقدية رقم <b class="num">${rc.receipt_no}</b></div><hr>
-      ${BT.kv([['استلمنا من', name], ['المبلغ', h`<b class="num">${fmt.money(rc.amount)}</b> ${BT.config.currency}`], ['الفرع', api.branch(rc.branch_id)], ['التاريخ', fmt.dt(rc.created_at)], ['المستلم', api.me.full_name]])}
-      <div style="margin-top:40px;display:flex;justify-content:space-between"><span>توقيع المستلم ____________</span><span>توقيع السائق ____________</span></div></div>`);
+  /* إيصال استلام كاش: رقم متسلسل، والسائق يؤكده من التطبيق. السائق يُبحث عنه في خانة واحدة برقم لوحة سيارته
+     الحالية أو رقمه المدني أو اسمه (عربي أو إنجليزي)، وكل نتيجة تعرض اللوحة والرقم المدني ليختار الشخص الصحيح */
+  function driverSearch(driver) {
+    if (driver) return driverPicker(driver);
+    return h`<div class="field" data-drv-search><label for="f-drv-q">السائق<span class="req">*</span></label>
+      <input class="input" id="f-drv-q" name="drv_q" autocomplete="off" placeholder="رقم اللوحة أو الرقم المدني أو الاسم…" aria-describedby="drv-hint">
+      <input type="hidden" name="driver_id" value="">
+      <div class="drv-results" data-drv-results role="listbox" aria-label="نتائج البحث"></div>
+      <div class="hint" id="drv-hint">اكتب جزءاً من رقم اللوحة (بمسافات أو شرطة أو بدونها) أو الرقم المدني أو الاسم، ثم اختر السائق.</div><div class="err-msg"></div></div>`;
   }
+  function wireDriverSearch(root) {
+    var box = root.querySelector('[data-drv-search]');
+    if (!box) return;
+    var input = box.querySelector('[name=drv_q]'), hidden = box.querySelector('[name=driver_id]'), out = box.querySelector('[data-drv-results]'), seq = 0, picked = null;
+    var run = BT.debounce(function () {
+      if (picked !== null && input.value === picked) return; // the name the pick wrote, not a new search
+      picked = null;
+      var q = input.value.trim(), n = ++seq;
+      if (!q) { BT.render(out, ''); return; }
+      api.get('/cash/receipt-drivers', { q: q }).then(function (rows) {
+        if (n !== seq) return;
+        out.setAttribute('data-q', q); // the search these results answer
+        BT.render(out, rows.length ? h`${rows.map(function (d) {
+          return h`<button type="button" class="drv-hit" role="option" data-drv-id="${d.id}" data-drv-label="${api.name(d.name)}"><b>${api.name(d.name)}</b><span class="sub"><span class="plate">${d.plate_number || 'بلا سيارة'}</span> · مدني <span class="num">${d.civil_id || '—'}</span></span></button>`;
+        })}` : h`<div class="muted fs-sm" data-drv-none>لا يوجد سائق بهذا البحث</div>`);
+      }, function () {});
+    }, 250);
+    input.addEventListener('input', function () { hidden.value = ''; picked = null; run(); });
+    BT.on(out, 'click', '[data-drv-id]', function (e, b) {
+      seq++; // an answer still on its way does not replace the pick
+      hidden.value = b.getAttribute('data-drv-id');
+      input.value = picked = b.getAttribute('data-drv-label');
+      BT.render(out, h`<div class="drv-picked" data-drv-picked>${raw(b.innerHTML)}</div>`);
+      box.classList.remove('has-err');
+    });
+  }
+  A.receipt = function (driver) {
+    var dlg = A.formModal({
+      title: 'استلام كاش بإيصال', icon: 'hand-coins', size: 'sm', submitText: 'استلام وطباعة الإيصال', done: false,
+      body: h`<div class="form">${driverSearch(driver)}${BT.f.money({ name: 'amount', label: 'المبلغ المستلم', required: true, min: 0.001 })}<div class="hint">يُرحّل فوراً: ينقص رصيد السائق ويزيد خزينة فرعه، ويصل الإيصال لتطبيق السائق ليؤكده.</div></div>`,
+      submit: function (v) {
+        var did = driver ? driver.id : v.driver_id;
+        if (!did) { BT.toast('ابحث عن السائق واختره من النتائج', { type: 'error' }); return false; }
+        return api.post('/cash/receipts', { driver_id: did, amount: String(v.amount) }).then(function (rc) {
+          BT.toast('إيصال رقم ' + rc.receipt_no, { sub: fmt.money(rc.amount) + ' ' + BT.config.currency });
+          A.printReceipt(rc);
+          refreshCash();
+        });
+      }
+    });
+    wireDriverSearch(dlg.panel);
+  };
+  /* الإيصال على ورقة A4 بقالب شركة السائق: اسمه ورقمه المدني ولوحة السيارة كما كانت يوم الإيصال */
+  A.receiptDoc = function (rc) {
+    var cur = BT.config.currency;
+    return {
+      title: 'إيصال استلام نقدية رقم ' + rc.receipt_no, companyId: rc.company_id, draft: !!rc.reversed,
+      meta: api.branch(rc.branch_id) + ' · ' + fmt.dt(rc.created_at),
+      signatures: ['توقيع المستلم', 'توقيع السائق'],
+      body: h`<div data-receipt-print><table class="pd-kv"><tbody>
+        <tr><th>استلمنا من السائق</th><td data-r="name">${rc.driver_name ? api.name(rc.driver_name) : '—'}</td></tr>
+        <tr><th>الرقم المدني</th><td class="num" data-r="civil">${rc.civil_id || '—'}</td></tr>
+        <tr><th>رقم لوحة السيارة</th><td data-r="plate">${rc.plate_number || '—'}</td></tr>
+        <tr><th>المبلغ</th><td><span class="pd-amount num">${fmt.money(rc.amount)}</span> ${cur}</td></tr>
+        <tr><th>الفرع</th><td>${api.branch(rc.branch_id)}</td></tr>
+        <tr><th>التاريخ</th><td class="num">${fmt.dt(rc.created_at)}</td></tr>
+        <tr><th>المستلم</th><td>${rc.issued_by || (api.me ? api.me.full_name : '')}</td></tr>
+        ${rc.reversed ? h`<tr><th>الحالة</th><td><b>ملغى (عُكس الإيداع)</b></td></tr>` : ''}
+      </tbody></table></div>`
+    };
+  };
+  A.printReceipt = function (rc) { return BT.printDoc(A.receiptDoc(rc)); };
+  A.reprintReceipt = function (id) { return api.get('/cash/receipts/' + id).then(function (rc) { BT.printPreview(A.receiptDoc(rc)); }, api.fail); };
 
   A.adjust = function (driver) {
     A.formModal({

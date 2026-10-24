@@ -97,7 +97,27 @@ def statement(
     return service.statement(db, _driver(db, driver_id, principal))
 
 
-@router.post("/cash/receipts", response_model=schemas.ReceiptOut, status_code=201)
+@router.get("/cash/receipt-drivers")
+def receipt_drivers(
+    q: Annotated[str, Query(max_length=60)],
+    principal: Principal = Depends(require_permission("cash.collect")),
+    db: Session = Depends(get_session),
+):
+    """The receipt dialog's search: by the plate of his car now, his civil ID or his name."""
+    return service.search_drivers(db, q, people.all_drivers(db, **principal.scope))
+
+
+@router.get("/cash/receipts/{public_id}", response_model=schemas.ReceiptPrintOut)
+def get_receipt(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("cash.view")),
+    db: Session = Depends(get_session),
+):
+    """One receipt as printed, to print it again."""
+    return service.get_receipt(db, public_id, people.all_drivers(db, **principal.scope))
+
+
+@router.post("/cash/receipts", response_model=schemas.ReceiptPrintOut, status_code=201)
 def record_receipt(
     body: schemas.ReceiptIn,
     principal: Principal = Depends(require_permission("cash.collect")),
