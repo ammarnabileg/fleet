@@ -573,7 +573,7 @@
       var behind = data.drivers.filter(function (d) { return d.outdated; });
       return h`<div class="card mb-16"><div class="card-h"><div class="card-t">رفع إصدار جديد</div></div><div class="card-b form" style="max-width:640px">
           <div class="hint">التطبيق لا يُثبَّت من متجر: نزّل ملف APK من آخر بناء في CI، ارفعه هنا، ثم «نشر». يقرأ النظام اسم الحزمة ورقم الإصدار (versionCode) من الملف نفسه، ويرفض تطبيقاً آخر أو رقماً ليس أعلى من آخر إصدار منشور. يطلب أندرويد من السائق تأكيد التثبيت دائماً: لا يمكن التثبيت الصامت لتطبيق من خارج المتجر.</div>
-          ${canEdit ? h`${BT.f.upload({ name: 'apk', label: 'ملف التطبيق (APK)', accept: '.apk,application/vnd.android.package-archive', accept_label: 'APK · حتى ' + data.max_mb + 'MB' })}<div data-uploading class="hidden muted fs-sm">${icon('loader', 14)} جارٍ الرفع والفحص…</div>` : ''}
+          ${canEdit ? h`${BT.f.upload({ name: 'apk', label: 'ملف التطبيق (APK)', accept: '.apk,application/vnd.android.package-archive', accept_label: 'APK · حتى ' + data.max_mb + 'MB' })}<div data-uploading class="hidden muted fs-sm">${icon('upload', 14)} جارٍ الرفع والفحص…</div>` : ''}
           <div class="muted fs-sm">الحزمة المطلوبة: <b class="ltr">${data.package || 'أي حزمة (تُعتمد حزمة أول إصدار)'}</b></div>
           ${canEdit ? h`<form data-pkg class="flex gap-8" style="align-items:flex-end" novalidate>${BT.f.input({ name: 'android_package', label: 'حزمة تطبيق أندرويد', value: app.value.android_package || '', pattern: '[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+', msg: 'مثل com.example.app', hint: 'فارغ: إعداد الخادم ANDROID_PACKAGE' })}<button type="submit" class="btn btn-sm btn-outline">${icon('check', 14)} حفظ</button></form>` : ''}
         </div></div>

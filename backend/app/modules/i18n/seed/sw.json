@@ -1151,7 +1151,16 @@
       "leave_exists": "Ombi hili limesharekodiwa",
       "followup_out_of_range": "Tarehe ya kuanza ufuatiliaji iwe ndani ya mwaka mmoja kutoka leo",
       "leave_tiers_open_end": "Ngazi ya mwisho pekee inaweza kukosa idadi ya siku",
-      "leave_followed_up": "Ombi hili limeshafuatiliwa"
+      "leave_followed_up": "Ombi hili limeshafuatiliwa",
+      "apk_not_zip": "Faili si programu ya Android (APK)",
+      "apk_no_manifest": "Si programu ya Android: haina AndroidManifest.xml",
+      "apk_manifest_unreadable": "Jina la kifurushi na namba ya toleo hazikusomeka kutoka APK",
+      "apk_wrong_package": "Hii ni programu nyingine ({got}); inatarajiwa {expected}",
+      "apk_version_not_higher": "Namba ya toleo {version_code} si kubwa kuliko iliyochapishwa mwisho ({latest})",
+      "app_release_exists": "Toleo {version_code} limeshapakiwa",
+      "app_release_not_found": "Toleo halijapatikana",
+      "app_release_published": "Toleo limechapishwa: liondoe kwanza",
+      "app_release_notes_too_long": "Maelezo ya toleo yanazidi herufi {max}"
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",

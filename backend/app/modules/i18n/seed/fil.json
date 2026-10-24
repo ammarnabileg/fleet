@@ -1151,7 +1151,16 @@
       "leave_exists": "Nakatala na ang kahilingang ito",
       "followup_out_of_range": "Dapat nasa loob ng isang taon mula ngayon ang petsa ng simula ng follow-up",
       "leave_tiers_open_end": "Ang huling antas lang ang puwedeng walang bilang ng araw",
-      "leave_followed_up": "Na-follow up na ang kahilingang ito"
+      "leave_followed_up": "Na-follow up na ang kahilingang ito",
+      "apk_not_zip": "Hindi Android app (APK) ang file",
+      "apk_no_manifest": "Hindi Android app: walang AndroidManifest.xml",
+      "apk_manifest_unreadable": "Hindi mabasa ang package name at version code mula sa APK",
+      "apk_wrong_package": "Ibang app ito ({got}); inaasahan ang {expected}",
+      "apk_version_not_higher": "Ang version code {version_code} ay hindi mas mataas sa huling na-publish ({latest})",
+      "app_release_exists": "Na-upload na ang bersyon {version_code}",
+      "app_release_not_found": "Hindi nakita ang bersyon",
+      "app_release_published": "Naka-publish ang bersyon: i-unpublish muna",
+      "app_release_notes_too_long": "Lampas sa {max} character ang release notes"
     },
     "finance_source": {
       "cash_journal": "Cash ledger: {kind} {reason}",

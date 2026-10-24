@@ -1151,7 +1151,16 @@
       "leave_exists": "Cette demande est déjà enregistrée",
       "followup_out_of_range": "La date de début du suivi doit être à moins d'un an d'aujourd'hui",
       "leave_tiers_open_end": "Seule la dernière tranche peut être sans nombre de jours",
-      "leave_followed_up": "Cette demande a déjà été suivie"
+      "leave_followed_up": "Cette demande a déjà été suivie",
+      "apk_not_zip": "Le fichier n'est pas une application Android (APK)",
+      "apk_no_manifest": "Pas une application Android : aucun AndroidManifest.xml",
+      "apk_manifest_unreadable": "Impossible de lire le nom du paquet et le code de version de l'APK",
+      "apk_wrong_package": "C'est une autre application ({got}) ; attendu {expected}",
+      "apk_version_not_higher": "Le code de version {version_code} n'est pas supérieur à la dernière version publiée ({latest})",
+      "app_release_exists": "La version {version_code} a déjà été téléversée",
+      "app_release_not_found": "Version introuvable",
+      "app_release_published": "La version est publiée : dépubliez-la d'abord",
+      "app_release_notes_too_long": "Les notes de version dépassent {max} caractères"
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",

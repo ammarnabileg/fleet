@@ -1151,7 +1151,16 @@
       "leave_exists": "यह अनुरोध पहले से दर्ज है",
       "followup_out_of_range": "अनुवर्ती आरंभ तिथि आज से एक वर्ष के भीतर होनी चाहिए",
       "leave_tiers_open_end": "केवल अंतिम स्तर बिना दिनों की संख्या के हो सकता है",
-      "leave_followed_up": "इस अनुरोध पर पहले ही अनुवर्ती कार्रवाई हो चुकी है"
+      "leave_followed_up": "इस अनुरोध पर पहले ही अनुवर्ती कार्रवाई हो चुकी है",
+      "apk_not_zip": "फ़ाइल Android ऐप (APK) नहीं है",
+      "apk_no_manifest": "Android ऐप नहीं: इसमें AndroidManifest.xml नहीं है",
+      "apk_manifest_unreadable": "APK से पैकेज नाम और संस्करण कोड नहीं पढ़ा जा सका",
+      "apk_wrong_package": "यह दूसरा ऐप है ({got}); अपेक्षित {expected}",
+      "apk_version_not_higher": "संस्करण कोड {version_code} अंतिम प्रकाशित ({latest}) से बड़ा नहीं है",
+      "app_release_exists": "संस्करण {version_code} पहले ही अपलोड हो चुका है",
+      "app_release_not_found": "संस्करण नहीं मिला",
+      "app_release_published": "संस्करण प्रकाशित है: पहले अप्रकाशित करें",
+      "app_release_notes_too_long": "रिलीज़ नोट्स {max} अक्षरों से लंबे हैं"
     },
     "finance_source": {
       "cash_journal": "कैश लेजर: {kind} {reason}",
