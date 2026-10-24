@@ -53,7 +53,7 @@ test('daily reports: the filtered list downloads as Excel', async ({ admin, api 
   expect(mine.length).toBe(1);
   expect(String(mine[0][2])).toBe(day(0));
   expect(Number(mine[0][4])).toBe(37);
-  expect(Number(mine[0][6])).toBe(21.25);
+  expect(mine[0]).toContain(21.25); // the cash, a number (empty cells are not in the file, so no fixed position)
   expect(sheet.slice(1).every((r) => String(r[2]) === day(0))).toBe(true); // the day filter holds
 });
 
