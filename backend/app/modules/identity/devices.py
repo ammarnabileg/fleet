@@ -577,6 +577,17 @@ def push_targets(db: Session, employee_ids) -> dict[int, tuple[int, str, str | N
     return {e: (d, t, lang) for e, d, t, lang in db.execute(q)}
 
 
+def preferred_languages(db: Session, employee_ids) -> dict[int, str]:
+    """The language each driver chose in the app (his signed-in phone's), where he chose one."""
+    ids = list(employee_ids)
+    if not ids:
+        return {}
+    q = select(Device.employee_id, Device.push_lang).where(
+        Device.employee_id.in_(ids), Device.revoked_at.is_(None), Device.push_lang.is_not(None)
+    )
+    return {e: lang for e, lang in db.execute(q)}
+
+
 def push_phones(db: Session) -> int:
     """How many drivers' phones registered for push (the integrations page shows it)."""
     return db.scalar(select(func.count()).where(Device.revoked_at.is_(None), Device.push_token.is_not(None))) or 0

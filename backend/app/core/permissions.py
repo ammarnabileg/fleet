@@ -88,6 +88,7 @@ MODULES: list[tuple[str, list[Permission]]] = [
     ("leaves", _module("leaves", "view", "approve")),
     ("approvals", _module("approvals", "view", "workflows")),
     ("notifications", _module("notifications", "manage")),
+    ("broadcasts", _module("broadcasts", "view", "send", sensitive=("send",))),  # ركن الإشعارات: to all drivers
     ("reports", _module("reports", "view", "export")),
     ("integrations", _module("integrations", "manage", sensitive=("manage",))),
     ("portal", _module("portal", "vehicles", "quotes", "invoices", "damage")),  # maintenance-center users

@@ -8,3 +8,12 @@ def push() -> int:
     """The drivers' new notices to their phones, once push is set up in the control panel."""
     with new_session() as db:
         return service.push_pending(db)
+
+
+@celery.task(name="notifications.broadcasts")
+def broadcasts() -> dict:
+    """Broadcasts: the scheduled ones that are due, push batches, one WhatsApp message at the number's pace."""
+    from app.modules.notifications import broadcasts as b
+
+    with new_session() as db:
+        return b.run(db)

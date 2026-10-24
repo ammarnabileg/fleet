@@ -1,8 +1,19 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, Text, func, text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -89,3 +100,60 @@ class DriverNotice(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     pushed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Broadcast(Base):
+    """A message from the office to all drivers or a chosen group (ركن الإشعارات), through every channel switched on."""
+
+    __tablename__ = "broadcasts"
+    __table_args__ = (
+        CheckConstraint("status IN ('draft', 'scheduled', 'sending', 'sent', 'cancelled')", name="status"),
+        Index("broadcasts_created_at_idx", "created_at"),
+        Index("broadcasts_due_idx", "scheduled_at", postgresql_where=text("status = 'scheduled'")),
+        {"schema": "notifications"},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    title: Mapped[dict] = mapped_column(JSONB)  # {lang: text}
+    body: Mapped[dict] = mapped_column(JSONB)
+    audience: Mapped[dict] = mapped_column(JSONB)  # {"kind": all|company|platform|on_duty|selected, ...}
+    channels: Mapped[list[str]] = mapped_column(ARRAY(Text))
+    status: Mapped[str] = mapped_column(Text, server_default=text("'draft'"))
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    recipients: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    created_by: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_by: Mapped[int | None] = mapped_column(BigInteger)
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+
+
+class BroadcastDelivery(Base):
+    """One recipient on one channel: unique, so a retry never sends twice."""
+
+    __tablename__ = "broadcast_deliveries"
+    __table_args__ = (
+        CheckConstraint("status IN ('queued', 'sent', 'failed', 'skipped')", name="status"),
+        CheckConstraint("channel ~ '^[a-z][a-z0-9_]{1,30}$'", name="channel"),
+        UniqueConstraint("broadcast_id", "employee_id", "channel"),
+        Index("broadcast_deliveries_queued_idx", "channel", "id", postgresql_where=text("status = 'queued'")),
+        Index("broadcast_deliveries_whatsapp_idx", "claimed_at", postgresql_where=text("channel = 'whatsapp'")),
+        {"schema": "notifications"},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    broadcast_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("notifications.broadcasts.id", ondelete="CASCADE"))
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    channel: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, server_default=text("'queued'"))
+    reason: Mapped[str | None] = mapped_column(Text)  # skipped or failed: no_token, no_phone, channel_disabled, ...
+    lang: Mapped[str | None] = mapped_column(Text)  # the language it was written in
+    provider_ref: Mapped[str | None] = mapped_column(Text)
+    attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # taken by a sender
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -55,6 +55,7 @@ celery.conf.beat_schedule = {
     "maintenance-due": {"task": "maintenance.scan_due", "schedule": crontab(hour=7, minute=20)},
     "finance-entries": {"task": "finance.post_entries", "schedule": crontab(hour=3, minute=30)},
     "approval-escalation": {"task": "approvals.escalate", "schedule": crontab(minute="*/15")},
+    "broadcasts": {"task": "notifications.broadcasts", "schedule": 15.0},  # ركن الإشعارات (WhatsApp at its pace)
     "driver-push": {"task": "notifications.push", "schedule": 30.0},  # does nothing until push is switched on
     "files-to-r2": {"task": "files.copy_to_r2", "schedule": 600.0},  # does nothing until R2 is switched on
     "message-log": {"task": "integrations.purge_message_log", "schedule": crontab(hour=2, minute=40)},  # 90 days

@@ -93,7 +93,9 @@
     "payroll.schemes": "أنظمة الدفع وطلبات تغييرها",
     "daily_reports.escalations": "تصعيد التقارير المتأخرة (للمدير)",
     "cash.fuel_review": "مراجعة بنزين السائقين واعتماده",
-    "finance.close": "إقفال الشهور وإعادة فتحها"
+    "finance.close": "إقفال الشهور وإعادة فتحها",
+    "broadcasts.view": "عرض ركن الإشعارات",
+    "broadcasts.send": "إرسال إشعار لكل السائقين أو لمجموعة"
   },
   "modules": {
     "accidents": "الحوادث",
@@ -127,7 +129,8 @@
     "tracking": "التتبع",
     "treasury": "الخزينة",
     "users": "المستخدمون",
-    "vehicles": "السيارات"
+    "vehicles": "السيارات",
+    "broadcasts": "ركن الإشعارات"
   },
   "errors": {
     "account_closed": "حساب الكاش لهذا السائق مُقفل بعد التسوية",
@@ -629,7 +632,15 @@
     "leave_exists": "هذا الطلب مسجّل من قبل",
     "followup_out_of_range": "تاريخ بداية المتابعة يجب أن يكون في حدود سنة من اليوم",
     "leave_tiers_open_end": "الشريحة الأخيرة وحدها يمكن أن تكون بلا عدد أيام",
-    "leave_followed_up": "تمت متابعة هذا الطلب من قبل"
+    "leave_followed_up": "تمت متابعة هذا الطلب من قبل",
+    "broadcast_not_cancellable": "هذا الإشعار أُرسل أو أُلغي من قبل",
+    "broadcast_not_draft": "لا يُرسل من هنا إلا المسودة",
+    "broadcast_not_found": "الإشعار غير موجود",
+    "broadcast_not_sent": "هذا الإشعار لم يُرسل بعد",
+    "broadcast_text_required": "الحقل ({field}) مطلوب باللغات: {langs}",
+    "invalid_audience": "اختر من يصله الإشعار",
+    "invalid_broadcast": "إشعار غير صالح: {detail}",
+    "unknown_channel": "قناة غير معروفة: {channel}"
   },
   "settings": {
     "branding": "الهوية",
@@ -1740,7 +1751,8 @@
     "fuel_rejected": "رُفضت فاتورة البنزين: {reason}",
     "objection_updated": "اعتراضك على كشف راتب {month}: {status}. رد المكتب: {response}",
     "leave_approved": "اعتُمد طلب التغيب ({kind}) من {from} إلى {to}",
-    "leave_rejected": "رُفض طلب التغيب ({kind}) من {from} إلى {to}: {reason}"
+    "leave_rejected": "رُفض طلب التغيب ({kind}) من {from} إلى {to}: {reason}",
+    "broadcast": "{title}\n{body}"
   },
   "cash_account": {
     "driver": "كاش السائق",

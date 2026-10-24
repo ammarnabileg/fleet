@@ -26,6 +26,7 @@ from app.modules.imports.api import router as imports_router
 from app.modules.integrations.api import router as integrations_router
 from app.modules.maintenance.api import router as maintenance_router
 from app.modules.notifications.api import router as notifications_router
+from app.modules.notifications.broadcasts_api import router as broadcasts_router
 from app.modules.onboarding.api import router as onboarding_router
 from app.modules.org.api import router as org_router
 from app.modules.payroll.api import router as payroll_router
@@ -79,6 +80,7 @@ def create_app() -> FastAPI:
         tracking_router,
         driver_status_router,
         notifications_router,
+        broadcasts_router,
         onboarding_router,
         imports_router,
         integrations_router,

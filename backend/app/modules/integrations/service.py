@@ -378,7 +378,8 @@ class Recorded:
     def connection_state(self) -> str:
         return self.provider.connection_state()
 
-    def send(self, to: str, text: str) -> None:
+    def send(self, to: str, text: str) -> str | None:
+        """The provider's message id, when it gives one."""
         try:
             ref = self.provider.send(to, text)
         except messaging.DeliveryError as exc:
@@ -390,6 +391,16 @@ class Recorded:
             _log_message("whatsapp", name, self.purpose, to, "failed", error=type(exc).__name__)
             raise
         _log_message("whatsapp", _provider_name(self.provider), self.purpose, to, "accepted", provider_ref=ref)
+        return ref if isinstance(ref, str) else None
+
+
+def whatsapp_enabled(db: Session) -> bool:
+    """WhatsApp really goes out: switched on in the control panel, or the server is set up with Evolution itself. The
+    development log and a panel not switched on yet send nothing, so a broadcast skips the channel."""
+    loaded = load(db, "whatsapp")
+    if loaded.config.enabled and not _missing("whatsapp", loaded):
+        return True
+    return get_settings().messaging_provider == "whatsapp"
 
 
 def _log_message(channel, provider, purpose, to, status, *, error=None, provider_ref=None) -> None:
@@ -411,7 +422,9 @@ def _log_message(channel, provider, purpose, to, status, *, error=None, provider
         log.exception("message log not written")
 
 
-def log_push(db: Session, *, status: str, notice_id: str, device_id: int, error: str | None = None) -> None:
+def log_push(
+    db: Session, *, status: str, notice_id: str, device_id: int, error: str | None = None, purpose: str = "notice"
+) -> None:
     """A push to a driver's phone (in the caller's transaction): accepted by Firebase, or failed and why. A notice
     tried again counts its attempts."""
     tried = select(func.count()).where(MessageLog.channel == "push", MessageLog.ref == notice_id)
@@ -420,7 +433,7 @@ def log_push(db: Session, *, status: str, notice_id: str, device_id: int, error:
         MessageLog(
             channel="push",
             provider="fcm",
-            purpose="notice",
+            purpose=purpose,
             recipient=f"device {device_id}",
             status=status,
             error=error and error[:300],

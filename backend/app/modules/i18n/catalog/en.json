@@ -93,7 +93,9 @@
     "payroll.schemes": "Pay schemes and requests to change them",
     "daily_reports.escalations": "Overdue report escalations (manager)",
     "cash.fuel_review": "Review and approve drivers' fuel claims",
-    "finance.close": "Close and reopen months of the books"
+    "finance.close": "Close and reopen months of the books",
+    "broadcasts.view": "View the broadcasts",
+    "broadcasts.send": "Send a broadcast to all drivers or a group"
   },
   "modules": {
     "accidents": "Accidents",
@@ -127,7 +129,8 @@
     "tracking": "Tracking",
     "treasury": "Treasury",
     "users": "Users",
-    "vehicles": "Vehicles"
+    "vehicles": "Vehicles",
+    "broadcasts": "Broadcasts"
   },
   "errors": {
     "account_closed": "This driver's cash account was closed by the settlement",
@@ -629,7 +632,15 @@
     "leave_exists": "This request is already recorded",
     "followup_out_of_range": "The follow-up start date must be within a year of today",
     "leave_tiers_open_end": "Only the last tier may have no number of days",
-    "leave_followed_up": "This request was already followed up"
+    "leave_followed_up": "This request was already followed up",
+    "broadcast_not_cancellable": "This broadcast was already sent or cancelled",
+    "broadcast_not_draft": "Only a draft can be sent from here",
+    "broadcast_not_found": "Broadcast not found",
+    "broadcast_not_sent": "This broadcast has not been sent yet",
+    "broadcast_text_required": "The {field} is required in: {langs}",
+    "invalid_audience": "Choose who the broadcast goes to",
+    "invalid_broadcast": "Invalid broadcast: {detail}",
+    "unknown_channel": "Unknown channel: {channel}"
   },
   "settings": {
     "branding": "Branding",
@@ -1740,7 +1751,8 @@
     "fuel_rejected": "Your fuel claim was rejected: {reason}",
     "objection_updated": "Your objection to the {month} payslip: {status}. The office says: {response}",
     "leave_approved": "Your absence request ({kind}) from {from} to {to} was approved",
-    "leave_rejected": "Your absence request ({kind}) from {from} to {to} was rejected: {reason}"
+    "leave_rejected": "Your absence request ({kind}) from {from} to {to} was rejected: {reason}",
+    "broadcast": "{title}\n{body}"
   },
   "cash_account": {
     "driver": "Driver's cash",
