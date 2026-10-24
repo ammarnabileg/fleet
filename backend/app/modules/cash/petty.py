@@ -41,26 +41,16 @@ ERRORS = {
 OPEN = ("pending",)  # still counted against what he can spend: in_review already has its expense
 
 
-def _types(db: Session) -> list:
-    from app.modules.finance.models import ExpenseType
+def _types(db: Session) -> list[dict]:
+    from app.modules.finance import service as finance
 
-    return list(
-        db.scalars(
-            select(ExpenseType)
-            .where(ExpenseType.active, ExpenseType.petty)
-            .order_by(ExpenseType.sort_order, ExpenseType.id)
-        )
-    )
+    return finance.petty_types(db)
 
 
 def _type_names(db: Session, ids: Iterable[int]) -> dict[int, dict]:
-    from app.modules.finance.models import ExpenseType
+    from app.modules.finance import service as finance
 
-    ids = set(ids)
-    if not ids:
-        return {}
-    found = db.scalars(select(ExpenseType).where(ExpenseType.id.in_(ids)))
-    return {t.id: {"id": t.id, "code": t.code, "name": t.name} for t in found}
+    return finance.type_briefs(db, ids)
 
 
 def _pending_total(db: Session, employee_id: int) -> Decimal:
@@ -157,7 +147,7 @@ def driver_view(db: Session, employee_id: int) -> dict:
         "balance": balance,
         "pending": Decimal(pending).quantize(cash.FILS),
         "available": max(balance - Decimal(pending), cash.ZERO).quantize(cash.FILS),
-        "categories": [{"id": t.id, "code": t.code, "name": t.name} for t in _types(db)] if has else [],
+        "categories": _types(db) if has else [],
         "movements": _movements(db, employee_id, linked),
         "expenses": _driver_out(db, rows),
     }
@@ -185,7 +175,7 @@ def driver_spend(db: Session, *, employee_id: int, device_id: int, data: dict) -
         raise AppError(422, "petty_invoice_future")
     if day < today() - OLDEST:
         raise AppError(422, "petty_invoice_too_old", days=OLDEST.days)
-    if data["type_id"] not in {t.id for t in _types(db)}:
+    if data["type_id"] not in {t["id"] for t in _types(db)}:
         raise AppError(422, "petty_category_unknown")
     cash.lock_branches(db, petty=[employee_id])  # two requests at once do not both pass the balance
     available = cash.petty_balance(db, employee_id) - Decimal(_pending_total(db, employee_id))
@@ -277,16 +267,12 @@ def _decided(db: Session, row: PettyExpense, **values) -> None:
 
 
 def _office_out(db: Session, rows: list[PettyExpense]) -> list[dict]:
-    from app.modules.finance.models import Expense
+    from app.modules.finance import service as finance
 
     types = _type_names(db, {r.type_id for r in rows})
     refs = {e: people.ref(db, e) for e in {r.employee_id for r in rows}}
     deciders = identity.user_names(db, {r.decided_by for r in rows if r.decided_by})
-    expenses = dict(
-        db.execute(
-            select(Expense.id, Expense.public_id).where(Expense.id.in_([r.expense_id for r in rows if r.expense_id]))
-        ).all()
-    )
+    expenses = finance.expense_ids(db, ids=[r.expense_id for r in rows if r.expense_id])
     balances = {e: cash.petty_balance(db, e) for e in refs}
     out = []
     for r in rows:
@@ -383,9 +369,7 @@ def approve(db: Session, public_id, *, note: str | None, actor_user_id: int) -> 
         company_ids=[],
         commit=False,
     )
-    from app.modules.finance.models import Expense
-
-    expense_id = db.scalar(select(Expense.id).where(Expense.public_id == expense["id"]))
+    expense_id = next(iter(finance.expense_ids(db, public_ids=[expense["id"]])))
     _decided(db, row, status="in_review", decided_by=actor_user_id, decided_at=utcnow(), expense_id=expense_id)
     notifications.resolve(db, _alert_key(row))
     audit.record(
@@ -399,10 +383,16 @@ def approve(db: Session, public_id, *, note: str | None, actor_user_id: int) -> 
         comment=note,
     )
     # the expense's decision (its approval workflow's first step when there is one) follows it: expense_changed
-    finance.decide_expense(
-        db, expense["id"], approve=True, note=note, actor_user_id=actor_user_id, commit=False, all_companies=True,
-        company_ids=[],
-    )  # fmt: skip
+    try:
+        with db.begin_nested():
+            finance.decide_expense(
+                db, expense["id"], approve=True, note=note, actor_user_id=actor_user_id, commit=False,
+                all_companies=True, company_ids=[],
+            )  # fmt: skip
+    except AppError as exc:
+        if exc.code != "not_your_step":
+            raise
+        # the workflow's first step is someone else's: the expense waits there, the request is in review
     db.commit()
     db.refresh(row)
     return _office_out(db, [row])[0]
@@ -441,23 +431,23 @@ def _notify(db: Session, row: PettyExpense, kind: str, **params) -> None:
     )
 
 
-def expense_changed(db: Session, expense) -> None:
+def expense_changed(db: Session, expense_id: int, status: str, note: str | None) -> None:
     """In the caller's transaction: the request behind a petty expense follows it (its last approval step, a
     workflow's refusal, a cancellation that put the money back in the custody)."""
     row = db.scalar(
         select(PettyExpense)
-        .where(PettyExpense.expense_id == expense.id)
+        .where(PettyExpense.expense_id == expense_id)
         .with_for_update()
         .execution_options(populate_existing=True)
     )
     if row is None:
         return
-    if expense.status == "approved" and row.status != "approved":
+    if status == "approved" and row.status != "approved":
         row.status = "approved"
         _notify(db, row, "petty_approved")
-    elif expense.status in ("rejected", "cancelled") and row.status != "rejected":
+    elif status in ("rejected", "cancelled") and row.status != "rejected":
         row.status = "rejected"
-        row.decision_note = (expense.decision_note if expense.status == "rejected" else expense.cancel_reason) or "-"
+        row.decision_note = note or "-"
         row.decided_at = row.decided_at or utcnow()
         _notify(db, row, "petty_rejected", reason=row.decision_note)
     db.flush()

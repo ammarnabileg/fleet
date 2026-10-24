@@ -671,9 +671,35 @@ def _petty_scope(expense: Expense, scope: dict) -> None:
 def _petty_follow(db: Session, expense: Expense) -> None:
     """A spending a holder recorded in the app follows its expense (approved, rejected, cancelled)."""
     if expense.payment_method == "petty":
-        from app.modules.cash import petty
+        from app.modules.cash import service as cash
 
-        petty.expense_changed(db, expense)
+        note = expense.decision_note if expense.status == "rejected" else expense.cancel_reason
+        cash.petty_expense_changed(db, expense.id, expense.status, note)
+
+
+def petty_types(db: Session) -> list[dict]:
+    """For the cash module: the active expense types a petty cash holder may spend on."""
+    q = select(ExpenseType).where(ExpenseType.active, ExpenseType.petty)
+    return [
+        {"id": t.id, "code": t.code, "name": t.name}
+        for t in db.scalars(q.order_by(ExpenseType.sort_order, ExpenseType.id))
+    ]  # noqa: E501
+
+
+def type_briefs(db: Session, ids) -> dict[int, dict]:
+    ids = set(ids)
+    if not ids:
+        return {}
+    found = db.scalars(select(ExpenseType).where(ExpenseType.id.in_(ids)))
+    return {t.id: {"id": t.id, "code": t.code, "name": t.name} for t in found}
+
+
+def expense_ids(db: Session, *, ids=(), public_ids=()) -> dict:
+    """For the cash module: {id: public_id} of the expenses named by either."""
+    q = select(Expense.id, Expense.public_id).where(
+        Expense.id.in_(list(ids)) | Expense.public_id.in_([str(x) for x in public_ids])
+    )
+    return dict(db.execute(q).all())
 
 
 def decide_expense(

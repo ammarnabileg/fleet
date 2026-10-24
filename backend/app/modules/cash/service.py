@@ -1423,6 +1423,13 @@ def petty_ready(db: Session) -> dict:
     return {"role_ready": finance.petty_role_ready(db)}
 
 
+def petty_expense_changed(db: Session, expense_id: int, status: str, note: str | None) -> None:
+    """For the finance module: the spending a holder recorded in the app follows its expense."""
+    from app.modules.cash import petty
+
+    petty.expense_changed(db, expense_id, status, note)
+
+
 def is_petty_holder(db: Session, employee_id: int) -> bool:
     return db.scalar(select(Account.id).where(Account.kind == "petty", Account.employee_id == employee_id)) is not None
 

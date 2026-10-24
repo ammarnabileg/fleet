@@ -185,3 +185,21 @@ def test_reject_needs_a_reason_cancel_while_pending_and_the_office_scope(admin_c
     assert r.status_code == 200, r.text
     r = client.get(DRIVER, headers=s["h"])
     assert r.status_code == 403 and r.json()["code"] == "screen_off"
+
+
+def test_with_an_expense_workflow_the_request_follows_the_expense(admin_client, client, new_client, company, db):
+    from tests.test_approvals import as_user, configure, decide, step, waiting
+
+    s = holder(admin_client, client, company, db)
+    boss = make_user(admin_client, "pboss", permissions=["approvals.view", "finance.view"], role="director")
+    configure(admin_client, "expense", [step("المدير", role="director")])
+    mine = spend(client, s, admin=admin_client, amount="5").json()
+    r = admin_client.post(f"{C}/{mine['id']}/approve", json={})
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "in_review"
+    assert client.get(DRIVER, headers=s["h"]).json()["balance"] == "20.000"  # not yet out of the custody
+    expense = admin_client.get(f"{F}/expenses/{r.json()['expense_id']}").json()
+    b = as_user(new_client, boss)
+    assert decide(b, waiting(b, f"EXP-{expense['number']}")).status_code == 200
+    view = client.get(DRIVER, headers=s["h"]).json()
+    assert (view["balance"], view["expenses"][0]["status"]) == ("15.000", "approved")
