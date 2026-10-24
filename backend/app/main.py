@@ -13,6 +13,7 @@ from app.modules.approvals.api import router as approvals_router
 from app.modules.attendance.api import router as attendance_router
 from app.modules.audit.api import router as audit_router
 from app.modules.cash.api import router as cash_router
+from app.modules.config_transfer.api import router as config_router
 from app.modules.daily_ops.api import router as daily_ops_router
 from app.modules.documents.api import router as documents_router
 from app.modules.driver_status.api import router as driver_status_router
@@ -88,6 +89,7 @@ def create_app() -> FastAPI:
         onboarding_router,
         imports_router,
         integrations_router,
+        config_router,
         maintenance_router,
         accidents_router,
         fines_router,

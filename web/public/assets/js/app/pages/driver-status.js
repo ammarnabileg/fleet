@@ -148,7 +148,7 @@
             <button type="button" class="btn btn-sm btn-outline" data-edit="${t.code}">${icon(manage ? 'pencil' : 'eye', 13)} ${manage ? 'تعديل' : 'عرض'}</button></div>`;
         })}</div></div>
         <div class="card"><div class="card-h"><div class="card-t">${icon('history', 16)} سجل النشر</div></div>
-          ${data.history.length ? h`<div class="list">${data.history.map(function (x) { return h`<div class="li"><div class="li-main"><div class="li-t">الإصدار <b class="num">${x.version}</b> · ${x.restored_from != null ? 'رجوع إلى الإصدار ' + x.restored_from : 'نشر «' + (CODES[x.changed] || x.changed) + '»'}</div><div class="li-d">${fmt.dt(x.created_at)} · ${x.created_by ? x.created_by.name : '—'}</div></div></div>`; })}</div>` : h`<div class="card-b muted fs-sm">لم يُنشر شيء بعد: يعمل التطبيق بالقوالب المدمجة (الإصدار 0)</div>`}</div>`);
+          ${data.history.length ? h`<div class="list">${data.history.map(function (x) { return h`<div class="li"><div class="li-main"><div class="li-t">الإصدار <b class="num">${x.version}</b> · ${x.restored_from != null ? 'رجوع إلى الإصدار ' + x.restored_from : (x.changed === 'import' ? 'استيراد إعدادات من ملف' : 'نشر «' + (CODES[x.changed] || x.changed) + '»')}</div><div class="li-d">${fmt.dt(x.created_at)} · ${x.created_by ? x.created_by.name : '—'}</div></div></div>`; })}</div>` : h`<div class="card-b muted fs-sm">لم يُنشر شيء بعد: يعمل التطبيق بالقوالب المدمجة (الإصدار 0)</div>`}</div>`);
     }
     BT.on(el, 'click', '[data-edit]', function (e, b) { edit(data.templates.find(function (t) { return t.code === b.getAttribute('data-edit'); })); });
     BT.on(el, 'click', '[data-rollback]', function () {
