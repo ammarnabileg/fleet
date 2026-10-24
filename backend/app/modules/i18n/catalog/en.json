@@ -649,7 +649,16 @@
     "broadcast_text_required": "The {field} is required in: {langs}",
     "invalid_audience": "Choose who the broadcast goes to",
     "invalid_broadcast": "Invalid broadcast: {detail}",
-    "unknown_channel": "Unknown channel: {channel}"
+    "unknown_channel": "Unknown channel: {channel}",
+    "petty_expense_exists": "This petty cash spending is already recorded",
+    "petty_invoice_used": "This invoice photo was already used for another spending",
+    "petty_no_custody": "You hold no petty cash custody",
+    "petty_over_balance": "The amount is more than you can still spend from your custody ({available} KWD)",
+    "petty_invoice_future": "The invoice date is in the future",
+    "petty_invoice_too_old": "The invoice is older than {days} days",
+    "petty_category_unknown": "This expense type cannot be spent from petty cash",
+    "petty_expense_decided": "This spending was already decided",
+    "petty_expense_not_found": "Spending not found"
   },
   "settings": {
     "branding": "Branding",
@@ -808,7 +817,8 @@
     "leave_requested": "Absence request ({kind}) from {driver}: {days} days, {from} to {to}",
     "absence_consecutive": "{driver} absent without permission {days} consecutive days ({from} - {to}): may justify dismissal without indemnity — review the legal procedure (prior warning)",
     "absence_yearly": "{driver} absent without permission {days} days in {year}: may justify dismissal without indemnity — review the legal procedure (prior warning)",
-    "absence_followup": "Follow up the absence request ({kind}) of {driver}, {from} to {to}: {days} days passed"
+    "absence_followup": "Follow up the absence request ({kind}) of {driver}, {from} to {to}: {days} days passed",
+    "petty_expense": "Petty cash spending from {name} for {amount} KWD awaits review"
   },
   "alert_kind": {
     "device_replaced": "Driver's phone replaced",
@@ -867,7 +877,8 @@
     "leave_requested": "Absence request",
     "absence_consecutive": "Consecutive absence (Art. 41)",
     "absence_yearly": "Yearly absence (Art. 41)",
-    "absence_followup": "Absence request follow-up"
+    "absence_followup": "Absence request follow-up",
+    "petty_expense": "Petty cash spending"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -1175,7 +1186,8 @@
     "permissions": "Phone permissions (location, camera)",
     "schemes": "Pay schemes and change requests",
     "fuel": "Fuel paid from cash",
-    "leaves": "Absence request"
+    "leaves": "Absence request",
+    "petty": "Petty cash custody (spending with the invoice)"
   },
   "daily_field": {
     "orders": "Orders",
@@ -1561,7 +1573,8 @@
     "payroll_objection": "Payslip objection",
     "maintenance_schedule": "Maintenance schedule",
     "leave_type": "Leave type",
-    "app_release": "App release"
+    "app_release": "App release",
+    "petty_expense": "Petty cash spending"
   },
   "audit_actor": {
     "user": "User",
@@ -1763,7 +1776,9 @@
     "objection_updated": "Your objection to the {month} payslip: {status}. The office says: {response}",
     "leave_approved": "Your absence request ({kind}) from {from} to {to} was approved",
     "leave_rejected": "Your absence request ({kind}) from {from} to {to} was rejected: {reason}",
-    "broadcast": "{title}\n{body}"
+    "broadcast": "{title}\n{body}",
+    "petty_approved": "Your petty cash spending of {amount} KWD was approved and taken off your custody",
+    "petty_rejected": "Your petty cash spending of {amount} KWD was rejected: {reason}"
   },
   "cash_account": {
     "driver": "Driver's cash",

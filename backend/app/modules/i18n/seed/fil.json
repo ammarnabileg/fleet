@@ -654,7 +654,9 @@
       "vehicle_taken": "Inalis sa pangangalaga mo ang sasakyang {plate}",
       "leave_approved": "Naaprubahan ang iyong kahilingan sa pagliban ({kind}) mula {from} hanggang {to}",
       "leave_rejected": "Tinanggihan ang iyong kahilingan sa pagliban ({kind}) mula {from} hanggang {to}: {reason}",
-      "broadcast": "{title}\n{body}"
+      "broadcast": "{title}\n{body}",
+      "petty_approved": "Naaprubahan ang iyong gastos na {amount} KWD mula sa petty cash at ibinawas sa iyong hawak",
+      "petty_rejected": "Tinanggihan ang iyong gastos na {amount} KWD mula sa petty cash: {reason}"
     },
     "errors": {
       "accident_exists": "Naka-record na ang aksidenteng ito",
@@ -1173,7 +1175,16 @@
       "broadcast_text_required": "Kailangan ang {field} sa: {langs}",
       "invalid_audience": "Piliin kung para kanino ang broadcast",
       "invalid_broadcast": "Hindi wastong broadcast: {detail}",
-      "unknown_channel": "Hindi kilalang channel: {channel}"
+      "unknown_channel": "Hindi kilalang channel: {channel}",
+      "petty_expense_exists": "Naitala na ang gastos na ito mula sa petty cash",
+      "petty_invoice_used": "Nagamit na ang larawang ito ng resibo sa ibang gastos",
+      "petty_no_custody": "Wala kang hawak na petty cash",
+      "petty_over_balance": "Mas malaki ang halaga kaysa sa maaari mo pang gastusin mula sa iyong petty cash ({available} KWD)",
+      "petty_invoice_future": "Nasa hinaharap ang petsa ng resibo",
+      "petty_invoice_too_old": "Mas luma sa {days} araw ang resibo",
+      "petty_category_unknown": "Hindi maaaring bayaran mula sa petty cash ang uri ng gastos na ito",
+      "petty_expense_decided": "Napagpasyahan na ang gastos na ito",
+      "petty_expense_not_found": "Hindi nahanap ang gastos"
     },
     "finance_source": {
       "cash_journal": "Cash ledger: {kind} {reason}",

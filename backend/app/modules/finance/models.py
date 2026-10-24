@@ -81,6 +81,7 @@ class ExpenseType(Base):
     account_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("finance.accounts.id"))
     active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     sort_order: Mapped[int] = mapped_column(Integer, server_default=text("100"))
+    petty: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))  # may be spent from a petty custody
 
 
 class Expense(Base):

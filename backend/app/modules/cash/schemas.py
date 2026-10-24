@@ -325,11 +325,17 @@ class PettyMoveIn(BaseModel):
     note: Note | None = None
 
 
+class PettyHolderPending(BaseModel):
+    count: int
+    amount: Decimal
+
+
 class PettyHolderOut(BaseModel):
     employee: PersonRef
     branch_id: int | None
     balance: Decimal
     last_movement: date | None
+    pending: PettyHolderPending | None = None  # spending from the app waiting for the office
 
 
 class PettyMovementsOut(BaseModel):
@@ -345,6 +351,87 @@ class PettyMovementsOut(BaseModel):
 
 class PettyStatusOut(BaseModel):
     role_ready: bool  # the petty_cash role is on an open account: custodies can be funded
+
+
+class PettySpendIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    client_ref: uuid.UUID  # the app's id: a resend is answered petty_expense_exists
+    amount: Amount
+    category: int  # an expense type allowed for petty cash
+    invoice_sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]  # a camera photo of the invoice
+    invoice_date: date | None = None  # today when omitted
+    vendor: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] | None = None
+    note: Note | None = None
+
+
+class PettyCategory(BaseModel):
+    id: int
+    code: str
+    name: dict[str, str]
+
+
+class DriverPettyExpenseOut(BaseModel):
+    id: str
+    amount: Decimal
+    category: PettyCategory | None
+    invoice_date: date
+    vendor: str | None
+    note: str | None
+    status: str  # pending | in_review | approved | rejected | cancelled
+    decision_note: str | None
+    created_at: datetime
+
+
+class DriverPettyMovement(BaseModel):
+    id: str
+    kind: str  # petty_fund | petty_return | disbursement | reversal
+    amount: Decimal  # + into his custody, - out of it
+    date: date
+    created_at: datetime
+    note: str | None
+
+
+class DriverPettyOut(BaseModel):
+    has_custody: bool
+    balance: Decimal
+    pending: Decimal  # asked, not decided yet
+    available: Decimal  # what he can still ask for
+    categories: list[PettyCategory]
+    movements: list[DriverPettyMovement]
+    expenses: list[DriverPettyExpenseOut]
+
+
+class PettyExpenseOut(BaseModel):
+    id: str
+    driver: PersonRef
+    company_id: int
+    branch_id: int
+    amount: Decimal
+    category: PettyCategory | None
+    invoice_date: date
+    vendor: str | None
+    note: str | None
+    status: str
+    decision_note: str | None
+    decided_by: str | None
+    decided_at: datetime | None
+    balance: Decimal  # the holder's custody now
+    expense_id: str | None
+    invoice_url: str
+    created_at: datetime
+
+
+class PettyApproveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: Note | None = None
+
+
+class PettyRejectIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: Reason
 
 
 # ---- fuel economy

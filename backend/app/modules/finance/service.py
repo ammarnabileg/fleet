@@ -289,6 +289,7 @@ def _type_out(t: ExpenseType) -> dict:
         "account_id": t.account_id,
         "active": t.active,
         "sort_order": t.sort_order,
+        "petty": t.petty,
     }
 
 
@@ -434,8 +435,11 @@ def _audit(db: Session, action: str, e: Expense, *, actor_user_id: int, after: d
     )
 
 
-def create_expense(db: Session, data: dict, *, actor_user_id: int, all_companies: bool, company_ids) -> dict:
-    """An expense, linked as it says to a vehicle, an employee or a maintenance center of the same company."""
+def create_expense(
+    db: Session, data: dict, *, actor_user_id: int, all_companies: bool, company_ids, commit: bool = True
+) -> dict:
+    """An expense, linked as it says to a vehicle, an employee or a maintenance center of the same company.
+    commit=False: in the caller's transaction (a petty cash spending approved from the app's request)."""
     from app.modules.fleet import service as fleet
     from app.modules.maintenance import service as maintenance
 
@@ -490,7 +494,10 @@ def create_expense(db: Session, data: dict, *, actor_user_id: int, all_companies
     db.refresh(expense)
     approvals.submitted(db, "expense", **_approval(expense), actor_user_id=actor_user_id)
     _audit(db, "created", expense, actor_user_id=actor_user_id)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return _expense_out(db, [expense])[0]
 
 
@@ -661,7 +668,17 @@ def _petty_scope(expense: Expense, scope: dict) -> None:
         raise AppError(403, "company_out_of_scope")
 
 
-def decide_expense(db: Session, public_id, *, approve: bool, note: str | None, actor_user_id: int, **scope) -> dict:
+def _petty_follow(db: Session, expense: Expense) -> None:
+    """A spending a holder recorded in the app follows its expense (approved, rejected, cancelled)."""
+    if expense.payment_method == "petty":
+        from app.modules.cash import petty
+
+        petty.expense_changed(db, expense)
+
+
+def decide_expense(
+    db: Session, public_id, *, approve: bool, note: str | None, actor_user_id: int, commit: bool = True, **scope
+) -> dict:
     expense = _get(db, public_id, lock=True, **scope)
     _petty_scope(expense, scope)
     if expense.status != "pending":
@@ -673,7 +690,8 @@ def decide_expense(db: Session, public_id, *, approve: bool, note: str | None, a
     if not approvals.gate(
         db, "expense", **_approval(expense), actor_user_id=actor_user_id, approve=approve, reason=note
     ):
-        db.commit()  # this step recorded; the expense waits for the next one
+        if commit:
+            db.commit()  # this step recorded; the expense waits for the next one
         return _expense_out(db, [expense])[0]
     # an expense entered before expenses named their branch (no branch) keeps the old way: the books only
     if approve and expense.payment_method == "treasury" and expense.branch_id is not None:
@@ -684,7 +702,9 @@ def decide_expense(db: Session, public_id, *, approve: bool, note: str | None, a
     expense.decided_by, expense.decided_at, expense.decision_note = actor_user_id, utcnow(), note
     expense.version += 1
     _audit(db, expense.status, expense, actor_user_id=actor_user_id, after={"note": note})
-    db.commit()
+    _petty_follow(db, expense)
+    if commit:
+        db.commit()
     return _expense_out(db, [expense])[0]
 
 
@@ -706,6 +726,7 @@ def cancel_expense(db: Session, public_id, *, reason: str, actor_user_id: int, *
     expense.version += 1
     approvals.withdrawn(db, "expense", [expense.id])
     _audit(db, "cancelled", expense, actor_user_id=actor_user_id, after={"reason": reason})
+    _petty_follow(db, expense)
     db.commit()
     return _expense_out(db, [expense])[0]
 

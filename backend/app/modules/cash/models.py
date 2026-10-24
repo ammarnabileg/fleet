@@ -234,3 +234,44 @@ class TreasuryClosing(Base):
     reopened_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("identity.users.id"))
     reopened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reopen_reason: Mapped[str | None] = mapped_column(Text)
+
+
+class PettyExpense(Base):
+    """What a petty cash holder spent from his custody, recorded in the app with the invoice's photo; the office
+    approves it (a finance expense paid from his custody) or rejects it, or he cancels it while pending."""
+
+    __tablename__ = "petty_expenses"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="amount"),
+        CheckConstraint("char_length(vendor) <= 200", name="vendor"),
+        CheckConstraint("char_length(note) <= 500", name="note"),
+        CheckConstraint("status IN ('pending', 'in_review', 'approved', 'rejected', 'cancelled')", name="status"),
+        CheckConstraint(
+            "(status IN ('pending', 'cancelled')) = (decided_at IS NULL) "
+            "AND (status NOT IN ('in_review', 'approved') OR expense_id IS NOT NULL) "
+            "AND (status <> 'rejected' OR decision_note IS NOT NULL)",
+            name="decision",
+        ),
+        Index("petty_expenses_employee_id_idx", "employee_id", "created_at"),
+        Index("petty_expenses_status_idx", "status", "created_at"),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    company_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("org.companies.id"))
+    branch_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("org.branches.id"))
+    client_ref: Mapped[uuid.UUID] = mapped_column(UUID, unique=True)  # the app's id: a resend is recognised
+    type_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("finance.expense_types.id"))
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 3))
+    invoice_date: Mapped[date] = mapped_column(Date)
+    vendor: Mapped[str | None] = mapped_column(Text)
+    note: Mapped[str | None] = mapped_column(Text)
+    invoice_sha256: Mapped[str] = mapped_column(Text, ForeignKey("files.files.sha256"), unique=True)
+    status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
+    decision_note: Mapped[str | None] = mapped_column(Text)
+    decided_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("identity.users.id"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expense_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("finance.expenses.id"), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

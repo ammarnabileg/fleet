@@ -654,7 +654,9 @@
       "vehicle_taken": "गाड़ी {plate} आपकी ज़िम्मेदारी से हटा ली गई",
       "leave_approved": "आपका अनुपस्थिति अनुरोध ({kind}) {from} से {to} तक स्वीकृत हुआ",
       "leave_rejected": "आपका अनुपस्थिति अनुरोध ({kind}) {from} से {to} तक अस्वीकार हुआ: {reason}",
-      "broadcast": "{title}\n{body}"
+      "broadcast": "{title}\n{body}",
+      "petty_approved": "छोटी नकदी से आपका {amount} KWD का खर्च मंज़ूर हुआ और आपकी अमानत से घटा दिया गया",
+      "petty_rejected": "छोटी नकदी से आपका {amount} KWD का खर्च अस्वीकार हुआ: {reason}"
     },
     "errors": {
       "accident_exists": "यह दुर्घटना पहले से दर्ज है",
@@ -1173,7 +1175,16 @@
       "broadcast_text_required": "{field} इन भाषाओं में आवश्यक है: {langs}",
       "invalid_audience": "चुनें कि प्रसारण किसे भेजा जाए",
       "invalid_broadcast": "अमान्य प्रसारण: {detail}",
-      "unknown_channel": "अज्ञात चैनल: {channel}"
+      "unknown_channel": "अज्ञात चैनल: {channel}",
+      "petty_expense_exists": "यह छोटी नकदी का खर्च पहले से दर्ज है",
+      "petty_invoice_used": "इस बिल की फ़ोटो पहले ही किसी दूसरे खर्च में इस्तेमाल हो चुकी है",
+      "petty_no_custody": "आपके पास कोई छोटी नकदी की अमानत नहीं है",
+      "petty_over_balance": "राशि उससे अधिक है जितना आप अभी अपनी अमानत से खर्च कर सकते हैं ({available} KWD)",
+      "petty_invoice_future": "बिल की तारीख भविष्य में है",
+      "petty_invoice_too_old": "बिल {days} दिनों से पुराना है",
+      "petty_category_unknown": "यह खर्च का प्रकार छोटी नकदी से नहीं दिया जा सकता",
+      "petty_expense_decided": "इस खर्च पर पहले ही फ़ैसला हो चुका है",
+      "petty_expense_not_found": "खर्च नहीं मिला"
     },
     "finance_source": {
       "cash_journal": "कैश लेजर: {kind} {reason}",

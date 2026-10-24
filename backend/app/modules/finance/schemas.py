@@ -44,6 +44,7 @@ class ExpenseTypeIn(_In):
     name: LocalizedText
     account_id: int
     sort_order: Annotated[int, Field(ge=0, le=10000)] = 100
+    petty: bool = False  # a petty cash holder may spend from his custody on it (the driver app offers it)
 
 
 class ExpenseTypeUpdate(_In):
@@ -51,6 +52,7 @@ class ExpenseTypeUpdate(_In):
     account_id: int | None = None
     active: bool | None = None
     sort_order: Annotated[int, Field(ge=0, le=10000)] | None = None
+    petty: bool | None = None
 
 
 class ExpenseIn(_In):
@@ -163,6 +165,7 @@ class ExpenseTypeOut(Named):
     account_id: int
     active: bool
     sort_order: int
+    petty: bool = False
 
 
 class Ref(BaseModel):

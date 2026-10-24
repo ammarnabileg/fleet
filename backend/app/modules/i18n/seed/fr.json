@@ -654,7 +654,9 @@
       "vehicle_taken": "Le véhicule {plate} a été retiré de votre garde",
       "leave_approved": "Votre demande d'absence ({kind}) du {from} au {to} a été approuvée",
       "leave_rejected": "Votre demande d'absence ({kind}) du {from} au {to} a été refusée : {reason}",
-      "broadcast": "{title}\n{body}"
+      "broadcast": "{title}\n{body}",
+      "petty_approved": "Votre dépense de caisse de {amount} KWD a été approuvée et déduite de votre caisse",
+      "petty_rejected": "Votre dépense de caisse de {amount} KWD a été refusée : {reason}"
     },
     "errors": {
       "accident_exists": "Cet accident est déjà enregistré",
@@ -1173,7 +1175,16 @@
       "broadcast_text_required": "Le champ {field} est requis en : {langs}",
       "invalid_audience": "Choisissez les destinataires de la diffusion",
       "invalid_broadcast": "Diffusion invalide : {detail}",
-      "unknown_channel": "Canal inconnu : {channel}"
+      "unknown_channel": "Canal inconnu : {channel}",
+      "petty_expense_exists": "Cette dépense de caisse est déjà enregistrée",
+      "petty_invoice_used": "Cette photo de facture a déjà servi pour une autre dépense",
+      "petty_no_custody": "Vous ne détenez aucune caisse de menues dépenses",
+      "petty_over_balance": "Le montant dépasse ce que vous pouvez encore dépenser de votre caisse ({available} KWD)",
+      "petty_invoice_future": "La date de la facture est dans le futur",
+      "petty_invoice_too_old": "La facture date de plus de {days} jours",
+      "petty_category_unknown": "Ce type de dépense ne peut pas être payé par la caisse",
+      "petty_expense_decided": "Cette dépense a déjà été tranchée",
+      "petty_expense_not_found": "Dépense introuvable"
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",

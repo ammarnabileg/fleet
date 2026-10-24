@@ -654,7 +654,9 @@
       "vehicle_taken": "Gari {plate} limeondolewa chini ya jukumu lako",
       "leave_approved": "Ombi lako la kutokuwepo ({kind}) kuanzia {from} hadi {to} limeidhinishwa",
       "leave_rejected": "Ombi lako la kutokuwepo ({kind}) kuanzia {from} hadi {to} limekataliwa: {reason}",
-      "broadcast": "{title}\n{body}"
+      "broadcast": "{title}\n{body}",
+      "petty_approved": "Matumizi yako ya fedha ndogo ya {amount} KWD yamekubaliwa na kutolewa kwenye dhamana yako",
+      "petty_rejected": "Matumizi yako ya fedha ndogo ya {amount} KWD yamekataliwa: {reason}"
     },
     "errors": {
       "accident_exists": "Ajali hii tayari imerekodiwa",
@@ -1173,7 +1175,16 @@
       "broadcast_text_required": "Sehemu ya {field} inahitajika kwa: {langs}",
       "invalid_audience": "Chagua tangazo linaenda kwa nani",
       "invalid_broadcast": "Tangazo si sahihi: {detail}",
-      "unknown_channel": "Njia isiyojulikana: {channel}"
+      "unknown_channel": "Njia isiyojulikana: {channel}",
+      "petty_expense_exists": "Matumizi haya ya fedha ndogo tayari yamerekodiwa",
+      "petty_invoice_used": "Picha hii ya ankara tayari imetumika kwa matumizi mengine",
+      "petty_no_custody": "Huna fedha ndogo za dhamana",
+      "petty_over_balance": "Kiasi ni zaidi ya unachoweza bado kutumia kutoka kwa dhamana yako ({available} KWD)",
+      "petty_invoice_future": "Tarehe ya ankara iko siku zijazo",
+      "petty_invoice_too_old": "Ankara ni ya zamani zaidi ya siku {days}",
+      "petty_category_unknown": "Aina hii ya matumizi haiwezi kulipwa kwa fedha ndogo",
+      "petty_expense_decided": "Matumizi haya tayari yameamuliwa",
+      "petty_expense_not_found": "Matumizi hayajapatikana"
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",

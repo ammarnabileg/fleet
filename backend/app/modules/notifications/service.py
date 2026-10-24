@@ -57,6 +57,7 @@ KINDS: dict[str, Kind] = {
     "treasury_not_closed": Kind("warning", "treasury.view", ("branch", "day")),
     "driver_left_with_cash": Kind("critical", "cash.view", ("driver", "balance")),
     "fuel_claim": Kind("info", "cash.fuel_review", ("name", "amount")),
+    "petty_expense": Kind("info", "treasury.manage", ("name", "amount")),
     "maintenance_requested": Kind("info", "maintenance.approve", ("plate", "number")),
     "maintenance_emergency": Kind("warning", "maintenance.approve", ("plate", "number")),
     "maintenance_quote_pending": Kind(
@@ -509,6 +510,8 @@ DRIVER_KINDS: dict[str, tuple[str, ...]] = {  # kind: the params its text uses
     "scheme_request_rejected": ("scheme", "reason"),
     "fuel_approved": ("amount",),
     "fuel_rejected": ("reason",),
+    "petty_approved": ("amount",),
+    "petty_rejected": ("amount", "reason"),
     "objection_updated": ("month", "status", "response"),
     "leave_approved": ("kind", "from", "to"),
     "leave_rejected": ("kind", "from", "to", "reason"),

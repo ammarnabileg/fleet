@@ -649,7 +649,16 @@
     "broadcast_text_required": "الحقل ({field}) مطلوب باللغات: {langs}",
     "invalid_audience": "اختر من يصله الإشعار",
     "invalid_broadcast": "إشعار غير صالح: {detail}",
-    "unknown_channel": "قناة غير معروفة: {channel}"
+    "unknown_channel": "قناة غير معروفة: {channel}",
+    "petty_expense_exists": "هذا المصروف من العهدة مسجّل بالفعل",
+    "petty_invoice_used": "صورة الفاتورة هذه استُخدمت في مصروف آخر",
+    "petty_no_custody": "ليست معك عهدة نقدية",
+    "petty_over_balance": "المبلغ أكبر مما يمكنك صرفه من العهدة ({available} د.ك)",
+    "petty_invoice_future": "تاريخ الفاتورة في المستقبل",
+    "petty_invoice_too_old": "الفاتورة أقدم من {days} يومًا",
+    "petty_category_unknown": "نوع المصروف غير متاح للعهدة النقدية",
+    "petty_expense_decided": "تم البت في هذا المصروف بالفعل",
+    "petty_expense_not_found": "المصروف غير موجود"
   },
   "settings": {
     "branding": "الهوية",
@@ -808,7 +817,8 @@
     "leave_requested": "طلب تغيب ({kind}) من {driver}: {days} يوم من {from} إلى {to}",
     "absence_consecutive": "غياب بدون إذن {days} يوماً متتالية لـ {driver} ({from} - {to}): قد يبرر الفصل بدون مكافأة — راجع الإجراءات القانونية (إنذار مسبق)",
     "absence_yearly": "غياب بدون إذن {days} يوماً في سنة {year} لـ {driver}: قد يبرر الفصل بدون مكافأة — راجع الإجراءات القانونية (إنذار مسبق)",
-    "absence_followup": "متابعة طلب تغيب ({kind}) لـ {driver} من {from} إلى {to}: مضى {days} يوماً"
+    "absence_followup": "متابعة طلب تغيب ({kind}) لـ {driver} من {from} إلى {to}: مضى {days} يوماً",
+    "petty_expense": "مصروف من العهدة من {name} بمبلغ {amount} د.ك بانتظار المراجعة"
   },
   "alert_kind": {
     "device_replaced": "ربط جهاز جديد لسائق",
@@ -867,7 +877,8 @@
     "leave_requested": "طلب تغيب",
     "absence_consecutive": "غياب متتالٍ (المادة 41)",
     "absence_yearly": "غياب سنوي (المادة 41)",
-    "absence_followup": "متابعة طلب تغيب"
+    "absence_followup": "متابعة طلب تغيب",
+    "petty_expense": "مصروف من العهدة النقدية"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
@@ -1175,7 +1186,8 @@
     "permissions": "أذونات الهاتف (الموقع والكاميرا)",
     "schemes": "أنظمة الدفع وطلب التغيير",
     "fuel": "البنزين المدفوع من الكاش",
-    "leaves": "طلب التغيب"
+    "leaves": "طلب التغيب",
+    "petty": "العهدة النقدية (الصرف منها بالفاتورة)"
   },
   "daily_field": {
     "orders": "عدد الطلبات",
@@ -1561,7 +1573,8 @@
     "payroll_objection": "اعتراض على كشف راتب",
     "maintenance_schedule": "جدول صيانة دورية",
     "leave_type": "نوع إجازة",
-    "app_release": "إصدار التطبيق"
+    "app_release": "إصدار التطبيق",
+    "petty_expense": "مصروف من العهدة النقدية"
   },
   "audit_actor": {
     "user": "مستخدم",
@@ -1763,7 +1776,9 @@
     "objection_updated": "اعتراضك على كشف راتب {month}: {status}. رد المكتب: {response}",
     "leave_approved": "اعتُمد طلب التغيب ({kind}) من {from} إلى {to}",
     "leave_rejected": "رُفض طلب التغيب ({kind}) من {from} إلى {to}: {reason}",
-    "broadcast": "{title}\n{body}"
+    "broadcast": "{title}\n{body}",
+    "petty_approved": "تمت الموافقة على مصروفك من العهدة بمبلغ {amount} د.ك وخُصم من عهدتك",
+    "petty_rejected": "تم رفض مصروفك من العهدة بمبلغ {amount} د.ك: {reason}"
   },
   "cash_account": {
     "driver": "كاش السائق",

@@ -11,7 +11,7 @@ from app.core import sheets
 from app.core.clock import KUWAIT, today
 from app.core.db import get_session
 from app.core.errors import AppError
-from app.modules.cash import fuel, fuel_economy, schemas, service
+from app.modules.cash import fuel, fuel_economy, petty, schemas, service
 from app.modules.files import service as files
 from app.modules.i18n import service as i18n
 from app.modules.identity.service import (
@@ -346,9 +346,17 @@ def _holder(db: Session, raw: uuid.UUID) -> people.EmployeeRef:
 def petty_holders(
     principal: Principal = Depends(require_permission("treasury.view")), db: Session = Depends(get_session)
 ):
-    """Who holds a petty cash custody, how much, and when it last moved."""
+    """Who holds a petty cash custody, how much, when it last moved, and what he spent from the app that waits for
+    the office."""
     _all_companies(principal)
-    return service.petty_holders(db)
+    rows = service.petty_holders(db)
+    waiting = petty.pending_by_holder(db)
+    ids = {r["employee"]["id"]: r for r in rows}
+    for employee_id, (count, amount) in waiting.items():
+        ref = people.ref(db, employee_id)
+        if str(ref.public_id) in ids:
+            ids[str(ref.public_id)]["pending"] = {"count": count, "amount": amount}
+    return rows
 
 
 @router.get("/cash/petty/status", response_model=schemas.PettyStatusOut)
@@ -530,3 +538,98 @@ def reject_fuel(
     db: Session = Depends(get_session),
 ):
     return fuel.reject(db, public_id, reason=body.reason, actor_user_id=principal.user_id, **principal.scope)
+
+
+# ---- what a petty cash holder spent from his custody, recorded in the app
+
+
+@router.get("/driver/petty", response_model=schemas.DriverPettyOut, dependencies=[Depends(org.screen("petty"))])
+def my_petty(device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
+    """His petty cash custody: whether he holds one, the balance, what he can still spend, the expense types, its
+    movements and his spending requests."""
+    return petty.driver_view(db, device.employee_id)
+
+
+@router.post(
+    "/driver/petty/expenses",
+    response_model=schemas.DriverPettyExpenseOut,
+    status_code=201,
+    dependencies=[Depends(org.screen("petty"))],
+)
+def spend_petty(
+    body: schemas.PettySpendIn, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
+):
+    data = body.model_dump()
+    data["type_id"] = data.pop("category")
+    return petty.driver_spend(db, employee_id=device.employee_id, device_id=device.device_id, data=data)
+
+
+@router.post(
+    "/driver/petty/expenses/{public_id}/cancel",
+    response_model=schemas.DriverPettyExpenseOut,
+    dependencies=[Depends(org.screen("petty"))],
+)
+def cancel_petty(
+    public_id: uuid.UUID, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
+):
+    return petty.driver_cancel(db, employee_id=device.employee_id, public_id=public_id)
+
+
+@router.get("/cash/petty-expenses", response_model=list[schemas.PettyExpenseOut])
+def petty_expenses(
+    status: str | None = Query(
+        None,
+        pattern=r"^(pending|in_review|approved|rejected|cancelled)(,(pending|in_review|approved|rejected|cancelled))*$",
+    ),  # noqa: E501
+    employee_id: uuid.UUID | None = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 200,
+    principal: Principal = Depends(require_permission("treasury.view")),
+    db: Session = Depends(get_session),
+):
+    """What holders spent from their custody in the app: the pending ones to decide, and the decided."""
+    _all_companies(principal)
+    holder = _holder(db, employee_id).id if employee_id else None
+    return petty.list_requests(db, status=status, employee_id=holder, limit=limit)
+
+
+@router.get("/cash/petty-expenses/pending-count", response_model=schemas.CountOut)
+def petty_expenses_pending(
+    principal: Principal = Depends(require_permission("treasury.view")), db: Session = Depends(get_session)
+):
+    _all_companies(principal)
+    return {"count": petty.pending_count(db)}
+
+
+@router.get("/cash/petty-expenses/{public_id}/invoice")
+def petty_invoice(
+    public_id: uuid.UUID,
+    principal: Principal = Depends(require_permission("treasury.view")),
+    db: Session = Depends(get_session),
+):
+    _all_companies(principal)
+    return files.response(db, petty.invoice(db, public_id))
+
+
+@router.post("/cash/petty-expenses/{public_id}/approve", response_model=schemas.PettyExpenseOut)
+def approve_petty(
+    public_id: uuid.UUID,
+    body: schemas.PettyApproveIn,
+    principal: Principal = Depends(require_permission("treasury.manage")),
+    db: Session = Depends(get_session),
+):
+    """Approving enters a finance expense paid from his custody: the expense approvers' permission too."""
+    _all_companies(principal)
+    if not principal.has("finance.approve"):
+        raise AppError(403, "permission_denied", permission="finance.approve")
+    return petty.approve(db, public_id, note=body.note, actor_user_id=principal.user_id)
+
+
+@router.post("/cash/petty-expenses/{public_id}/reject", response_model=schemas.PettyExpenseOut)
+def reject_petty(
+    public_id: uuid.UUID,
+    body: schemas.PettyRejectIn,
+    principal: Principal = Depends(require_permission("treasury.manage")),
+    db: Session = Depends(get_session),
+):
+    _all_companies(principal)
+    return petty.reject(db, public_id, reason=body.reason, actor_user_id=principal.user_id)

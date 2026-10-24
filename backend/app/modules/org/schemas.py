@@ -97,6 +97,7 @@ APP_SCREENS = (
     "schemes",
     "fuel",
     "leaves",
+    "petty",
 )
 LOCKED_SCREENS = ("sign_in", "day", "onboarding", "permissions")
 
