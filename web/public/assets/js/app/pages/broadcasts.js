@@ -25,6 +25,25 @@
   };
   var AUDIENCE = { all: 'كل السائقين', company: 'حسب الشركة', platform: 'حسب المنصة', on_duty: 'المناوبون الآن', selected: 'سائقون محددون' };
   var WA_LIMIT = 4096, TITLE_MAX = 120, BODY_MAX = 2000;
+  // the looks the app knows (an older app draws an unknown one as its standard card): icon and accent per style
+  var STYLES = [
+    ['info', 'معلومة', 'info', '#1D4ED8'],
+    ['announcement', 'إعلان', 'radio', '#7C3AED'],
+    ['reminder', 'تذكير', 'clock', '#B45309'],
+    ['warning', 'تحذير', 'triangle-alert', '#C2410C'],
+    ['urgent', 'عاجل', 'siren', '#B91C1C'],
+    ['success', 'تهنئة / نجاح', 'badge-check', '#15803D']
+  ];
+  var STYLE = {}; STYLES.forEach(function (x) { STYLE[x[0]] = { label: x[1], icon: x[2], color: x[3] }; });
+  var LAYOUTS = [['standard', 'عادية', 'عنوان ونص'], ['highlight', 'بارزة', 'أيقونة كبيرة وعنوان ونص'], ['compact', 'مختصرة', 'سطر واحد']];
+  // the app's button opens one of its own screens only: no links (a link in a message is what phishing looks like)
+  var TARGETS = [['', 'بدون زر'], ['cash', 'العهدة والنقد'], ['documents', 'المستندات'], ['maintenance', 'الصيانة'], ['leave', 'طلب إجازة']];
+  var TARGET_LABEL = { cash: 'افتح العهدة', documents: 'افتح المستندات', maintenance: 'افتح الصيانة', leave: 'اطلب إجازة' };
+  var IMAGE_MAX = 2 * 1024 * 1024, URGENT_MARK = '⚠️';
+  var HEADS_UP = { urgent: true, warning: true };
+  function styleOf(k) { return STYLE[k] || STYLE.info; }
+  function stylePill(k) { var s = styleOf(k); return h`<span class="pill nowrap" data-style-pill="${k}" style="color:${s.color};background:${s.color}1a">${icon(s.icon, 12)} ${s.label}</span>`; }
+  function markedTitle(style, title) { return style === 'urgent' ? URGENT_MARK + ' ' + title : title; }
 
   function status(b) { var s = STATUS[b.status] || [b.status, 'n']; return BT.pill(s[0], s[1]); }
   function audienceText(a) {
@@ -51,6 +70,7 @@
       chips: { value: '', all: 'الكل', options: [{ v: 'scheduled', t: 'مجدولة' }, { v: 'sending', t: 'قيد الإرسال' }, { v: 'sent', t: 'أُرسلت' }, { v: 'draft', t: 'مسودات' }, { v: 'cancelled', t: 'ملغاة' }] },
       columns: [
         { key: 'title', label: 'الإشعار', render: function (b) { return h`<b data-title>${b.title.ar}</b><span class="sub">${b.title.en}</span>`; } },
+        { key: 'style', label: 'النوع', render: function (b) { return stylePill(b.style); } },
         { key: 'audience', label: 'إلى', render: function (b) { return h`${audienceText(b.audience)}<span class="sub num">${b.recipients ? fmt.int(b.recipients) + ' سائق' : ''}</span>`; } },
         { key: 'stats', label: 'الوصول', render: statsLine },
         { key: 'status', label: 'الحالة', render: status },
@@ -84,13 +104,53 @@
       return h`<label class="check" data-label="${x.label}"><input type="checkbox" name="${name}" value="${x.id}"><span>${x.label}</span></label>`;
     })}</div>`;
   }
-  function previewCard(title, body) {
+  /* the in-app card exactly as the app draws it: the style's accent bar, icon tile, layout; the picture; the button */
+  function appCard(o) {
+    var st = styleOf(o.style), c = st.color, title = o.title || 'العنوان', body = o.body || 'نص الإشعار';
+    var img = o.image ? h`<img data-pv-image src="${o.image}" alt="" style="display:block;width:100%;max-height:140px;object-fit:cover;border-radius:10px;margin-top:8px">` : '';
+    var btn = o.target ? h`<div data-pv-action style="margin-top:10px;text-align:center;padding:9px;border-radius:10px;font-weight:600;font-size:13px;color:${c};background:${c}1a">${o.label || TARGET_LABEL[o.target]}</div>` : '';
+    var frame = 'border-inline-start:3px solid ' + c + ';border-radius:14px;padding:12px;background:' + (o.layout === 'highlight' ? c + '12' : 'var(--surface,#fff)') + ';box-shadow:0 1px 2px rgba(0,0,0,.06)';
+    if (o.layout === 'compact') {
+      return h`<div data-pv-card="compact" data-pv-style="${o.style}" style="${frame};display:flex;align-items:center;gap:8px"><span style="color:${c}">${icon(st.icon, 16)}</span><b class="fs-sm" data-pv-title style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${title}</b>${o.target ? h`<span data-pv-action class="fs-sm" style="color:${c};font-weight:600">${o.label || TARGET_LABEL[o.target]}</span>` : ''}</div>`;
+    }
+    if (o.layout === 'highlight') {
+      return h`<div data-pv-card="highlight" data-pv-style="${o.style}" style="${frame};text-align:center"><div style="width:52px;height:52px;margin:4px auto 8px;border-radius:16px;display:flex;align-items:center;justify-content:center;color:${c};background:${c}1f">${icon(st.icon, 28)}</div><b data-pv-title style="color:${c}">${title}</b><div class="fs-sm" style="white-space:pre-wrap" data-pv-body>${body}</div>${img}${btn}</div>`;
+    }
+    return h`<div data-pv-card="standard" data-pv-style="${o.style}" style="${frame}"><div style="display:flex;gap:10px"><div style="flex:none;width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:${c};background:${c}1f">${icon(st.icon, 20)}</div><div style="min-width:0"><b data-pv-title>${title}</b><div class="fs-sm" style="white-space:pre-wrap" data-pv-body>${body}</div></div></div>${img}${btn}</div>`;
+  }
+  function previewCard(o) {
+    var title = o.title || 'العنوان', body = o.body || 'نص الإشعار', pop = HEADS_UP[o.style];
     return h`<div class="highlight-box" data-preview>
       <div class="fs-sm muted mb-4">${icon('inbox', 13)} في صندوق إشعارات التطبيق</div>
-      <div class="mb-12"><b data-pv-title>${title || 'العنوان'}</b><div class="fs-sm" style="white-space:pre-wrap" data-pv-body>${body || 'نص الإشعار'}</div></div>
+      <div class="mb-12">${appCard(o)}</div>
       <div class="fs-sm muted mb-4">${icon('bell-ring', 13)} على شاشة الهاتف</div>
-      <div class="card" style="padding:8px 12px"><b class="fs-sm">${title || 'العنوان'}</b><div class="fs-sm muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${body || 'نص الإشعار'}</div></div>
+      <div class="card mb-4" style="padding:8px 12px" data-pv-push><b class="fs-sm" data-pv-push-title>${markedTitle(o.style, title)}</b><div class="fs-sm muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${body}</div></div>
+      <div class="hint mb-12" data-pv-push-mode="${pop ? 'heads_up' : 'quiet'}">${pop ? 'يظهر فوق الشاشة بصوت (أولوية عالية)' : 'يصل بهدوء في شريط الإشعارات دون أن يظهر فوق الشاشة'}</div>
+      <div class="fs-sm muted mb-4">${icon('message-square', 13)} في واتساب</div>
+      <div data-pv-wa style="padding:8px 12px;border-radius:10px;background:#dcf8c6;color:#111;white-space:pre-wrap;font-size:13px"><b>${markedTitle(o.style, title)}</b>\n\n${body}</div>
     </div>`;
+  }
+  function lookFields() {
+    return h`<div class="section-t mt-16">شكل الرسالة</div>
+      <div class="row gap-8 wrap mb-8" data-styles>${STYLES.map(function (x, i) {
+        return h`<label class="option-card" data-style="${x[0]}" style="padding:6px 10px;cursor:pointer"><input class="radio-in" type="radio" name="style" value="${x[0]}"${i === 0 ? raw(' checked') : ''}><span style="color:${x[3]}">${icon(x[2], 14)} <b>${x[1]}</b></span></label>`;
+      })}</div>
+      <div class="fs-sm muted mb-4">شكل البطاقة</div>
+      <div class="grid mb-8" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:8px" data-layouts>${LAYOUTS.map(function (x, i) {
+        var thumb = x[0] === 'compact'
+          ? h`<div style="height:10px;border-radius:3px;background:currentColor;opacity:.35"></div>`
+          : x[0] === 'highlight'
+            ? h`<div style="width:18px;height:18px;border-radius:6px;margin:0 auto 4px;background:currentColor;opacity:.5"></div><div style="height:5px;width:60%;margin:0 auto 3px;border-radius:3px;background:currentColor;opacity:.5"></div><div style="height:4px;width:80%;margin:0 auto;border-radius:3px;background:currentColor;opacity:.25"></div>`
+            : h`<div style="display:flex;gap:4px"><div style="width:12px;height:12px;border-radius:4px;background:currentColor;opacity:.5"></div><div style="flex:1"><div style="height:5px;width:70%;border-radius:3px;margin-bottom:3px;background:currentColor;opacity:.5"></div><div style="height:4px;border-radius:3px;background:currentColor;opacity:.25"></div></div></div>`;
+        return h`<label class="option-card" data-layout="${x[0]}" style="display:block;padding:8px;cursor:pointer"><input class="radio-in" type="radio" name="layout" value="${x[0]}"${i === 0 ? raw(' checked') : ''}><div class="muted" style="border:1px solid var(--border,#ddd);border-radius:8px;padding:6px;margin:4px 0">${thumb}</div><b class="fs-sm">${x[1]}</b><div class="hint">${x[2]}</div></label>`;
+      })}</div>
+      ${BT.f.upload({ name: 'image', label: 'صورة في البطاقة', optional: true, accept: 'image/jpeg,image/png', icon: 'image', accept_label: 'JPEG أو PNG · حتى 2MB' })}
+      <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:8px">
+        ${BT.f.select({ name: 'action_target', label: 'زر في البطاقة', value: '', placeholder: false, optional: true, options: TARGETS.map(function (x) { return { v: x[0], t: x[1] }; }) })}
+        ${BT.f.input({ name: 'action_label_ar', label: 'نص الزر (عربي)', optional: true, maxlength: 30 })}
+        ${BT.f.input({ name: 'action_label_en', label: 'نص الزر (English)', optional: true, maxlength: 30, ltr: true })}
+      </div>
+      <div class="hint">الزر يفتح شاشة من التطبيق فقط (لا روابط خارجية). بدون نص يظهر نص التطبيق الافتراضي بلغة السائق.</div>`;
   }
 
   function compose(done) {
@@ -107,6 +167,7 @@
           <div>
             ${BT.tabs('bc-lang', LANGS.map(function (l) { return [l[0], l[1] + (REQUIRED[l[0]] ? ' *' : '')]; }), 'ar', 'tabs-line')}
             <div class="mt-12">${LANGS.map(function (l) { return langPanel(l[0]); })}</div>
+            ${lookFields()}
             <div class="section-t mt-16">إلى من؟</div>
             ${BT.f.radios({ name: 'audience', value: 'all', options: Object.keys(AUDIENCE).map(function (k) { return { v: k, t: AUDIENCE[k] }; }) })}
             <div data-aud="company" class="hidden">${multi('company_ids', companies.map(function (c) { return { id: c.id, label: api.name(c.name) }; }))}</div>
@@ -127,9 +188,21 @@
       BT.hydrate(dlg.panel);
       function val(n) { var el = f.querySelector('[name="' + n + '"]'); return el ? el.value.trim() : ''; }
       function text(kind, lang) { return val(kind + '_' + lang) || val(kind + '_en') || val(kind + '_ar'); }
+      var picture = { file: null, url: null, sha: null };
+      function checked(n, d) { var el = f.querySelector('[name="' + n + '"]:checked'); return el ? el.value : d; }
       function redraw() {
         var lang = val('pv_lang') || 'ar';
-        BT.render(f.querySelector('[data-pv]'), previewCard(text('title', lang), text('body', lang)));
+        var inp = f.querySelector('[name=image]'), file = inp && inp.files && inp.files[0] || null;
+        if (file !== picture.file) {
+          if (picture.url) URL.revokeObjectURL(picture.url);
+          picture = { file: file, url: file ? URL.createObjectURL(file) : null, sha: null };
+        }
+        var target = val('action_target');
+        BT.render(f.querySelector('[data-pv]'), previewCard({
+          title: text('title', lang), body: text('body', lang), style: checked('style', 'info'), layout: checked('layout', 'standard'),
+          image: picture.url, target: target, label: target ? (lang === 'ar' ? val('action_label_ar') : val('action_label_en') || val('action_label_ar')) : ''
+        }));
+        BT.$$('[data-style],[data-layout]', f).forEach(function (el) { var i = el.querySelector('input'); el.style.outline = i && i.checked ? '2px solid var(--primary,#1D4ED8)' : ''; });
         LANGS.forEach(function (l) {
           var t = val('title_' + l[0]), b = val('body_' + l[0]), n = b.length;
           f.querySelector('[data-count="' + l[0] + '"]').textContent = fmt.int(n) + ' / ' + fmt.int(BODY_MAX);
@@ -160,7 +233,21 @@
         if (kind === 'selected') audience.employee_ids = picked('employee_ids');
         var chans = states.filter(function (c) { var el = f.querySelector('[name="ch_' + c.name + '"]'); return !c.always && el && el.checked; }).map(function (c) { return c.name; });
         var at = val('scheduled_at');
-        return { title: title, body: text_, audience: audience, channels: chans, scheduled_at: at ? fmt.kwIso(at) : null };
+        var out = { title: title, body: text_, audience: audience, channels: chans, scheduled_at: at ? fmt.kwIso(at) : null, style: checked('style', 'info'), layout: checked('layout', 'standard'), image: picture.sha };
+        var target = val('action_target');
+        if (target) {
+          var label = {};
+          if (val('action_label_ar')) label.ar = val('action_label_ar');
+          if (val('action_label_en')) label.en = val('action_label_en');
+          out.action = { target: target, label: label };
+        }
+        return out;
+      }
+      // the picture goes up once, before the broadcast that names it
+      function withImage() {
+        if (!picture.file || picture.sha) return Promise.resolve();
+        if (picture.file.size > IMAGE_MAX) return Promise.reject({ code: 'file_too_large', message: 'الصورة أكبر من 2MB' });
+        return api.upload(picture.file).then(function (r) { picture.sha = r.sha256; });
       }
       function submit(d, send) {
         if (!BT.form.validate(f)) return;
@@ -170,6 +257,8 @@
           BT.toast('اختر من يصله الإشعار', { type: 'error' });
           return;
         }
+        if (picture.file && picture.file.size > IMAGE_MAX) { BT.toast('الصورة أكبر من 2MB', { type: 'error' }); return; }
+        if (picture.file && !picture.sha) { withImage().then(function () { submit(d, send); }, api.fail); return; }
         if (!send) {
           api.post('/broadcasts', Object.assign({}, b, { send: false })).then(function () { BT.toast('حُفظت المسودة'); d.close(); if (done) done(); }, api.fail);
           return;
@@ -215,6 +304,8 @@
         title: b.title.ar, subtitle: audienceText(b.audience) + ' · ' + fmt.dt(b.sent_at || b.started_at || b.scheduled_at || b.created_at), icon: 'send', size: 'lg',
         body: h`<div data-broadcast="${b.id}">${BT.kv([
             ['الحالة', status(b)],
+            ['النوع', h`${stylePill(b.style)} <span class="fs-sm muted">${(LAYOUTS.filter(function (x) { return x[0] === b.layout; })[0] || LAYOUTS[0])[1]}</span>`],
+            b.action ? ['الزر', (TARGETS.filter(function (x) { return x[0] === b.action.target; })[0] || ['', b.action.target])[1]] : null,
             ['المستلمون', h`<span class="num">${fmt.int(b.recipients)}</span>`],
             b.scheduled_at ? ['موعد الإرسال', fmt.dt(b.scheduled_at)] : null,
             b.sent_at ? ['اكتمل', fmt.dt(b.sent_at)] : null
@@ -230,6 +321,8 @@
             var s = DSTATUS[x.status] || [x.status, 'n'];
             return h`<tr><td>${A.person(x.driver)}</td><td>${CHANNEL[x.channel] || x.channel}</td><td>${BT.pill(s[0], s[1])}</td><td class="fs-sm">${REASON[x.reason] || x.reason || '—'}</td></tr>`;
           })}</tbody></table></div>` : h`<div class="muted fs-sm">وصل لكل المستلمين في كل القنوات المطلوبة.</div>`}
+          <div class="section-t mt-16">كما تظهر في التطبيق</div>
+          <div style="max-width:360px" data-history-card>${appCard({ title: b.title.ar, body: b.body.ar, style: b.style, layout: b.layout, image: b.image ? api.url('/broadcasts/images/' + b.image) : null, target: b.action && b.action.target, label: b.action && b.action.label && b.action.label.ar })}</div>
           <div class="section-t mt-16">النص</div>
           ${LANGS.filter(function (l) { return b.title[l[0]]; }).map(function (l) { return h`<div class="highlight-box mb-8" lang="${l[0]}"><div class="fs-sm muted">${l[1]}</div><b>${b.title[l[0]]}</b><div class="fs-sm" style="white-space:pre-wrap">${b.body[l[0]] || ''}</div></div>`; })}</div>`,
         buttons: btns
