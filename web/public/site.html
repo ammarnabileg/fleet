@@ -5,110 +5,125 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>…</title>
 <meta name="description" content="">
-
+<link rel="stylesheet" href="/ui/css/ui.css">
 <style>
-/* the company's public site: one page, its words from /api/v1/site (edited in the panel), Arabic and English */
-:root{--bg:#f7f8fa;--card:#fff;--ink:#14202b;--soft:#5b6774;--line:#e1e5ea;--accent:#0f5c8c;--accent-2:#e3eef6;
-  --font:"Segoe UI",Tahoma,"Noto Sans Arabic",system-ui,sans-serif}
-@media (prefers-color-scheme:dark){:root{--bg:#10161c;--card:#18212a;--ink:#eef2f5;--soft:#a2adb8;--line:#2a3540;--accent:#5fb0e6;--accent-2:#16303f}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:17px;line-height:1.7}
-a{color:var(--accent)}
-.wrap{max-width:1040px;margin:0 auto;padding:0 max(18px,env(safe-area-inset-left))}
-header{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
-header .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:1.1rem;text-decoration:none;color:var(--ink)}
-.brand img{height:40px;width:auto}
-nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-nav a{text-decoration:none;color:var(--soft);padding:6px 10px;border-radius:8px}
-nav a:hover{color:var(--ink);background:var(--accent-2)}
-.lang{border:1px solid var(--line);background:none;color:var(--ink);border-radius:8px;padding:6px 10px;font:inherit;cursor:pointer}
-.hero{padding:72px 0 56px}
-.hero h1{font-size:clamp(1.9rem,4.5vw,3rem);line-height:1.25;margin:0 0 12px;text-wrap:balance}
-.hero p{font-size:1.2rem;color:var(--soft);margin:0 0 28px;max-width:640px}
-.btns{display:flex;gap:12px;flex-wrap:wrap}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:10px;font:inherit;font-weight:600;text-decoration:none;border:1px solid var(--accent);cursor:pointer}
-.btn.primary{background:var(--accent);color:#fff}
-.btn.ghost{background:none;color:var(--accent)}
-section{padding:48px 0;border-top:1px solid var(--line)}
-section h2{font-size:1.6rem;margin:0 0 18px}
-.about{max-width:760px;white-space:pre-line;color:var(--soft)}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
-.card h3{margin:0 0 6px;font-size:1.1rem}
-.card p{margin:0;color:var(--soft)}
-.contact{display:grid;grid-template-columns:1fr 1.2fr;gap:24px}
-@media (max-width:760px){.contact{grid-template-columns:1fr}nav a.nav-link{display:none}}
-.info{display:flex;flex-direction:column;gap:12px}
-.info div{display:flex;flex-direction:column}
-.info span{color:var(--soft);font-size:.9rem}
-.ltr{direction:ltr;unicode-bidi:isolate}
-form{display:flex;flex-direction:column;gap:12px}
-label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:.95rem}
-input,textarea{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
-input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
-.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
-.note{padding:12px 14px;border-radius:10px;background:var(--accent-2)}
-.note.err{background:#fde8e8;color:#8a1c1c}
-footer{padding:28px 0;color:var(--soft);font-size:.9rem;border-top:1px solid var(--line)}
-[hidden]{display:none!important}
+/* the public site: the design system's components and tokens only; a few layout rules for this one page */
+.site-wrap { max-width: var(--content-max); margin: 0 auto; padding-inline: var(--pad); box-sizing: border-box; }
+.site-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 100%; }
+.site-name { font-size: var(--fs-h3); font-weight: var(--w-bold); color: var(--ink); letter-spacing: -.01em; }
+.site-nav { display: flex; align-items: center; gap: 4px; }
+.site-hero { padding: 64px 0 48px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 32px; align-items: center; }
+.site-hero h1 { margin: 0 0 12px; text-wrap: balance; }
+.site-hero p { margin: 0 0 24px; color: var(--muted); font-size: var(--fs-h3); line-height: 1.8; max-width: 620px; }
+.site-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.site-panel { background: var(--brand-soft); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+.site-panel-row { display: flex; gap: 12px; align-items: flex-start; }
+.site-panel-row .icon { color: var(--brand-700); flex: 0 0 auto; margin-top: 3px; }
+.site-panel-row b { display: block; color: var(--ink); font-weight: var(--w-semi); }
+.site-panel-row span { color: var(--muted); font-size: var(--fs-small); }
+.site-section { padding: 40px 0; }
+.site-about { max-width: 820px; white-space: pre-line; color: var(--ink-2); margin: 0; }
+.site-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.site-grid .ui-card h3 { margin: 10px 0 4px; }
+.site-grid .ui-card p { margin: 0; color: var(--muted); font-size: var(--fs-small); }
+.site-ic { width: 44px; height: 44px; border-radius: var(--r-md); background: var(--brand-soft); color: var(--brand-700); display: grid; place-items: center; }
+.site-contact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 16px; align-items: start; }
+.site-info { display: flex; flex-direction: column; gap: 12px; }
+.site-info a, .site-info b { display: flex; gap: 10px; align-items: center; font-weight: var(--w-medium); color: var(--ink); }
+.site-info .icon { color: var(--brand-700); }
+.site-form { display: flex; flex-direction: column; gap: 14px; }
+.site-form .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.site-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.ltr { direction: ltr; unicode-bidi: isolate; }
+@media (max-width: 820px) {
+  .site-hero, .site-contact { grid-template-columns: 1fr; }
+  .site-hero { padding: 36px 0 28px; }
+  .site-nav .nav-link { display: none; }
+  .site-form .two { grid-template-columns: 1fr; }
+}
 </style>
 </head>
-<body>
-<header><div class="wrap">
-  <a class="brand" href="#top"><img data-logo hidden alt=""><span data-name></span></a>
-  <nav>
-    <a class="nav-link" href="#about" data-t="about"></a>
-    <a class="nav-link" href="#services" data-t="services"></a>
-    <a class="nav-link" href="#contact" data-t="contact"></a>
-    <button class="lang" type="button" data-lang-btn></button>
+<body class="ui">
+<a class="ui-skip" href="#main" data-t="skip"></a>
+<header class="ui-header"><div class="site-wrap site-head">
+  <a href="#main" class="site-name" data-name></a>
+  <nav class="site-nav">
+    <a class="ui-btn is-ghost is-sm nav-link" href="#about" data-t="about"></a>
+    <a class="ui-btn is-ghost is-sm nav-link" href="#services" data-t="services"></a>
+    <a class="ui-btn is-ghost is-sm nav-link" href="#contact" data-t="contact"></a>
+    <button class="ui-btn is-outline is-sm" type="button" data-lang-btn></button>
   </nav>
 </div></header>
 
-<main id="top">
-  <div class="hero"><div class="wrap">
-    <h1 data-name></h1>
-    <p data-tagline></p>
-    <div class="btns">
-      <a class="btn primary" href="/app/download" data-download hidden data-t="download"></a>
-      <a class="btn ghost" href="#contact" data-t="contact"></a>
-    </div>
-  </div></div>
-
-  <section id="about"><div class="wrap"><h2 data-t="about"></h2><p class="about" data-about></p></div></section>
-  <section id="services" data-services-box><div class="wrap"><h2 data-t="services"></h2><div class="grid" data-services></div></div></section>
-
-  <section id="contact"><div class="wrap contact">
+<main id="main" class="site-wrap">
+  <div class="site-hero">
     <div>
-      <h2 data-t="contact"></h2>
-      <div class="info" data-info></div>
+      <span class="ui-eyebrow" data-address-eyebrow></span>
+      <h1 data-name></h1>
+      <p data-tagline></p>
+      <div class="site-actions">
+        <a class="ui-btn is-brand is-lg" href="/app/download" data-download hidden><svg class="icon"><use href="/ui/icons/sprite.svg#i-download"/></svg><span data-t="download"></span></a>
+        <a class="ui-btn is-primary is-lg" href="#contact"><svg class="icon"><use href="/ui/icons/sprite.svg#i-message"/></svg><span data-t="contact"></span></a>
+      </div>
     </div>
-    <form data-form novalidate>
-      <label><span data-t="name"></span><input name="name" required minlength="2" maxlength="120" autocomplete="name"></label>
-      <label><span data-t="phone"></span><input name="phone" maxlength="120" inputmode="tel" class="ltr" autocomplete="tel"></label>
-      <label><span data-t="email"></span><input name="email" type="email" maxlength="120" class="ltr" autocomplete="email"></label>
-      <label><span data-t="message"></span><textarea name="message" rows="5" required minlength="5" maxlength="3000"></textarea></label>
-      <label class="hp" aria-hidden="true">website<input name="website" tabindex="-1" autocomplete="off"></label>
-      <div class="note" data-result hidden></div>
-      <button class="btn primary" type="submit" data-t="send"></button>
-    </form>
-  </div></section>
+    <div class="site-panel" data-panel></div>
+  </div>
+
+  <section class="site-section" id="about">
+    <div class="ui-section-head"><div><span class="ui-eyebrow" data-t="aboutEyebrow"></span><h2 data-t="about"></h2></div></div>
+    <p class="site-about" data-about></p>
+  </section>
+
+  <section class="site-section" id="services" data-services-box>
+    <div class="ui-section-head"><div><span class="ui-eyebrow" data-t="servicesEyebrow"></span><h2 data-t="services"></h2></div></div>
+    <div class="site-grid" data-services></div>
+  </section>
+
+  <section class="site-section" id="contact">
+    <div class="ui-section-head"><div><span class="ui-eyebrow" data-t="contactEyebrow"></span><h2 data-t="contact"></h2></div></div>
+    <div class="site-contact">
+      <div class="ui-card site-info" data-info></div>
+      <form class="ui-card site-form" data-form novalidate>
+        <div><label class="ui-label" for="f-name" data-t="name"></label><input id="f-name" class="ui-field" name="name" required minlength="2" maxlength="120" autocomplete="name"></div>
+        <div class="two">
+          <div><label class="ui-label" for="f-phone" data-t="phone"></label><input id="f-phone" class="ui-field ltr" name="phone" maxlength="120" inputmode="tel" autocomplete="tel"></div>
+          <div><label class="ui-label" for="f-email" data-t="email"></label><input id="f-email" class="ui-field ltr" name="email" type="email" maxlength="120" autocomplete="email"></div>
+        </div>
+        <div><label class="ui-label" for="f-msg" data-t="message"></label><textarea id="f-msg" class="ui-field" name="message" rows="5" required minlength="5" maxlength="3000"></textarea></div>
+        <label class="site-hp" aria-hidden="true">website<input name="website" tabindex="-1" autocomplete="off"></label>
+        <div class="ui-notice" data-result hidden style="margin:0"><div><strong data-result-text></strong></div></div>
+        <div><button class="ui-btn is-primary" type="submit"><svg class="icon"><use href="/ui/icons/sprite.svg#i-send"/></svg><span data-t="send"></span></button></div>
+      </form>
+    </div>
+  </section>
 </main>
-<footer><div class="wrap">© <span data-year></span> <span data-name></span></div></footer>
+
+<footer class="ui-footer">
+  <div class="ui-footer-top">
+    <div class="ui-footer-brand"><strong style="color:#fff;font-size:var(--fs-h3)" data-name></strong><p data-tagline></p></div>
+  </div>
+  <div class="ui-footer-base"><p>© <span data-year></span> <span data-name></span> · <span data-t="rights"></span></p></div>
+</footer>
 
 <script>
 (function () {
   'use strict';
   var T = {
-    ar: { about: 'عن الشركة', services: 'خدماتنا', contact: 'تواصل معنا', download: 'تحميل تطبيق السائق', name: 'الاسم', phone: 'رقم التليفون', email: 'الإيميل', message: 'رسالتك', send: 'إرسال', phoneL: 'تليفون', whatsapp: 'واتساب', emailL: 'إيميل', address: 'العنوان', map: 'افتح الخريطة', sent: 'وصلتنا رسالتك، هنتواصل معاك قريب.', needContact: 'اكتب رقم تليفون أو إيميل عشان نرد عليك.', fail: 'الرسالة ما اتبعتتش. جرّب تاني بعد شوية.', check: 'اكتب الاسم والرسالة.', other: 'English' },
-    en: { about: 'About us', services: 'Our services', contact: 'Contact us', download: 'Download the driver app', name: 'Name', phone: 'Phone', email: 'Email', message: 'Your message', send: 'Send', phoneL: 'Phone', whatsapp: 'WhatsApp', emailL: 'Email', address: 'Address', map: 'Open the map', sent: 'We got your message and will get back to you soon.', needContact: 'Give a phone number or an email so we can reply.', fail: 'Your message was not sent. Please try again shortly.', check: 'Write your name and your message.', other: 'العربية' }
+    ar: { skip: 'تخطَّ إلى المحتوى', about: 'عن الشركة', services: 'خدماتنا', contact: 'تواصل معنا', download: 'تحميل تطبيق السائق', aboutEyebrow: 'مين إحنا', servicesEyebrow: 'بنقدّم إيه', contactEyebrow: 'إحنا هنا', name: 'الاسم', phone: 'رقم التليفون', email: 'الإيميل', message: 'رسالتك', send: 'إرسال', phoneL: 'تليفون', whatsapp: 'واتساب', emailL: 'إيميل', address: 'العنوان', map: 'افتح الخريطة', sent: 'وصلتنا رسالتك، هنتواصل معاك قريب.', needContact: 'اكتب رقم تليفون أو إيميل عشان نرد عليك.', fail: 'الرسالة ما اتبعتتش. جرّب تاني بعد شوية.', check: 'اكتب الاسم والرسالة.', other: 'English', rights: 'جميع الحقوق محفوظة' },
+    en: { skip: 'Skip to content', about: 'About us', services: 'Our services', contact: 'Contact us', download: 'Download the driver app', aboutEyebrow: 'Who we are', servicesEyebrow: 'What we do', contactEyebrow: 'Get in touch', name: 'Name', phone: 'Phone', email: 'Email', message: 'Your message', send: 'Send', phoneL: 'Phone', whatsapp: 'WhatsApp', emailL: 'Email', address: 'Address', map: 'Open the map', sent: 'We got your message and will get back to you soon.', needContact: 'Give a phone number or an email so we can reply.', fail: 'Your message was not sent. Please try again shortly.', check: 'Write your name and your message.', other: 'العربية', rights: 'All rights reserved' }
   };
+  var ICONS = ['truck', 'map', 'users', 'shield', 'clock', 'wallet', 'phone', 'chart', 'box', 'support', 'award', 'target'];
+  var SPRITE = '/ui/icons/sprite.svg#i-';
   var site = null, lang = 'ar';
   try { lang = localStorage.getItem('site.lang') || ((navigator.language || '').indexOf('ar') === 0 ? 'ar' : 'en'); } catch (e) { /* private mode */ }
   var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
   var $ = function (s) { return document.querySelector(s); };
   function pick(v) { return v ? (v[lang] || v.ar || v.en || '') : ''; }
   function el(tag, text, cls) { var e = document.createElement(tag); if (text) e.textContent = text; if (cls) e.className = cls; return e; }
+  function icon(name) {
+    var ns = 'http://www.w3.org/2000/svg', s = document.createElementNS(ns, 'svg'), u = document.createElementNS(ns, 'use');
+    s.setAttribute('class', 'icon'); s.setAttribute('aria-hidden', 'true'); u.setAttribute('href', SPRITE + name); s.appendChild(u); return s;
+  }
 
   function draw() {
     var t = T[lang];
@@ -120,28 +135,42 @@ footer{padding:28px 0;color:var(--soft);font-size:.9rem;border-top:1px solid var
     document.title = name;
     $('meta[name=description]').setAttribute('content', pick(site.tagline));
     $$('[data-name]').forEach(function (e) { e.textContent = name; });
-    $('[data-tagline]').textContent = pick(site.tagline);
+    $$('[data-tagline]').forEach(function (e) { e.textContent = pick(site.tagline); });
+    $('[data-address-eyebrow]').textContent = pick(site.address);
     $('[data-about]').textContent = pick(site.about);
     $('[data-download]').hidden = !site.download;
-    var logo = $('[data-logo]');
-    if (site.logo) { logo.src = '/api/v1/site/logo/' + site.logo; logo.alt = name; logo.hidden = false; }
+
     var box = $('[data-services]'); box.textContent = '';
-    (site.services || []).forEach(function (s) {
-      var c = el('div', '', 'card'); c.appendChild(el('h3', pick(s.title))); if (pick(s.text)) c.appendChild(el('p', pick(s.text))); box.appendChild(c);
+    (site.services || []).forEach(function (s, i) {
+      var c = el('div', '', 'ui-card'), ic = el('span', '', 'site-ic');
+      ic.appendChild(icon(ICONS[i % ICONS.length])); c.appendChild(ic);
+      c.appendChild(el('h3', pick(s.title))); if (pick(s.text)) c.appendChild(el('p', pick(s.text)));
+      box.appendChild(c);
     });
     $('[data-services-box]').hidden = !(site.services || []).length;
-    var info = $('[data-info]'); info.textContent = '';
-    function row(label, value, href, ltr) {
-      if (!value) return;
-      var d = el('div'); d.appendChild(el('span', label));
-      var v = href ? el('a', value) : el('b', value); if (href) v.href = href; if (ltr) v.className = 'ltr';
-      d.appendChild(v); info.appendChild(d);
+
+    function contacts(target, rich) {
+      target.textContent = '';
+      function row(ic, label, value, href, ltr) {
+        if (!value) return;
+        if (rich) {
+          var r = el('div', '', 'site-panel-row'); r.appendChild(icon(ic));
+          var d = el('div'); d.appendChild(el('b', value)); d.appendChild(el('span', label)); if (ltr) d.firstChild.className = 'ltr';
+          r.appendChild(d); target.appendChild(r);
+        } else {
+          var a = el(href ? 'a' : 'b'); if (href) a.href = href;
+          a.appendChild(icon(ic)); var s = el('span', value); if (ltr) s.className = 'ltr'; a.appendChild(s); target.appendChild(a);
+        }
+      }
+      row('phone', t.phoneL, site.phone, 'tel:' + site.phone.replace(/[^\d+]/g, ''), true);
+      row('whatsapp', t.whatsapp, site.whatsapp, 'https://wa.me/' + site.whatsapp.replace(/\D/g, ''), true);
+      row('mail', t.emailL, site.email, 'mailto:' + site.email, true);
+      row('map', t.address, pick(site.address), site.map_url || null);
     }
-    row(t.phoneL, site.phone, 'tel:' + site.phone.replace(/[^\d+]/g, ''), true);
-    row(t.whatsapp, site.whatsapp, 'https://wa.me/' + site.whatsapp.replace(/\D/g, ''), true);
-    row(t.emailL, site.email, 'mailto:' + site.email, true);
-    row(t.address, pick(site.address));
-    if (site.map_url) { var m = el('a', t.map); m.href = site.map_url; m.target = '_blank'; m.rel = 'noopener'; info.appendChild(m); }
+    contacts($('[data-panel]'), true);
+    $('[data-panel]').hidden = !$('[data-panel]').children.length;
+    contacts($('[data-info]'), false);
+    if (site.map_url) { var m = el('a'); m.href = site.map_url; m.target = '_blank'; m.rel = 'noopener'; m.className = 'ui-btn is-outline is-sm'; m.appendChild(icon('link')); m.appendChild(el('span', t.map)); $('[data-info]').appendChild(m); }
     $('[data-form]').hidden = !site.show_contact_form;
   }
 
@@ -153,7 +182,7 @@ footer{padding:28px 0;color:var(--soft);font-size:.9rem;border-top:1px solid var
   $('[data-year]').textContent = new Date().getFullYear();
 
   var form = $('[data-form]'), result = $('[data-result]');
-  function say(text, bad) { result.hidden = false; result.textContent = text; result.className = 'note' + (bad ? ' err' : ''); }
+  function say(text, bad) { result.hidden = false; $('[data-result-text]').textContent = text; result.className = 'ui-notice ' + (bad ? 'is-bad' : 'is-good'); }
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var f = new FormData(form), body = {};

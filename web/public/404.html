@@ -5,29 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>الصفحة مش موجودة · Page not found</title>
+<link rel="stylesheet" href="/ui/css/ui.css">
 <style>
-:root{--bg:#f7f8fa;--card:#fff;--ink:#14202b;--soft:#5b6774;--line:#e1e5ea;--accent:#0f5c8c}
-@media (prefers-color-scheme:dark){:root{--bg:#10161c;--card:#18212a;--ink:#eef2f5;--soft:#a2adb8;--line:#2a3540;--accent:#5fb0e6}}
-*{box-sizing:border-box}
-body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);
-  font-family:"Segoe UI",Tahoma,"Noto Sans Arabic",system-ui,sans-serif;padding:24px}
-.box{max-width:520px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:32px;text-align:center}
-.code{font-size:3.4rem;font-weight:800;color:var(--accent);line-height:1;letter-spacing:.04em}
-h1{font-size:1.4rem;margin:14px 0 6px}
-p{color:var(--soft);margin:0 0 6px;line-height:1.7}
-.en{direction:ltr;margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}
-.btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:22px}
-a,button{font:inherit;font-weight:600;padding:10px 18px;border-radius:10px;border:1px solid var(--accent);text-decoration:none;cursor:pointer}
-.p{background:var(--accent);color:#fff}.g{background:none;color:var(--accent)}
+.err { min-height: 100vh; display: grid; place-items: center; padding: var(--pad); box-sizing: border-box; }
+.err .ui-card { max-width: 520px; width: 100%; text-align: center; padding: 32px; }
+.err-code { font-size: 56px; font-weight: var(--w-bold); color: var(--brand-700); line-height: 1; letter-spacing: -.02em; }
+.err h1 { font-size: var(--fs-h2); margin: 14px 0 6px; }
+.err p { color: var(--muted); margin: 0; }
+.err .en { direction: ltr; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+.err .en h1 { font-size: var(--fs-h3); }
+.err-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
 </style>
 </head>
-<body>
-<div class="box">
-  <div class="code">404</div>
+<body class="ui">
+<main class="err"><div class="ui-card">
+  <div class="err-code"><bdi>404</bdi></div>
   <h1>الصفحة مش موجودة</h1>
   <p>الرابط ده غلط أو الصفحة اتنقلت.</p>
   <div class="en"><h1>Page not found</h1><p>This link is wrong or the page has moved.</p></div>
-  <div class="btns"><a class="p" href="/">الرئيسية · Home</a></div>
-</div>
+  <div class="err-actions"><a class="ui-btn is-primary" href="/">الرئيسية · Home</a></div>
+</div></main>
 </body>
 </html>
