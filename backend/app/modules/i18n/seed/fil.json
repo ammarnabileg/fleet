@@ -1278,7 +1278,8 @@
       "storage_sync_off": "Naka-off ang pagkopya ng mga file sa direksyong ito para sa napiling storage.",
       "contact_needed": "Maglagay ng numero ng telepono o email para makasagot kami.",
       "site_message_not_found": "Hindi nahanap ang mensahe.",
-      "site_off": "Hindi available ang site ngayon."
+      "site_off": "Hindi available ang site ngayon.",
+      "internal_error": "May nangyaring mali sa amin. Subukan muli mamaya."
     },
     "finance_source": {
       "cash_journal": "Cash ledger: {kind} {reason}",

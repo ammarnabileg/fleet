@@ -8,7 +8,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app.core import crypto, messaging, push
+from app.core import crypto, mailer, messaging, push
 from app.core import remote_config as remote_config_api
 from app.core.clock import utcnow
 from app.core.config import get_settings
@@ -17,7 +17,7 @@ from app.core.errors import AppError
 from app.core.storage import LocalStorage, R2Storage, StorageError
 from app.modules.audit import service as audit
 from app.modules.integrations import schemas
-from app.modules.integrations.models import Connection, MessageLog
+from app.modules.integrations.models import Connection, EmailOutbox, MessageLog
 
 log = logging.getLogger("fleet.integrations")
 
@@ -127,10 +127,27 @@ def _missing(kind: str, loaded: Loaded, *, always: bool = False) -> list[str]:
         need = {"account_id": c.account_id, "bucket": c.bucket, "access_key_id": c.access_key_id}
     elif kind == "push":
         need = {"app_id": c.app_id, "api_key": c.api_key, "sender_id": c.sender_id}
+    elif kind == "email":
+        need = {"host": c.host, "from_address": c.from_address, "notify_to": c.notify_to}
+        if c.username:
+            need["password"] = loaded.secrets.get("password")
+        return [name for name, value in need.items() if not value]
     else:
         need = {"url": c.url, "instance": c.instance}
     need |= {n: loaded.secrets.get(n) for n in schemas.KINDS[kind][1]}
     return [name for name, value in need.items() if not value]
+
+
+def _smtp(loaded: Loaded) -> mailer.SmtpMailer:
+    c = loaded.config
+    return _smtp_factory(
+        c.host, c.port, c.security, c.username, loaded.secrets.get("password"), c.from_address, c.from_name or None
+    )
+
+
+def _smtp_factory(*args):
+    """The SMTP client; tests put a fake here."""
+    return mailer.SmtpMailer(*args)
 
 
 def _r2_client(loaded: Loaded):
@@ -174,13 +191,15 @@ def _try(kind: str, loaded: Loaded, *, even_off: bool = False) -> str | None:
             _r2(loaded).check()
         elif kind == "push":
             _fcm(loaded).check()
+        elif kind == "email":
+            _smtp(loaded).check()
         else:
             # the Evolution API answering is not enough: its WhatsApp session must be connected ("open"), or no
             # message goes out (a dropped session needs its QR code scanned again in Evolution)
             state = _evolution(loaded).connection_state()
             if state != "open":
                 return f"whatsapp session is {state}, not open: scan the QR code again in Evolution API"
-    except (StorageError, messaging.DeliveryError, push.PushError) as exc:
+    except (StorageError, messaging.DeliveryError, push.PushError, mailer.MailError) as exc:
         return str(exc)[:300]
     return None
 
@@ -291,7 +310,7 @@ def check(db: Session, kind: str) -> None:
     row = db.get(Connection, kind, with_for_update=True)
     if row is None:
         raise AppError(422, "connection_incomplete", fields="config")
-    even_off = kind in ("whatsapp", "push")
+    even_off = kind in ("whatsapp", "push", "email")
     missing = _missing(kind, loaded, always=even_off)
     error = f"missing: {', '.join(missing)}" if missing else _try(kind, loaded, even_off=even_off)
     row.checked_at, row.check_ok, row.check_error = func.now(), error is None, error
@@ -544,3 +563,91 @@ def remote_config(db: Session) -> remote_config_api.RemoteConfigClient | None:
         loaded,
         lambda x: remote_config_api.RemoteConfigClient(x.secrets["service_account"], transport=_fcm_transport(x)),
     )
+
+
+# ------------------------------------------------------------------ email (the "email" connection)
+
+ERROR_MAIL_EVERY = timedelta(minutes=30)
+MAIL_TRIES = 5
+
+
+def email_ready(db: Session) -> bool:
+    loaded = load(db, "email")
+    return bool(loaded.config.enabled) and not _missing("email", loaded, always=True)
+
+
+def queue_email(
+    db: Session,
+    kind: str,
+    subject: str,
+    body: str,
+    *,
+    reply_to: str | None = None,
+    dedupe_key: str | None = None,
+) -> bool:
+    """Adds an email for the office's addresses to the caller's transaction; the background job sends it. Nothing is
+    queued while email is off, nor an error alert when those are off, nor the same error again within 30 minutes."""
+    if not email_ready(db):
+        return False
+    if kind == "error":
+        if not load(db, "email").config.error_alerts:
+            return False
+        if dedupe_key and db.scalar(
+            select(EmailOutbox.id)
+            .where(EmailOutbox.dedupe_key == dedupe_key, EmailOutbox.created_at > utcnow() - ERROR_MAIL_EVERY)
+            .limit(1)
+        ):
+            return False
+    db.add(EmailOutbox(kind=kind, subject=subject[:300], body=body[:20000], reply_to=reply_to, dedupe_key=dedupe_key))
+    return True
+
+
+def send_queued_emails(db: Session, limit: int = 20) -> int:
+    """Sends what waits (oldest first) to the addresses set now; a refusal is kept with its reason and tried again
+    on the next run, up to five times."""
+    if not email_ready(db):
+        return 0
+    loaded = load(db, "email")
+    rows = db.scalars(
+        select(EmailOutbox)
+        .where(EmailOutbox.sent_at.is_(None), EmailOutbox.attempts < MAIL_TRIES)
+        .order_by(EmailOutbox.id)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    ).all()
+    sent = 0
+    client = _smtp(loaded) if rows else None
+    for row in rows:
+        row.attempts += 1
+        try:
+            client.send(list(loaded.config.notify_to), row.subject, row.body, reply_to=row.reply_to)
+            row.sent_at, row.last_error = utcnow(), None
+            sent += 1
+        except mailer.MailError as exc:
+            row.last_error = str(exc)[:300]
+        db.commit()
+    return sent
+
+
+def report_error(where: str, exc: BaseException, detail: str = "") -> None:
+    """A serious error (a page that failed, a background job that failed), emailed to the office in a session of its
+    own: whatever the failing code left in its transaction, the alert is still queued. Never raises."""
+    import traceback
+
+    try:
+        kind_ = exc.__class__.__name__
+        origin = traceback.extract_tb(exc.__traceback__)[-1] if exc.__traceback__ else None
+        key = f"error:{where}:{kind_}:{origin.filename}:{origin.lineno}" if origin else f"error:{where}:{kind_}"
+        settings = get_settings()
+        body = (
+            f"A serious error happened on {settings.public_url}\n\n"
+            f"Where: {where}\n{detail}\nError: {kind_}: {str(exc)[:500]}\n"
+            f"Time (UTC): {utcnow():%Y-%m-%d %H:%M:%S}\n\n"
+            + "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))[-6000:]
+            + "\n\nThe same error is not emailed again for 30 minutes. Details are in the server logs."
+        )
+        with new_session() as db:
+            if queue_email(db, "error", f"[Error] {kind_} in {where}"[:200], body, dedupe_key=key[:500]):
+                db.commit()
+    except Exception:  # noqa: BLE001 - reporting must never make the failure worse
+        logging.getLogger("fleet.errors").exception("could not queue the error email")

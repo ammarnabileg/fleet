@@ -705,7 +705,8 @@
     "storage_sync_off": "Copying files this way is off for the storage chosen.",
     "site_message_not_found": "Message not found.",
     "site_off": "The site is not available now.",
-    "contact_needed": "Give a phone number or an email so we can reply."
+    "contact_needed": "Give a phone number or an email so we can reply.",
+    "internal_error": "Something went wrong on our side. Please try again shortly."
   },
   "settings": {
     "branding": "Branding",

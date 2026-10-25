@@ -50,6 +50,14 @@ def install(app: FastAPI) -> None:
         errors = [{"loc": list(e["loc"]), "msg": e["msg"], "type": e["type"]} for e in exc.errors()]
         return problem(422, "validation_error", errors=errors, **fallback_message(request, "validation_error", None))
 
+    @app.exception_handler(Exception)
+    async def _unexpected(request: Request, exc: Exception):
+        # a bug or an outage: the office is emailed (at most once per 30 minutes per error); the answer says nothing
+        from app.modules.integrations import service as integrations
+
+        integrations.report_error(f"{request.method} {request.url.path}", exc)
+        return problem(500, "internal_error", **fallback_message(request, "internal_error", None))
+
     @app.exception_handler(HTTPException)
     async def _http(request: Request, exc: HTTPException):
         code = HTTPStatus(exc.status_code).name.lower()

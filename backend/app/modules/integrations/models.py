@@ -117,3 +117,26 @@ class MessageLog(Base):
     provider_ref: Mapped[str | None] = mapped_column(Text)  # the provider's message id, when it gives one
     attempt: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EmailOutbox(Base):
+    """An email waiting for the SMTP server, or sent: the background job sends what is waiting, a few tries each."""
+
+    __tablename__ = "email_outbox"
+    __table_args__ = (
+        CheckConstraint("kind IN ('contact', 'error')", name="kind"),
+        Index("email_outbox_pending_idx", "id", postgresql_where=text("sent_at IS NULL AND attempts < 5")),
+        Index("email_outbox_dedupe_idx", "dedupe_key", "created_at"),
+        {"schema": "integrations"},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    kind: Mapped[str] = mapped_column(Text)
+    subject: Mapped[str] = mapped_column(Text)
+    body: Mapped[str] = mapped_column(Text)
+    reply_to: Mapped[str | None] = mapped_column(Text)
+    dedupe_key: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)

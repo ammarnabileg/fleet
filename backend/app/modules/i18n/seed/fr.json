@@ -1278,7 +1278,8 @@
       "storage_sync_off": "La copie des fichiers dans ce sens est désactivée pour le stockage choisi.",
       "contact_needed": "Indiquez un téléphone ou un e-mail pour que nous puissions répondre.",
       "site_message_not_found": "Message introuvable.",
-      "site_off": "Le site n'est pas disponible pour le moment."
+      "site_off": "Le site n'est pas disponible pour le moment.",
+      "internal_error": "Une erreur s'est produite de notre côté. Réessayez dans un instant."
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",

@@ -9,7 +9,7 @@
   'use strict';
   var BT = window.BT, h = BT.h, raw = BT.raw, icon = BT.icon, fmt = BT.fmt, api = BT.api, A = BT.A;
 
-  var SECRET_LABEL = { secret_access_key: 'Secret Access Key', api_key: 'API Key', service_account: 'مفتاح حساب الخدمة (JSON)' };
+  var SECRET_LABEL = { secret_access_key: 'Secret Access Key', api_key: 'API Key', service_account: 'مفتاح حساب الخدمة (JSON)', password: 'كلمة مرور البريد (أو App Password)' };
   var MODE = { log: 'سجل التطوير (لا يُرسل شيء)', whatsapp: 'إعداد الخادم (متغيرات البيئة)', panel: 'لا شيء: يجب تشغيله من هنا' };
 
   function checkLine(c) {
@@ -103,6 +103,28 @@
       </div></div></form>`;
   }
 
+  function emailCard(c) {
+    var cfg = c.config;
+    return h`<form class="card" data-kind="email" novalidate>
+      <div class="card-h"><div class="card-t">${icon('mail', 16)} البريد الإلكتروني (SMTP)</div><span class="ms-auto">${checkLine(c)}</span></div>
+      <div class="card-b"><div class="form">
+        ${BT.f.switch({ name: 'enabled', label: 'إرسال إيميلات المكتب من هذا البريد', checked: cfg.enabled })}
+        <div class="form-grid">
+          ${BT.f.input({ name: 'host', label: 'خادم SMTP', value: cfg.host || '', placeholder: 'smtp.gmail.com', pattern: '[A-Za-z0-9.\\-]{1,253}', msg: 'اسم الخادم بحروف إنجليزية' })}
+          ${BT.f.input({ name: 'port', label: 'المنفذ (Port)', value: cfg.port, type: 'number', min: 1, max: 65535 })}
+          ${BT.f.select({ name: 'security', label: 'التشفير', value: cfg.security, placeholder: false, options: [{ v: 'starttls', t: 'STARTTLS (منفذ 587)' }, { v: 'ssl', t: 'SSL/TLS (منفذ 465)' }, { v: 'none', t: 'بدون تشفير' }] })}
+          ${BT.f.input({ name: 'username', label: 'اسم المستخدم', value: cfg.username || '', placeholder: 'office@company.com' })}
+          ${secretField(c, 'password')}
+          ${BT.f.input({ name: 'from_address', label: 'الإرسال من (الإيميل)', value: cfg.from_address || '', type: 'email', placeholder: 'office@company.com' })}
+          ${BT.f.input({ name: 'from_name', label: 'اسم المُرسل', value: cfg.from_name || '', maxlength: 100 })}
+        </div>
+        ${BT.f.textarea({ name: 'notify_to', label: 'يوصل لمين؟ (إيميل في كل سطر، حتى 10)', value: (cfg.notify_to || []).join('\n'), rows: 3 })}
+        ${BT.f.switch({ name: 'error_alerts', label: 'ابعت إيميل لما يحصل خطأ كبير في السيستم (مرة كل 30 دقيقة لنفس الخطأ بحد أقصى)', checked: cfg.error_alerts })}
+        <div class="banner info fs-sm">${icon('info', 16)}<div>بيوصلك: رسائل «تواصل معنا» من الموقع، وتنبيهات الأخطاء الكبيرة. مع Gmail أو Outlook استخدم <b>App Password</b> مش كلمة سر الحساب. «اختبار الاتصال» بيدخل على الخادم من غير ما يبعت إيميل.</div></div>
+        <div class="row gap-8"><button type="submit" class="btn btn-sm btn-primary">${icon('check', 14)} حفظ</button><button type="button" class="btn btn-sm btn-secondary" data-check>${icon('refresh-cw', 14)} اختبار الاتصال</button></div>
+      </div></div></form>`;
+  }
+
   function pushCard(c) {
     var cfg = c.config, s = c.secrets.service_account;
     return h`<form class="card" data-kind="push" novalidate>
@@ -133,6 +155,11 @@
   function configOf(kind, vals, cur) {
     if (kind === 'storage') {
       return { provider: vals.provider || cur.provider, account_id: vals.account_id || null, bucket: vals.bucket || null, access_key_id: vals.access_key_id || null, jurisdiction: vals.jurisdiction || 'default' };
+    }
+    if (kind === 'email') {
+      return { enabled: !!vals.enabled, host: vals.host || null, port: Number(vals.port) || 587, security: vals.security || 'starttls',
+        username: vals.username || null, from_address: vals.from_address || null, from_name: vals.from_name || '',
+        notify_to: String(vals.notify_to || '').split(/[\s,;]+/).filter(Boolean), error_alerts: !!vals.error_alerts };
     }
     if (kind === 'push') return { enabled: !!vals.enabled, app_id: vals.app_id || null, sender_id: vals.sender_id || null, api_key: vals.client_api_key || null };
     return { enabled: !!vals.enabled, url: vals.url || null, instance: vals.instance || null };
@@ -275,7 +302,7 @@
         var by = {};
         rows.forEach(function (c) { by[c.kind] = c; });
         setTimeout(function () { wire(by); });
-        return h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(420px,1fr))">${by.storage ? storageCard(by.storage) : ''}${by.whatsapp ? whatsappCard(by.whatsapp) : ''}${by.push ? pushCard(by.push) : ''}</div>`;
+        return h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(420px,1fr))">${by.storage ? storageCard(by.storage) : ''}${by.whatsapp ? whatsappCard(by.whatsapp) : ''}${by.push ? pushCard(by.push) : ''}${by.email ? emailCard(by.email) : ''}</div>`;
       }).catch(function () {});
     }
     function save(kind, cur, body, button) {
@@ -290,7 +317,7 @@
       BT.$$('form[data-kind]', el).forEach(function (form) {
         var kind = form.getAttribute('data-kind'), cur = by[kind];
         var r2box = form.querySelector('[data-r2]');
-        BT.$$('[name=account_id],[name=bucket],[name=access_key_id],[name=url],[name=instance],[name=app_id],[name=sender_id],[name=client_api_key]', form).forEach(function (i) { i.dir = 'ltr'; });
+        BT.$$('[name=account_id],[name=bucket],[name=access_key_id],[name=url],[name=instance],[name=app_id],[name=sender_id],[name=client_api_key],[name=host],[name=username],[name=from_address],[name=notify_to],[name=port]', form).forEach(function (i) { i.dir = 'ltr'; });
         function toggle() { if (r2box) r2box.style.display = (BT.form.values(form).provider !== 'local' || cur.config.account_id) ? '' : 'none'; }
         form.addEventListener('change', toggle); toggle();
         form.addEventListener('submit', function (e) {

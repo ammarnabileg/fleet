@@ -1,4 +1,4 @@
-from celery import Celery
+from celery import Celery, signals
 from celery.schedules import crontab
 
 from app.core.config import get_settings
@@ -59,6 +59,17 @@ celery.conf.beat_schedule = {
     "broadcasts": {"task": "notifications.broadcasts", "schedule": 15.0},  # ركن الإشعارات (WhatsApp at its pace)
     "driver-push": {"task": "notifications.push", "schedule": 30.0},  # does nothing until push is switched on
     "files-sync": {"task": "files.sync", "schedule": 600.0},  # copies the files each way the storage choice asks
+    "send-emails": {"task": "integrations.send_emails", "schedule": 60.0},  # nothing while email is off
     "app-github-release": {"task": "app_updates.import_github", "schedule": crontab(minute=35)},  # when switched on
     "message-log": {"task": "integrations.purge_message_log", "schedule": crontab(hour=2, minute=40)},  # 90 days
 }
+
+
+@signals.task_failure.connect
+def _report_failed_task(sender=None, exception=None, **_):
+    """A background job that failed is a serious error: emailed to the office (at most once per 30 minutes)."""
+    from app.modules.integrations import service as integrations
+
+    name = getattr(sender, "name", "task")
+    if name != "integrations.send_emails":  # a mail server down must not mail about itself
+        integrations.report_error(f"background job {name}", exception)

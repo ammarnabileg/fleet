@@ -56,11 +56,35 @@ class PushConfig(_Config):
     sender_id: SenderId | None = None
 
 
+Host = _text(r"^[A-Za-z0-9.-]{1,253}$")
+Email = _text(r"^[^@\s]{1,64}@[^@\s]{1,255}\.[^@\s]{2,}$")
+MailUser = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+MailName = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]
+
+
+class EmailConfig(_Config):
+    """An SMTP server (the company's mailbox or a sending service) for the office's emails: the public site's contact
+    messages and the alerts about serious errors, sent to the addresses listed here."""
+
+    enabled: bool = False
+    host: Host | None = None
+    port: int = Field(587, ge=1, le=65535)
+    security: Literal["starttls", "ssl", "none"] = "starttls"
+    username: MailUser | None = None
+    from_address: Email | None = None
+    from_name: MailName = ""
+    notify_to: list[Email] = Field(default_factory=list, max_length=10)
+    error_alerts: bool = (
+        True  # serious errors (a page or a job that failed) are emailed too, at most one per 30 minutes
+    )
+
+
 # kind -> (settings model, secret names)
 KINDS: dict[str, tuple[type[_Config], tuple[str, ...]]] = {
     "storage": (StorageConfig, ("secret_access_key",)),
     "whatsapp": (WhatsappConfig, ("api_key",)),
     "push": (PushConfig, ("service_account",)),
+    "email": (EmailConfig, ("password",)),
 }
 
 Secret = Annotated[str, StringConstraints(strip_whitespace=True, min_length=8, max_length=8192)]  # a JSON key fits

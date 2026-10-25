@@ -12,6 +12,7 @@ from app.core.clock import utcnow
 from app.core.errors import AppError
 from app.modules.audit import service as audit
 from app.modules.files import service as files
+from app.modules.integrations import service as integrations
 from app.modules.notifications import service as notifications
 from app.modules.org import service
 from app.modules.org.models import SiteMessage
@@ -53,6 +54,14 @@ def send_message(db: Session, *, name: str, phone: str | None, email: str | None
         entity_id=row.public_id,
         params={"name": name},
         dedupe_key=f"site_message:{row.public_id}",
+    )
+    integrations.queue_email(
+        db,
+        "contact",
+        f"رسالة جديدة من الموقع: {name}",
+        f"الاسم: {name}\nالتليفون: {phone or '-'}\nالإيميل: {email or '-'}\n\n{message}\n\n"
+        "اقرأها وعلّمها من الداشبورد: الإدارة ← الموقع التعريفي ← رسائل تواصل معنا.",
+        reply_to=email or None,
     )
     db.commit()
 

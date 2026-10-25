@@ -1278,7 +1278,8 @@
       "storage_sync_off": "Kunakili faili kwa upande huu kumezimwa kwa hifadhi iliyochaguliwa.",
       "contact_needed": "Weka namba ya simu au barua pepe ili tuweze kukujibu.",
       "site_message_not_found": "Ujumbe haukupatikana.",
-      "site_off": "Tovuti haipatikani kwa sasa."
+      "site_off": "Tovuti haipatikani kwa sasa.",
+      "internal_error": "Hitilafu imetokea upande wetu. Jaribu tena baada ya muda mfupi."
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",
