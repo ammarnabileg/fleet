@@ -23,7 +23,7 @@ test('edited in the panel, shown on the public page, a visitor\'s message handle
   const page = await ctx.newPage();
   await page.goto('/site.html');
   await expect(page.locator('h1[data-name]')).toHaveText('شركة التجربة ' + n);
-  await expect(page.locator('[data-tagline]')).toHaveText('نوصّل في كل الكويت');
+  await expect(page.locator('main [data-tagline]')).toHaveText('نوصّل في كل الكويت');
   await expect(page.locator('[data-services]')).toContainText('خدمة ' + n);
   await expect(page.locator('[data-info]')).toContainText('+96512345678');
   await page.locator('[data-lang-btn]').click();
