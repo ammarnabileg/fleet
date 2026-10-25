@@ -1,208 +1,76 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>…</title>
-<meta name="description" content="">
-<link rel="stylesheet" href="/ui/css/ui.css">
-<style>
-/* the public site: the design system's components and tokens only; a few layout rules for this one page */
-.site-wrap { max-width: var(--content-max); margin: 0 auto; padding-inline: var(--pad); box-sizing: border-box; }
-.site-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 100%; }
-.site-name { font-size: var(--fs-h3); font-weight: var(--w-bold); color: var(--ink); letter-spacing: -.01em; }
-.site-nav { display: flex; align-items: center; gap: 4px; }
-.site-hero { padding: 64px 0 48px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 32px; align-items: center; }
-.site-hero h1 { margin: 0 0 12px; text-wrap: balance; }
-.site-hero p { margin: 0 0 24px; color: var(--muted); font-size: var(--fs-h3); line-height: 1.8; max-width: 620px; }
-.site-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.site-panel { background: var(--brand-soft); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 24px; display: flex; flex-direction: column; gap: 14px; }
-.site-panel-row { display: flex; gap: 12px; align-items: flex-start; }
-.site-panel-row .icon { color: var(--brand-700); flex: 0 0 auto; margin-top: 3px; }
-.site-panel-row b { display: block; color: var(--ink); font-weight: var(--w-semi); }
-.site-panel-row span { color: var(--muted); font-size: var(--fs-small); }
-.site-section { padding: 40px 0; }
-.site-about { max-width: 820px; white-space: pre-line; color: var(--ink-2); margin: 0; }
-.site-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
-.site-grid .ui-card h3 { margin: 10px 0 4px; }
-.site-grid .ui-card p { margin: 0; color: var(--muted); font-size: var(--fs-small); }
-.site-ic { width: 44px; height: 44px; border-radius: var(--r-md); background: var(--brand-soft); color: var(--brand-700); display: grid; place-items: center; }
-.site-contact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 16px; align-items: start; }
-.site-info { display: flex; flex-direction: column; gap: 12px; }
-.site-info a, .site-info b { display: flex; gap: 10px; align-items: center; font-weight: var(--w-medium); color: var(--ink); }
-.site-info .icon { color: var(--brand-700); }
-.site-form { display: flex; flex-direction: column; gap: 14px; }
-.site-form .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.site-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
-.ltr { direction: ltr; unicode-bidi: isolate; }
-@media (max-width: 820px) {
-  .site-hero, .site-contact { grid-template-columns: 1fr; }
-  .site-hero { padding: 36px 0 28px; }
-  .site-nav .nav-link { display: none; }
-  .site-form .two { grid-template-columns: 1fr; }
-}
-</style>
-</head>
-<body class="ui">
-<a class="ui-skip" href="#main" data-t="skip"></a>
-<header class="ui-header"><div class="site-wrap site-head">
-  <a href="#main" class="site-name" data-name></a>
-  <nav class="site-nav">
-    <a class="ui-btn is-ghost is-sm nav-link" href="#about" data-t="about"></a>
-    <a class="ui-btn is-ghost is-sm nav-link" href="#services" data-t="services"></a>
-    <a class="ui-btn is-ghost is-sm nav-link" href="#contact" data-t="contact"></a>
-    <button class="ui-btn is-outline is-sm" type="button" data-lang-btn></button>
-  </nav>
-</div></header>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="أجواد جروب — خدمات التوصيل وإدارة الأسطول في الكويت"><title>…</title><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/site-assets/style.css"><style>.hp{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}.ltr{direction:ltr;unicode-bidi:isolate}.info-list{display:flex;flex-direction:column;gap:6px;margin-top:14px}.info-list a{border-bottom:1px solid currentColor}[hidden]{display:none!important}</style></head><body>
+<div class="top"><div class="wrap"><span><i class="dot"></i>من الكويت، نحرّك أعمالك للأمام</span><span dir="ltr">DELIVERY · FLEET · PEOPLE</span></div></div>
+<header><div class="wrap nav"><a class="brand" href="#" aria-label="أجواد جروب الرئيسية"><span class="mark"></span><span><strong data-name-ar></strong><small data-name-en></small></span></a><nav id="nav" aria-label="القائمة الرئيسية"><a href="#about">من نحن</a><a href="#services">خدماتنا</a><a href="#contact">تواصل معنا</a></nav><a href="#contact" class="btn">لنبدأ شراكتنا <span class="arrow">↖</span></a><button class="menu" aria-label="فتح القائمة" aria-expanded="false" aria-controls="nav">☰</button></div></header>
+<main><section class="hero"><div class="wrap hero-grid"><div class="reveal"><div class="eyebrow" data-tagline>شريكك في التوصيل وإدارة الأسطول</div><h1>أعمالك تتحرّك.<br>ونحن <em>نصل بها.</em></h1><p>من السائق إلى آخر وجهة، نجمع خدمات التوصيل وإدارة الأسطول في تجربة واحدة. لتتفرّغ لنمو أعمالك، ونتولّى تفاصيل الطريق.</p><div class="actions"><a class="btn" href="#contact">تحدّث معنا <span class="arrow">↖</span></a><a class="text-link" href="#services">اكتشف خدماتنا ←</a></div><div class="hero-note"><span>إدارة يومية للأسطول</span><span>متابعة لكل رحلة</span><span>في الكويت</span></div></div>
+<div class="visual reveal" role="img" aria-label="رسم توضيحي لسيارة توصيل أجواد ومسار الرحلة"><svg viewBox="0 0 550 510" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="grid" width="38" height="38" patternUnits="userSpaceOnUse"><path d="M38 0H0V38" fill="none" stroke="#548091" stroke-width=".5" opacity=".3"/></pattern><linearGradient id="body" x2="0" y2="1"><stop stop-color="#fcfcf5"/><stop offset="1" stop-color="#a7bcc4"/></linearGradient></defs><circle cx="285" cy="260" r="215" fill="url(#grid)"/><circle cx="285" cy="260" r="210" fill="none" stroke="#89a2aa" opacity=".15"/><circle cx="285" cy="260" r="155" fill="none" stroke="#89a2aa" opacity=".15"/><path d="M75 330C38 205 202 246 213 166S398 79 470 172" stroke="#ef713c" stroke-dasharray="6 9" fill="none" stroke-width="2"/><g transform="translate(459 150)"><path d="M0 0C-23-31-29-39-29-53a29 29 0 0 1 58 0C29-39 23-31 0 0" fill="#ef713c"/><circle cy="-51" r="10" fill="#102c39"/></g><ellipse cx="290" cy="400" rx="215" ry="28" fill="#071923" opacity=".4"/><g transform="translate(45 145)"><path d="M25 110L265 81L327 110L90 147Z" fill="#fffdf5"/><path d="M25 110V240L90 276V147Z" fill="#9cafb6"/><path d="M90 147L327 110V239L90 276Z" fill="url(#body)"/><path d="M90 229L327 192V228L90 266Z" fill="#ef713c"/><path d="M327 150L378 144L432 200V252L327 268Z" fill="#ef713c"/><path d="M334 154L374 151L413 194L334 206Z" fill="#193f51"/><path d="M337 158L357 155L391 195L337 202Z" fill="#326174"/><path d="M327 268L432 252L443 258V270L327 290Z" fill="#7994a1"/><path d="M432 208L440 215V249L432 252Z" fill="#b74621"/><path d="M416 232L431 230V241L416 244Z" fill="#fff1b8"/><path d="M336 222L354 219" stroke="#8b3c22" stroke-width="3"/><path d="M365 201V257" stroke="#d45c2e"/><path d="M102 155V224" stroke="#fff" opacity=".5"/><ellipse cx="150" cy="274" rx="23" ry="31" fill="#10212b"/><ellipse cx="155" cy="273" rx="11" ry="19" fill="#a6b9c2"/><ellipse cx="386" cy="268" rx="23" ry="31" fill="#10212b"/><ellipse cx="391" cy="267" rx="11" ry="19" fill="#a6b9c2"/><text x="193" y="189" fill="#163543" font-size="31" font-family="Tahoma" font-weight="bold" transform="rotate(-9 193 189)">أجواد</text><text x="194" y="207" fill="#58707d" font-size="10" font-family="Arial" letter-spacing="2" transform="rotate(-9 194 207)">AJWAD GROUP</text></g><circle cx="76" cy="330" r="7" fill="#ef713c"/><circle cx="76" cy="330" r="15" fill="none" stroke="#ef713c" opacity=".4"/></svg><div class="floating live"><span class="status"></span><div><strong>كل رحلة، تحت المتابعة</strong><small>رؤية أوضح لأسطولك</small></div></div><div class="floating check"><span class="circle-icon">✓</span><div><strong>من البداية إلى الوجهة</strong><small>نهتم بتفاصيل الطريق</small></div></div></div></div><div class="wrap hero-base"><span>سائقون. سيارات. إدارة متكاملة.</span><span>YOUR BUSINESS. IN MOTION.</span></div></section>
+<section class="wrap intro" id="about"><div><div class="eyebrow">عن أجواد</div><h2>وراء كل توصيل ناجح،<br>شريك يعرف الطريق.</h2></div><div><p data-about style="white-space:pre-line"></p><a class="tagline" href="#contact">نتطلّع لنكون جزءًا من رحلتك ↖</a></div></section>
+<section class="wrap services" id="services" data-services-box><div class="section-head"><div><div class="eyebrow">حلول تتحرّك معك</div><h2>كل ما يحتاجه طريقك.</h2></div><p>خدمات مترابطة تدعم عمليات التوصيل، من تجهيز الفريق إلى متابعة العمل اليومي.</p></div><div class="cards" data-services></div></section>
 
-<main id="main" class="site-wrap">
-  <div class="site-hero">
-    <div>
-      <span class="ui-eyebrow" data-address-eyebrow></span>
-      <h1 data-name></h1>
-      <p data-tagline></p>
-      <div class="site-actions">
-        <a class="ui-btn is-brand is-lg" href="/app/download" data-download hidden><svg class="icon"><use href="/ui/icons/sprite.svg#i-download"/></svg><span data-t="download"></span></a>
-        <a class="ui-btn is-primary is-lg" href="#contact"><svg class="icon"><use href="/ui/icons/sprite.svg#i-message"/></svg><span data-t="contact"></span></a>
-      </div>
-    </div>
-    <div class="site-panel" data-panel></div>
-  </div>
-
-  <section class="site-section" id="about">
-    <div class="ui-section-head"><div><span class="ui-eyebrow" data-t="aboutEyebrow"></span><h2 data-t="about"></h2></div></div>
-    <p class="site-about" data-about></p>
-  </section>
-
-  <section class="site-section" id="services" data-services-box>
-    <div class="ui-section-head"><div><span class="ui-eyebrow" data-t="servicesEyebrow"></span><h2 data-t="services"></h2></div></div>
-    <div class="site-grid" data-services></div>
-  </section>
-
-  <section class="site-section" id="contact">
-    <div class="ui-section-head"><div><span class="ui-eyebrow" data-t="contactEyebrow"></span><h2 data-t="contact"></h2></div></div>
-    <div class="site-contact">
-      <div class="ui-card site-info" data-info></div>
-      <form class="ui-card site-form" data-form novalidate>
-        <div><label class="ui-label" for="f-name" data-t="name"></label><input id="f-name" class="ui-field" name="name" required minlength="2" maxlength="120" autocomplete="name"></div>
-        <div class="two">
-          <div><label class="ui-label" for="f-phone" data-t="phone"></label><input id="f-phone" class="ui-field ltr" name="phone" maxlength="120" inputmode="tel" autocomplete="tel"></div>
-          <div><label class="ui-label" for="f-email" data-t="email"></label><input id="f-email" class="ui-field ltr" name="email" type="email" maxlength="120" autocomplete="email"></div>
-        </div>
-        <div><label class="ui-label" for="f-msg" data-t="message"></label><textarea id="f-msg" class="ui-field" name="message" rows="5" required minlength="5" maxlength="3000"></textarea></div>
-        <label class="site-hp" aria-hidden="true">website<input name="website" tabindex="-1" autocomplete="off"></label>
-        <div class="ui-notice" data-result hidden style="margin:0"><div><strong data-result-text></strong></div></div>
-        <div><button class="ui-btn is-primary" type="submit"><svg class="icon"><use href="/ui/icons/sprite.svg#i-send"/></svg><span data-t="send"></span></button></div>
-      </form>
-    </div>
-  </section>
-</main>
-
-<footer class="ui-footer">
-  <div class="ui-footer-top">
-    <div class="ui-footer-brand"><strong style="color:#fff;font-size:var(--fs-h3)" data-name></strong><p data-tagline></p></div>
-  </div>
-  <div class="ui-footer-base"><p>© <span data-year></span> <span data-name></span> · <span data-t="rights"></span></p></div>
-</footer>
-
+<section class="wrap process"><div class="eyebrow">شراكة تبدأ بفهمك</div><h2>من أول تواصل، إلى أول رحلة.</h2><div class="steps"><div class="step"><b>01 — نفهم احتياجك</b><h3>نبدأ بالاستماع</h3><p>نتعرّف على طبيعة عملياتك ومتطلبات السائقين والمركبات.</p></div><div class="step"><b>02 — نرتّب الحل</b><h3>خطة تناسب أعمالك</h3><p>نناقش معك الخدمة المناسبة وطريقة العمل وتفاصيل التعاون.</p></div><div class="step"><b>03 — نتحرّك معك</b><h3>تشغيل ومتابعة</h3><p>ننسّق بداية العمل ونواصل المتابعة اليومية لعمليات التوصيل.</p></div></div></section>
+<section class="wrap contact" id="contact"><div><div class="eyebrow">خطوتك القادمة</div><h2>لنحرّك أعمالك<br>إلى وجهتها القادمة.</h2><p>تحتاج سائقين؟ تخطّط لتنظيم أسطولك؟<br>أخبرنا عن احتياجك، ولنبدأ الحديث.</p><p>↗ <span data-address>الكويت</span></p><div class="info-list" data-info></div></div><form id="contact-form"><div><label for="name">الاسم الكامل</label><input id="name" name="name" required minlength="2" autocomplete="name" placeholder="كيف نناديك؟"></div><div><label for="phone">رقم الهاتف</label><input id="phone" name="phone" required type="tel" dir="ltr" autocomplete="tel" placeholder="+965"></div><div><label for="email">البريد الإلكتروني (اختياري)</label><input id="email" name="email" type="email" dir="ltr" autocomplete="email" placeholder="name@example.com"></div><div><label for="message">كيف يمكننا مساعدتك؟</label><textarea id="message" name="message" required minlength="5" placeholder="أخبرنا قليلًا عن احتياجات أعمالك..."></textarea></div><label class="hp" aria-hidden="true">website<input name="website" tabindex="-1" autocomplete="off"></label><button class="btn" type="submit">إرسال الاستفسار <span class="arrow">↖</span></button><p class="form-note">يصل استفسارك لفريقنا مباشرة، ونتواصل معك على رقمك.</p><div id="feedback" class="form-feedback" role="status"></div></form></section></main>
+<footer class="wrap"><div class="footer-top"><a href="#" class="brand"><span class="mark"></span><span><strong data-name-ar></strong><small data-name-en></small></span></a><div class="footer-links"><a href="#about">من نحن</a><a href="#services">خدماتنا</a><a href="#contact">تواصل معنا</a><a href="/app/download" data-download hidden>تحميل تطبيق السائق</a></div></div><div class="footer-bottom"><span>© <span id="year"></span> <span data-name-ar></span>. جميع الحقوق محفوظة.</span><span>نصل أبعد، معًا.</span></div></footer>
 <script>
 (function () {
   'use strict';
-  var T = {
-    ar: { skip: 'تخطَّ إلى المحتوى', about: 'عن الشركة', services: 'خدماتنا', contact: 'تواصل معنا', download: 'تحميل تطبيق السائق', aboutEyebrow: 'مين إحنا', servicesEyebrow: 'بنقدّم إيه', contactEyebrow: 'إحنا هنا', name: 'الاسم', phone: 'رقم التليفون', email: 'الإيميل', message: 'رسالتك', send: 'إرسال', phoneL: 'تليفون', whatsapp: 'واتساب', emailL: 'إيميل', address: 'العنوان', map: 'افتح الخريطة', sent: 'وصلتنا رسالتك، هنتواصل معاك قريب.', needContact: 'اكتب رقم تليفون أو إيميل عشان نرد عليك.', fail: 'الرسالة ما اتبعتتش. جرّب تاني بعد شوية.', check: 'اكتب الاسم والرسالة.', other: 'English', rights: 'جميع الحقوق محفوظة' },
-    en: { skip: 'Skip to content', about: 'About us', services: 'Our services', contact: 'Contact us', download: 'Download the driver app', aboutEyebrow: 'Who we are', servicesEyebrow: 'What we do', contactEyebrow: 'Get in touch', name: 'Name', phone: 'Phone', email: 'Email', message: 'Your message', send: 'Send', phoneL: 'Phone', whatsapp: 'WhatsApp', emailL: 'Email', address: 'Address', map: 'Open the map', sent: 'We got your message and will get back to you soon.', needContact: 'Give a phone number or an email so we can reply.', fail: 'Your message was not sent. Please try again shortly.', check: 'Write your name and your message.', other: 'العربية', rights: 'All rights reserved' }
-  };
-  var ICONS = ['truck', 'map', 'users', 'shield', 'clock', 'wallet', 'phone', 'chart', 'box', 'support', 'award', 'target'];
-  var SPRITE = '/ui/icons/sprite.svg#i-';
-  var site = null, lang = 'ar';
-  try { lang = localStorage.getItem('site.lang') || ((navigator.language || '').indexOf('ar') === 0 ? 'ar' : 'en'); } catch (e) { /* private mode */ }
-  var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
-  var $ = function (s) { return document.querySelector(s); };
-  function pick(v) { return v ? (v[lang] || v.ar || v.en || '') : ''; }
+  var $ = function (s) { return document.querySelector(s); }, $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
+  var ICONS = [
+    '<svg viewBox="0 0 32 32"><circle cx="16" cy="9" r="5"/><path d="M6 28v-5a10 10 0 0 1 20 0v5M10 28v-6m12 6v-6"/></svg>',
+    '<svg viewBox="0 0 32 32"><path d="M3 7h17v17H3zm17 6h5l5 6v5H20M3 19h17"/><circle cx="8" cy="25" r="3"/><circle cx="25" cy="25" r="3"/></svg>',
+    '<svg viewBox="0 0 32 32"><rect x="8" y="2" width="16" height="28" rx="3"/><path d="M13 6h6m-6 20h6M12 17l3 3 6-7"/></svg>'
+  ];
+  function ar(v) { return v ? (v.ar || v.en || '') : ''; }
   function el(tag, text, cls) { var e = document.createElement(tag); if (text) e.textContent = text; if (cls) e.className = cls; return e; }
-  function icon(name) {
-    var ns = 'http://www.w3.org/2000/svg', s = document.createElementNS(ns, 'svg'), u = document.createElementNS(ns, 'use');
-    s.setAttribute('class', 'icon'); s.setAttribute('aria-hidden', 'true'); u.setAttribute('href', SPRITE + name); s.appendChild(u); return s;
-  }
+  $('#year').textContent = new Date().getFullYear();
+  var menu = $('.menu'), nav = $('#nav');
+  menu.addEventListener('click', function () { var open = nav.classList.toggle('open'); menu.setAttribute('aria-expanded', open); menu.textContent = open ? '×' : '☰'; });
+  nav.querySelectorAll('a').forEach(function (a) { a.addEventListener('click', function () { nav.classList.remove('open'); menu.setAttribute('aria-expanded', 'false'); menu.textContent = '☰'; }); });
 
-  function draw() {
-    var t = T[lang];
-    document.documentElement.lang = lang; document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-    $$('[data-t]').forEach(function (e) { e.textContent = t[e.getAttribute('data-t')]; });
-    $('[data-lang-btn]').textContent = t.other;
-    if (!site) return;
-    var name = pick(site.company_name);
-    document.title = name;
-    $('meta[name=description]').setAttribute('content', pick(site.tagline));
-    $$('[data-name]').forEach(function (e) { e.textContent = name; });
-    $$('[data-tagline]').forEach(function (e) { e.textContent = pick(site.tagline); });
-    $('[data-address-eyebrow]').textContent = pick(site.address);
-    $('[data-about]').textContent = pick(site.about);
+  function draw(site) {
+    var name = ar(site.company_name);
+    document.title = name + (ar(site.tagline) ? ' | ' + ar(site.tagline) : '');
+    $('meta[name=description]').setAttribute('content', ar(site.tagline));
+    $$('[data-name-ar]').forEach(function (e) { e.textContent = name; });
+    $$('[data-name-en]').forEach(function (e) { e.textContent = (site.company_name.en || '').toUpperCase(); });
+    if (ar(site.tagline)) $('[data-tagline]').textContent = ar(site.tagline);
+    $('[data-about]').textContent = ar(site.about);
+    if (ar(site.address)) $('[data-address]').textContent = ar(site.address);
     $('[data-download]').hidden = !site.download;
-
     var box = $('[data-services]'); box.textContent = '';
     (site.services || []).forEach(function (s, i) {
-      var c = el('div', '', 'ui-card'), ic = el('span', '', 'site-ic');
-      ic.appendChild(icon(ICONS[i % ICONS.length])); c.appendChild(ic);
-      c.appendChild(el('h3', pick(s.title))); if (pick(s.text)) c.appendChild(el('p', pick(s.text)));
+      var c = el('article', '', 'card');
+      c.appendChild(el('span', (i < 9 ? '0' : '') + (i + 1) + ' /', 'card-number'));
+      var ic = el('div', '', 'icon'); ic.innerHTML = ICONS[i % ICONS.length]; c.appendChild(ic);
+      c.appendChild(el('h3', ar(s.title)));
+      if (ar(s.text)) c.appendChild(el('p', ar(s.text)));
+      var a = el('a', 'تواصل معنا '); a.href = '#contact'; a.appendChild(el('span', '↖')); c.appendChild(a);
       box.appendChild(c);
     });
     $('[data-services-box]').hidden = !(site.services || []).length;
-
-    function contacts(target, rich) {
-      target.textContent = '';
-      function row(ic, label, value, href, ltr) {
-        if (!value) return;
-        if (rich) {
-          var r = el('div', '', 'site-panel-row'); r.appendChild(icon(ic));
-          var d = el('div'); d.appendChild(el('b', value)); d.appendChild(el('span', label)); if (ltr) d.firstChild.className = 'ltr';
-          r.appendChild(d); target.appendChild(r);
-        } else {
-          var a = el(href ? 'a' : 'b'); if (href) a.href = href;
-          a.appendChild(icon(ic)); var s = el('span', value); if (ltr) s.className = 'ltr'; a.appendChild(s); target.appendChild(a);
-        }
-      }
-      row('phone', t.phoneL, site.phone, 'tel:' + site.phone.replace(/[^\d+]/g, ''), true);
-      row('whatsapp', t.whatsapp, site.whatsapp, 'https://wa.me/' + site.whatsapp.replace(/\D/g, ''), true);
-      row('mail', t.emailL, site.email, 'mailto:' + site.email, true);
-      row('map', t.address, pick(site.address), site.map_url || null);
-    }
-    contacts($('[data-panel]'), true);
-    $('[data-panel]').hidden = !$('[data-panel]').children.length;
-    contacts($('[data-info]'), false);
-    if (site.map_url) { var m = el('a'); m.href = site.map_url; m.target = '_blank'; m.rel = 'noopener'; m.className = 'ui-btn is-outline is-sm'; m.appendChild(icon('link')); m.appendChild(el('span', t.map)); $('[data-info]').appendChild(m); }
-    $('[data-form]').hidden = !site.show_contact_form;
+    var info = $('[data-info]'); info.textContent = '';
+    function row(label, value, href) { if (!value) return; var a = el('a', ''); a.href = href; a.appendChild(document.createTextNode(label + ': ')); a.appendChild(el('span', value, 'ltr')); info.appendChild(a); }
+    row('هاتف', site.phone, 'tel:' + site.phone.replace(/[^\d+]/g, ''));
+    row('واتساب', site.whatsapp, 'https://wa.me/' + site.whatsapp.replace(/\D/g, ''));
+    row('البريد', site.email, 'mailto:' + site.email);
+    if (site.map_url) { var m = el('a', 'افتح الخريطة'); m.href = site.map_url; m.target = '_blank'; m.rel = 'noopener'; info.appendChild(m); }
+    $('#contact-form').hidden = !site.show_contact_form;
   }
 
-  $('[data-lang-btn]').addEventListener('click', function () {
-    lang = lang === 'ar' ? 'en' : 'ar';
-    try { localStorage.setItem('site.lang', lang); } catch (e) { /* private mode */ }
-    draw();
-  });
-  $('[data-year]').textContent = new Date().getFullYear();
-
-  var form = $('[data-form]'), result = $('[data-result]');
-  function say(text, bad) { result.hidden = false; $('[data-result-text]').textContent = text; result.className = 'ui-notice ' + (bad ? 'is-bad' : 'is-good'); }
+  var form = $('#contact-form'), out = $('#feedback');
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var f = new FormData(form), body = {};
     f.forEach(function (v, k) { body[k] = String(v).trim(); });
-    if (body.name.length < 2 || body.message.length < 5) return say(T[lang].check, true);
-    if (!body.phone && !body.email) return say(T[lang].needContact, true);
-    var btn = form.querySelector('[type=submit]'); btn.disabled = true;
-    fetch('/api/v1/site/contact', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept-Language': lang }, body: JSON.stringify(body) })
-      .then(function (r) {
-        btn.disabled = false;
-        if (r.status === 204) { form.reset(); say(T[lang].sent); } else say(T[lang].fail, true);
-      }, function () { btn.disabled = false; say(T[lang].fail, true); });
+    if (body.name.length < 2 || body.message.length < 5) { out.textContent = 'اكتب اسمك ورسالتك.'; return; }
+    if (!body.phone && !body.email) { out.textContent = 'اكتب رقم هاتفك عشان نقدر نرد عليك.'; return; }
+    var btn = form.querySelector('[type=submit]'); btn.disabled = true; out.textContent = '';
+    fetch('/api/v1/site/contact', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept-Language': 'ar' }, body: JSON.stringify(body) })
+      .then(function (r) { btn.disabled = false; if (r.status === 204) { form.reset(); out.textContent = 'وصلنا استفسارك، وهنتواصل معاك قريب.'; } else out.textContent = 'الاستفسار ما اتبعتش. جرّب تاني بعد شوية.'; },
+        function () { btn.disabled = false; out.textContent = 'الاستفسار ما اتبعتش. جرّب تاني بعد شوية.'; });
   });
 
-  draw();
   fetch('/api/v1/site').then(function (r) { return r.ok ? r.json() : null; }).then(function (s) {
     if (!s) { location.replace('/404.html'); return; }
-    site = s; draw();
+    draw(s);
   }, function () { location.replace('/50x.html'); });
 })();
-</script>
-</body>
-</html>
+</script></body></html>

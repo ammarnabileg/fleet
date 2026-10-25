@@ -22,23 +22,22 @@ test('edited in the panel, shown on the public page, a visitor\'s message handle
   const ctx = await browser.newContext({ locale: 'ar-KW' });
   const page = await ctx.newPage();
   await page.goto('/site.html');
-  await expect(page.locator('h1[data-name]')).toHaveText('شركة التجربة ' + n);
-  await expect(page.locator('main [data-tagline]')).toHaveText('نوصّل في كل الكويت');
+  await expect(page.locator('header [data-name-ar]')).toHaveText('شركة التجربة ' + n);
+  await expect(page.locator('header [data-name-en]')).toHaveText(('Test company ' + n).toUpperCase());
+  await expect(page.locator('[data-tagline]')).toHaveText('نوصّل في كل الكويت');
   await expect(page.locator('[data-services]')).toContainText('خدمة ' + n);
   await expect(page.locator('[data-info]')).toContainText('+96512345678');
-  await page.locator('[data-lang-btn]').click();
-  await expect(page.locator('h1[data-name]')).toHaveText('Test company ' + n);
-  await expect(page.locator('[data-services]')).toContainText('Service ' + n);
-  await page.locator('[data-lang-btn]').click();
 
   // no way to reply: refused on the page, nothing sent
-  await page.locator('[name=name]').fill('زائر ' + n);
-  await page.locator('[name=message]').fill('عايز أعرف تفاصيل الشغل');
-  await page.getByRole('button', { name: 'إرسال' }).click();
-  await expect(page.locator('[data-result]')).toContainText('رقم تليفون أو إيميل');
-  await page.locator('[name=phone]').fill('+96555555555');
-  await page.getByRole('button', { name: 'إرسال' }).click();
-  await expect(page.locator('[data-result]')).toContainText('وصلتنا رسالتك');
+  await page.locator('#name').fill('زائر ' + n);
+  await page.locator('#phone').fill('');
+  await page.locator('#message').fill('عايز أعرف تفاصيل الشغل');
+  await page.locator('#phone').evaluate((e) => e.removeAttribute('required'));
+  await page.getByRole('button', { name: /إرسال الاستفسار/ }).click();
+  await expect(page.locator('#feedback')).toContainText('رقم هاتفك');
+  await page.locator('#phone').fill('+96555555555');
+  await page.getByRole('button', { name: /إرسال الاستفسار/ }).click();
+  await expect(page.locator('#feedback')).toContainText('وصلنا استفسارك');
   await ctx.close();
 
   await admin.goto('/admin.html#/site?tab=messages');
