@@ -59,15 +59,20 @@
   }
 
   function storageCard(c) {
-    var cfg = c.config, files = c.status.files || { local: 0, r2: 0 };
+    var cfg = c.config, files = c.status.files || { local: 0, r2: 0 }, sync = c.status.sync || [];
+    var left = (sync.indexOf('to_r2') >= 0 ? files.to_r2 || 0 : 0) + (sync.indexOf('to_disk') >= 0 ? files.to_disk || 0 : 0);
     return h`<form class="card" data-kind="storage" novalidate>
       <div class="card-h"><div class="card-t">${icon('inbox', 16)} تخزين الملفات</div><span class="ms-auto">${checkLine(c)}</span></div>
       <div class="card-b">
         <div class="highlight-box mb-12 between"><span>ملفات على الخادم <b class="num">${fmt.int(files.local)}</b></span><span>ملفات على R2 <b class="num">${fmt.int(files.r2)}</b></span></div>
+        ${sync.length ? h`<div class="banner ${left ? 'warn' : 'info'} fs-sm mb-12" data-sync-box>${icon(left ? 'refresh-cw' : 'check', 16)}<div class="grow">${left
+          ? h`باقي <b class="num">${fmt.int(left)}</b> ملف يتنسخ${sync.indexOf('to_r2') >= 0 && files.to_r2 ? h` (<span class="num">${fmt.int(files.to_r2)}</span> إلى R2)` : ''}${sync.indexOf('to_disk') >= 0 && files.to_disk ? h` (<span class="num">${fmt.int(files.to_disk)}</span> إلى الخادم)` : ''}. النسخ بيحصل لوحده كل 10 دقايق.`
+          : 'كل الملفات متنسخة في المكان المطلوب.'}</div><button type="button" class="btn btn-sm btn-secondary" data-sync>${icon('refresh-cw', 14)} مزامنة الآن</button></div>` : ''}
         <div class="form">
           ${BT.f.radios({ name: 'provider', label: 'أين تُحفظ الملفات الجديدة', value: cfg.provider, options: [
             { v: 'local', t: 'خادم النظام', d: 'على قرص الخادم نفسه' },
-            { v: 'r2', t: 'Cloudflare R2', d: 'حاوية خاصة؛ الملفات تمر عبر النظام فلا تُفتح إلا بصلاحية' }] })}
+            { v: 'r2', t: 'Cloudflare R2', d: 'حاوية خاصة؛ الملفات تمر عبر النظام فلا تُفتح إلا بصلاحية' },
+            { v: 'both', t: 'الاتنين (نسخة على كل واحد)', d: 'كل ملف على الخادم وعلى R2 معاً؛ لو واحد وقع يُقرأ من التاني، وأي خادم تاني على نفس قاعدة البيانات يشوف الملفات من R2' }] })}
           <div class="form-grid" data-r2>
             ${BT.f.input({ name: 'account_id', label: 'Account ID', value: cfg.account_id || '', pattern: '[0-9a-f]{32}', msg: '32 حرفاً من 0-9 و a-f', hint: 'من لوحة Cloudflare: R2 ← Account details' })}
             ${BT.f.input({ name: 'bucket', label: 'اسم الحاوية (Bucket)', value: cfg.bucket || '', pattern: '[a-z0-9][a-z0-9-]{1,61}[a-z0-9]', msg: 'حروف إنجليزية صغيرة وأرقام وشرطة' })}
@@ -75,7 +80,7 @@
             ${secretField(c, 'secret_access_key')}
             ${BT.f.select({ name: 'jurisdiction', label: 'نطاق الحاوية (Jurisdiction)', value: cfg.jurisdiction, placeholder: false, options: [{ v: 'default', t: 'افتراضي' }, { v: 'eu', t: 'الاتحاد الأوروبي (EU)' }, { v: 'fedramp', t: 'FedRAMP' }] })}
           </div>
-          <div class="banner info fs-sm">${icon('info', 16)}<div>أنشئ مفتاح R2 API Token بصلاحية <b>Object Read &amp; Write</b> على هذه الحاوية فقط، واترك الحاوية <b>خاصة</b> (بلا رابط عام). عند التشغيل تُكتب الملفات الجديدة في R2، وتُنسخ الملفات السابقة إليها في الخلفية (تبقى نسختها على الخادم حتى يحذفها المشغّل).${files.r2 ? h` <b>في الحاوية ${fmt.int(files.r2)} ملفاً:</b> يمكن استبدال المفتاح بمفتاح جديد للحاوية نفسها، ولا يمكن تغيير الحاوية.` : ''}</div></div>
+          <div class="banner info fs-sm">${icon('info', 16)}<div>أنشئ مفتاح R2 API Token بصلاحية <b>Object Read &amp; Write</b> على هذه الحاوية فقط، واترك الحاوية <b>خاصة</b> (بلا رابط عام). مع R2 تُنسخ الملفات السابقة إليها في الخلفية، ومع «الاتنين» تُنسخ كمان ملفات R2 إلى الخادم؛ ولو رجعت لـ«خادم النظام» وR2 لسه مضبوطة، ملفاتها ترجع للخادم. مفيش ملف بيتمسح من أي مكان.${files.r2 ? h` <b>في الحاوية ${fmt.int(files.r2)} ملفاً:</b> يمكن استبدال المفتاح بمفتاح جديد للحاوية نفسها، ولا يمكن تغيير الحاوية.` : ''}</div></div>
           <div class="row gap-8"><button type="submit" class="btn btn-sm btn-primary">${icon('check', 14)} حفظ</button><button type="button" class="btn btn-sm btn-secondary" data-check>${icon('refresh-cw', 14)} اختبار الاتصال</button></div>
         </div>
       </div></form>`;
@@ -286,7 +291,7 @@
         var kind = form.getAttribute('data-kind'), cur = by[kind];
         var r2box = form.querySelector('[data-r2]');
         BT.$$('[name=account_id],[name=bucket],[name=access_key_id],[name=url],[name=instance],[name=app_id],[name=sender_id],[name=client_api_key]', form).forEach(function (i) { i.dir = 'ltr'; });
-        function toggle() { if (r2box) r2box.style.display = (BT.form.values(form).provider === 'r2' || cur.config.account_id) ? '' : 'none'; }
+        function toggle() { if (r2box) r2box.style.display = (BT.form.values(form).provider !== 'local' || cur.config.account_id) ? '' : 'none'; }
         form.addEventListener('change', toggle); toggle();
         form.addEventListener('submit', function (e) {
           e.preventDefault();
@@ -302,6 +307,16 @@
             BT.toast(r.check_ok ? 'الاتصال يعمل' : 'الاتصال فشل', { type: r.check_ok ? undefined : 'error', sub: r.check_error || undefined, timeout: 8000 });
             draw();
           }, function (err) { b.classList.remove('is-loading'); BT.toast(api.message(err), { type: 'error', timeout: 8000 }); });
+        };
+        var syncBtn = form.querySelector('[data-sync]');
+        if (syncBtn) syncBtn.onclick = function () {
+          syncBtn.classList.add('is-loading');
+          api.post('/integrations/connections/storage/sync').then(function (r) {
+            syncBtn.classList.remove('is-loading');
+            var c = r.status.copied || {}, n = (c.to_r2 || 0) + (c.to_disk || 0);
+            BT.toast(n ? 'اتنسخ ' + fmt.int(n) + ' ملف' : 'مفيش ملفات اتنسخت', { sub: n ? undefined : 'لو فيه ملفات باقية، اتأكد إن R2 شغالة من «اختبار الاتصال»', timeout: 7000 });
+            draw();
+          }, function (err) { syncBtn.classList.remove('is-loading'); BT.toast(api.message(err), { type: 'error', timeout: 8000 }); });
         };
         BT.$$('[data-clear]', form).forEach(function (b) {
           b.onclick = function () {

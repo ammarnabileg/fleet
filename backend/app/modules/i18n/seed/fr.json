@@ -1274,7 +1274,8 @@
       "config_file_invalid": "Le fichier n'est pas un fichier de configuration valide de ce système",
       "config_version_newer": "Le fichier provient d'une version plus récente (format {version}) ; ce système lit jusqu'au format {supported} : mettez-le à jour d'abord",
       "config_section_unknown": "Sections inconnues : {sections}",
-      "config_owner_only": "L'importation, et l'export des secrets, sont réservés à un utilisateur ayant toutes les permissions"
+      "config_owner_only": "L'importation, et l'export des secrets, sont réservés à un utilisateur ayant toutes les permissions",
+      "storage_sync_off": "La copie des fichiers dans ce sens est désactivée pour le stockage choisi."
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",

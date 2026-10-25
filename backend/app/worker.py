@@ -58,7 +58,7 @@ celery.conf.beat_schedule = {
     "approval-escalation": {"task": "approvals.escalate", "schedule": crontab(minute="*/15")},
     "broadcasts": {"task": "notifications.broadcasts", "schedule": 15.0},  # ركن الإشعارات (WhatsApp at its pace)
     "driver-push": {"task": "notifications.push", "schedule": 30.0},  # does nothing until push is switched on
-    "files-to-r2": {"task": "files.copy_to_r2", "schedule": 600.0},  # does nothing until R2 is switched on
+    "files-sync": {"task": "files.sync", "schedule": 600.0},  # copies the files each way the storage choice asks
     "app-github-release": {"task": "app_updates.import_github", "schedule": crontab(minute=35)},  # when switched on
     "message-log": {"task": "integrations.purge_message_log", "schedule": crontab(hour=2, minute=40)},  # 90 days
 }

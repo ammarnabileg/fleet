@@ -15,7 +15,8 @@ MANAGE = "integrations.manage"
 
 def _status(db: Session, kind: str) -> dict:
     if kind == "storage":
-        return {"files": files.counts(db)}  # files on the disk are copied to R2 in the background once it is on
+        # where the files' copies are, and what the background copies still have to do for the storage chosen
+        return {"files": files.counts(db), "sync": list(files.directions(db))}
     if kind == "push":
         messages = service.messages_summary(db, "push")
         read = notifications.notices_read(db, [m["ref"] for m in messages["recent"]])
@@ -66,3 +67,13 @@ def check_connection(kind: str, _: Principal = Depends(require_permission(MANAGE
     """Tries the saved settings now and records the answer."""
     service.check(db, kind)
     return service.connection_out(db, kind, _status(db, kind))
+
+
+@router.post("/integrations/connections/storage/sync", response_model=schemas.ConnectionOut)
+def sync_files(_: Principal = Depends(require_permission(MANAGE)), db: Session = Depends(get_session)):
+    """Copies the files now, each way the storage chosen asks, for up to 20 seconds (the background job does the
+    rest every 10 minutes); answers how many were copied and what is left."""
+    copied = files.run_sync(db, 20)
+    out = service.connection_out(db, "storage", _status(db, "storage"))
+    out["status"]["copied"] = copied
+    return out

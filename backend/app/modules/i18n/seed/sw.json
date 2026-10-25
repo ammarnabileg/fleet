@@ -1274,7 +1274,8 @@
       "config_file_invalid": "Faili si faili sahihi ya mipangilio ya mfumo huu",
       "config_version_newer": "Faili ni la toleo jipya zaidi (muundo {version}); mfumo huu unasoma hadi muundo {supported}: usasishe kwanza",
       "config_section_unknown": "Sehemu zisizojulikana: {sections}",
-      "config_owner_only": "Kuingiza, na kuhamisha siri, ni kwa mtumiaji mwenye ruhusa zote tu"
+      "config_owner_only": "Kuingiza, na kuhamisha siri, ni kwa mtumiaji mwenye ruhusa zote tu",
+      "storage_sync_off": "Kunakili faili kwa upande huu kumezimwa kwa hifadhi iliyochaguliwa."
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",

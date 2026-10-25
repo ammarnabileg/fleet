@@ -163,9 +163,18 @@ def test_switching_on_tries_the_service_first_and_saves_nothing_when_it_fails(ad
     assert admin_client.put(f"{C}/ftp", json=storage_body()).json()["code"] == "unknown_connection"
 
 
-def test_files_go_to_r2_once_it_is_on_and_old_ones_stay_readable_until_copied(admin_client, company, r2, db):
+def files_status(client) -> dict:
+    return connection(client, "storage")["status"]["files"]
+
+
+def disk_path(data: bytes):
     from app.core.config import get_settings
     from app.core.storage import LocalStorage
+
+    return LocalStorage(get_settings().files_dir).path(hashlib.sha256(data).hexdigest())
+
+
+def test_files_go_to_r2_once_it_is_on_and_old_ones_stay_readable_until_copied(admin_client, company, r2, db):
     from app.modules.files import service as files
 
     before = jpeg()
@@ -176,24 +185,118 @@ def test_files_go_to_r2_once_it_is_on_and_old_ones_stay_readable_until_copied(ad
     new = fine_with_file(admin_client, company, after)
     sha = hashlib.sha256(after).hexdigest()
     assert r2.objects[f"files/{sha}"] == (after, "image/jpeg")
+    assert not disk_path(after).exists()  # R2 alone: no disk copy
     assert hashlib.sha256(before).hexdigest() not in "".join(r2.objects)
-    assert connection(admin_client, "storage")["status"]["files"] == {"local": 1, "r2": 1}
+    assert files_status(admin_client).items() >= {"local": 1, "r2": 1, "to_r2": 1, "to_disk": 1}.items()
+    assert connection(admin_client, "storage")["status"]["sync"] == ["to_r2"]
     for f, data in ((old, before), (new, after)):
         r = admin_client.get(f"/api/v1/fines/{f['id']}/file")
         assert r.status_code == 200 and r.content == data, r.text
         assert r.headers["content-type"] == "image/jpeg" and r.headers["cache-control"].startswith("private")
 
-    # the background copy moves the old file; it is then read from R2 even if the disk copy is gone
-    out = files.copy_to_r2(db, after="")
-    assert out == {"copied": 1, "missing": [], "last": None}
-    LocalStorage(get_settings().files_dir).path(hashlib.sha256(before).hexdigest()).unlink()
+    # the background copy puts the old file in R2 too; it is then read from R2 even if the disk copy is gone
+    assert files.sync(db, "to_r2") == {"copied": 1, "missing": [], "last": None}
+    with pytest.raises(Exception, match="storage_sync_off"):
+        files.sync(db, "to_disk")  # R2 alone: nothing is copied back to the disk
+    disk_path(before).unlink()
     assert admin_client.get(f"/api/v1/fines/{old['id']}/file").content == before
-    assert connection(admin_client, "storage")["status"]["files"] == {"local": 0, "r2": 2}
+    assert files_status(admin_client).items() >= {"r2": 2, "to_r2": 0}.items()
 
     # the same file uploaded again is not written twice
     r2.objects.clear()
     upload(admin_client, after)
     assert not r2.objects
+
+
+def test_both_keeps_a_copy_on_the_disk_and_in_r2_and_copies_each_way(admin_client, company, r2, db):
+    """The office's choice "both": every new file is written to the disk and to R2; the files written before (on the
+    disk alone, or in R2 alone) are copied the other way; a file is read from wherever a copy is."""
+    from app.modules.files import service as files
+
+    on_disk = jpeg()
+    fine_disk = fine_with_file(admin_client, company, on_disk)  # the disk alone (R2 off)
+    assert admin_client.put(f"{C}/storage", json=storage_body()).status_code == 200
+    in_r2 = jpeg()
+    fine_r2 = fine_with_file(admin_client, company, in_r2)  # R2 alone
+    r = admin_client.put(f"{C}/storage", json={"version": 1, "config": storage_body()["config"] | {"provider": "both"}})
+    assert r.status_code == 200 and r.json()["config"]["provider"] == "both", r.text
+    assert r.json()["status"]["sync"] == ["to_r2", "to_disk"]
+
+    both = jpeg()
+    fine_with_file(admin_client, company, both)
+    assert disk_path(both).read_bytes() == both
+    assert r2.objects[f"files/{hashlib.sha256(both).hexdigest()}"][0] == both
+    assert files_status(admin_client) == {"total": 3, "local": 2, "r2": 2, "to_r2": 1, "to_disk": 1}
+
+    # "sync now": each way at once
+    r = admin_client.post(f"{C}/storage/sync")
+    assert r.status_code == 200, r.text
+    assert r.json()["status"]["copied"] == {"to_r2": 1, "to_disk": 1}
+    assert r.json()["status"]["files"] == {"total": 3, "local": 3, "r2": 3, "to_r2": 0, "to_disk": 0}
+    assert disk_path(in_r2).read_bytes() == in_r2
+    assert r2.objects[f"files/{hashlib.sha256(on_disk).hexdigest()}"][0] == on_disk
+
+    # either copy alone is enough to read
+    r2.down = True
+    assert admin_client.get(f"/api/v1/fines/{fine_r2['id']}/file").content == in_r2
+    r2.down = False
+    disk_path(on_disk).unlink()
+    assert admin_client.get(f"/api/v1/fines/{fine_disk['id']}/file").content == on_disk
+
+    # nothing left to copy: another sync copies nothing
+    assert admin_client.post(f"{C}/storage/sync").json()["status"]["copied"] == {"to_r2": 0, "to_disk": 0}
+    assert files.sync(db, "to_disk", after="") == {"copied": 0, "missing": [], "last": None}
+
+
+def test_both_with_r2_down_keeps_the_upload_on_the_disk_and_copies_it_later(admin_client, company, r2):
+    assert admin_client.put(f"{C}/storage", json=storage_body(provider="both")).status_code == 200
+    r2.down = True
+    data = jpeg()
+    f = fine_with_file(admin_client, company, data)  # accepted: the disk holds it
+    assert admin_client.get(f"/api/v1/fines/{f['id']}/file").content == data
+    assert files_status(admin_client).items() >= {"to_r2": 1}.items()
+    assert admin_client.post(f"{C}/storage/sync").json()["status"]["copied"] == {"to_r2": 0, "to_disk": 0}
+    r2.down = False
+    assert admin_client.post(f"{C}/storage/sync").json()["status"]["copied"]["to_r2"] == 1
+    assert r2.objects[f"files/{hashlib.sha256(data).hexdigest()}"][0] == data
+
+
+def test_back_to_the_disk_copies_the_r2_files_home_and_a_copy_already_there_is_only_recorded(
+    admin_client, company, r2, db
+):
+    """Choosing the disk again while R2 is set up: the files in R2 alone are copied back to the disk (none is
+    deleted from R2), so the server reads them without R2. A disk copy an operator kept is not downloaded again."""
+    from app.modules.files import service as files
+
+    assert admin_client.put(f"{C}/storage", json=storage_body()).status_code == 200
+    first, second = jpeg(), jpeg()
+    f1 = fine_with_file(admin_client, company, first)
+    fine_with_file(admin_client, company, second)
+    kept = disk_path(second)
+    kept.parent.mkdir(parents=True, exist_ok=True)
+    kept.write_bytes(second)  # the operator's copy
+    r = admin_client.put(
+        f"{C}/storage", json={"version": 1, "config": storage_body()["config"] | {"provider": "local"}}
+    )
+    assert r.status_code == 200 and r.json()["status"]["sync"] == ["to_disk"], r.text
+
+    gets = []
+    real = r2.get_object
+    r2.get_object = lambda **kw: gets.append(kw["Key"]) or real(**kw)
+    assert files.sync(db, "to_disk") == {"copied": 2, "missing": [], "last": None}
+    assert gets == [f"files/{hashlib.sha256(first).hexdigest()}"]  # only the file the disk lacked was downloaded
+    assert len([k for k in r2.objects if not k.endswith(".connection-test")]) == 2  # nothing deleted from R2
+    r2.down = True
+    assert admin_client.get(f"/api/v1/fines/{f1['id']}/file").content == first  # R2 no longer needed to read
+
+
+def test_a_file_on_no_reachable_copy_is_a_clear_error(admin_client, company, db):
+    """A second server on the same database, before a disk-only file reached R2: a clear 503, never a crash."""
+    data = jpeg()
+    f = fine_with_file(admin_client, company, data)
+    disk_path(data).unlink()
+    r = admin_client.get(f"/api/v1/fines/{f['id']}/file")
+    assert r.status_code == 503 and r.json()["code"] == "storage_unavailable", r.text
 
 
 def test_the_bucket_holding_files_cannot_be_switched_away_but_its_key_can_be_replaced(
@@ -216,7 +319,7 @@ def test_the_bucket_holding_files_cannot_be_switched_away_but_its_key_can_be_rep
     )
     assert r.status_code == 200, r.text
     upload(admin_client)
-    assert connection(admin_client, "storage")["status"]["files"] == {"local": 1, "r2": 1}
+    assert files_status(admin_client).items() >= {"local": 1, "r2": 1}.items()
 
     # settings lost (a restore, a manual delete): the same bucket can be entered again
     owner_db.execute(text("DELETE FROM integrations.connections"))

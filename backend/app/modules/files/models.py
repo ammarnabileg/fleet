@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, Index, Integer, Text, func, text
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, Index, Integer, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -18,8 +18,9 @@ class StoredFile(Base):
             name="content_type",
         ),
         CheckConstraint("source IN ('camera', 'upload')", name="source"),
-        CheckConstraint("storage IN ('local', 'r2')", name="storage"),
-        Index("files_storage_idx", "storage"),
+        CheckConstraint("on_disk OR in_r2", name="copy"),
+        Index("files_to_r2_idx", "sha256", postgresql_where=text("on_disk AND NOT in_r2")),
+        Index("files_to_disk_idx", "sha256", postgresql_where=text("in_r2 AND NOT on_disk")),
         {"schema": "files"},
     )
 
@@ -30,4 +31,6 @@ class StoredFile(Base):
     uploaded_by_user: Mapped[int | None] = mapped_column(BigInteger)
     uploaded_by_device: Mapped[int | None] = mapped_column(BigInteger)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    storage: Mapped[str] = mapped_column(Text, server_default=text("'local'"))  # where the bytes are
+    # where its copies are: the disk of the server that wrote or fetched it, the R2 bucket (shared by every server)
+    on_disk: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    in_r2: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))

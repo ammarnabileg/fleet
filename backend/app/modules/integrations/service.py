@@ -115,7 +115,7 @@ def load(db: Session, kind: str) -> Loaded:
 
 
 def _on(kind: str, config: BaseModel) -> bool:
-    return config.provider == "r2" if kind == "storage" else config.enabled
+    return config.provider in ("r2", "both") if kind == "storage" else config.enabled
 
 
 def _missing(kind: str, loaded: Loaded, *, always: bool = False) -> list[str]:
@@ -333,12 +333,21 @@ def _cached_build(kind: str, loaded: Loaded, build):
     return _built[key]
 
 
-def storage(db: Session, name: str | None = None) -> LocalStorage | R2Storage:
-    """name=None: where a new file is written. "local" or "r2": where an existing file is read from."""
-    loaded = load(db, "storage")
-    name = name or loaded.config.provider
+def storage_mode(db: Session) -> str:
+    """Where new files go, as chosen in the control panel: "local" (the server's disk), "r2", or "both"."""
+    return load(db, "storage").config.provider
+
+
+def r2_ready(db: Session) -> bool:
+    """R2 is set up (whatever new files use): its files can be read, and copied back to the disk."""
+    return not _missing("storage", load(db, "storage"), always=True)
+
+
+def storage(db: Session, name: str) -> LocalStorage | R2Storage:
+    """The disk ("local") or the R2 bucket ("r2"), to write or read a file's copy there."""
     if name == "local":
         return LocalStorage(get_settings().files_dir)
+    loaded = load(db, "storage")
     if _missing("storage", loaded, always=True):
         raise StorageError("R2 is not set up in the control panel")
     return _cached_build("storage", loaded, _r2)

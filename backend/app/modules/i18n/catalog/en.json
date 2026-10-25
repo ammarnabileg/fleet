@@ -701,7 +701,8 @@
     "config_file_invalid": "The file is not a valid configuration file of this system",
     "config_version_newer": "The file comes from a newer version (format {version}); this system reads up to format {supported}: update it first",
     "config_section_unknown": "Unknown sections: {sections}",
-    "config_owner_only": "Importing, and exporting secrets, is for a user with all permissions only"
+    "config_owner_only": "Importing, and exporting secrets, is for a user with all permissions only",
+    "storage_sync_off": "Copying files this way is off for the storage chosen."
   },
   "settings": {
     "branding": "Branding",

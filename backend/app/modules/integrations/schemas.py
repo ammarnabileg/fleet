@@ -23,9 +23,10 @@ Instance = _text(r"^[A-Za-z0-9_.-]{1,100}$")
 
 
 class StorageConfig(_Config):
-    """Where new files are written. R2: a private bucket and an R2 API token (Object Read & Write on that bucket)."""
+    """Where new files are written: the server's disk, R2, or both (a copy in each). R2: a private bucket and an R2
+    API token (Object Read & Write on that bucket)."""
 
-    provider: Literal["local", "r2"] = "local"
+    provider: Literal["local", "r2", "both"] = "local"
     account_id: AccountId | None = None
     bucket: Bucket | None = None
     access_key_id: AccessKeyId | None = None

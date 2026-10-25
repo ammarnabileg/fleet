@@ -4,12 +4,15 @@ The type is decided by the file's first bytes, never by its name or the declared
 download endpoint of their own: the module that references a file (a document, an odometer reading) serves it
 after checking its own permission and company scope, through response().
 
-The bytes go to the storage chosen in the control panel (the server's disk or a Cloudflare R2 bucket); each row
-records where its file is, so a file stays readable after the storage is switched. copy_to_r2 moves the files
-written before the switch.
+The bytes go where the control panel says (the server's disk, a Cloudflare R2 bucket, or both); each row records
+which copies exist, and a file is read from wherever a copy is: the disk first, else R2. sync() copies the files
+each way the choice asks (to R2, to the disk, or both), so the choice can be changed at any time, and a second
+server on the same database reads the files through R2.
 """
 
 import hashlib
+import logging
+import time
 from dataclasses import dataclass
 
 from fastapi.responses import FileResponse, StreamingResponse
@@ -19,9 +22,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.errors import AppError
-from app.core.storage import StorageError
+from app.core.storage import LocalStorage, StorageError
 from app.modules.files.models import StoredFile
 from app.modules.integrations import service as integrations
+
+log = logging.getLogger("fleet.files")
 
 SIGNATURES = (
     (b"\xff\xd8\xff", "image/jpeg"),
@@ -40,7 +45,8 @@ class FileInfo:
     source: str
     uploaded_by_user: int | None
     uploaded_by_device: int | None
-    storage: str = "local"
+    on_disk: bool = True
+    in_r2: bool = False
 
 
 def read_upload(file, max_mb: int | None = None) -> bytes:
@@ -80,11 +86,22 @@ def store(
     sha = hashlib.sha256(data).hexdigest()
     if db.get(StoredFile, sha) is not None:
         return get(db, sha)  # the same file again: its bytes are already stored
-    backend = _backend(db)
-    try:
-        backend.put(sha, data, ctype)
-    except StorageError as exc:
-        raise AppError(503, "storage_unavailable") from exc
+    where = integrations.storage_mode(db)
+    on_disk = in_r2 = False
+    if where in ("local", "both"):
+        try:
+            _disk().put(sha, data, ctype)
+        except OSError as exc:
+            raise AppError(503, "storage_unavailable") from exc
+        on_disk = True
+    if where in ("r2", "both"):
+        try:
+            _backend(db, "r2").put(sha, data, ctype)
+            in_r2 = True
+        except (StorageError, AppError) as exc:
+            if not on_disk:
+                raise AppError(503, "storage_unavailable") from exc
+            log.warning("file %s kept on the disk only, R2 refused it: %s", sha, exc)  # the next sync copies it
     db.execute(
         insert(StoredFile)
         .values(
@@ -94,7 +111,8 @@ def store(
             source=source,
             uploaded_by_user=uploaded_by_user,
             uploaded_by_device=uploaded_by_device,
-            storage=backend.name,
+            on_disk=on_disk,
+            in_r2=in_r2,
         )
         .on_conflict_do_nothing(index_elements=["sha256"])
     )
@@ -112,30 +130,41 @@ def get(db: Session, sha256: str) -> FileInfo:
         row.source,
         row.uploaded_by_user,
         row.uploaded_by_device,
-        row.storage,
+        row.on_disk,
+        row.in_r2,
     )
 
 
-def _backend(db: Session, name: str | None = None):
+def _disk() -> LocalStorage:
+    return LocalStorage(get_settings().files_dir)
+
+
+def _backend(db: Session, name: str):
     try:
         return integrations.storage(db, name)
     except StorageError as exc:
         raise AppError(503, "storage_unavailable") from exc
 
 
+def _on_this_disk(info: FileInfo) -> bool:
+    """A copy of the whole file on this server's disk (whatever the row says: another server may have written it)."""
+    return _disk().size(info.sha256) == info.size_bytes
+
+
 HEADERS = {"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"}
 
 
 def response(db: Session, info: FileInfo, *, filename: str | None = None, headers: dict | None = None):
-    """The file's bytes for a download endpoint (after the caller checked who may see it): from the disk, or
-    streamed from R2 through the server, so the bucket stays private and every read is checked here. From the disk
-    a Range request gets its part (206), so a large download can resume."""
-    backend = _backend(db, info.storage)
+    """The file's bytes for a download endpoint (after the caller checked who may see it): from this server's disk
+    when a copy is there, else streamed from R2 through the server, so the bucket stays private and every read is
+    checked here. From the disk a Range request gets its part (206), so a large download can resume."""
     headers = HEADERS | (headers or {})
-    if info.storage == "local":
-        return FileResponse(backend.path(info.sha256), media_type=info.content_type, headers=headers, filename=filename)
+    if _on_this_disk(info):
+        return FileResponse(_disk().path(info.sha256), media_type=info.content_type, headers=headers, filename=filename)
+    if not info.in_r2:
+        raise AppError(503, "storage_unavailable")  # on another server's disk only, not copied to R2 yet
     try:
-        blob = backend.open(info.sha256)
+        blob = _backend(db, "r2").open(info.sha256)
     except StorageError as exc:
         raise AppError(503, "storage_unavailable") from exc
     headers = headers | {"Content-Length": str(blob.size)}
@@ -146,46 +175,94 @@ def response(db: Session, info: FileInfo, *, filename: str | None = None, header
 
 def read(db: Session, info: FileInfo) -> bytes:
     try:
-        return _backend(db, info.storage).read(info.sha256)
+        if _on_this_disk(info):
+            return _disk().read(info.sha256)
+        if info.in_r2:
+            return _backend(db, "r2").read(info.sha256)
     except (StorageError, OSError) as exc:
         raise AppError(503, "storage_unavailable") from exc
+    raise AppError(503, "storage_unavailable")
 
 
 def counts(db: Session) -> dict[str, int]:
-    """How many files are on the disk and in R2."""
-    rows = db.execute(select(StoredFile.storage, func.count()).group_by(StoredFile.storage))
-    return {"local": 0, "r2": 0} | {storage: n for storage, n in rows}
+    """How many files have a copy on the disk, in R2, and how many each background copy still has to do."""
+    total, disk, r2, to_r2, to_disk = db.execute(
+        select(
+            func.count(),
+            func.count().filter(StoredFile.on_disk),
+            func.count().filter(StoredFile.in_r2),
+            func.count().filter(StoredFile.on_disk, ~StoredFile.in_r2),
+            func.count().filter(StoredFile.in_r2, ~StoredFile.on_disk),
+        )
+    ).one()
+    return {"total": total, "local": disk, "r2": r2, "to_r2": to_r2, "to_disk": to_disk}
 
 
-def copy_to_r2(db: Session, *, after: str = "", limit: int = 200) -> dict:
-    """Copies a batch of the files written to the disk before R2 was switched on (in sha256 order, after `after`)
-    and records each one as in R2 once the bucket holds it with the right size. The disk copies are left for the
-    operator to remove. Returns how many were copied, the files missing from the disk (left as they are), the last
-    file looked at (the next batch starts after it; None when this was the last batch)."""
-    if integrations.load(db, "storage").config.provider != "r2":
-        raise AppError(409, "storage_not_r2")
-    local, remote = _backend(db, "local"), _backend(db, "r2")
-    copied, missing = 0, []
+def directions(db: Session) -> tuple[str, ...]:
+    """Which ways the files are copied for the storage chosen: R2 alone, every file to R2; the disk alone, every file
+    back to the disk (while R2 is still set up); both, each way."""
+    where = integrations.storage_mode(db)
+    if where == "r2":
+        return ("to_r2",)
+    if not integrations.r2_ready(db):
+        return ()
+    return ("to_disk",) if where == "local" else ("to_r2", "to_disk")
+
+
+def sync(db: Session, direction: str, *, after: str = "", limit: int = 200) -> dict:
+    """Copies a batch of files one way (in sha256 order, after `after`) and records each copy once it holds the whole
+    file. Nothing is ever deleted: a file copied keeps its other copy. Returns how many were copied, the files with
+    no copy to read from (left as they are), and the last file looked at (the next batch starts after it; None when
+    this was the last batch)."""
+    if direction not in directions(db):
+        raise AppError(409, "storage_sync_off", direction=direction)
+    disk, remote = _disk(), _backend(db, "r2")
+    to_r2 = direction == "to_r2"
+    pending = (StoredFile.on_disk & ~StoredFile.in_r2) if to_r2 else (StoredFile.in_r2 & ~StoredFile.on_disk)
     rows = db.scalars(
-        select(StoredFile)
-        .where(StoredFile.storage == "local", StoredFile.sha256 > after)
-        .order_by(StoredFile.sha256)
-        .limit(limit)
+        select(StoredFile).where(pending, StoredFile.sha256 > after).order_by(StoredFile.sha256).limit(limit)
     ).all()
+    copied, missing = 0, []
+    source, target = (disk, remote) if to_r2 else (remote, disk)
     for row in rows:
-        if local.size(row.sha256) != row.size_bytes:
-            missing.append(row.sha256)
-            continue
         try:
-            if remote.size(row.sha256) != row.size_bytes:
-                remote.put(row.sha256, local.read(row.sha256), row.content_type)
-            if remote.size(row.sha256) != row.size_bytes:
-                raise StorageError("size mismatch after upload")
-        except StorageError as exc:
+            if target.size(row.sha256) != row.size_bytes:  # already there (an operator's copy): only recorded
+                if source.size(row.sha256) != row.size_bytes:
+                    missing.append(row.sha256)
+                    continue
+                target.put(row.sha256, source.read(row.sha256), row.content_type)
+            if target.size(row.sha256) != row.size_bytes:
+                raise StorageError("size mismatch after copying")
+        except (StorageError, OSError) as exc:
             db.commit()
             raise AppError(503, "storage_unavailable") from exc
-        row.storage = "r2"
+        if to_r2:
+            row.in_r2 = True
+        else:
+            row.on_disk = True
         copied += 1
         db.commit()  # one file at a time: an interruption keeps what was done
     last = rows[-1].sha256 if len(rows) == limit else None
     return {"copied": copied, "missing": missing, "last": last}
+
+
+def run_sync(db, seconds: float) -> dict[str, int]:
+    """Copies the files each way the chosen storage asks (to R2, back to the disk, or both), for at most `seconds`;
+    what is left waits for the next run. Returns how many were copied each way."""
+    copied: dict[str, int] = {}
+    deadline = time.monotonic() + seconds
+    for direction in directions(db):
+        after, copied[direction] = "", 0
+        while time.monotonic() < deadline:
+            try:
+                out = sync(db, direction, after=after)
+            except AppError as exc:
+                log.warning("copying files %s stopped: %s", direction, exc.code)
+                break
+            copied[direction] += out["copied"]
+            if out["missing"]:
+                log.warning("files with no copy to read from, left as they are: %s", out["missing"])
+            if out["last"] is None:
+                break
+            after = out["last"]
+    return copied

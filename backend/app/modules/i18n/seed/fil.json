@@ -1274,7 +1274,8 @@
       "config_file_invalid": "Ang file ay hindi wastong file ng mga setting ng sistemang ito",
       "config_version_newer": "Galing ang file sa mas bagong bersyon (format {version}); hanggang format {supported} lang ang nababasa ng sistemang ito: i-update muna ito",
       "config_section_unknown": "Mga hindi kilalang seksyon: {sections}",
-      "config_owner_only": "Ang pag-import, at pag-export ng mga lihim, ay para lang sa user na may lahat ng pahintulot"
+      "config_owner_only": "Ang pag-import, at pag-export ng mga lihim, ay para lang sa user na may lahat ng pahintulot",
+      "storage_sync_off": "Naka-off ang pagkopya ng mga file sa direksyong ito para sa napiling storage."
     },
     "finance_source": {
       "cash_journal": "Cash ledger: {kind} {reason}",
