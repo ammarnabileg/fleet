@@ -99,11 +99,18 @@ void main() {
       final admin = await signedInAdmin();
       final n = DateTime.now().millisecondsSinceEpoch % 10000000;
       final company = await companyId(admin);
+      // on a core platform already, as the office sets it: otherwise the app first asks which company he works for
+      final platforms = await admin.call('GET', '/payroll/platforms') as List;
       final driver = await admin.call('POST', '/employees', {
         'employee_number': 'C$n',
         'name': {'ar': 'سائق العقد', 'en': 'Contract Driver'},
         'company_id': company,
         'is_driver': true,
+        // the one asking orders and cash (the report below sends both, with the screenshot)
+        'platform_id': (platforms.cast<Map>().firstWhere(
+          (p) => (p['daily_fields'] as List).contains('cash'),
+          orElse: () => platforms.first as Map,
+        ))['id'],
         'phone': '+9659${n.toString().padLeft(7, '0')}',
       });
       await admin.call('PUT', '/employees/${driver['id']}/app-access', {'app_access': 'active'});
