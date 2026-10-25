@@ -42,6 +42,7 @@ def rules() -> dict[str, tuple[int, int]]:
         "public_texts": (s.rate_public_texts_per_15min, 15),  # the app's strings before sign-in
         "app_update": (s.rate_app_update_per_15min, 15),  # the app's update check and download (resumed in parts)
         "app_download": (s.rate_app_download_per_15min, 15),  # the public download link, before any sign-in
+        "contact": (s.rate_contact_per_hour, 60),  # the public site's contact form
     }
 
 

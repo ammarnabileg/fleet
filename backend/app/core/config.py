@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     rate_public_texts_per_15min: int = 120
     rate_app_update_per_15min: int = 120
     rate_app_download_per_15min: int = 20  # the public download link (/app/download): a whole APK each time
+    rate_contact_per_hour: int = 5  # the public site's contact form, per address
     rate_limit_exempt: str = ""  # addresses or networks never limited, comma separated (the office, on sign-up day)
 
     files_dir: str = "/data/files"

@@ -28,6 +28,7 @@ KINDS: dict[str, Kind] = {
     "otp_delivery_failed": Kind("warning", "devices.manage", ("driver",)),
     "messaging_down": Kind("critical", "devices.manage", ("state",)),
     "mock_location": Kind("critical", "tracking.live", ("driver",)),
+    "site_message": Kind("info", "settings.view", ("name",)),
     "signal_lost": Kind("warning", "tracking.live", ("driver", "plate", "minutes")),
     "location_permission_off": Kind("warning", "tracking.live", ("driver", "plate")),
     "gps_off": Kind("warning", "tracking.live", ("driver", "plate")),

@@ -239,6 +239,65 @@ class BrandingSettings(_Section):
     logo_file: str | None = Field(None, max_length=64)
 
 
+SiteText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]
+SiteLine = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]
+
+
+class SiteService(_Section):
+    title: dict[str, SiteLine]
+    text: dict[str, SiteText] = {}
+
+
+class SiteSettings(_Section):
+    """The company's public site (the main domain): what it says, in each language, edited from the panel."""
+
+    enabled: bool = True
+    company_name: dict[str, SiteLine] = {"ar": "اسم الشركة", "en": "Company name"}
+    tagline: dict[str, SiteLine] = {
+        "ar": "خدمات توصيل وإدارة أسطول في الكويت",
+        "en": "Delivery and fleet services in Kuwait",
+    }
+    about: dict[str, SiteText] = {
+        "ar": "نوفّر سائقين وسيارات لشركات التوصيل في الكويت، بإدارة يومية للأسطول وتتبع مباشر ومتابعة لكل رحلة.",
+        "en": "We provide drivers and vehicles to delivery companies in Kuwait, with daily fleet management, live "
+        "tracking and follow-up on every trip.",
+    }
+    services: list[SiteService] = Field(
+        default_factory=lambda: [
+            SiteService(
+                title={"ar": "سائقون للتوصيل", "en": "Delivery drivers"},
+                text={
+                    "ar": "سائقون مدرّبون يعملون مع أكبر منصات التوصيل.",
+                    "en": "Trained drivers working with the leading delivery platforms.",
+                },
+            ),
+            SiteService(
+                title={"ar": "إدارة الأسطول", "en": "Fleet management"},
+                text={
+                    "ar": "صيانة وتتبع ومتابعة يومية لكل سيارة.",
+                    "en": "Maintenance, tracking and daily follow-up for every vehicle.",
+                },
+            ),
+            SiteService(
+                title={"ar": "تطبيق السائق", "en": "Driver app"},
+                text={
+                    "ar": "تطبيق واحد للسائق: بداية اليوم، التقارير، الكاش، والراتب.",
+                    "en": "One app for the driver: the day, reports, cash and pay.",
+                },
+            ),
+        ],
+        max_length=12,
+    )
+    phone: SiteLine = ""
+    whatsapp: SiteLine = ""
+    email: SiteLine = ""
+    address: dict[str, SiteLine] = {"ar": "الكويت", "en": "Kuwait"}
+    map_url: Annotated[str, StringConstraints(max_length=500, pattern=r"^(https://\S+)?$")] = ""
+    show_contact_form: bool = True
+    show_download: bool = True
+    logo: str | None = Field(None, pattern=r"^[0-9a-f]{64}$")
+
+
 class BrandingOut(BaseModel):
     display_name: str
     primary_color: str
@@ -261,6 +320,7 @@ SECTIONS: dict[str, type[_Section]] = {
     "finance": FinanceSettings,
     "leaves": LeaveSettings,
     "branding": BrandingSettings,
+    "site": SiteSettings,
 }
 
 

@@ -33,6 +33,7 @@ from app.modules.notifications.broadcasts_api import router as broadcasts_router
 from app.modules.onboarding.api import router as onboarding_router
 from app.modules.org.api import router as org_router
 from app.modules.org.print_api import router as print_router
+from app.modules.org.site_api import router as site_router
 from app.modules.payroll.api import router as payroll_router
 from app.modules.payroll.designer_api import router as payroll_rules_router
 from app.modules.payroll.hub_api import router as payroll_hub_router
@@ -76,6 +77,7 @@ def create_app() -> FastAPI:
         identity_router,
         org_router,
         print_router,
+        site_router,
         app_updates_router,
         app_download_router,
         i18n_router,

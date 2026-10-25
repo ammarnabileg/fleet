@@ -1275,7 +1275,10 @@
       "config_version_newer": "Galing ang file sa mas bagong bersyon (format {version}); hanggang format {supported} lang ang nababasa ng sistemang ito: i-update muna ito",
       "config_section_unknown": "Mga hindi kilalang seksyon: {sections}",
       "config_owner_only": "Ang pag-import, at pag-export ng mga lihim, ay para lang sa user na may lahat ng pahintulot",
-      "storage_sync_off": "Naka-off ang pagkopya ng mga file sa direksyong ito para sa napiling storage."
+      "storage_sync_off": "Naka-off ang pagkopya ng mga file sa direksyong ito para sa napiling storage.",
+      "contact_needed": "Maglagay ng numero ng telepono o email para makasagot kami.",
+      "site_message_not_found": "Hindi nahanap ang mensahe.",
+      "site_off": "Hindi available ang site ngayon."
     },
     "finance_source": {
       "cash_journal": "Cash ledger: {kind} {reason}",

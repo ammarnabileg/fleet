@@ -702,7 +702,10 @@
     "config_version_newer": "The file comes from a newer version (format {version}); this system reads up to format {supported}: update it first",
     "config_section_unknown": "Unknown sections: {sections}",
     "config_owner_only": "Importing, and exporting secrets, is for a user with all permissions only",
-    "storage_sync_off": "Copying files this way is off for the storage chosen."
+    "storage_sync_off": "Copying files this way is off for the storage chosen.",
+    "site_message_not_found": "Message not found.",
+    "site_off": "The site is not available now.",
+    "contact_needed": "Give a phone number or an email so we can reply."
   },
   "settings": {
     "branding": "Branding",
@@ -782,7 +785,21 @@
     "app_update.notes": "Release notes",
     "app_update.download_name": "Download file name",
     "app_update.github_repo": "GitHub repository",
-    "app_update.github_auto_import": "Import the latest GitHub release every hour"
+    "app_update.github_auto_import": "Import the latest GitHub release every hour",
+    "site": "Public site",
+    "site.enabled": "Site shown",
+    "site.company_name": "Company name",
+    "site.tagline": "Tagline",
+    "site.about": "About",
+    "site.services": "Services",
+    "site.phone": "Phone",
+    "site.whatsapp": "WhatsApp",
+    "site.email": "Email",
+    "site.address": "Address",
+    "site.map_url": "Map link",
+    "site.show_contact_form": "Contact form",
+    "site.show_download": "App download button",
+    "site.logo": "Logo"
   },
   "common": {
     "active": "Active",
@@ -870,7 +887,8 @@
     "absence_yearly": "{driver} absent without permission {days} days in {year}: may justify dismissal without indemnity — review the legal procedure (prior warning)",
     "absence_followup": "Follow up the absence request ({kind}) of {driver}, {from} to {to}: {days} days passed",
     "petty_expense": "Petty cash spending from {name} for {amount} KWD awaits review",
-    "platform_request": "{driver} says he works with {platform}: waiting for approval and his platform ID"
+    "platform_request": "{driver} says he works with {platform}: waiting for approval and his platform ID",
+    "site_message": "New message from the site: {name}"
   },
   "alert_kind": {
     "device_replaced": "Driver's phone replaced",
@@ -931,7 +949,8 @@
     "absence_yearly": "Yearly absence (Art. 41)",
     "absence_followup": "Absence request follow-up",
     "petty_expense": "Petty cash spending",
-    "platform_request": "Driver's company request"
+    "platform_request": "Driver's company request",
+    "site_message": "Site message"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",

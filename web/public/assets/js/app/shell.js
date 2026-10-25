@@ -56,6 +56,7 @@
       { key: 'settings', icon: 'settings', label: 'الإعدادات والصلاحيات', any: ['settings.view', 'users.view', 'roles.view', 'companies.view', 'branches.manage', 'i18n.manage'] },
       { key: 'app-download', icon: 'smartphone', label: 'تنزيل التطبيق', any: ['settings.view'] },
       { key: 'broadcasts', icon: 'send', label: 'ركن الإشعارات', any: ['broadcasts.view', 'broadcasts.send'] },
+      { key: 'site', icon: 'globe', label: 'الموقع التعريفي', any: ['settings.view'] },
       { key: 'integrations', icon: 'puzzle', label: 'التكاملات', any: ['integrations.manage', 'settings.view'] },
       { key: 'audit', icon: 'shield-check', label: 'سجل التدقيق', any: ['audit.view'] }
     ] }
@@ -386,7 +387,8 @@
     platform_request: { perm: ['payroll.view'], label: 'مراجعة', open: function (a, after) { A.platformRequestView(a.entity_id, after); } },
     leave: { perm: ['leaves.view'], label: 'فتح الطلب', open: function (a, after) { A.leaveView(a.entity_id, after); } },
     payroll_objection: { perm: ['payroll.view'], label: 'مراجعة', open: function (a, after) { A.objectionView(a.entity_id, after); } },
-    branch: { perm: ['treasury.view'], open: function () { A.go('cash?tab=treasury'); } } // the treasury's deposit rule
+    branch: { perm: ['treasury.view'], open: function () { A.go('cash?tab=treasury'); } }, // the treasury's deposit rule
+    site_message: { perm: ['settings.view'], label: 'قراءة الرسالة', open: function () { A.go('site?tab=messages'); } }
     // approval_escalated: no button. It goes to every approvals.view holder, but only the approvers have it in their inbox
   };
   A.alertTarget = function (a) {

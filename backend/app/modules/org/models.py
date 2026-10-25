@@ -76,3 +76,27 @@ class PrintTemplateVersion(Base):
     changed: Mapped[str | None] = mapped_column(Text)  # "default", "company:<id>", or none for a rollback
     created_by: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SiteMessage(Base):
+    """A message sent from the public site's contact form, read and handled in the panel."""
+
+    __tablename__ = "site_messages"
+    __table_args__ = (
+        CheckConstraint("status IN ('new', 'read', 'done')", name="status"),
+        Index("site_messages_status_idx", "status", "created_at"),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    name: Mapped[str] = mapped_column(Text)
+    phone: Mapped[str | None] = mapped_column(Text)
+    email: Mapped[str | None] = mapped_column(Text)
+    message: Mapped[str] = mapped_column(Text)
+    lang: Mapped[str | None] = mapped_column(Text)
+    ip: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, server_default=text("'new'"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    handled_by: Mapped[int | None] = mapped_column(BigInteger)
+    handled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -702,7 +702,10 @@
     "config_version_newer": "الملف من إصدار أحدث (صيغة {version})، وهذا النظام يقرأ حتى الصيغة {supported}: حدّث النظام أولاً",
     "config_section_unknown": "أقسام غير معروفة: {sections}",
     "config_owner_only": "الاستيراد وتصدير الأسرار لمن يملك كل الصلاحيات فقط",
-    "storage_sync_off": "نسخ الملفات في هذا الاتجاه غير مفعّل لطريقة التخزين المختارة."
+    "storage_sync_off": "نسخ الملفات في هذا الاتجاه غير مفعّل لطريقة التخزين المختارة.",
+    "site_message_not_found": "الرسالة غير موجودة.",
+    "site_off": "الموقع غير متاح الآن.",
+    "contact_needed": "اكتب رقم تليفون أو إيميل عشان نقدر نرد عليك."
   },
   "settings": {
     "branding": "الهوية",
@@ -782,7 +785,21 @@
     "app_update.notes": "ملاحظات الإصدار",
     "app_update.download_name": "اسم ملف التنزيل",
     "app_update.github_repo": "مستودع GitHub",
-    "app_update.github_auto_import": "استيراد آخر إصدار من GitHub كل ساعة"
+    "app_update.github_auto_import": "استيراد آخر إصدار من GitHub كل ساعة",
+    "site": "الموقع التعريفي",
+    "site.enabled": "الموقع ظاهر",
+    "site.company_name": "اسم الشركة",
+    "site.tagline": "الجملة التعريفية",
+    "site.about": "عن الشركة",
+    "site.services": "الخدمات",
+    "site.phone": "التليفون",
+    "site.whatsapp": "واتساب",
+    "site.email": "الإيميل",
+    "site.address": "العنوان",
+    "site.map_url": "رابط الخريطة",
+    "site.show_contact_form": "فورم تواصل معنا",
+    "site.show_download": "زرار تحميل التطبيق",
+    "site.logo": "اللوجو"
   },
   "common": {
     "active": "نشط",
@@ -870,7 +887,8 @@
     "absence_yearly": "غياب بدون إذن {days} يوماً في سنة {year} لـ {driver}: قد يبرر الفصل بدون مكافأة — راجع الإجراءات القانونية (إنذار مسبق)",
     "absence_followup": "متابعة طلب تغيب ({kind}) لـ {driver} من {from} إلى {to}: مضى {days} يوماً",
     "petty_expense": "مصروف من العهدة من {name} بمبلغ {amount} د.ك بانتظار المراجعة",
-    "platform_request": "{driver} يقول إنه يعمل مع {platform}: بانتظار الموافقة وتسجيل رقمه في المنصة"
+    "platform_request": "{driver} يقول إنه يعمل مع {platform}: بانتظار الموافقة وتسجيل رقمه في المنصة",
+    "site_message": "رسالة جديدة من الموقع: {name}"
   },
   "alert_kind": {
     "device_replaced": "ربط جهاز جديد لسائق",
@@ -931,7 +949,8 @@
     "absence_yearly": "غياب سنوي (المادة 41)",
     "absence_followup": "متابعة طلب تغيب",
     "petty_expense": "مصروف من العهدة النقدية",
-    "platform_request": "طلب شركة من سائق"
+    "platform_request": "طلب شركة من سائق",
+    "site_message": "رسالة من الموقع"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
