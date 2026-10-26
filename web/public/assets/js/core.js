@@ -64,7 +64,10 @@
 
   /* ---------- Icons (lucide) ----------
      BT.icon('car', 16)  أو في HTML: <i data-icon="car" data-size="16"></i> */
+  // الأسهم مرسومة لاتجاه العربي: في الإنجليزي (من اليسار) تنعكس
+  var MIRROR = { 'chevron-left': 'chevron-right', 'chevron-right': 'chevron-left', 'arrow-left': 'arrow-right', 'arrow-right': 'arrow-left', 'chevrons-left': 'chevrons-right', 'chevrons-right': 'chevrons-left' };
   BT.icon = function (name, size, cls) {
+    if (BT.lang === 'en' && MIRROR[name]) name = MIRROR[name];
     var body = (BT.ICONS || {})[name];
     if (!body) { if (window.console) console.warn('BT.icon: missing icon "' + name + '"'); body = '<circle cx="12" cy="12" r="9"/>'; }
     size = size || 16;

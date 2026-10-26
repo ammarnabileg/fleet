@@ -709,6 +709,7 @@
     }
     function sortLabel(c, sorted) {
       if (!sorted) return 'ترتيب حسب ' + c.label;
+      if (BT.lang === 'en') return 'Sorted by ' + BT.tr(String(c.label)) + (st.sort.dir === 'desc' ? ', descending' : ', ascending') + '; click to change the order';
       return 'مرتب حسب ' + c.label + (st.sort.dir === 'desc' ? ' تنازلياً' : ' تصاعدياً') + '، اضغط لتغيير الترتيب';
     }
     function draw() {
@@ -739,7 +740,7 @@
       BT.render(wrapEl, html);
       if (pager && o.fetch) {
         BT.render(pager, h`<span>صفحة <span class="num">${BT.fmt.int(st.page)}</span>${pageRows.length ? h` · <span class="num">${BT.fmt.int(pageRows.length)}</span> صف` : ''}</span>
-          <div class="flex items-center gap-8"><select class="select" data-size aria-label="عدد الصفوف">${[25, 50, 100, 200].map(function (n) { return h`<option value="${n}"${n === st.size ? raw(' selected') : ''}>${n} صف</option>`; })}</select>
+          <div class="flex items-center gap-8"><select class="select" data-size aria-label="عدد الصفوف">${[25, 50, 100, 200].map(function (n) { return h`<option value="${n}"${n === st.size ? raw(' selected') : ''}>${n} ${BT.lang === 'en' ? 'rows' : 'صف'}</option>`; })}</select>
           <div class="pages"><button type="button" data-page="${st.page - 1}"${st.page <= 1 || st.loading ? raw(' disabled') : ''} aria-label="السابق">${icon('chevron-right', 16)}</button>
           <button type="button" class="active" disabled aria-current="page">${st.page}</button>
           <button type="button" data-page="${st.page + 1}"${!st.more || st.loading ? raw(' disabled') : ''} aria-label="التالي">${icon('chevron-left', 16)}</button></div></div>`);
@@ -747,8 +748,8 @@
         var from = current.length ? start + 1 : 0, to = start + pageRows.length;
         var nums = [], p;
         for (p = 1; p <= pages; p++) { if (p === 1 || p === pages || Math.abs(p - st.page) <= 1) nums.push(p); else if (nums[nums.length - 1] !== '…') nums.push('…'); }
-        BT.render(pager, h`<span>عرض <span class="num">${BT.fmt.int(from)}–${BT.fmt.int(to)}</span> من <span class="num">${BT.fmt.int(current.length)}</span></span>
-          <div class="flex items-center gap-8"><select class="select" data-size aria-label="عدد الصفوف">${[10, 25, 50, 100].map(function (n) { return h`<option value="${n}"${n === st.size ? raw(' selected') : ''}>${n} صف</option>`; })}</select>
+        BT.render(pager, h`<span>${BT.lang === 'en' ? 'Showing' : 'عرض'} <span class="num">${BT.fmt.int(from)}–${BT.fmt.int(to)}</span> ${BT.lang === 'en' ? 'of' : 'من'} <span class="num">${BT.fmt.int(current.length)}</span></span>
+          <div class="flex items-center gap-8"><select class="select" data-size aria-label="عدد الصفوف">${[10, 25, 50, 100].map(function (n) { return h`<option value="${n}"${n === st.size ? raw(' selected') : ''}>${n} ${BT.lang === 'en' ? 'rows' : 'صف'}</option>`; })}</select>
           <div class="pages"><button type="button" data-page="${st.page - 1}"${st.page <= 1 ? raw(' disabled') : ''} aria-label="السابق">${icon('chevron-right', 16)}</button>
           ${nums.map(function (n) { return n === '…' ? raw('<button type="button" disabled>…</button>') : h`<button type="button" data-page="${n}" class="${n === st.page ? 'active' : ''}"${n === st.page ? raw(' aria-current="page"') : ''}>${n}</button>`; })}
           <button type="button" data-page="${st.page + 1}"${st.page >= pages ? raw(' disabled') : ''} aria-label="التالي">${icon('chevron-left', 16)}</button></div></div>`);
@@ -789,7 +790,7 @@
     function savePrefs() { if (prefKey) { prefs.hidden = hidden; BT.store.set(prefKey, prefs); } }
     function openViews(btn) {
       var views = prefs.views || [];
-      var pop = BT.popover(btn, h`<div class="t-views" dir="rtl">
+      var pop = BT.popover(btn, h`<div class="t-views">
         <div class="menu-head">الأعمدة الظاهرة</div>
         <div class="t-cols">${hideable.map(function (c) { return h`<label class="check"><input type="checkbox" data-col="${c.key}"${hidden[c.key] ? '' : raw(' checked')}> <span>${c.label}</span></label>`; })}</div>
         <div class="menu-sep"></div>

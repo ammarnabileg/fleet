@@ -426,6 +426,7 @@
       { label: 'تغيير كلمة المرور', icon: 'key-round', onClick: function () { A.changePassword(false); } },
       { label: 'التحقق بخطوتين', icon: 'shield-check', onClick: A.setupMfa },
       { sep: true },
+      { label: BT.lang === 'en' ? 'العربية' : 'English', icon: 'languages', onClick: function () { BT.setLang(BT.lang === 'en' ? 'ar' : 'en'); } },
       { label: dark ? 'الوضع الفاتح' : 'الوضع الداكن', icon: dark ? 'sun' : 'moon', onClick: function () { BT.theme.toggle(); } },
       { sep: true },
       { label: 'تسجيل الخروج', icon: 'log-out', danger: true, onClick: A.logout }
@@ -503,6 +504,7 @@
   BT.actions['nav-group'] = function (id) { A.toggleNavGroup(id); };
   BT.actions['toggle-nav'] = function () { document.getElementById('app').classList.toggle('nav-open'); };
   BT.actions['theme'] = function () { BT.theme.toggle(); };
+  BT.actions['lang'] = function () { BT.setLang(BT.lang === 'en' ? 'ar' : 'en'); };
 
   /* ---------- التشغيل ---------- */
   function fillUser() {

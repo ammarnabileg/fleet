@@ -176,6 +176,11 @@
     return !!me && !me.is_superuser && me.permissions.length > 0 && me.permissions.every(function (p) { return p.indexOf('portal.') === 0; });
   };
 
+  /* لغة الواجهة من المتصفح (زر اللغة)؛ الحساب يتبعها حتى تصل التنبيهات ورسائل الخادم بنفس اللغة */
+  api.syncLocale = function (me) {
+    if (!BT.lang || me.locale === BT.lang) return Promise.resolve();
+    return api.put('/auth/me/locale', { locale: BT.lang }).catch(function () {});
+  };
   /* بداية كل صفحة محمية: الجلسة، الكتالوج، الشركات والفروع */
   api.boot = function () {
     return api.get('/auth/me').then(function (me) {
@@ -183,7 +188,8 @@
       api.csrf = me.csrf_token;
       if (api.isCenterAccount(me)) { location.replace('center.html'); return new Promise(function () {}); }
       return Promise.all([
-        api.loadCatalog(me.locale || 'ar').catch(function () { return api.loadCatalog('ar'); }),
+        api.syncLocale(me),
+        api.loadCatalog(BT.lang || me.locale || 'ar').catch(function () { return api.loadCatalog('ar'); }),
         api.reloadOrg()
       ]);
     }).then(function () { return api.me; });

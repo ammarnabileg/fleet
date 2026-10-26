@@ -168,7 +168,7 @@
     var level3 = groups.filter(function (g) { return String(g); });
     level3 = level3.length ? h`<section class="dash-level" aria-labelledby="dash-l3"><h2 class="dash-level-t" id="dash-l3">التفاصيل حسب المجال <span class="card-meta">اضغط على المجال لفتحه</span></h2><div class="dash-groups">${level3}</div></section>` : '';
 
-    return h`${A.head((hour < 12 ? 'صباح الخير' : 'مساء الخير') + '، ' + api.me.full_name.split(' ')[0], h`ملخص اليوم ${fmt.dateLong(today)} · آخر تحديث <span class="num">${fmt.time(d.as_of)}</span> بتوقيت الكويت`, A.btn('تحديث', { icon: 'refresh-cw', cls: 'btn-outline', action: 'reload' }))}
+    return h`${A.head(BT.lang === 'en' ? (hour < 12 ? 'Good morning, ' : 'Good evening, ') + api.me.full_name.split(' ')[0] : (hour < 12 ? 'صباح الخير' : 'مساء الخير') + '، ' + api.me.full_name.split(' ')[0], h`ملخص اليوم ${fmt.dateLong(today)} · آخر تحديث <span class="num">${fmt.time(d.as_of)}</span> بتوقيت الكويت`, A.btn('تحديث', { icon: 'refresh-cw', cls: 'btn-outline', action: 'reload' }))}
       ${level1}${level2}${level3}`;
   }
 

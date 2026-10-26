@@ -137,7 +137,7 @@ button.kpi:hover, a.kpi:hover { border-color: var(--border-strong); box-shadow: 
 .table-wrap { overflow-x: auto; margin: 0 -2px; }
 table.t { width: 100%; font-size: 13px; }
 table.t th {
-  font-weight: 500; color: var(--muted); text-align: right; padding: 9px 10px;
+  font-weight: 500; color: var(--muted); text-align: start; padding: 9px 10px;
   border-bottom: 1px solid var(--border); font-size: 12px; white-space: nowrap; position: relative;
 }
 table.t td { padding: 10px 10px; border-bottom: 1px solid var(--divider); color: var(--text-2); white-space: nowrap; vertical-align: middle; }
@@ -342,6 +342,7 @@ fieldset.field > legend { padding: 0; margin-bottom: 6px; }
 /* ---------- Pagination ---------- */
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; font-size: 12.5px; color: var(--muted); flex-wrap: wrap; }
 .pager .pages { display: flex; gap: 4px; direction: rtl; }
+[dir=ltr] .pager .pages { direction: ltr; }
 .pager .pages button { min-width: 30px; height: 30px; border-radius: 8px; font-size: 12.5px; color: var(--text-2); padding: 0 6px; direction: ltr; }
 .pager .pages button:hover { background: var(--surface-3); }
 .pager .pages button.active { background: var(--primary); color: #fff; font-weight: 600; }

@@ -79,7 +79,7 @@
     var style = '--pd-accent:' + pg.accent + ';--pd-text:' + pg.text_color + ';--pd-fs:' + pg.font_size + 'pt';
     var screenPad = opts.screen ? ';padding:' + pg.margin_top + 'mm ' + pg.margin_start + 'mm ' + pg.margin_bottom + 'mm ' + pg.margin_end + 'mm' : '';
     var footText = fill(ft.text, Object.assign({}, values, { page: 1, pages: 1 })), extra = footerExtra(t, values);
-    return h`<div class="pd${opts.screen ? ' pd-screen' : ''}${pg.zebra ? ' pd-zebra' : ''}" dir="rtl" style="${style + screenPad}" data-print-doc data-company="${layout.company_id || ''}">
+    return h`<div class="pd${opts.screen ? ' pd-screen' : ''}${pg.zebra ? ' pd-zebra' : ''}" dir="${BT.lang === 'en' ? 'ltr' : 'rtl'}" style="${style + screenPad}" data-print-doc data-company="${layout.company_id || ''}">
       ${mark}
       <table class="pd-frame"><thead><tr><td>
         <div class="pd-head pd-logo-${hd.logo_position}${pg.header_rule ? ' pd-rule' : ''}">${logo}${names}</div>
