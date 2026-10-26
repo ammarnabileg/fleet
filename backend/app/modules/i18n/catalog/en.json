@@ -706,7 +706,8 @@
     "site_message_not_found": "Message not found.",
     "site_off": "The site is not available now.",
     "contact_needed": "Give a phone number or an email so we can reply.",
-    "internal_error": "Something went wrong on our side. Please try again shortly."
+    "internal_error": "Something went wrong on our side. Please try again shortly.",
+    "import_empty": "The file has no rows: fill the rows under the example row in the vehicles, people or opening balances sheets, and check you chose the right file."
   },
   "settings": {
     "branding": "Branding",

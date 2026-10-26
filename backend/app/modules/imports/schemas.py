@@ -23,6 +23,8 @@ class ImportResult(BaseModel):
     opening_balances: int
     activated: int = 0  # drivers given the app by this import
     claims: int = 0  # drivers given an initial password: they may sign in once with their civil ID and it
+    companies_created: list[str] = []  # named in the file and missing: created by the import
+    branches_created: list[str] = []
     errors: list[IssueOut]
     warnings: list[IssueOut]
 

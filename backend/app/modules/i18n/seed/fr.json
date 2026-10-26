@@ -1279,7 +1279,8 @@
       "contact_needed": "Indiquez un téléphone ou un e-mail pour que nous puissions répondre.",
       "site_message_not_found": "Message introuvable.",
       "site_off": "Le site n'est pas disponible pour le moment.",
-      "internal_error": "Une erreur s'est produite de notre côté. Réessayez dans un instant."
+      "internal_error": "Une erreur s'est produite de notre côté. Réessayez dans un instant.",
+      "import_empty": "Le fichier ne contient aucune ligne : remplissez les lignes sous l'exemple et vérifiez le fichier choisi."
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",

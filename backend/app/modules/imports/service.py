@@ -60,6 +60,30 @@ def _lookup(value: str | None, column: str, found):
     return found
 
 
+def _company(db: Session, row: Row, column: str, *, scope: dict, actor_user_id: int, made: dict) -> int:
+    """A company named in the file: the one in the system, or created by this import for a user over all companies
+    (a company-limited one gets the unknown name as an error, as before)."""
+    label = _required(row, column)
+    found = org.company_id_by_name(db, label)
+    if found is None and scope.get("all_companies"):
+        org.create_company(
+            db, {"name": {"ar": label, "en": label}}, all_companies=True, actor_user_id=actor_user_id, commit=False
+        )
+        made["companies"].add(label)
+        found = org.company_id_by_name(db, label)
+    return _lookup(label, column, found)
+
+
+def _branch(db: Session, row: Row, column: str, *, scope: dict, actor_user_id: int, made: dict) -> int:
+    label = _required(row, column)
+    found = org.branch_id_by_name(db, label)
+    if found is None and scope.get("all_companies"):
+        org.create_branch(db, name={"ar": label, "en": label}, actor_user_id=actor_user_id, commit=False)
+        made["branches"].add(label)
+        found = org.branch_id_by_name(db, label)
+    return _lookup(label, column, found)
+
+
 def _date(row: Row, column: str):
     raw = _required(row, column)
     parsed = wb.parse_date(row.values[column])
@@ -241,15 +265,14 @@ def _duplicates(rows: list[Row], key) -> dict[int, str]:
     return {n: v for n, v in values.items() if v and counts[v] > 1}
 
 
-def _vehicle(db: Session, row: Row, *, actor_user_id: int, scope: dict) -> tuple[str, int]:
+def _vehicle(db: Session, row: Row, *, actor_user_id: int, scope: dict, made: dict) -> tuple[str, int]:
     c = wb.VEHICLE_COLUMNS
     plate = _required(row, c[1])
-    company = _required(row, c[7])
-    branch = _required(row, c[8])
+    org_args = {"scope": scope, "actor_user_id": actor_user_id, "made": made}
     data = {
         "plate_number": plate,
-        "company_id": _lookup(company, c[7], org.company_id_by_name(db, company)),
-        "branch_id": _lookup(branch, c[8], org.branch_id_by_name(db, branch)),
+        "company_id": _company(db, row, c[7], **org_args),
+        "branch_id": _branch(db, row, c[8], **org_args),
     }
     # the rest is optional: a blank cell leaves what the vehicle has
     year_raw = wb.text(row, c[4])
@@ -295,9 +318,10 @@ def _person(
     warnings: list,
     drivers: _DriverApp,
     scope: dict,
+    made: dict,
 ) -> tuple[str, int]:
     c = wb.PEOPLE_COLUMNS
-    name, role = _required(row, c[1]), _required(row, c[2])
+    name, role = _required(row, c[1]), wb.text(row, c[2]) or wb.DRIVER_ROLE  # blank: a driver, as most are
     phone_raw = _required(row, c[4])
     phone = wb.parse_phone(row.values[c[4]])
     if phone is None:
@@ -311,7 +335,8 @@ def _person(
         raise _RowError("field_required", field=c[3].rstrip(" *"))
     columns = _app_columns(row.values, civil_id)
     drivers.check(role == wb.DRIVER_ROLE, *columns)
-    company, branch = _required(row, c[5]), _required(row, c[6])
+    org_args = {"scope": scope, "actor_user_id": actor_user_id, "made": made}
+    company_id, branch_id = _company(db, row, c[5], **org_args), _branch(db, row, c[6], **org_args)
     salary = None
     if wb.text(row, c[10]):
         salary = wb.parse_decimal(row.values[c[10]])
@@ -324,8 +349,8 @@ def _person(
     data = {
         "name": _localized(db, name),
         "civil_id": civil_id or None,
-        "company_id": _lookup(company, c[5], org.company_id_by_name(db, company)),
-        "branch_id": _lookup(branch, c[6], org.branch_id_by_name(db, branch)),
+        "company_id": company_id,
+        "branch_id": branch_id,
         "is_driver": role == wb.DRIVER_ROLE,
         "phone": phone,
     }
@@ -415,6 +440,8 @@ def run(
 ) -> dict:
     ignored: list[str] = []
     sheets = wb.read(data, ignored)
+    if not any(sheets.values()):
+        raise AppError(422, "import_empty")  # the empty template, or the rows in other sheets: never "all good"
     errors: list[Issue] = []
     # a column after the people's that is not one of the driver columns: its header is not one we know
     warnings: list[Issue] = [Issue(PEOPLE, 1, "import_column_ignored", {"column": c}) for c in ignored]
@@ -428,6 +455,7 @@ def run(
     dupes[PEOPLE] |= _duplicates(sheets[PEOPLE], lambda r: wb.text(r, wb.PEOPLE_COLUMNS[3]).replace(" ", ""))
     dupes[OPENING] = _duplicates(sheets[OPENING], lambda r: wb.text(r, wb.OPENING_COLUMNS[2]).replace(" ", ""))
     numbers = [people.next_employee_number(db)]
+    made: dict[str, set] = {"companies": set(), "branches": set()}  # created by this import (named in the file)
     drivers = _DriverApp(codes=org.phone_codes(db), can_set_passwords=can_manage_devices)
     for sheet, handler, bucket in (
         (VEHICLES, _vehicle, "vehicles"),
@@ -439,7 +467,9 @@ def run(
                 errors.append(Issue(sheet, row.number, "duplicate_in_file", {"value": dupes[sheet][row.number]}))
                 continue
             extra = {
+                VEHICLES: {"made": made},
                 PEOPLE: {
+                    "made": made,
                     "can_set_salary": can_set_salary,
                     "numbers": numbers,
                     "warnings": warnings,
@@ -484,6 +514,8 @@ def run(
         "opening_balances": counts["opening"]["created"],
         "activated": drivers.activated,
         "claims": claims,
+        "companies_created": sorted(made["companies"]),
+        "branches_created": sorted(made["branches"]),
         "errors": [vars(e) for e in errors],
         "warnings": [vars(w) for w in warnings],
     }

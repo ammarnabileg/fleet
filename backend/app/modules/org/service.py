@@ -213,7 +213,7 @@ def _check_cr_number(db: Session, cr_number: str | None, own_id: int | None = No
         raise AppError(409, "cr_number_taken")
 
 
-def create_company(db: Session, data: dict, *, all_companies: bool, actor_user_id: int) -> dict:
+def create_company(db: Session, data: dict, *, all_companies: bool, actor_user_id: int, commit: bool = True) -> dict:
     if not all_companies:  # a company-limited user would not even see what they created
         raise AppError(403, "company_out_of_scope")
     data = {
@@ -236,7 +236,8 @@ def create_company(db: Session, data: dict, *, all_companies: bool, actor_user_i
         company_id=company.id,
         after=out,
     )
-    db.commit()
+    if commit:
+        db.commit()
     return out
 
 
@@ -312,7 +313,7 @@ def default_branch_id(db: Session) -> int:
     return db.scalar(select(Branch.id).where(Branch.is_default.is_(True)))
 
 
-def create_branch(db: Session, *, name: dict, actor_user_id: int) -> dict:
+def create_branch(db: Session, *, name: dict, actor_user_id: int, commit: bool = True) -> dict:
     branch = Branch(name=i18n.validate_localized(db, name), is_default=False)
     db.add(branch)
     db.flush()
@@ -326,7 +327,8 @@ def create_branch(db: Session, *, name: dict, actor_user_id: int) -> dict:
         actor_user_id=actor_user_id,
         after=out,
     )
-    db.commit()
+    if commit:
+        db.commit()
     return out
 
 

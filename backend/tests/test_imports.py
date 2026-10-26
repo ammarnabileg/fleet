@@ -172,14 +172,12 @@ def test_every_row_error_is_reported_and_nothing_is_imported(admin_client, compa
     assert found == {
         (VEHICLES, 3, "duplicate_in_file"),
         (VEHICLES, 4, "duplicate_in_file"),
-        (VEHICLES, 5, "unknown_value"),
+        (VEHICLES, 5, "invalid_date"),  # its unknown branch would be created: the bad date is the error
         (PEOPLE, 3, "invalid_phone"),
         (PEOPLE, 4, "invalid_civil_id"),
         (PEOPLE, 5, "field_required"),
         (PEOPLE, 7, "unknown_value"),
     }
-    unknown_branch = next(e for e in r["errors"] if e["sheet"] == VEHICLES and e["row"] == 5)
-    assert unknown_branch["params"] == {"field": "الفرع", "value": "فرع لا يوجد"}
     assert r["people"]["created"] == 1  # the visa row is fine on its own
     assert db.execute(text("SELECT count(*) FROM people.employees")).scalar() == 0
     assert db.execute(text("SELECT count(*) FROM fleet.vehicles")).scalar() == 0
@@ -213,6 +211,9 @@ def test_the_template_must_be_used_as_it_is(admin_client, companies):
     assert r.status_code == 422 and r.json()["code"] == "import_bad_template" and r.json()["params"]["sheet"] == PEOPLE
     r = post(admin_client, b"PK\x03\x04 not really a zip")
     assert r.status_code == 422 and r.json()["code"] == "import_not_xlsx"
+    # the template with no rows (the example row only) is never "ready to import"
+    r = post(admin_client, workbook())
+    assert r.status_code == 422 and r.json()["code"] == "import_empty"
 
 
 def test_permissions_scope_and_salary(admin_client, new_client, companies, main_branch):
@@ -432,7 +433,7 @@ def test_the_template_to_fill_has_the_driver_columns(admin_client, new_client, c
     assert ws["O3"].number_format == "@" and ws.column_dimensions["O"].number_format == "@"  # 01234567 stays text
     rules = {str(v.sqref): (v.type, v.formula1, v.formula2) for v in ws.data_validations.dataValidation}
     assert rules == {"N2:N1000": ("list", '"نعم,لا"', None), "P2:P1000": ("whole", "1", "60")}
-    assert post(admin_client, r.content).json()["errors"] == []  # as downloaded: nothing to import, nothing wrong
+    assert post(admin_client, r.content).json()["code"] == "import_empty"  # as downloaded: nothing to import, said so
 
     # filled in by the office: imported as it is
     for i, value in enumerate([1, *person(branch=main_branch, app="نعم", password="01234567", days=3)], start=1):
@@ -500,13 +501,13 @@ def test_only_the_starred_columns_must_be_filled(admin_client, companies, main_b
     """The template marks the essential columns with a star; a row with the others blank imports, and a blank cell
     never wipes what an existing record has."""
     blank = dict(make="", model="", year="", color="", vin="", insurance="", registration="")
-    pblank = dict(dept="", job="", status="", salary="", residence="", model="")
+    pblank = dict(role="", dept="", job="", status="", salary="", residence="", model="")
     data = workbook([vehicle(branch=main_branch, **blank)], [person(branch=main_branch, **pblank)])
     done = post(admin_client, data, apply=True).json()
     assert done["errors"] == [], done
     assert done["vehicles"]["created"] == 1 and done["people"]["created"] == 1 and done["documents"] == 0
     driver = admin_client.get("/api/v1/employees", params={"is_driver": True}).json()[0]
-    assert driver["status_code"] == "active"
+    assert driver["status_code"] == "active"  # and a blank role made him a driver
 
     # a full row first, then the same vehicle with its optional cells blank: its details stay
     post(admin_client, workbook([vehicle("12/34999", "MR0AA0000BB000099", branch=main_branch)]), apply=True)
@@ -517,3 +518,36 @@ def test_only_the_starred_columns_must_be_filled(admin_client, companies, main_b
     # the essentials are still required
     r = post(admin_client, workbook([vehicle("12/35000", branch="")]), apply=True).json()
     assert r["errors"] and r["errors"][0]["code"] == "field_required"
+
+
+def test_companies_and_branches_named_in_the_file_are_created(admin_client, new_client, companies, main_branch, db):
+    """A company or branch the system lacks is created by the import (shown in the check first); a user limited to
+    some companies cannot create one, and gets the unknown name as an error."""
+    data = workbook(
+        [vehicle(company="شركة جديدة - new co", branch="فرع جديد")],
+        [person(company="شركة جديدة - new co", branch=main_branch)],
+    )
+    check = post(admin_client, data).json()
+    assert check["errors"] == [] and check["companies_created"] == ["شركة جديدة - new co"]
+    assert check["branches_created"] == ["فرع جديد"]
+    assert (
+        db.execute(text("SELECT count(*) FROM org.companies WHERE name->>'ar' = 'شركة جديدة - new co'")).scalar() == 0
+    )
+    done = post(admin_client, data, apply=True).json()
+    assert done["applied"] and done["companies_created"] == ["شركة جديدة - new co"]
+    assert (
+        db.execute(text("SELECT count(*) FROM org.companies WHERE name->>'ar' = 'شركة جديدة - new co'")).scalar() == 1
+    )
+    assert post(admin_client, data).json()["companies_created"] == []  # found the second time
+
+    company_id = admin_client.get("/api/v1/companies").json()[0]["id"]
+    make_user(
+        admin_client,
+        "limited",
+        permissions=["employees.create", "employees.update", "vehicles.create", "vehicles.update", "documents.manage"],
+        company_ids=[company_id],
+    )
+    c = new_client()
+    login(c, "limited")
+    r = post(c, workbook([vehicle("12/30000", "MR0AA0000BB000077", company="غير موجودة", branch=main_branch)])).json()
+    assert r.get("companies_created") == [] and r["errors"][0]["code"] == "unknown_value"

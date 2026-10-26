@@ -1279,7 +1279,8 @@
       "contact_needed": "Maglagay ng numero ng telepono o email para makasagot kami.",
       "site_message_not_found": "Hindi nahanap ang mensahe.",
       "site_off": "Hindi available ang site ngayon.",
-      "internal_error": "May nangyaring mali sa amin. Subukan muli mamaya."
+      "internal_error": "May nangyaring mali sa amin. Subukan muli mamaya.",
+      "import_empty": "Walang laman ang file: punan ang mga row sa ilalim ng halimbawa at tiyaking tama ang napiling file."
     },
     "finance_source": {
       "cash_journal": "Cash ledger: {kind} {reason}",
