@@ -244,23 +244,27 @@ def _duplicates(rows: list[Row], key) -> dict[int, str]:
 def _vehicle(db: Session, row: Row, *, actor_user_id: int, scope: dict) -> tuple[str, int]:
     c = wb.VEHICLE_COLUMNS
     plate = _required(row, c[1])
-    year_raw = _required(row, c[4])
-    if not year_raw.isdigit() or not 1980 <= int(year_raw) <= 2100:
-        raise _RowError("invalid_number", field=c[4].rstrip(" *"), value=year_raw)
     company = _required(row, c[7])
     branch = _required(row, c[8])
     data = {
         "plate_number": plate,
-        "make": _required(row, c[2]),
-        "model": _required(row, c[3]),
-        "year": int(year_raw),
-        "color": _required(row, c[5]),
-        "vin": _required(row, c[6]).upper(),
         "company_id": _lookup(company, c[7], org.company_id_by_name(db, company)),
         "branch_id": _lookup(branch, c[8], org.branch_id_by_name(db, branch)),
     }
-    insurance, registration = _date(row, c[9]), _date(row, c[10])
-    existing = fleet.vehicle_by_plate(db, plate) or fleet.vehicle_by_vin(db, data["vin"])
+    # the rest is optional: a blank cell leaves what the vehicle has
+    year_raw = wb.text(row, c[4])
+    if year_raw:
+        if not year_raw.isdigit() or not 1980 <= int(year_raw) <= 2100:
+            raise _RowError("invalid_number", field=c[4], value=year_raw)
+        data["year"] = int(year_raw)
+    for key, column in (("make", c[2]), ("model", c[3]), ("color", c[5])):
+        if wb.text(row, column):
+            data[key] = wb.text(row, column)
+    if wb.text(row, c[6]):
+        data["vin"] = wb.text(row, c[6]).upper()
+    insurance = _date(row, c[9]) if wb.text(row, c[9]) else None
+    registration = _date(row, c[10]) if wb.text(row, c[10]) else None
+    existing = fleet.vehicle_by_plate(db, plate) or (fleet.vehicle_by_vin(db, data["vin"]) if "vin" in data else None)
     if existing:
         out = fleet.update_vehicle(
             db,
@@ -276,8 +280,8 @@ def _vehicle(db: Session, row: Row, *, actor_user_id: int, scope: dict) -> tuple
         out = fleet.create_vehicle(db, data, actor_user_id=actor_user_id, commit=False, **scope)
         action, vehicle = "created", fleet.vehicle_by_plate(db, plate)
     owner = documents.Owner("vehicle", vehicle.id, out["id"], out["company_id"], out["plate_number"])
-    docs = _document(db, owner, "insurance", insurance, actor_user_id)
-    docs += _document(db, owner, "registration", registration, actor_user_id)
+    docs = _document(db, owner, "insurance", insurance, actor_user_id) if insurance else 0
+    docs += _document(db, owner, "registration", registration, actor_user_id) if registration else 0
     return action, docs
 
 
@@ -298,8 +302,8 @@ def _person(
     phone = wb.parse_phone(row.values[c[4]])
     if phone is None:
         raise _RowError("invalid_phone", value=phone_raw)
-    status_label = _required(row, c[9])
-    status = _lookup(status_label, c[9], people.status_by_name(db, status_label))
+    status_label = wb.text(row, c[9])  # blank: a new employee is active, an existing one keeps his status
+    status = _lookup(status_label, c[9], people.status_by_name(db, status_label)) if status_label else None
     civil_id = wb.text(row, c[3]).replace(" ", "")
     if civil_id and (not civil_id.isdigit() or len(civil_id) != 12):
         raise _RowError("invalid_civil_id", value=civil_id)
@@ -322,11 +326,12 @@ def _person(
         "civil_id": civil_id or None,
         "company_id": _lookup(company, c[5], org.company_id_by_name(db, company)),
         "branch_id": _lookup(branch, c[6], org.branch_id_by_name(db, branch)),
-        "department": _required(row, c[7]),
-        "job_title": _required(row, c[8]),
         "is_driver": role == wb.DRIVER_ROLE,
         "phone": phone,
     }
+    for key, column in (("department", c[7]), ("job_title", c[8])):
+        if wb.text(row, column):
+            data[key] = wb.text(row, column)
     if salary is not None:
         data["basic_salary"] = salary
     existing = people.find(db, civil_id=civil_id or None, phone=phone)
@@ -342,7 +347,7 @@ def _person(
             commit=False,
             **scope,
         )
-        if existing.status_code != status:
+        if status and existing.status_code != status:
             people.change_status(
                 db,
                 existing.public_id,
@@ -358,7 +363,7 @@ def _person(
         numbers[0] += 1
         people.create_employee(
             db,
-            data | {"employee_number": f"E{number:05d}", "status_code": status},
+            data | {"employee_number": f"E{number:05d}", "status_code": status or "active"},
             can_set_salary=can_set_salary,
             actor_user_id=actor_user_id,
             commit=False,

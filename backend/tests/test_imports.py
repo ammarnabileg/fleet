@@ -494,3 +494,26 @@ def test_the_platform_columns_of_the_template(admin_client, companies, main_bran
     assert out["applied"] and out["warnings"] == [], out
     driver = admin_client.get("/api/v1/employees", params={"is_driver": True}).json()[0]
     assert (driver["platform_id"], driver["platform_driver_id"]) == (talabat["id"], "T-77")
+
+
+def test_only_the_starred_columns_must_be_filled(admin_client, companies, main_branch):
+    """The template marks the essential columns with a star; a row with the others blank imports, and a blank cell
+    never wipes what an existing record has."""
+    blank = dict(make="", model="", year="", color="", vin="", insurance="", registration="")
+    pblank = dict(dept="", job="", status="", salary="", residence="", model="")
+    data = workbook([vehicle(branch=main_branch, **blank)], [person(branch=main_branch, **pblank)])
+    done = post(admin_client, data, apply=True).json()
+    assert done["errors"] == [], done
+    assert done["vehicles"]["created"] == 1 and done["people"]["created"] == 1 and done["documents"] == 0
+    driver = admin_client.get("/api/v1/employees", params={"is_driver": True}).json()[0]
+    assert driver["status_code"] == "active"
+
+    # a full row first, then the same vehicle with its optional cells blank: its details stay
+    post(admin_client, workbook([vehicle("12/34999", "MR0AA0000BB000099", branch=main_branch)]), apply=True)
+    post(admin_client, workbook([vehicle("12/34999", branch=main_branch, **blank)]), apply=True)
+    v = next(x for x in admin_client.get("/api/v1/vehicles").json() if x["plate_number"] == "12/34999")
+    assert (v["make"], v["year"], v["vin"]) == ("تويوتا", 2023, "MR0AA0000BB000099")
+
+    # the essentials are still required
+    r = post(admin_client, workbook([vehicle("12/35000", branch="")]), apply=True).json()
+    assert r["errors"] and r["errors"][0]["code"] == "field_required"

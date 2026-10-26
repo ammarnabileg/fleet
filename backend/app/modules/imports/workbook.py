@@ -18,15 +18,15 @@ PEOPLE = "المستخدمون والسائقون"
 VEHICLE_COLUMNS = [
     "#",
     "رقم اللوحة *",
-    "النوع *",
-    "الموديل *",
-    "السنة *",
-    "اللون *",
-    "رقم الهيكل (VIN) *",
+    "النوع",
+    "الموديل",
+    "السنة",
+    "اللون",
+    "رقم الهيكل (VIN)",
     "الشركة *",
     "الفرع *",
-    "تاريخ انتهاء التأمين *",
-    "تاريخ انتهاء الاستمارة *",
+    "تاريخ انتهاء التأمين",
+    "تاريخ انتهاء الاستمارة",
 ]
 PEOPLE_COLUMNS = [
     "#",
@@ -36,11 +36,11 @@ PEOPLE_COLUMNS = [
     "رقم الهاتف (لرمز التحقق) *",
     "الشركة *",
     "الفرع *",
-    "القسم *",
-    "الوظيفة *",
-    "الحالة الوظيفية *",
-    "الراتب الأساسي (د.ك) *",
-    "تاريخ انتهاء الإقامة *",
+    "القسم",
+    "الوظيفة",
+    "الحالة الوظيفية",
+    "الراتب الأساسي (د.ك)",
+    "تاريخ انتهاء الإقامة",
     "موديل الهاتف (للسائقين)",
 ]
 # optional, after the people columns (N to R in the template), each found by its header wherever it is
@@ -228,6 +228,10 @@ def _parts(header) -> list[str]:
     ]
 
 
+def _bare(header) -> str:
+    return _text(header).removesuffix("*").strip()
+
+
 def read(data: bytes, ignored: list | None = None) -> dict[str, list[Row]]:
     """Rows of the sheets imported now (vehicles, people, opening balances); maintenance centres come with M3."""
     import openpyxl  # with defusedxml installed, openpyxl parses the XML safely
@@ -243,7 +247,8 @@ def read(data: bytes, ignored: list | None = None) -> dict[str, list[Row]]:
             raise AppError(422, "import_bad_template", sheet=sheet)
         rows = wb[sheet].iter_rows(values_only=True)
         header = list(next(rows, ()))
-        if [_text(c) for c in header[: len(columns)]] != columns:
+        # a star marks a column that must be filled; a template saved before a column lost its star still matches
+        if [_bare(c) for c in header[: len(columns)]] != [_bare(c) for c in columns]:
             raise AppError(422, "import_bad_template", sheet=sheet)
         extra: dict[str, int] = {}  # optional column -> its index, the first one with that header
         if sheet == PEOPLE:
@@ -273,6 +278,8 @@ def text(row: Row, column: str) -> str:
 GUIDE = (
     "قالب استيراد السيارات والمستخدمين والسائقين والأرصدة الافتتاحية",
     "لا تغيّر أسماء الأوراق ولا عناوين الأعمدة ولا ترتيبها. الصف الرمادي (مثال) لا يُستورد، ولا الصفوف الفارغة.",
+    "الأعمدة اللي جنبها نجمة (*) لازم تتملي، والباقي اختياري: خانة فاضية لا تمسح ما هو مسجّل في النظام. "
+    "الحالة الوظيفية لو فاضية: الموظف الجديد «على رأس العمل».",
     "التواريخ يوم/شهر/سنة (31/12/2027)، والهاتف 8 أرقام دون مفتاح الدولة، والشركة والفرع والحالة الوظيفية "
     "بأسمائها في النظام، والدور «سائق» للسائقين.",
     "أعمدة اختيارية للسائقين في ورقة «المستخدمون والسائقون» (N إلى R):",
