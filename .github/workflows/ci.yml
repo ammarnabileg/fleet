@@ -214,7 +214,7 @@ jobs:
         # DRIVER_API_URL replaces it (another deployment) without touching this file. A release build: the debug
         # build drivers had runs the app's code unoptimised, several times slower on the phone
         env:
-          API_URL: ${{ vars.DRIVER_API_URL || 'https://fleet.kuw1.com' }}
+          API_URL: ${{ vars.DRIVER_API_URL || 'https://dash.ajwadgroupkw.com' }}
           CI_DEBUG_SIGNING: ${{ steps.signing.outputs.ci_debug_signing }}
         run: |
           HOST=$(echo "$API_URL" | sed -E 's#^https?://([^/:]+).*#\1#')
