@@ -139,8 +139,8 @@ def test_check_then_import_then_import_again(admin_client, company):
     out = run(admin_client, data, plan, apply=True).json()
     assert out["applied"] is True
     vehicles = {v["plate_number"]: v for v in admin_client.get("/api/v1/vehicles", params={"limit": 50}).json()}
-    assert set(vehicles) == {"60-76505", "60- 76303", "23-68409"}
-    v = vehicles["60-76505"]
+    assert set(vehicles) == {"60/76505", "60/76303", "23/68409"}
+    v = vehicles["60/76505"]
     assert (v["make"], v["year"], v["color"], v["company_id"]) == (
         "شانجان - changan",
         2024,

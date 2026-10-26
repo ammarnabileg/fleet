@@ -105,9 +105,9 @@ def test_my_car_and_a_change_of_vehicle_asked_for(admin_client, client, new_clie
     assert r.status_code == 201, r.text
     assert (r.json()["change_request"]["status"], r.json()["change_request"]["requested_plate"]) == (
         "pending",
-        "12-34567",
+        "12/34567",
     )
-    assert client.get("/api/v1/driver/vehicle", headers=h).json()["change_request"]["requested_plate"] == "12-34567"
+    assert client.get("/api/v1/driver/vehicle", headers=h).json()["change_request"]["requested_plate"] == "12/34567"
     again = client.post(url, headers=h, json={**ask, "reason": "مرة ثانية"})
     assert again.status_code == 409 and again.json()["code"] == "vehicle_change_exists"
     make_user(admin_client, "sup5", permissions=["custody.view", "custody.assign"])
@@ -115,14 +115,14 @@ def test_my_car_and_a_change_of_vehicle_asked_for(admin_client, client, new_clie
     login(sup, "sup5")
     (alert,) = [a for a in sup.get("/api/v1/alerts").json() if a["kind"] == "vehicle_change_requested"]
     assert "المكيف لا يعمل" in alert["message"] and v["plate_number"] in alert["message"]
-    assert "12-34567" in alert["message"]
+    assert "12/34567" in alert["message"]
     (req,) = sup.get(V).json()
     assert (req["vehicle_plate"], req["driver"]["id"], req["reason"]) == (v["plate_number"], d["id"], "المكيف لا يعمل")
-    assert req["requested_plate"] == "12-34567"
+    assert req["requested_plate"] == "12/34567"
     assert req["requested_vehicle"] == {
         "found": True,
         "id": other["id"],
-        "plate": "12-34567",
+        "plate": "12/34567",
         "status": "available",
         "holder": None,
     }
