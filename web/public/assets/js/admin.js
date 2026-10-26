@@ -178,6 +178,8 @@
       view: A.view,
       onBefore: function (r) {
         BT.closeAll(); BT.closeMenu();
+        // الشركات والفروع قد تُضاف من شاشة أخرى أو من الاستيراد: تحديثها في الخلفية مع كل تنقّل
+        api.reloadOrg().catch(function () {});
         // حاوية جديدة لكل صفحة حتى لا تتراكم مستمعات الأحداث بين الصفحات
         var old = A.view(), fresh = old.cloneNode(false); old.replaceWith(fresh);
         document.getElementById('app').classList.remove('nav-open');

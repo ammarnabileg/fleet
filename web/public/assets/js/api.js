@@ -160,6 +160,13 @@
   api.canAny = function (list) { return list.some(api.can); };
   api.company = function (id) { var c = api.companies.find(function (x) { return x.id === id; }); return c ? api.name(c.name) : '—'; };
   api.branch = function (id) { var b = api.branches.find(function (x) { return x.id === id; }); return b ? api.name(b.name) : '—'; };
+  /* بعد إضافة شركات أو فروع من خارج صفحتها (الاستيراد): تحديث القوائم المحفوظة من بداية الصفحة */
+  api.reloadOrg = function () {
+    return Promise.all([
+      api.get('/companies/options').then(function (c) { api.companies = c; }),
+      api.get('/branches').then(function (b) { api.branches = b; })
+    ]);
+  };
   api.companyOptions = function () { return api.companies.filter(function (c) { return c.is_active; }).map(function (c) { return { v: c.id, t: api.name(c.name) }; }); };
   api.branchOptions = function () { return api.branches.filter(function (b) { return b.is_active; }).map(function (b) { return { v: b.id, t: api.name(b.name) }; }); };
   api.defaultBranch = function () { var b = api.branches.find(function (x) { return x.is_default; }); return b ? b.id : null; };
@@ -177,8 +184,7 @@
       if (api.isCenterAccount(me)) { location.replace('center.html'); return new Promise(function () {}); }
       return Promise.all([
         api.loadCatalog(me.locale || 'ar').catch(function () { return api.loadCatalog('ar'); }),
-        api.get('/companies/options').then(function (c) { api.companies = c; }),
-        api.get('/branches').then(function (b) { api.branches = b; })
+        api.reloadOrg()
       ]);
     }).then(function () { return api.me; });
   };

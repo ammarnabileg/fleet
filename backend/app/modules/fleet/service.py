@@ -96,9 +96,21 @@ _PLATE_TO = "0123456789" * 2 + "-" * len(_PLATE_DASHES)
 _PLATE_TABLE = str.maketrans(_PLATE_FROM, _PLATE_TO)
 
 
+_KW_PLATE = re.compile(r"^(\d{1,2})\s*[-/\\.\s]\s*(\d{1,5})$")
+_KW_PLATE_RUN = re.compile(r"^\d{6,7}$")
+
+
 def normalize_plate(plate: str) -> str:
-    """Latin digits, a plain dash for any dash a phone types, upper case, single spaces."""
-    return " ".join(plate.translate(_PLATE_TABLE).upper().split())
+    """Latin digits, a plain dash for any dash a phone types, upper case, single spaces. A Kuwait plate (a code of one
+    or two digits and a number of up to five) is written code/number whatever separated them: 60-76505, 60 76505 and
+    6076505 are all 60/76505 (a run of 6 or 7 digits: the last five are the number). Anything else stays as written."""
+    text = " ".join(plate.translate(_PLATE_TABLE).upper().split())
+    m = _KW_PLATE.match(text)
+    if m:
+        return f"{m.group(1)}/{m.group(2)}"
+    if _KW_PLATE_RUN.match(text):
+        return f"{text[:-5]}/{text[-5:]}"
+    return text
 
 
 def _scoped(q, model, all_companies: bool, company_ids: Iterable[int]):
@@ -1676,11 +1688,16 @@ def vehicle_ref_by_public_id(db: Session, public_id, **scope) -> VehicleRef:
 
 
 def vehicle_by_plate(db: Session, plate: str) -> VehicleRef | None:
-    """Matches the way plates are unique: ignoring spaces and letter case."""
-    key = "".join(plate.upper().split())
+    """Matches the way plates are unique (ignoring spaces and letter case), the plate written as it is stored
+    (60-76505 is 60/76505); else the only plate equal to it ignoring separators (45678 for 45/678)."""
+    key = "".join(normalize_plate(plate).split())
     vehicle = db.scalar(
         select(Vehicle).where(func.upper(func.regexp_replace(Vehicle.plate_number, r"\s", "", "g")) == key)
     )
+    if vehicle is None:
+        loose = func.upper(func.regexp_replace(Vehicle.plate_number, r"[\s/-]", "", "g"))
+        found = list(db.scalars(select(Vehicle).where(loose == _plate_key(plate)).limit(2)))
+        vehicle = found[0] if len(found) == 1 else None
     return None if vehicle is None else _vref(vehicle)
 
 

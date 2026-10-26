@@ -47,7 +47,7 @@ def test_a_claim_waits_then_is_approved_with_its_reading_and_time(admin_client, 
     r, body = ask(client, h, "٤٤–١٢٣٤٥", photos=[side])
     assert r.status_code == 201, r.text
     claim = r.json()["claim"]
-    assert (claim["status"], claim["plate"], claim["odometer_km"]) == ("pending", "44-12345", 10_020)
+    assert (claim["status"], claim["plate"], claim["odometer_km"]) == ("pending", "44/12345", 10_020)
     assert r.json()["vehicle"] is None
     # sent again (the outbox retrying): recognised, not a second claim
     again = client.post(CLAIM, headers=h, json=body)
@@ -60,7 +60,7 @@ def test_a_claim_waits_then_is_approved_with_its_reading_and_time(admin_client, 
     assert admin_client.get(f"/api/v1/vehicles/{v['id']}").json()["status"] == "available"
 
     (alert,) = [a for a in admin_client.get("/api/v1/alerts").json() if a["kind"] == "vehicle_claim_requested"]
-    assert "44-12345" in alert["message"] and "10020" in alert["message"].replace(",", "")
+    assert "44/12345" in alert["message"] and "10020" in alert["message"].replace(",", "")
     assert alert["entity_type"] == "vehicle" and alert["entity_id"] == v["id"]
     (row,) = admin_client.get(V).json()
     assert row["driver"]["id"] == d["id"] and row["vehicle_id"] == v["id"] and row["vehicle_last_km"] == 10_000
@@ -80,8 +80,8 @@ def test_a_claim_waits_then_is_approved_with_its_reading_and_time(admin_client, 
     assert [a for a in admin_client.get("/api/v1/alerts").json() if a["kind"] == "vehicle_claim_requested"] == []
     assert told(client, h)[0] == "vehicle_claim_approved"
     mine = client.get("/api/v1/driver/vehicle", headers=h).json()
-    assert mine["vehicle"]["plate_number"] == "44-12345"
-    assert client.get("/api/v1/driver/today", headers=h).json()["custody"]["plate_number"] == "44-12345"
+    assert mine["vehicle"]["plate_number"] == "44/12345"
+    assert client.get("/api/v1/driver/today", headers=h).json()["custody"]["plate_number"] == "44/12345"
     again = admin_client.post(f"{V}/{row['id']}/approve", json={})
     assert again.status_code == 409 and again.json()["code"] == "vehicle_claim_decided"
     assert admin_client.get(V).json() == []
@@ -143,7 +143,7 @@ def test_approval_after_the_car_was_taken_stays_pending_and_a_refusal_needs_a_re
     assert [a for a in admin_client.get("/api/v1/alerts").json() if a["kind"] == "vehicle_claim_requested"] == []
     assert told(client, h)[0] == "vehicle_claim_rejected"
     notice = client.get("/api/v1/driver/notifications", headers=h).json()["items"][0]["message"]
-    assert "العربية اتسلمت لسواق تاني" in notice and "61-100" in notice
+    assert "العربية اتسلمت لسواق تاني" in notice and "61/100" in notice
     mine = client.get("/api/v1/driver/vehicle", headers=h).json()
     assert (mine["claim"]["status"], mine["claim"]["note"]) == ("rejected", "العربية اتسلمت لسواق تاني")
     # he may register a car again
@@ -187,7 +187,7 @@ def test_a_waiting_claim_is_settled_when_he_gets_a_car_another_way(admin_client,
     # the office hands him another car: his claim is closed, he is told, the alert goes
     c = hand_over(admin_client, other, d)
     mine = client.get("/api/v1/driver/vehicle", headers=h).json()
-    assert mine["vehicle"]["plate_number"] == "81-200"
+    assert mine["vehicle"]["plate_number"] == "81/200"
     (row,) = admin_client.get(V, params={"status": "all"}).json()
     assert (row["status"], row["note"]) == ("superseded", "اتسلمت عربية تانية")
     assert "vehicle_claim_superseded" in told(client, h)

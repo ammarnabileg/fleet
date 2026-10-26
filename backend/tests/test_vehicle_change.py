@@ -25,10 +25,10 @@ def holding(admin_client, client, company, plate=None):
 @pytest.mark.parametrize(
     ("typed", "plate"),
     [
-        ("١٢-٣٤٥٦٧", "12-34567"),
-        ("۱۲-۳۴۵۶۷", "12-34567"),
-        ("12–34567", "12-34567"),
-        ("12− 34567", "12- 34567"),
+        ("١٢-٣٤٥٦٧", "12/34567"),
+        ("۱۲-۳۴۵۶۷", "12/34567"),
+        ("12–34567", "12/34567"),
+        ("12− 34567", "12/34567"),
         ("  12   ab  ", "12 AB"),
     ],
 )
@@ -38,7 +38,7 @@ def test_the_plate_is_normalized(typed, plate):
 
 def test_a_vehicle_added_with_arabic_digits_is_kept_in_latin(admin_client, company):
     v = make_vehicle(admin_client, company["id"], plate_number="٤٥–٦٧٨")
-    assert v["plate_number"] == "45-678"
+    assert v["plate_number"] == "45/678"
 
 
 @pytest.mark.parametrize("typed", ["٣٣-٤٤٥٥٦", "33–44556", "33 44556", "3344556", "33/44556", " 33-44556 "])
@@ -95,7 +95,7 @@ def test_the_office_list_shows_the_car_asked_for_and_stays_in_its_companies(
     assert everything[0]["requested_vehicle"] == {
         "found": True,
         "id": free["id"],
-        "plate": "88-100",
+        "plate": "88/100",
         "status": "available",
         "holder": None,
     }

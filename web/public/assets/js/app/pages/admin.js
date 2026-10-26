@@ -38,7 +38,7 @@
         btn.classList.remove('is-loading'); btn.disabled = false;
         BT.render(res, result(r, true));
         applyBtn.classList.toggle('hidden', apply || r.errors.length > 0);
-        if (apply) { BT.toast('تم الاستيراد'); file = null; input.value = ''; }
+        if (apply) { BT.toast('تم الاستيراد'); file = null; input.value = ''; api.reloadOrg(); }
       }, function (err) { btn.classList.remove('is-loading'); btn.disabled = false; BT.render(res, h`<div class="banner danger">${icon('circle-x', 16)}<div>${api.message(err)}</div></div>`); });
     }
     el.querySelector('[data-check]').onclick = function (e) { run(false, e.currentTarget); };
@@ -139,7 +139,7 @@
           btn.classList.remove('is-loading'); btn.disabled = false;
           BT.render(res, result(r, false));
           applyBtn.classList.toggle('hidden', apply || r.errors.length > 0);
-          if (apply) { BT.toast('تم الاستيراد'); file = null; input.value = ''; } // قد يحوي كلمات مرور: لا يبقى في الصفحة
+          if (apply) { BT.toast('تم الاستيراد'); file = null; input.value = ''; api.reloadOrg(); } // قد يحوي كلمات مرور: لا يبقى في الصفحة
           res.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, function (err) { btn.classList.remove('is-loading'); btn.disabled = false; BT.render(res, h`<div class="banner danger">${icon('circle-x', 16)}<div>${api.message(err)}</div></div>`); });
       }
