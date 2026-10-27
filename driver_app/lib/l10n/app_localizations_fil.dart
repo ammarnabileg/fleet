@@ -2279,4 +2279,77 @@ class AppLocalizationsFil extends AppLocalizations {
 
   @override
   String get schemeKind_batch => 'Batch';
+
+  @override
+  String schemeFixedSalary(String amount) {
+    return 'Fixed na sahod: $amount KWD kada buwan';
+  }
+
+  @override
+  String get schemeContractSalary => 'Ang basic na sahod sa iyong kontrata';
+
+  @override
+  String schemeOverTarget(String target, String rate) {
+    return 'Target $target order: + $rate KWD bawat order na lampas dito';
+  }
+
+  @override
+  String schemeUnderTarget(String rate) {
+    return 'at − $rate KWD bawat kulang na order';
+  }
+
+  @override
+  String get schemeTierRates => 'Presyo bawat order ayon sa order ng buwan:';
+
+  @override
+  String schemeTierRateRow(String orders, String rate) {
+    return 'Mula $orders order: $rate KWD';
+  }
+
+  @override
+  String schemeMonthlyBonus(String amount) {
+    return 'Buwanang bonus: $amount KWD';
+  }
+
+  @override
+  String get schemeMarksTable => 'Mga pulang marka sa buwan:';
+
+  @override
+  String schemeMarksFree(String marks) {
+    return 'Hanggang $marks marka: walang bawas (iyong mga day off)';
+  }
+
+  @override
+  String schemeMarksRow(String marks, String amount) {
+    return '$marks marka: − $amount KWD';
+  }
+
+  @override
+  String schemeMarkEach(String amount) {
+    return '− $amount KWD bawat pulang marka';
+  }
+
+  @override
+  String schemeReducedStarDay(String rate) {
+    return 'Pulang marka sa star day: bawat order ng buwan ay $rate KWD kapalit ng sahod at bonus, may bawas pa rin';
+  }
+
+  @override
+  String schemeReducedMarks(String marks, String rate) {
+    return 'Higit sa $marks pulang marka: bawat order ng buwan ay $rate KWD kapalit ng sahod at bonus';
+  }
+
+  @override
+  String schemeRequiredDays(String days) {
+    return '$days valid na araw ang kailangan sa buwan';
+  }
+
+  @override
+  String get schemePlatformAmounts =>
+      'Idinadagdag ang tips; ibinabawas ang sira sa pagkain, adjustment at diskwento ng platform';
+
+  @override
+  String schemeDriverPays(String items) {
+    return 'Sagot mo: $items';
+  }
 }

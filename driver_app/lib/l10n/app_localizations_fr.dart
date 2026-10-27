@@ -2292,4 +2292,78 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get schemeKind_batch => 'Batch';
+
+  @override
+  String schemeFixedSalary(String amount) {
+    return 'Salaire fixe : $amount KWD par mois';
+  }
+
+  @override
+  String get schemeContractSalary => 'Le salaire de base de votre contrat';
+
+  @override
+  String schemeOverTarget(String target, String rate) {
+    return 'Objectif $target commandes : + $rate KWD par commande au-delà';
+  }
+
+  @override
+  String schemeUnderTarget(String rate) {
+    return 'et − $rate KWD par commande manquante';
+  }
+
+  @override
+  String get schemeTierRates =>
+      'Le prix par commande selon les commandes du mois :';
+
+  @override
+  String schemeTierRateRow(String orders, String rate) {
+    return 'Dès $orders commandes : $rate KWD';
+  }
+
+  @override
+  String schemeMonthlyBonus(String amount) {
+    return 'Prime mensuelle : $amount KWD';
+  }
+
+  @override
+  String get schemeMarksTable => 'Marques rouges dans le mois :';
+
+  @override
+  String schemeMarksFree(String marks) {
+    return 'Jusqu\'à $marks marques : aucune retenue (vos jours de repos)';
+  }
+
+  @override
+  String schemeMarksRow(String marks, String amount) {
+    return '$marks marques : − $amount KWD';
+  }
+
+  @override
+  String schemeMarkEach(String amount) {
+    return '− $amount KWD par marque rouge';
+  }
+
+  @override
+  String schemeReducedStarDay(String rate) {
+    return 'Une marque rouge un jour étoile : toutes les commandes du mois à $rate KWD au lieu du salaire et des primes, les retenues restent';
+  }
+
+  @override
+  String schemeReducedMarks(String marks, String rate) {
+    return 'Plus de $marks marques rouges : toutes les commandes du mois à $rate KWD au lieu du salaire et des primes';
+  }
+
+  @override
+  String schemeRequiredDays(String days) {
+    return '$days jours valides requis dans le mois';
+  }
+
+  @override
+  String get schemePlatformAmounts =>
+      'Les pourboires sont ajoutés ; les dommages alimentaires, ajustements et remises de la plateforme sont retenus';
+
+  @override
+  String schemeDriverPays(String items) {
+    return 'À votre charge : $items';
+  }
 }

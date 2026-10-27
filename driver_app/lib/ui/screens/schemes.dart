@@ -294,6 +294,7 @@ class SchemeCard extends StatelessWidget {
   }
 
   static List<String> terms(AppLocalizations l, PayScheme s, String lang) {
+    if (s.blocks != null) return blockTerms(l, s.blocks!, lang);
     if (s.calculator == 'platform_rates') return [l.schemePlatformRates];
     final out = <String>[];
     if (s.calculator == 'per_order') out.add(l.schemePerOrder(_money(s.perOrder)));
@@ -339,12 +340,99 @@ class SchemeCard extends StatelessWidget {
                     'maintenance' => l.expense_maintenance,
                     'housing' => l.expense_housing,
                     'gas' => l.expense_gas,
-                    'sim' => l.expense_sim,
+                    'sim' || 'phone' => l.expense_sim,
                     _ => c,
                   },
               ].join(lang == 'ar' ? '، ' : ', '),
             ),
     );
+    return out;
+  }
+
+  /// A scheme written as rule blocks, in the driver's words: what he earns, the target, the bonuses, the red marks
+  /// and the star day, the platform's amounts, and who pays the expenses.
+  static List<String> blockTerms(AppLocalizations l, List<Map<String, dynamic>> blocks, String lang) {
+    final out = <String>[];
+    Map<String, dynamic> p(Map<String, dynamic> b) => Map<String, dynamic>.from(b['params'] as Map? ?? const {});
+    List<Map<String, dynamic>> cond(Map<String, dynamic> b) => [
+      for (final c in b['condition'] as List? ?? const []) Map<String, dynamic>.from(c as Map),
+    ];
+    List<Map<String, dynamic>> rows(Object? v) => [
+      for (final r in v as List? ?? const []) Map<String, dynamic>.from(r as Map),
+    ];
+    final company = <String>[], driver = <String>[];
+    String expense(String kind) => switch (kind) {
+      'maintenance' => l.expense_maintenance,
+      'housing' => l.expense_housing,
+      'gas' => l.expense_gas,
+      'phone' || 'sim' => l.expense_sim,
+      _ => kind,
+    };
+    for (final b in blocks) {
+      final x = p(b), c = cond(b), type = b['type'] as String? ?? '';
+      // a price that applies only when the month went wrong (a star day missed, too many marks)
+      final starDay = c.any((y) => y['fact'] == 'month_invalid' && y['op'] == 'is_true');
+      final manyMarks = c.where((y) => y['fact'] == 'marks' && y['op'] == 'gt').firstOrNull;
+      if ((type == 'per_order' || type == 'price_change') && (starDay || manyMarks != null)) {
+        out.add(
+          starDay
+              ? l.schemeReducedStarDay(_money('${x['rate']}'))
+              : l.schemeReducedMarks(_int(manyMarks!['value'] as num), _money('${x['rate']}')),
+        );
+        continue;
+      }
+      switch (type) {
+        case 'fixed_salary':
+          out.add(x['mode'] == 'contract' ? l.schemeContractSalary : l.schemeFixedSalary(_money('${x['amount']}')));
+        case 'per_order':
+          if ((x['source'] ?? 'orders') == 'orders') out.add(l.schemePerOrder(_money('${x['rate']}')));
+        case 'batch_rate':
+          out.add(l.schemeBatchRates);
+          for (final r in rows(x['rates'])) {
+            out.add('• ${l.schemeBatchRow(_int(r['batch'] as num), _money('${r['rate']}'))}');
+          }
+        case 'tiered_rate':
+          out.add(l.schemeTierRates);
+          for (final r in rows(x['tiers'])) {
+            out.add('• ${l.schemeTierRateRow(_int(r['from'] as num), _money('${r['rate']}'))}');
+          }
+        case 'target_overage':
+          out.add(l.schemeOverTarget(_int(x['threshold'] as num), _money('${x['rate']}')));
+          if (x['below_rate'] != null) out.add(l.schemeUnderTarget(_money('${x['below_rate']}')));
+        case 'missing_orders':
+          out.add(l.schemeMissing(_money('${x['rate']}')));
+        case 'tier_bonus':
+          out.add(l.schemeTiers);
+          for (final r in rows(x['tiers'])) {
+            out.add('• ${l.schemeTierRow(_int(r['from'] as num), _money('${r['amount']}'))}');
+          }
+        case 'monthly_bonus':
+          out.add(l.schemeMonthlyBonus(_money('${x['amount']}')));
+        case 'attendance_marks':
+          if (x['mode'] == 'per_mark') {
+            out.add(l.schemeMarkEach(_money('${x['amount']}')));
+          } else {
+            final table = rows(x['table']);
+            out.add(l.schemeMarksTable);
+            if (table.isNotEmpty && (table.first['from'] as num) > 1) {
+              out.add('• ${l.schemeMarksFree(_int((table.first['from'] as num) - 1))}');
+            }
+            for (final r in table) {
+              out.add('• ${l.schemeMarksRow(_int(r['from'] as num), _money('${r['amount']}'))}');
+            }
+          }
+        case 'required_days':
+          out.add(l.schemeRequiredDays(_int(x['days'] as num)));
+        case 'platform_amounts':
+          out.add(l.schemePlatformAmounts);
+        case 'expense':
+          (x['responsibility'] == 'company' ? company : driver).add(expense('${x['kind']}'));
+      }
+    }
+    final sep = lang == 'ar' ? '، ' : ', ';
+    if (company.isNotEmpty) out.add(l.schemeCovers(company.join(sep)));
+    if (driver.isNotEmpty) out.add(l.schemeDriverPays(driver.join(sep)));
+    if (company.isEmpty && driver.isEmpty) out.add(l.schemeCoversNone);
     return out;
   }
 }

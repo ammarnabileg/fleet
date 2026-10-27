@@ -716,6 +716,7 @@ class PayScheme {
     this.marksWhenReduced = false,
     required this.companyCovers,
     required this.steps,
+    this.blocks,
   });
 
   factory PayScheme.fromJson(Map<String, dynamic> j) => PayScheme(
@@ -734,6 +735,7 @@ class PayScheme {
     marksWhenReduced: j['marks_when_reduced'] as bool? ?? false,
     companyCovers: List<String>.from(j['company_covers'] as List? ?? const []),
     steps: [for (final s in j['steps'] as List? ?? const []) SchemeStep.fromJson(s as Map<String, dynamic>)],
+    blocks: (j['blocks'] as List?)?.whereType<Map>().map((b) => Map<String, dynamic>.from(b)).toList(),
   );
 
   final String id;
@@ -742,6 +744,7 @@ class PayScheme {
   final Map<String, String>? description;
   final String calculator; // per_order | batch | tiered_target | platform_rates
   final String payKind; // how it pays, his first choice: per_order | fixed_salary | batch
+  final List<Map<String, dynamic>>? blocks; // the scheme's rules when it is written as rule blocks
   final String? perOrder;
   final int targetOrders;
   final int requiredValidDays;

@@ -655,7 +655,23 @@
     "schemeKindPick": "Piliin muna kung paano ka babayaran",
     "schemeKind_per_order": "Bawat order",
     "schemeKind_fixed_salary": "Fixed na sahod",
-    "schemeKind_batch": "Batch"
+    "schemeKind_batch": "Batch",
+    "schemeFixedSalary": "Fixed na sahod: {amount} KWD kada buwan",
+    "schemeContractSalary": "Ang basic na sahod sa iyong kontrata",
+    "schemeOverTarget": "Target {target} order: + {rate} KWD bawat order na lampas dito",
+    "schemeUnderTarget": "at − {rate} KWD bawat kulang na order",
+    "schemeTierRates": "Presyo bawat order ayon sa order ng buwan:",
+    "schemeTierRateRow": "Mula {orders} order: {rate} KWD",
+    "schemeMonthlyBonus": "Buwanang bonus: {amount} KWD",
+    "schemeMarksTable": "Mga pulang marka sa buwan:",
+    "schemeMarksFree": "Hanggang {marks} marka: walang bawas (iyong mga day off)",
+    "schemeMarksRow": "{marks} marka: − {amount} KWD",
+    "schemeMarkEach": "− {amount} KWD bawat pulang marka",
+    "schemeReducedStarDay": "Pulang marka sa star day: bawat order ng buwan ay {rate} KWD kapalit ng sahod at bonus, may bawas pa rin",
+    "schemeReducedMarks": "Higit sa {marks} pulang marka: bawat order ng buwan ay {rate} KWD kapalit ng sahod at bonus",
+    "schemeRequiredDays": "{days} valid na araw ang kailangan sa buwan",
+    "schemePlatformAmounts": "Idinadagdag ang tips; ibinabawas ang sira sa pagkain, adjustment at diskwento ng platform",
+    "schemeDriverPays": "Sagot mo: {items}"
   },
   "server": {
     "deduction_source": {

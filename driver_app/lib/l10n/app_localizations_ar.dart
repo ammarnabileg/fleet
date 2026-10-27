@@ -2251,4 +2251,77 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get schemeKind_batch => 'باتش';
+
+  @override
+  String schemeFixedSalary(String amount) {
+    return 'راتب ثابت: $amount د.ك في الشهر';
+  }
+
+  @override
+  String get schemeContractSalary => 'الراتب الأساسي حسب عقدك';
+
+  @override
+  String schemeOverTarget(String target, String rate) {
+    return 'التارجت $target طلب: كل طلب فوقه + $rate د.ك';
+  }
+
+  @override
+  String schemeUnderTarget(String rate) {
+    return 'وكل طلب ناقص عن التارجت − $rate د.ك';
+  }
+
+  @override
+  String get schemeTierRates => 'سعر الطلب حسب عدد طلبات الشهر:';
+
+  @override
+  String schemeTierRateRow(String orders, String rate) {
+    return 'من $orders طلب: $rate د.ك';
+  }
+
+  @override
+  String schemeMonthlyBonus(String amount) {
+    return 'بونص شهري: $amount د.ك';
+  }
+
+  @override
+  String get schemeMarksTable => 'العلامات الحمراء في الشهر:';
+
+  @override
+  String schemeMarksFree(String marks) {
+    return 'حتى $marks علامات: بدون خصم (أيام إجازتك)';
+  }
+
+  @override
+  String schemeMarksRow(String marks, String amount) {
+    return '$marks علامات: − $amount د.ك';
+  }
+
+  @override
+  String schemeMarkEach(String amount) {
+    return 'كل علامة حمراء − $amount د.ك';
+  }
+
+  @override
+  String schemeReducedStarDay(String rate) {
+    return 'علامة حمراء في يوم النجمة: كل طلبات الشهر بـ $rate د.ك بدل الراتب والبونص، والخصومات تُخصم منه';
+  }
+
+  @override
+  String schemeReducedMarks(String marks, String rate) {
+    return 'أكثر من $marks علامات حمراء: كل طلبات الشهر بـ $rate د.ك بدل الراتب والبونص';
+  }
+
+  @override
+  String schemeRequiredDays(String days) {
+    return 'مطلوب $days يوماً صالحاً في الشهر';
+  }
+
+  @override
+  String get schemePlatformAmounts =>
+      'البقشيش يُضاف لراتبك، وتعويض تلف الطعام والتعديلات وخصم المنصة تُخصم منه';
+
+  @override
+  String schemeDriverPays(String items) {
+    return 'عليك: $items';
+  }
 }

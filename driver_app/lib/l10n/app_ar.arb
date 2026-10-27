@@ -1462,5 +1462,117 @@
   "schemeKindPick": "اختر طريقة الحساب أولاً",
   "schemeKind_per_order": "بالطلب",
   "schemeKind_fixed_salary": "راتب ثابت",
-  "schemeKind_batch": "باتش"
+  "schemeKind_batch": "باتش",
+  "schemeFixedSalary": "راتب ثابت: {amount} د.ك في الشهر",
+  "@schemeFixedSalary": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeContractSalary": "الراتب الأساسي حسب عقدك",
+  "schemeOverTarget": "التارجت {target} طلب: كل طلب فوقه + {rate} د.ك",
+  "@schemeOverTarget": {
+    "placeholders": {
+      "target": {
+        "type": "String"
+      },
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeUnderTarget": "وكل طلب ناقص عن التارجت − {rate} د.ك",
+  "@schemeUnderTarget": {
+    "placeholders": {
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeTierRates": "سعر الطلب حسب عدد طلبات الشهر:",
+  "schemeTierRateRow": "من {orders} طلب: {rate} د.ك",
+  "@schemeTierRateRow": {
+    "placeholders": {
+      "orders": {
+        "type": "String"
+      },
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeMonthlyBonus": "بونص شهري: {amount} د.ك",
+  "@schemeMonthlyBonus": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeMarksTable": "العلامات الحمراء في الشهر:",
+  "schemeMarksFree": "حتى {marks} علامات: بدون خصم (أيام إجازتك)",
+  "@schemeMarksFree": {
+    "placeholders": {
+      "marks": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeMarksRow": "{marks} علامات: − {amount} د.ك",
+  "@schemeMarksRow": {
+    "placeholders": {
+      "marks": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeMarkEach": "كل علامة حمراء − {amount} د.ك",
+  "@schemeMarkEach": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeReducedStarDay": "علامة حمراء في يوم النجمة: كل طلبات الشهر بـ {rate} د.ك بدل الراتب والبونص، والخصومات تُخصم منه",
+  "@schemeReducedStarDay": {
+    "placeholders": {
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeReducedMarks": "أكثر من {marks} علامات حمراء: كل طلبات الشهر بـ {rate} د.ك بدل الراتب والبونص",
+  "@schemeReducedMarks": {
+    "placeholders": {
+      "marks": {
+        "type": "String"
+      },
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "schemeRequiredDays": "مطلوب {days} يوماً صالحاً في الشهر",
+  "@schemeRequiredDays": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "schemePlatformAmounts": "البقشيش يُضاف لراتبك، وتعويض تلف الطعام والتعديلات وخصم المنصة تُخصم منه",
+  "schemeDriverPays": "عليك: {items}",
+  "@schemeDriverPays": {
+    "placeholders": {
+      "items": {
+        "type": "String"
+      }
+    }
+  }
 }

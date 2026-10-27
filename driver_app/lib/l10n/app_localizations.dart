@@ -4035,6 +4035,102 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'باتش'**
   String get schemeKind_batch;
+
+  /// No description provided for @schemeFixedSalary.
+  ///
+  /// In ar, this message translates to:
+  /// **'راتب ثابت: {amount} د.ك في الشهر'**
+  String schemeFixedSalary(String amount);
+
+  /// No description provided for @schemeContractSalary.
+  ///
+  /// In ar, this message translates to:
+  /// **'الراتب الأساسي حسب عقدك'**
+  String get schemeContractSalary;
+
+  /// No description provided for @schemeOverTarget.
+  ///
+  /// In ar, this message translates to:
+  /// **'التارجت {target} طلب: كل طلب فوقه + {rate} د.ك'**
+  String schemeOverTarget(String target, String rate);
+
+  /// No description provided for @schemeUnderTarget.
+  ///
+  /// In ar, this message translates to:
+  /// **'وكل طلب ناقص عن التارجت − {rate} د.ك'**
+  String schemeUnderTarget(String rate);
+
+  /// No description provided for @schemeTierRates.
+  ///
+  /// In ar, this message translates to:
+  /// **'سعر الطلب حسب عدد طلبات الشهر:'**
+  String get schemeTierRates;
+
+  /// No description provided for @schemeTierRateRow.
+  ///
+  /// In ar, this message translates to:
+  /// **'من {orders} طلب: {rate} د.ك'**
+  String schemeTierRateRow(String orders, String rate);
+
+  /// No description provided for @schemeMonthlyBonus.
+  ///
+  /// In ar, this message translates to:
+  /// **'بونص شهري: {amount} د.ك'**
+  String schemeMonthlyBonus(String amount);
+
+  /// No description provided for @schemeMarksTable.
+  ///
+  /// In ar, this message translates to:
+  /// **'العلامات الحمراء في الشهر:'**
+  String get schemeMarksTable;
+
+  /// No description provided for @schemeMarksFree.
+  ///
+  /// In ar, this message translates to:
+  /// **'حتى {marks} علامات: بدون خصم (أيام إجازتك)'**
+  String schemeMarksFree(String marks);
+
+  /// No description provided for @schemeMarksRow.
+  ///
+  /// In ar, this message translates to:
+  /// **'{marks} علامات: − {amount} د.ك'**
+  String schemeMarksRow(String marks, String amount);
+
+  /// No description provided for @schemeMarkEach.
+  ///
+  /// In ar, this message translates to:
+  /// **'كل علامة حمراء − {amount} د.ك'**
+  String schemeMarkEach(String amount);
+
+  /// No description provided for @schemeReducedStarDay.
+  ///
+  /// In ar, this message translates to:
+  /// **'علامة حمراء في يوم النجمة: كل طلبات الشهر بـ {rate} د.ك بدل الراتب والبونص، والخصومات تُخصم منه'**
+  String schemeReducedStarDay(String rate);
+
+  /// No description provided for @schemeReducedMarks.
+  ///
+  /// In ar, this message translates to:
+  /// **'أكثر من {marks} علامات حمراء: كل طلبات الشهر بـ {rate} د.ك بدل الراتب والبونص'**
+  String schemeReducedMarks(String marks, String rate);
+
+  /// No description provided for @schemeRequiredDays.
+  ///
+  /// In ar, this message translates to:
+  /// **'مطلوب {days} يوماً صالحاً في الشهر'**
+  String schemeRequiredDays(String days);
+
+  /// No description provided for @schemePlatformAmounts.
+  ///
+  /// In ar, this message translates to:
+  /// **'البقشيش يُضاف لراتبك، وتعويض تلف الطعام والتعديلات وخصم المنصة تُخصم منه'**
+  String get schemePlatformAmounts;
+
+  /// No description provided for @schemeDriverPays.
+  ///
+  /// In ar, this message translates to:
+  /// **'عليك: {items}'**
+  String schemeDriverPays(String items);
 }
 
 class _AppLocalizationsDelegate

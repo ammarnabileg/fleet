@@ -655,7 +655,23 @@
     "schemeKindPick": "पहले चुनें कि आपको कैसे भुगतान मिलेगा",
     "schemeKind_per_order": "प्रति ऑर्डर",
     "schemeKind_fixed_salary": "निश्चित वेतन",
-    "schemeKind_batch": "बैच"
+    "schemeKind_batch": "बैच",
+    "schemeFixedSalary": "निश्चित वेतन: {amount} KWD प्रति माह",
+    "schemeContractSalary": "आपके अनुबंध का मूल वेतन",
+    "schemeOverTarget": "लक्ष्य {target} ऑर्डर: इसके ऊपर हर ऑर्डर पर + {rate} KWD",
+    "schemeUnderTarget": "और हर कम ऑर्डर पर − {rate} KWD",
+    "schemeTierRates": "महीने के ऑर्डर के अनुसार प्रति ऑर्डर कीमत:",
+    "schemeTierRateRow": "{orders} ऑर्डर से: {rate} KWD",
+    "schemeMonthlyBonus": "मासिक बोनस: {amount} KWD",
+    "schemeMarksTable": "महीने में लाल निशान:",
+    "schemeMarksFree": "{marks} निशान तक: कोई कटौती नहीं (आपकी छुट्टियां)",
+    "schemeMarksRow": "{marks} निशान: − {amount} KWD",
+    "schemeMarkEach": "हर लाल निशान पर − {amount} KWD",
+    "schemeReducedStarDay": "स्टार दिन पर लाल निशान: महीने के हर ऑर्डर पर {rate} KWD, वेतन और बोनस के बजाय, कटौतियां फिर भी",
+    "schemeReducedMarks": "{marks} से अधिक लाल निशान: महीने के हर ऑर्डर पर {rate} KWD, वेतन और बोनस के बजाय",
+    "schemeRequiredDays": "महीने में {days} मान्य दिन आवश्यक",
+    "schemePlatformAmounts": "टिप्स जोड़ी जाती हैं; खाने का नुकसान, समायोजन और प्लेटफ़ॉर्म की छूट काटी जाती है",
+    "schemeDriverPays": "आप पर: {items}"
   },
   "server": {
     "deduction_source": {

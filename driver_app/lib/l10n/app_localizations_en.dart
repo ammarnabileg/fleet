@@ -2267,4 +2267,77 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get schemeKind_batch => 'Batch';
+
+  @override
+  String schemeFixedSalary(String amount) {
+    return 'Fixed salary: $amount KWD a month';
+  }
+
+  @override
+  String get schemeContractSalary => 'The basic salary of your contract';
+
+  @override
+  String schemeOverTarget(String target, String rate) {
+    return 'Target $target orders: + $rate KWD for each order above it';
+  }
+
+  @override
+  String schemeUnderTarget(String rate) {
+    return 'and − $rate KWD for each order short of it';
+  }
+
+  @override
+  String get schemeTierRates => 'The price per order by the month\'s orders:';
+
+  @override
+  String schemeTierRateRow(String orders, String rate) {
+    return 'From $orders orders: $rate KWD';
+  }
+
+  @override
+  String schemeMonthlyBonus(String amount) {
+    return 'Monthly bonus: $amount KWD';
+  }
+
+  @override
+  String get schemeMarksTable => 'Red marks in the month:';
+
+  @override
+  String schemeMarksFree(String marks) {
+    return 'Up to $marks marks: no deduction (your days off)';
+  }
+
+  @override
+  String schemeMarksRow(String marks, String amount) {
+    return '$marks marks: − $amount KWD';
+  }
+
+  @override
+  String schemeMarkEach(String amount) {
+    return '− $amount KWD for each red mark';
+  }
+
+  @override
+  String schemeReducedStarDay(String rate) {
+    return 'A red mark on a star day: every order of the month at $rate KWD instead of the salary and bonuses, the deductions still taken';
+  }
+
+  @override
+  String schemeReducedMarks(String marks, String rate) {
+    return 'More than $marks red marks: every order of the month at $rate KWD instead of the salary and bonuses';
+  }
+
+  @override
+  String schemeRequiredDays(String days) {
+    return '$days valid days needed in the month';
+  }
+
+  @override
+  String get schemePlatformAmounts =>
+      'Tips are added to your pay; food damage, adjustments and the platform\'s discount are deducted';
+
+  @override
+  String schemeDriverPays(String items) {
+    return 'On you: $items';
+  }
 }

@@ -4639,4 +4639,21 @@ void reviewWidgetTests() {
     await reveal(tester, find.byKey(Key('petty-queued-$id')));
     expect(find.descendant(of: find.byKey(Key('petty-queued-$id')), matching: find.text('بانتظار الإرسال')), findsOne);
   });
+
+  testWidgets('auto reload: the office\'s changes reach the open app when he comes back to it, and every few minutes', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(() => world()))!;
+    await pumpApp(tester, w);
+    final before = w.server.calls('/api/v1/driver/cash').length;
+    await tester.runAsync(() => w.state.reloadData()); // just loaded: not again so soon
+    expect(w.server.calls('/api/v1/driver/cash').length, before);
+    await tester.runAsync(() => w.state.resumed()); // back to the app: read at once
+    await settle(tester);
+    expect(w.server.calls('/api/v1/driver/cash').length, greaterThan(before));
+    w.server.on('GET', '/api/v1/driver/cash', (r) => throw const SocketException('offline'));
+    await tester.runAsync(() => w.state.reloadData(force: true)); // offline: nothing breaks, the screen stays
+    await settle(tester);
+    expect(tester.takeException(), isNull);
+  });
 }

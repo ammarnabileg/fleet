@@ -476,6 +476,7 @@ class DriverSchemeOut(BaseModel):
     floor_at_zero: bool
     company_covers: list[str]
     steps: list[dict]
+    blocks: list[dict] | None = None  # the scheme's rules (its designed version): the app writes them out
 
 
 class DriverSchemesOut(BaseModel):

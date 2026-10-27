@@ -1321,4 +1321,36 @@ class RemoteLocalizations extends AppLocalizations {
   String get schemeKind_fixed_salary => _remote.text('schemeKind_fixed_salary') ?? _base.schemeKind_fixed_salary;
   @override
   String get schemeKind_batch => _remote.text('schemeKind_batch') ?? _base.schemeKind_batch;
+  @override
+  String schemeFixedSalary(String amount) => _remote.format('schemeFixedSalary', {'amount': amount}) ?? _base.schemeFixedSalary(amount);
+  @override
+  String get schemeContractSalary => _remote.text('schemeContractSalary') ?? _base.schemeContractSalary;
+  @override
+  String schemeOverTarget(String target, String rate) => _remote.format('schemeOverTarget', {'target': target, 'rate': rate}) ?? _base.schemeOverTarget(target, rate);
+  @override
+  String schemeUnderTarget(String rate) => _remote.format('schemeUnderTarget', {'rate': rate}) ?? _base.schemeUnderTarget(rate);
+  @override
+  String get schemeTierRates => _remote.text('schemeTierRates') ?? _base.schemeTierRates;
+  @override
+  String schemeTierRateRow(String orders, String rate) => _remote.format('schemeTierRateRow', {'orders': orders, 'rate': rate}) ?? _base.schemeTierRateRow(orders, rate);
+  @override
+  String schemeMonthlyBonus(String amount) => _remote.format('schemeMonthlyBonus', {'amount': amount}) ?? _base.schemeMonthlyBonus(amount);
+  @override
+  String get schemeMarksTable => _remote.text('schemeMarksTable') ?? _base.schemeMarksTable;
+  @override
+  String schemeMarksFree(String marks) => _remote.format('schemeMarksFree', {'marks': marks}) ?? _base.schemeMarksFree(marks);
+  @override
+  String schemeMarksRow(String marks, String amount) => _remote.format('schemeMarksRow', {'marks': marks, 'amount': amount}) ?? _base.schemeMarksRow(marks, amount);
+  @override
+  String schemeMarkEach(String amount) => _remote.format('schemeMarkEach', {'amount': amount}) ?? _base.schemeMarkEach(amount);
+  @override
+  String schemeReducedStarDay(String rate) => _remote.format('schemeReducedStarDay', {'rate': rate}) ?? _base.schemeReducedStarDay(rate);
+  @override
+  String schemeReducedMarks(String marks, String rate) => _remote.format('schemeReducedMarks', {'marks': marks, 'rate': rate}) ?? _base.schemeReducedMarks(marks, rate);
+  @override
+  String schemeRequiredDays(String days) => _remote.format('schemeRequiredDays', {'days': days}) ?? _base.schemeRequiredDays(days);
+  @override
+  String get schemePlatformAmounts => _remote.text('schemePlatformAmounts') ?? _base.schemePlatformAmounts;
+  @override
+  String schemeDriverPays(String items) => _remote.format('schemeDriverPays', {'items': items}) ?? _base.schemeDriverPays(items);
 }

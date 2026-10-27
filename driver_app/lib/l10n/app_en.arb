@@ -696,5 +696,21 @@
   "schemeKindPick": "Choose how you are paid first",
   "schemeKind_per_order": "Per order",
   "schemeKind_fixed_salary": "Fixed salary",
-  "schemeKind_batch": "Batch"
+  "schemeKind_batch": "Batch",
+  "schemeFixedSalary": "Fixed salary: {amount} KWD a month",
+  "schemeContractSalary": "The basic salary of your contract",
+  "schemeOverTarget": "Target {target} orders: + {rate} KWD for each order above it",
+  "schemeUnderTarget": "and − {rate} KWD for each order short of it",
+  "schemeTierRates": "The price per order by the month's orders:",
+  "schemeTierRateRow": "From {orders} orders: {rate} KWD",
+  "schemeMonthlyBonus": "Monthly bonus: {amount} KWD",
+  "schemeMarksTable": "Red marks in the month:",
+  "schemeMarksFree": "Up to {marks} marks: no deduction (your days off)",
+  "schemeMarksRow": "{marks} marks: − {amount} KWD",
+  "schemeMarkEach": "− {amount} KWD for each red mark",
+  "schemeReducedStarDay": "A red mark on a star day: every order of the month at {rate} KWD instead of the salary and bonuses, the deductions still taken",
+  "schemeReducedMarks": "More than {marks} red marks: every order of the month at {rate} KWD instead of the salary and bonuses",
+  "schemeRequiredDays": "{days} valid days needed in the month",
+  "schemePlatformAmounts": "Tips are added to your pay; food damage, adjustments and the platform's discount are deducted",
+  "schemeDriverPays": "On you: {items}"
 }

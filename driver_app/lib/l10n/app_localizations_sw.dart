@@ -2272,4 +2272,77 @@ class AppLocalizationsSw extends AppLocalizations {
 
   @override
   String get schemeKind_batch => 'Batch';
+
+  @override
+  String schemeFixedSalary(String amount) {
+    return 'Mshahara wa kudumu: $amount KWD kwa mwezi';
+  }
+
+  @override
+  String get schemeContractSalary => 'Mshahara wa msingi wa mkataba wako';
+
+  @override
+  String schemeOverTarget(String target, String rate) {
+    return 'Lengo oda $target: + $rate KWD kwa kila oda juu yake';
+  }
+
+  @override
+  String schemeUnderTarget(String rate) {
+    return 'na − $rate KWD kwa kila oda iliyopungua';
+  }
+
+  @override
+  String get schemeTierRates => 'Bei kwa oda kulingana na oda za mwezi:';
+
+  @override
+  String schemeTierRateRow(String orders, String rate) {
+    return 'Kuanzia oda $orders: $rate KWD';
+  }
+
+  @override
+  String schemeMonthlyBonus(String amount) {
+    return 'Bonasi ya mwezi: $amount KWD';
+  }
+
+  @override
+  String get schemeMarksTable => 'Alama nyekundu katika mwezi:';
+
+  @override
+  String schemeMarksFree(String marks) {
+    return 'Hadi alama $marks: hakuna makato (siku zako za mapumziko)';
+  }
+
+  @override
+  String schemeMarksRow(String marks, String amount) {
+    return 'Alama $marks: − $amount KWD';
+  }
+
+  @override
+  String schemeMarkEach(String amount) {
+    return '− $amount KWD kwa kila alama nyekundu';
+  }
+
+  @override
+  String schemeReducedStarDay(String rate) {
+    return 'Alama nyekundu siku ya nyota: kila oda ya mwezi kwa $rate KWD badala ya mshahara na bonasi, makato bado yanakatwa';
+  }
+
+  @override
+  String schemeReducedMarks(String marks, String rate) {
+    return 'Zaidi ya alama nyekundu $marks: kila oda ya mwezi kwa $rate KWD badala ya mshahara na bonasi';
+  }
+
+  @override
+  String schemeRequiredDays(String days) {
+    return 'Siku $days halali zinahitajika katika mwezi';
+  }
+
+  @override
+  String get schemePlatformAmounts =>
+      'Bakshishi huongezwa; uharibifu wa chakula, marekebisho na punguzo la jukwaa hukatwa';
+
+  @override
+  String schemeDriverPays(String items) {
+    return 'Juu yako: $items';
+  }
 }

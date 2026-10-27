@@ -182,6 +182,11 @@ class AppState extends ChangeNotifier {
   StatusConfig? statusConfig;
   bool liveOnline = true;
   static const liveEvery = Duration(seconds: 60);
+
+  /// How often the open app reloads what the office may have changed (his day, cash, reports, requests, scheme).
+  static const dataEvery = Duration(minutes: 2);
+  DateTime? _dataAt;
+  bool _reloading = false;
   Object? lastError;
   bool busy = false;
   Timer? _poll;
@@ -661,6 +666,7 @@ class AppState extends ChangeNotifier {
         loadLiveStatus(),
       ]);
       await _readLocal();
+      _dataAt = DateTime.now(); // just read: the automatic reload waits its turn
       _set(Phase.ready);
       _autoSync();
       unawaited(registerPush());
@@ -789,8 +795,7 @@ class AppState extends ChangeNotifier {
     unawaited(updater.resumed()); // back from the installer or the "install unknown apps" setting
     if (checkUpdates) unawaited(updater.check()); // at most every 6 hours
     if (phase != Phase.ready) return;
-    await _quietly(loadToday);
-    await _quietly(loadNotices);
+    await reloadData(force: true); // what changed while he was away
     await loadLiveStatus();
     notifyListeners();
   }
@@ -1361,6 +1366,7 @@ class AppState extends ChangeNotifier {
   @visibleForTesting
   Future<void> pollLocal() async {
     await _readLocal(onlyIfChanged: true);
+    unawaited(reloadData());
     final tried = _liveTriedAt;
     if (phase == Phase.ready && (tried == null || DateTime.now().difference(tried) > liveEvery)) {
       final before = (liveStatus?.receivedAt, liveOnline);
@@ -1370,6 +1376,38 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> reloadLocal() => _readLocal();
+
+  /// Everything the screens show, read again from the server without a spinner: by itself every [dataEvery] while
+  /// the app is open, at once when he comes back to it, and when he pulls a screen down. Offline, what is shown stays.
+  Future<void> reloadData({bool force = false}) async {
+    if (phase != Phase.ready || _reloading) return;
+    final at = _dataAt;
+    if (!force && at != null && DateTime.now().difference(at) < dataEvery) return;
+    _reloading = true;
+    _dataAt = DateTime.now();
+    try {
+      await Future.wait([
+        _quietly(loadToday),
+        if (shows('cash')) _quietly(loadCash),
+        if (shows('daily_report')) _quietly(loadReports),
+        if (shows('maintenance')) _quietly(loadMaintenance),
+        if (shows('accidents')) _quietly(loadAccidents),
+        if (shows('fuel')) _quietly(loadFuel),
+        if (shows('leaves')) _quietly(loadLeaves),
+        if (shows('petty')) _quietly(loadPetty),
+        _quietly(loadNotices),
+        _quietly(loadProfile),
+        if (schemes != null) _quietly(loadSchemes),
+      ]);
+    } on SessionEnded {
+      return; // already sent to sign-in
+    } catch (e, st) {
+      unawaited(errors.record('reload', e, st)); // a bad answer: the screens keep what they had
+    } finally {
+      _reloading = false;
+    }
+    notifyListeners();
+  }
 
   // ---------------------------------------------------------------- driver actions (through the outbox)
 

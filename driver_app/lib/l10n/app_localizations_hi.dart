@@ -2265,4 +2265,77 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get schemeKind_batch => 'बैच';
+
+  @override
+  String schemeFixedSalary(String amount) {
+    return 'निश्चित वेतन: $amount KWD प्रति माह';
+  }
+
+  @override
+  String get schemeContractSalary => 'आपके अनुबंध का मूल वेतन';
+
+  @override
+  String schemeOverTarget(String target, String rate) {
+    return 'लक्ष्य $target ऑर्डर: इसके ऊपर हर ऑर्डर पर + $rate KWD';
+  }
+
+  @override
+  String schemeUnderTarget(String rate) {
+    return 'और हर कम ऑर्डर पर − $rate KWD';
+  }
+
+  @override
+  String get schemeTierRates => 'महीने के ऑर्डर के अनुसार प्रति ऑर्डर कीमत:';
+
+  @override
+  String schemeTierRateRow(String orders, String rate) {
+    return '$orders ऑर्डर से: $rate KWD';
+  }
+
+  @override
+  String schemeMonthlyBonus(String amount) {
+    return 'मासिक बोनस: $amount KWD';
+  }
+
+  @override
+  String get schemeMarksTable => 'महीने में लाल निशान:';
+
+  @override
+  String schemeMarksFree(String marks) {
+    return '$marks निशान तक: कोई कटौती नहीं (आपकी छुट्टियां)';
+  }
+
+  @override
+  String schemeMarksRow(String marks, String amount) {
+    return '$marks निशान: − $amount KWD';
+  }
+
+  @override
+  String schemeMarkEach(String amount) {
+    return 'हर लाल निशान पर − $amount KWD';
+  }
+
+  @override
+  String schemeReducedStarDay(String rate) {
+    return 'स्टार दिन पर लाल निशान: महीने के हर ऑर्डर पर $rate KWD, वेतन और बोनस के बजाय, कटौतियां फिर भी';
+  }
+
+  @override
+  String schemeReducedMarks(String marks, String rate) {
+    return '$marks से अधिक लाल निशान: महीने के हर ऑर्डर पर $rate KWD, वेतन और बोनस के बजाय';
+  }
+
+  @override
+  String schemeRequiredDays(String days) {
+    return 'महीने में $days मान्य दिन आवश्यक';
+  }
+
+  @override
+  String get schemePlatformAmounts =>
+      'टिप्स जोड़ी जाती हैं; खाने का नुकसान, समायोजन और प्लेटफ़ॉर्म की छूट काटी जाती है';
+
+  @override
+  String schemeDriverPays(String items) {
+    return 'आप पर: $items';
+  }
 }

@@ -654,5 +654,21 @@
   "schemeKindPick": "Choisissez d'abord votre mode de paiement",
   "schemeKind_per_order": "À la commande",
   "schemeKind_fixed_salary": "Salaire fixe",
-  "schemeKind_batch": "Batch"
+  "schemeKind_batch": "Batch",
+  "schemeFixedSalary": "Salaire fixe : {amount} KWD par mois",
+  "schemeContractSalary": "Le salaire de base de votre contrat",
+  "schemeOverTarget": "Objectif {target} commandes : + {rate} KWD par commande au-delà",
+  "schemeUnderTarget": "et − {rate} KWD par commande manquante",
+  "schemeTierRates": "Le prix par commande selon les commandes du mois :",
+  "schemeTierRateRow": "Dès {orders} commandes : {rate} KWD",
+  "schemeMonthlyBonus": "Prime mensuelle : {amount} KWD",
+  "schemeMarksTable": "Marques rouges dans le mois :",
+  "schemeMarksFree": "Jusqu'à {marks} marques : aucune retenue (vos jours de repos)",
+  "schemeMarksRow": "{marks} marques : − {amount} KWD",
+  "schemeMarkEach": "− {amount} KWD par marque rouge",
+  "schemeReducedStarDay": "Une marque rouge un jour étoile : toutes les commandes du mois à {rate} KWD au lieu du salaire et des primes, les retenues restent",
+  "schemeReducedMarks": "Plus de {marks} marques rouges : toutes les commandes du mois à {rate} KWD au lieu du salaire et des primes",
+  "schemeRequiredDays": "{days} jours valides requis dans le mois",
+  "schemePlatformAmounts": "Les pourboires sont ajoutés ; les dommages alimentaires, ajustements et remises de la plateforme sont retenus",
+  "schemeDriverPays": "À votre charge : {items}"
 }
