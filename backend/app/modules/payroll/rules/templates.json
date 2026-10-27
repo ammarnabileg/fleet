@@ -7,8 +7,8 @@
    "en": "Talabat — batch (plan document)"
   },
   "description": {
-   "ar": "سعر الطلب حسب الباتش: 1=0.700، 2=0.675، 3=0.600، 4=0.525، 5 و6 و7=0.400. الطلبات قد تأتي مقسمة على أكثر من باتش في الشهر، وكل باتش بسعره. يُسمح بسعر خاص للسائق.",
-   "en": "Price per order by batch: 1=0.700, 2=0.675, 3=0.600, 4=0.525, 5, 6 and 7=0.400. A month's orders may be split by batch, each at its own price. A personal rate is allowed."
+   "ar": "سعر الطلب حسب الباتش: 1=0.700، 2=0.675، 3=0.600، 4=0.525، 5 و6 و7=0.400. الطلبات قد تأتي مقسمة على أكثر من باتش في الشهر، وكل باتش بسعره. في كل الباتشات يتحمل السائق البنزين وشريحة الهاتف.",
+   "en": "Price per order by batch: 1=0.700, 2=0.675, 3=0.600, 4=0.525, 5, 6 and 7=0.400. A month's orders may be split by batch, each at its own price. In every batch the driver pays the fuel and the SIM."
   },
   "needs_confirmation": true,
   "blocks": [
@@ -46,28 +46,6 @@
       }
      ],
      "personal_rate": true
-    },
-    "condition": [],
-    "on_exception": "none",
-    "group": null,
-    "label": null
-   },
-   {
-    "type": "expense",
-    "params": {
-     "kind": "maintenance",
-     "responsibility": "driver"
-    },
-    "condition": [],
-    "on_exception": "none",
-    "group": null,
-    "label": null
-   },
-   {
-    "type": "expense",
-    "params": {
-     "kind": "housing",
-     "responsibility": "driver"
     },
     "condition": [],
     "on_exception": "none",
