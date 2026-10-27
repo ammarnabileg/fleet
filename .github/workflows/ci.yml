@@ -59,7 +59,7 @@ jobs:
   # the admin panel in a real browser against a real backend: every page and tab, phone width, and whole flows
   web-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # a hung step fails here instead of running for GitHub's six hours
+    timeout-minutes: 45  # the suite takes ~25 min and grows; a hung step fails here instead of running for GitHub's six hours
     services:
       postgres:
         image: postgres:16
