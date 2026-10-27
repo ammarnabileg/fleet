@@ -2263,4 +2263,20 @@ class AppLocalizationsFil extends AppLocalizations {
   @override
   String get endOrdersKept =>
       'Itatabi ito at lalabas sa ulat ngayong araw, kung saan pupunan mo ang iba pa';
+
+  @override
+  String get languageFirst =>
+      'Piliin ang wika ng app. Mapapalitan mo ito mamaya sa settings.';
+
+  @override
+  String get schemeKindPick => 'Piliin muna kung paano ka babayaran';
+
+  @override
+  String get schemeKind_per_order => 'Bawat order';
+
+  @override
+  String get schemeKind_fixed_salary => 'Fixed na sahod';
+
+  @override
+  String get schemeKind_batch => 'Batch';
 }

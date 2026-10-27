@@ -217,8 +217,14 @@ def overview(db: Session, platform_id: int, **scope) -> dict:
 
 def set_driver_id(db: Session, platform_id: int, employee_public_id, *, value: str | None, actor_user_id: int,
                   **scope) -> dict:  # fmt: skip
+    """His ID on his file (another driver's ID is refused here: moving an ID is the month's list), and this month's
+    list with it."""
+    from app.modules.payroll import rider_ids
+
     _platform(db, platform_id)
     e = people.set_platform_driver_id(
         db, employee_public_id, platform_id=platform_id, value=value, actor_user_id=actor_user_id, **scope
     )
+    rider_ids.set_id(db, platform_id, today().replace(day=1), employee_public_id, value=value,
+                     actor_user_id=actor_user_id, **scope)  # fmt: skip
     return next(x for x in drivers(db, platform_id, **scope) if x["id"] == str(e.public_id))

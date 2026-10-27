@@ -1457,5 +1457,10 @@
   },
   "companyChange": "تغيير الاختيار",
   "companyNone": "لا توجد شركات متاحة الآن. تواصل مع المكتب.",
-  "endOrdersKept": "يُحفظ هنا ويظهر في تقرير اليوم لتكمل باقي حقوله"
+  "endOrdersKept": "يُحفظ هنا ويظهر في تقرير اليوم لتكمل باقي حقوله",
+  "languageFirst": "اختر لغة التطبيق. تقدر تغيّرها بعدين من الإعدادات.",
+  "schemeKindPick": "اختر طريقة الحساب أولاً",
+  "schemeKind_per_order": "بالطلب",
+  "schemeKind_fixed_salary": "راتب ثابت",
+  "schemeKind_batch": "باتش"
 }

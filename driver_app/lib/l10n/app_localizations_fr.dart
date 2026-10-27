@@ -2276,4 +2276,20 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get endOrdersKept =>
       'Conservé et affiché dans le rapport du jour, où vous remplissez le reste';
+
+  @override
+  String get languageFirst =>
+      'Choisissez la langue de l\'application. Vous pourrez la changer plus tard dans les réglages.';
+
+  @override
+  String get schemeKindPick => 'Choisissez d\'abord votre mode de paiement';
+
+  @override
+  String get schemeKind_per_order => 'À la commande';
+
+  @override
+  String get schemeKind_fixed_salary => 'Salaire fixe';
+
+  @override
+  String get schemeKind_batch => 'Batch';
 }

@@ -1311,4 +1311,14 @@ class RemoteLocalizations extends AppLocalizations {
   String get companyNone => _remote.text('companyNone') ?? _base.companyNone;
   @override
   String get endOrdersKept => _remote.text('endOrdersKept') ?? _base.endOrdersKept;
+  @override
+  String get languageFirst => _remote.text('languageFirst') ?? _base.languageFirst;
+  @override
+  String get schemeKindPick => _remote.text('schemeKindPick') ?? _base.schemeKindPick;
+  @override
+  String get schemeKind_per_order => _remote.text('schemeKind_per_order') ?? _base.schemeKind_per_order;
+  @override
+  String get schemeKind_fixed_salary => _remote.text('schemeKind_fixed_salary') ?? _base.schemeKind_fixed_salary;
+  @override
+  String get schemeKind_batch => _remote.text('schemeKind_batch') ?? _base.schemeKind_batch;
 }

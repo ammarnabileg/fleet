@@ -649,5 +649,10 @@
   "companyPending": "Naghihintay sa opisina ang request mong magtrabaho sa {platform}",
   "companyChange": "Palitan ang pinili ko",
   "companyNone": "Walang available na kumpanya ngayon. Kontakin ang opisina.",
-  "endOrdersKept": "Itatabi ito at lalabas sa ulat ngayong araw, kung saan pupunan mo ang iba pa"
+  "endOrdersKept": "Itatabi ito at lalabas sa ulat ngayong araw, kung saan pupunan mo ang iba pa",
+  "languageFirst": "Piliin ang wika ng app. Mapapalitan mo ito mamaya sa settings.",
+  "schemeKindPick": "Piliin muna kung paano ka babayaran",
+  "schemeKind_per_order": "Bawat order",
+  "schemeKind_fixed_salary": "Fixed na sahod",
+  "schemeKind_batch": "Batch"
 }

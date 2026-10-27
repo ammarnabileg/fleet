@@ -197,6 +197,10 @@ class AppState extends ChangeNotifier {
   Uint8List? splashImage;
   bool splashing = false;
 
+  /// The driver chose the app's language (the first launch asks, before anything else); until then the phone's
+  /// language is used when the app has it, else English.
+  bool langChosen = true;
+
   bool shows(String screen) => !hiddenScreens.contains(screen);
 
   /// What the daily report asks, from the driver's platform: orders and cash for one, orders and whether the
@@ -345,7 +349,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _boot(String deviceLang) async {
-    lang = await db.get('lang') ?? _firstLang(deviceLang);
+    final saved = await db.get('lang');
+    langChosen = saved != null;
+    lang = saved ?? _firstLang(deviceLang);
     api.lang = lang;
     // the strings kept on the phone, read now (local files only); the update check runs after the first screen
     await translations.loadLanguages();
@@ -388,6 +394,7 @@ class AppState extends ChangeNotifier {
   /// too; the server is told separately (his notifications) and a newer bundle is looked for in the background.
   Future<void> setLang(String value) async {
     lang = value;
+    langChosen = true;
     api.lang = value;
     await db.put('lang', value);
     await translations.use(value);

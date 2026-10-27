@@ -649,5 +649,10 @@
   "companyPending": "Ombi lako la kufanya kazi na {platform} linasubiri ofisi",
   "companyChange": "Badilisha chaguo langu",
   "companyNone": "Hakuna kampuni inayopatikana sasa. Wasiliana na ofisi.",
-  "endOrdersKept": "Imehifadhiwa na itaonekana kwenye ripoti ya leo, ambapo utajaza sehemu zilizobaki"
+  "endOrdersKept": "Imehifadhiwa na itaonekana kwenye ripoti ya leo, ambapo utajaza sehemu zilizobaki",
+  "languageFirst": "Chagua lugha ya programu. Unaweza kuibadilisha baadaye kwenye mipangilio.",
+  "schemeKindPick": "Chagua kwanza jinsi unavyolipwa",
+  "schemeKind_per_order": "Kwa oda",
+  "schemeKind_fixed_salary": "Mshahara wa kudumu",
+  "schemeKind_batch": "Batch"
 }

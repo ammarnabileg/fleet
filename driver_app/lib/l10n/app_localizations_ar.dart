@@ -2235,4 +2235,20 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get endOrdersKept => 'يُحفظ هنا ويظهر في تقرير اليوم لتكمل باقي حقوله';
+
+  @override
+  String get languageFirst =>
+      'اختر لغة التطبيق. تقدر تغيّرها بعدين من الإعدادات.';
+
+  @override
+  String get schemeKindPick => 'اختر طريقة الحساب أولاً';
+
+  @override
+  String get schemeKind_per_order => 'بالطلب';
+
+  @override
+  String get schemeKind_fixed_salary => 'راتب ثابت';
+
+  @override
+  String get schemeKind_batch => 'باتش';
 }

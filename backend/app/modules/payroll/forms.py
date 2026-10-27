@@ -27,7 +27,17 @@ MONTHLY_BUILTINS = {
     "absent_days": "int",
     "batch_orders": "batch_orders",
     "task_counts": "task_counts",
+    # the platform's own sheet: what it adds (tips) and takes (food damage, other adjustments, its discount), signed
+    # as the sheet has them
+    "tips": "money",
+    "food_damage": "money",
+    "other_adjustment": "money",
+    "platform_discount": "money",
+    # the platform's own count of his month, to compare with what the app recorded (the pay reads the app's)
+    "sheet_orders": "int",
+    "sheet_valid_days": "int",
 }
+SIGNED = ("tips", "food_damage", "other_adjustment", "platform_discount")
 CUSTOM_TYPES = ("int", "money", "bool", "choice")
 # names the month's figures already use: a field of the platform cannot take them
 RESERVED = {

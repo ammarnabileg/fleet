@@ -287,15 +287,25 @@ void main() {
   });
 
   group('the app', () {
-    testWidgets('first launch in airplane mode, nothing kept: the sign-in screen in the phone\'s language', (
+    testWidgets('first launch in airplane mode, nothing kept: the language asked first, in the phone\'s language', (
       tester,
     ) async {
       final (db, api) = (await tester.runAsync(
         () => offlineApi(MockClient((_) async => throw const SocketException('airplane mode'))),
       ))!;
       final dir = (await tester.runAsync(tempDir))!;
-      await launch(tester, appState(db, api, dir), deviceLang: 'fr');
+      final state = appState(db, api, dir);
+      await launch(tester, state, deviceLang: 'fr');
+      expect(find.textContaining("Choisissez la langue de l'application"), findsOneWidget); // asked before anything
+      expect(
+        find.descendant(of: find.byKey(const Key('first-lang-fr')), matching: find.byIcon(Icons.check_circle_rounded)),
+        findsOneWidget,
+      ); // the phone's language, ticked
+      await tester.tap(find.byKey(const Key('first-lang-fr')));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await tester.pumpAndSettle();
       expect(find.text('Envoyer le code'), findsOneWidget);
+      expect(await tester.runAsync(() => db.get('lang')), 'fr'); // kept: the next launch goes to the sign-in
       expect(tester.takeException(), isNull);
     });
 
@@ -308,7 +318,7 @@ void main() {
       final (db, api) = (await tester.runAsync(() => offlineApi(never)))!;
       final dir = (await tester.runAsync(tempDir))!;
       await launch(tester, appState(db, api, dir), deviceLang: 'sw');
-      expect(find.text('Tuma msimbo'), findsOneWidget);
+      expect(find.textContaining('Chagua lugha ya programu'), findsOneWidget); // the language screen, offline
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
       expect(asked, greaterThan(0), reason: 'the update check started, and nobody waited for it');
     });
@@ -335,6 +345,7 @@ void main() {
       final (db, api) = (await tester.runAsync(() => offlineApi(server.client())))!;
       final dir = (await tester.runAsync(tempDir))!;
       final state = appState(db, api, dir);
+      await tester.runAsync(() => db.put('lang', 'en')); // chosen at the first launch
       await launch(tester, state, deviceLang: 'en');
       await tester.runAsync(() => state.translations.check(api, 'en', force: true));
       await tester.pump();

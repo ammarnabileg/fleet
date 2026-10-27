@@ -23,6 +23,7 @@ import 'tracking/service.dart';
 import 'tracking/system_notices.dart';
 import 'ui/screens/company.dart';
 import 'ui/screens/home.dart';
+import 'ui/screens/language.dart';
 import 'ui/screens/onboarding.dart';
 import 'ui/screens/permissions.dart';
 import 'ui/screens/sign_in.dart';
@@ -228,6 +229,7 @@ class _DriverAppState extends State<DriverApp> with WidgetsBindingObserver {
     if (s.updater.blocking && s.phase != Phase.booting) return UpdateRequiredScreen(state: s);
     return switch (s.phase) {
       Phase.booting => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      Phase.signedOut when !s.langChosen => LanguageScreen(state: s),
       Phase.signedOut => SignInScreen(state: s),
       Phase.permissions => PermissionsScreen(state: s),
       Phase.onboarding => OnboardingScreen(key: ValueKey(s.onboarding?.status), state: s),

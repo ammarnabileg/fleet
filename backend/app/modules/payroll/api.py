@@ -403,6 +403,17 @@ def update_scheme(
     return schemes.update(db, public_id, version=body.version, changes=changes, actor_user_id=principal.user_id)
 
 
+@router.delete("/payroll/schemes/{public_id}")
+def remove_scheme(
+    public_id: uuid.UUID,
+    move_to: uuid.UUID | None = None,
+    principal: Principal = Depends(require_permission("payroll.schemes")),
+    db: Session = Depends(get_session),
+):
+    """Deleted when nothing used it, else retired; drivers on it from this month move to `move_to` first."""
+    return schemes.remove(db, public_id, move_to=move_to, actor_user_id=principal.user_id, **principal.scope)
+
+
 @router.post("/payroll/schemes/{public_id}/assign", response_model=schemas.AssignSchemeOut)
 def assign_scheme(
     public_id: uuid.UUID,

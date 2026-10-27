@@ -456,7 +456,7 @@
   };
 
   /* ================= بيانات الشهر ================= */
-  var PROBLEM = { values_missing: 'أرقام ناقصة', orders_conflict: 'الباتش ≠ الطلبات اليومية', daily_pending: 'تقرير بانتظار المراجعة', scheme_missing: 'بلا نظام', driver_id_missing: 'بلا رقم في المنصة' };
+  var PROBLEM = { values_missing: 'أرقام ناقصة', orders_conflict: 'الباتش ≠ الطلبات اليومية', daily_pending: 'تقرير بانتظار المراجعة', scheme_missing: 'بلا نظام', driver_id_missing: 'بلا رقم في المنصة', sheet_orders_differ: 'طلبات الشيت ≠ التطبيق', sheet_valid_days_differ: 'أيام الشيت الصالحة ≠ التطبيق' };
   A.monthPanel = function (el, q, fixed) { // fixed: one platform's page (its import tab), no platform to pick
     var month = (q.month || thisMonth()).slice(0, 7), platformId = fixed || (q.platform ? +q.platform : null);
     A.platforms().then(function (plats) {

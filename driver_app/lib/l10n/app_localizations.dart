@@ -4005,6 +4005,36 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'يُحفظ هنا ويظهر في تقرير اليوم لتكمل باقي حقوله'**
   String get endOrdersKept;
+
+  /// No description provided for @languageFirst.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختر لغة التطبيق. تقدر تغيّرها بعدين من الإعدادات.'**
+  String get languageFirst;
+
+  /// No description provided for @schemeKindPick.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختر طريقة الحساب أولاً'**
+  String get schemeKindPick;
+
+  /// No description provided for @schemeKind_per_order.
+  ///
+  /// In ar, this message translates to:
+  /// **'بالطلب'**
+  String get schemeKind_per_order;
+
+  /// No description provided for @schemeKind_fixed_salary.
+  ///
+  /// In ar, this message translates to:
+  /// **'راتب ثابت'**
+  String get schemeKind_fixed_salary;
+
+  /// No description provided for @schemeKind_batch.
+  ///
+  /// In ar, this message translates to:
+  /// **'باتش'**
+  String get schemeKind_batch;
 }
 
 class _AppLocalizationsDelegate

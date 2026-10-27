@@ -78,6 +78,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
+  String? _schemeKind; // how he wants to be paid: the schemes of that kind are listed
+
   /// His choice among his platform's schemes (one that is no longer offered is no choice).
   PayScheme? get _scheme => ob.schemes.where((s) => s.id == draft['scheme_id']).firstOrNull;
 
@@ -420,14 +422,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         SectionTitle(l.schemeChoose),
         Text(l.schemeChooseHint, style: const TextStyle(color: AppColors.muted, height: 1.6)),
         const SizedBox(height: 8),
-        for (final s in ob.schemes)
-          SchemeCard(
-            key: Key('ob-scheme-${s.code}'),
-            scheme: s,
-            lang: state.lang,
-            selected: draft['scheme_id'] == s.id,
-            onTap: () => setState(() => draft['scheme_id'] = s.id),
+        if (SchemeKindPicker.of(ob.schemes).length > 1)
+          SchemeKindPicker(
+            kinds: SchemeKindPicker.of(ob.schemes),
+            value: _schemeKind ?? _scheme?.payKind ?? SchemeKindPicker.of(ob.schemes).first,
+            onChanged: (k) => setState(() => _schemeKind = k),
           ),
+        for (final s in ob.schemes)
+          if (SchemeKindPicker.of(ob.schemes).length < 2 ||
+              s.payKind == (_schemeKind ?? _scheme?.payKind ?? SchemeKindPicker.of(ob.schemes).first))
+            SchemeCard(
+              key: Key('ob-scheme-${s.code}'),
+              scheme: s,
+              lang: state.lang,
+              selected: draft['scheme_id'] == s.id,
+              onTap: () => setState(() => draft['scheme_id'] = s.id),
+            ),
       ],
     ];
   }

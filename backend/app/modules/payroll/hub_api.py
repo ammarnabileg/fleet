@@ -2,6 +2,7 @@
 added by hand, and the drivers' requests from the app to be put on a platform (the office approves or rejects)."""
 
 import uuid
+from datetime import date
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Response
@@ -10,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_session
 from app.modules.identity.service import DevicePrincipal, Principal, require_device, require_permission
-from app.modules.payroll import platform_requests, platforms
+from app.modules.payroll import platform_requests, platforms, rider_ids
+from app.modules.payroll.service import month_start
 
 router = APIRouter(prefix="/api/v1", tags=["platforms"])
 Short = Annotated[str, StringConstraints(strip_whitespace=True, max_length=60)]
@@ -20,6 +22,12 @@ Note = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max
 class DriverIdIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     platform_driver_id: Short | None = None  # empty: cleared
+
+
+class RiderIdIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    month: date
+    rider_id: Short | None = None  # empty: none this month
 
 
 class AskIn(BaseModel):
@@ -88,6 +96,32 @@ def set_platform_driver_id(
         actor_user_id=principal.user_id,
         **principal.scope,
     )
+
+
+@router.get("/payroll/platforms/{platform_id}/rider-ids")
+def rider_id_month(
+    platform_id: int,
+    month: date,
+    principal: Principal = Depends(require_permission("payroll.view")),
+    db: Session = Depends(get_session),
+):
+    """Each driver's ID on the platform that month, and last month's (an ID may move to another employee)."""
+    platforms._platform(db, platform_id)
+    return rider_ids.month_table(db, platform_id, month_start(month), **principal.scope)
+
+
+@router.put("/payroll/platforms/{platform_id}/rider-ids/{employee_id}")
+def set_rider_id(
+    platform_id: int,
+    employee_id: uuid.UUID,
+    body: RiderIdIn,
+    principal: Principal = Depends(require_permission("employees.update")),
+    db: Session = Depends(get_session),
+):
+    """He works this ID that month; whoever had it that month loses it."""
+    platforms._platform(db, platform_id)
+    return rider_ids.set_id(db, platform_id, month_start(body.month), employee_id, value=body.rider_id,
+                            actor_user_id=principal.user_id, **principal.scope)  # fmt: skip
 
 
 # ------------------------------------------------------------------ the drivers' requests

@@ -431,6 +431,9 @@ def test_templates_are_valid_and_marked():
         "keeta_batches",
         "keeta_plan",
         "keeta_paid",
+        "keeta_fixed_200",
+        "keeta_fixed_165",
+        "keeta_fixed_140",
     ]
     assert {t["code"] for t in ts if t["needs_confirmation"]} == {
         "talabat_batch_plan",
@@ -445,6 +448,9 @@ def test_templates_are_valid_and_marked():
         ("keeta_batches", True, False),
         ("keeta_plan", False, True),
         ("keeta_paid", False, True),
+        ("keeta_fixed_200", False, False),
+        ("keeta_fixed_165", False, False),
+        ("keeta_fixed_140", False, False),
     ]
     ts[0]["blocks"].clear()  # a copy: the next caller gets them whole
     assert rules.templates()[0]["blocks"]

@@ -65,6 +65,7 @@ class World {
 
 Future<World> world({
   bool signedIn = true,
+  bool languageChosen = true, // false: the first launch, which asks for the language first
   Map<String, dynamic>? onboarding,
   Future<void> Function()? startTracking,
   Map<String, dynamic>? today,
@@ -84,6 +85,7 @@ Future<World> world({
   final server = FakeServer();
   final tokens = TokenStore(db);
   if (signedIn) await tokens.save(tokensJson('1'));
+  if (languageChosen) await db.put('lang', 'ar');
   final api = Api(baseUrl: 'http://fleet.test', tokens: tokens, client: server.client);
   final state = AppState(
     db: db,

@@ -27,7 +27,7 @@ test('the section, a platform page and Keeta\'s batch rule edited from it', asyn
   await expect(admin.locator('#tb-title h1')).toContainText('كيتا');
   await expect(nav.locator(`a[href="#/platforms/${keeta.id}"]`)).toHaveClass(/active/);
   const tabs = admin.locator('#view [role=tab]');
-  await expect(tabs).toHaveText(['نظرة عامة', 'أنظمة الدفع', 'السواقين ومعرّفاتهم', 'حقول التقرير', 'استيراد الشهر']);
+  await expect(tabs).toHaveText(['نظرة عامة', 'أنظمة الدفع', 'السواقين ومعرّفاتهم', 'معرّفات الشهر', 'حقول التقرير', 'استيراد الشهر']);
   await expect(admin.locator('[data-overview]')).toBeVisible();
 
   // ---- a scheme from Keeta's default template (chosen already), a rate changed in the designer
@@ -125,4 +125,58 @@ test('the old payroll links land in the new section', async ({ admin }) => {
   await admin.goto('/admin.html#/payroll');
   await settled(admin);
   await expect(admin.locator('#view [role=tab]', { hasText: 'أنظمة الدفع' })).toHaveCount(0);
+});
+
+test('an ID moved to another employee for the month from the IDs-by-month tab', async ({ admin, api }) => {
+  const n = uid();
+  const { keeta } = await core(api);
+  const company = await api.post('/companies', { name: { ar: 'شركة النقل ' + n, en: 'Move company ' + n } });
+  const mk = (tag, rid) => api.post('/employees', {
+    employee_number: tag + n, name: { ar: 'سائق ' + tag + n, en: 'Driver ' + tag + n }, company_id: company.id, is_driver: true, phone: phone(),
+    platform_id: keeta.id, platform_driver_id: rid,
+  });
+  const a = await mk('MA', 'MV-A' + n);
+  const b = await mk('MB', 'MV-B' + n);
+  await admin.goto(`/admin.html#/platforms/${keeta.id}?tab=ids`);
+  await settled(admin);
+  await search(admin, 'MB' + n);
+  const row = admin.locator('#view tbody tr', { hasText: 'MB' + n });
+  await expect(row.locator('[name=rid]')).toHaveValue('MV-B' + n); // the ID on his file
+  await row.locator('[name=rid]').fill('MV-A' + n); // b works a's ID this month
+  await clearToasts(admin);
+  await row.getByRole('button', { name: 'حفظ' }).click();
+  await expect(admin.locator('.toast').last()).toContainText('MV-A' + n);
+  const month = new Date().toISOString().slice(0, 8) + '01';
+  await expect.poll(async () => {
+    const rows = await api.get(`/payroll/platforms/${keeta.id}/rider-ids?month=${month}`);
+    return [a.id, b.id].map((id) => rows.find((r) => r.id === id).rider_id);
+  }).toEqual([null, 'MV-A' + n]);
+  await expect(admin.locator('#view tbody tr', { hasText: 'MB' + n })).toContainText('تغيّر');
+});
+
+test('a scheme with drivers deleted from the platform page: its drivers moved to another scheme first', async ({ admin, api }) => {
+  const n = uid();
+  const { keeta } = await core(api);
+  const mk = (code, template) => api.post('/payroll/schemes/from-template', { platform_id: keeta.id, template, code, name: { ar: 'نظام ' + code, en: 'Scheme ' + code } });
+  const a = await mk('del_a' + n, 'keeta_fixed_200');
+  const b = await mk('del_b' + n, 'keeta_fixed_165');
+  const company = await api.post('/companies', { name: { ar: 'شركة الحذف ' + n, en: 'Delete company ' + n } });
+  const d = await api.post('/employees', {
+    employee_number: 'SD' + n, name: { ar: 'سائق الحذف ' + n, en: 'Delete driver ' + n }, company_id: company.id, is_driver: true, phone: phone(), platform_id: keeta.id,
+  });
+  const month = new Date().toISOString().slice(0, 8) + '01';
+  await api.post(`/payroll/schemes/${a.id}/assign`, { employee_ids: [d.id], month });
+  admin.allow(new RegExp(`409 DELETE .*/payroll/schemes/${a.id}$`)); // drivers on it: the office is asked where they go
+  await admin.goto(`/admin.html#/platforms/${keeta.id}?tab=schemes`);
+  await settled(admin);
+  await admin.locator(`[data-del-scheme="${a.id}"]`).click();
+  await admin.locator('.modal').getByRole('button', { name: 'حذف' }).click();
+  const m = admin.locator('.modal', { hasText: 'نقل السائقين ثم حذف النظام' });
+  await m.locator('[name=move_to]').selectOption(b.id);
+  await clearToasts(admin);
+  await m.getByRole('button', { name: 'نقل وحذف' }).click();
+  await expect(admin.locator('.toast').last()).toContainText('حُذف النظام'); // only this month used it: nothing to keep
+  await expect(admin.locator(`[data-scheme="${a.id}"]`)).toHaveCount(0);
+  const now = await api.get(`/employees/${d.id}/schemes`);
+  expect(now[0].scheme.id).toBe(b.id);
 });

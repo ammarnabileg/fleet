@@ -2256,4 +2256,20 @@ class AppLocalizationsSw extends AppLocalizations {
   @override
   String get endOrdersKept =>
       'Imehifadhiwa na itaonekana kwenye ripoti ya leo, ambapo utajaza sehemu zilizobaki';
+
+  @override
+  String get languageFirst =>
+      'Chagua lugha ya programu. Unaweza kuibadilisha baadaye kwenye mipangilio.';
+
+  @override
+  String get schemeKindPick => 'Chagua kwanza jinsi unavyolipwa';
+
+  @override
+  String get schemeKind_per_order => 'Kwa oda';
+
+  @override
+  String get schemeKind_fixed_salary => 'Mshahara wa kudumu';
+
+  @override
+  String get schemeKind_batch => 'Batch';
 }

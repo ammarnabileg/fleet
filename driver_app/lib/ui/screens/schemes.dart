@@ -26,6 +26,7 @@ class SchemesScreen extends StatefulWidget {
 
 class _SchemesScreenState extends State<SchemesScreen> {
   bool _loading = true;
+  String? _kind; // the kind of scheme he looks at among the others
 
   @override
   void initState() {
@@ -104,10 +105,20 @@ class _SchemesScreenState extends State<SchemesScreen> {
     final v = widget.state.schemes;
     final req = v?.request;
     final current = v?.current;
-    final others = [
+    final all = [
       for (final s in v?.offered ?? const <PayScheme>[])
         if (s.id != current?.id) s,
     ];
+    final kinds = SchemeKindPicker.of(all);
+    final kind = kinds.contains(_kind)
+        ? _kind
+        : (kinds.contains(current?.payKind) ? current!.payKind : kinds.firstOrNull);
+    final others = kinds.length > 1
+        ? [
+            for (final s in all)
+              if (s.payKind == kind) s,
+          ]
+        : all;
     return Scaffold(
       appBar: AppBar(title: Text(l.paySchemes)),
       body: RefreshIndicator(
@@ -154,7 +165,9 @@ class _SchemesScreenState extends State<SchemesScreen> {
                 const SizedBox(height: 6),
                 Text(l.schemeNextMonth(v.nextMonth!.label(lang)), style: const TextStyle(fontWeight: FontWeight.w600)),
               ],
-              if (others.isNotEmpty) SectionTitle(l.schemeOthers),
+              if (all.isNotEmpty) SectionTitle(l.schemeOthers),
+              if (kinds.length > 1)
+                SchemeKindPicker(kinds: kinds, value: kind, onChanged: (k) => setState(() => _kind = k)),
               for (final s in others)
                 SchemeCard(
                   scheme: s,
@@ -171,6 +184,52 @@ class _SchemesScreenState extends State<SchemesScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The driver's first choice among his platform's schemes: how he is paid (per order, a fixed salary, by batch); the
+/// schemes of that kind follow. Shown when the platform offers more than one kind.
+class SchemeKindPicker extends StatelessWidget {
+  const SchemeKindPicker({super.key, required this.kinds, required this.value, required this.onChanged});
+
+  final List<String> kinds;
+  final String? value;
+  final ValueChanged<String> onChanged;
+
+  static List<String> of(Iterable<PayScheme> schemes) => [
+    for (final k in const ['per_order', 'fixed_salary', 'batch'])
+      if (schemes.any((s) => s.payKind == k)) k,
+  ];
+
+  static String label(AppLocalizations l, String kind) => switch (kind) {
+    'fixed_salary' => l.schemeKind_fixed_salary,
+    'batch' => l.schemeKind_batch,
+    _ => l.schemeKind_per_order,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l.schemeKindPick, style: const TextStyle(color: AppColors.muted)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final k in kinds)
+              ChoiceChip(
+                key: Key('scheme-kind-$k'),
+                label: Text(label(l, k)),
+                selected: value == k,
+                onSelected: (_) => onChanged(k),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+      ],
     );
   }
 }

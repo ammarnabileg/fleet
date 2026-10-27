@@ -576,6 +576,18 @@ def _apply(st: _State, facts: Facts, b: dict, pos: int, v: dict) -> str | None:
         amount = money(p["amount"])
         _line(st, b, pos, "monthly_bonus", amount, {}, f"{amount}")
         return None
+    if t == "platform_amounts":  # the platform's sheet: its tips added, its deductions taken, each a line
+        done = False
+        for key in ("tips", "food_damage", "other_adjustment", "platform_discount"):
+            raw = facts.fields.get(key)
+            if not p.get(key, True) or raw in (None, ""):
+                continue
+            amount = money(_d(raw)) if key == "tips" else -money(abs(_d(raw)))
+            if amount:
+                code = "tips" if key == "tips" else "platform_deductions"
+                _line(st, b, pos, code, amount, {"field": key}, f"{amount}")
+                done = True
+        return None if done else "nothing_to_apply"
     if t == "target_overage":
         source = p.get("source", "orders")
         n, top = _d(_value(v, source)), Decimal(p["threshold"])

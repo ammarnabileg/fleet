@@ -127,6 +127,17 @@ TYPES: dict[str, BlockType] = {
         ),
         # ---------------------------------------------------------------- incentives
         BlockType(
+            "platform_amounts",
+            "incentive",
+            (
+                Param("tips", "bool", required=False, default=True),
+                Param("food_damage", "bool", required=False, default=True),
+                Param("other_adjustment", "bool", required=False, default=True),
+                Param("platform_discount", "bool", required=False, default=True),
+            ),
+            ("tips", "platform_deductions"),
+        ),
+        BlockType(
             "monthly_bonus", "incentive", (Param("amount", "money"),), ("monthly_bonus",), exceptions=ATTENDANCE_EXC
         ),
         BlockType(

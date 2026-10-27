@@ -2251,4 +2251,20 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get endOrdersKept =>
       'Kept and shown in today\'s report, where you fill in the rest';
+
+  @override
+  String get languageFirst =>
+      'Choose the app language. You can change it later in the settings.';
+
+  @override
+  String get schemeKindPick => 'Choose how you are paid first';
+
+  @override
+  String get schemeKind_per_order => 'Per order';
+
+  @override
+  String get schemeKind_fixed_salary => 'Fixed salary';
+
+  @override
+  String get schemeKind_batch => 'Batch';
 }

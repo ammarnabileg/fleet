@@ -2249,4 +2249,20 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get endOrdersKept =>
       'यह सहेजा जाएगा और आज की रिपोर्ट में दिखेगा, जहाँ आप बाकी भरेंगे';
+
+  @override
+  String get languageFirst =>
+      'ऐप की भाषा चुनें। आप इसे बाद में सेटिंग्स में बदल सकते हैं।';
+
+  @override
+  String get schemeKindPick => 'पहले चुनें कि आपको कैसे भुगतान मिलेगा';
+
+  @override
+  String get schemeKind_per_order => 'प्रति ऑर्डर';
+
+  @override
+  String get schemeKind_fixed_salary => 'निश्चित वेतन';
+
+  @override
+  String get schemeKind_batch => 'बैच';
 }

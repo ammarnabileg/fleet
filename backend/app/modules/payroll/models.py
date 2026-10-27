@@ -538,3 +538,25 @@ class Objection(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+
+
+class RiderIdMonth(Base):
+    """Who worked a platform's driver ID in a month (migration 0076): the month's pay under it is his."""
+
+    __tablename__ = "rider_id_months"
+    __table_args__ = (
+        CheckConstraint("extract(day FROM month) = 1", name="month"),
+        CheckConstraint("length(btrim(rider_id)) > 0", name="rider_id"),
+        Index("rider_id_months_id_idx", "platform_id", "month", func.lower(text("rider_id")), unique=True),
+        Index("rider_id_months_employee_idx", "platform_id", "month", "employee_id", unique=True),
+        Index("rider_id_months_month_idx", "platform_id", text("month DESC")),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    platform_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("payroll.platforms.id"))
+    month: Mapped[date] = mapped_column(Date)
+    rider_id: Mapped[str] = mapped_column(Text)
+    employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
+    updated_by: Mapped[int | None] = mapped_column(BigInteger)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

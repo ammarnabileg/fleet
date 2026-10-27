@@ -653,4 +653,9 @@ const Map<String, String> englishMessages = {
   'companyChange': "Change my choice",
   'companyNone': "No company is available now. Contact the office.",
   'endOrdersKept': "Kept and shown in today's report, where you fill in the rest",
+  'languageFirst': "Choose the app language. You can change it later in the settings.",
+  'schemeKindPick': "Choose how you are paid first",
+  'schemeKind_per_order': "Per order",
+  'schemeKind_fixed_salary': "Fixed salary",
+  'schemeKind_batch': "Batch",
 };

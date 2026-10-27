@@ -385,6 +385,7 @@ class SchemeOut(BaseModel):
     name: dict[str, str]
     description: dict[str, str] | None
     calculator: str
+    pay_kind: str = "per_order"  # the driver's first choice: fixed_salary, batch or per_order
     per_order: Decimal | None
     target_orders: int
     required_valid_days: int
@@ -464,6 +465,7 @@ class DriverSchemeOut(BaseModel):
     name: dict[str, str]
     description: dict[str, str] | None
     calculator: str
+    pay_kind: str = "per_order"
     per_order: Decimal | None
     target_orders: int
     required_valid_days: int

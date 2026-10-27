@@ -649,5 +649,10 @@
   "companyPending": "Votre demande pour travailler avec {platform} attend le bureau",
   "companyChange": "Changer mon choix",
   "companyNone": "Aucune société n'est disponible pour le moment. Contactez le bureau.",
-  "endOrdersKept": "Conservé et affiché dans le rapport du jour, où vous remplissez le reste"
+  "endOrdersKept": "Conservé et affiché dans le rapport du jour, où vous remplissez le reste",
+  "languageFirst": "Choisissez la langue de l'application. Vous pourrez la changer plus tard dans les réglages.",
+  "schemeKindPick": "Choisissez d'abord votre mode de paiement",
+  "schemeKind_per_order": "À la commande",
+  "schemeKind_fixed_salary": "Salaire fixe",
+  "schemeKind_batch": "Batch"
 }

@@ -42,7 +42,7 @@ from app.modules.audit import service as audit
 from app.modules.identity import service as identity
 from app.modules.notifications import service as notifications
 from app.modules.org import service as org
-from app.modules.payroll import calculators, platforms, schemes, statements, uncollected
+from app.modules.payroll import calculators, platforms, rider_ids, schemes, statements, uncollected
 from app.modules.payroll import month as month_inputs
 from app.modules.payroll.calculators import Month, Rules
 from app.modules.payroll.columns import BY_CODE, COLUMNS, EARNING_COLUMNS, RULE_COLUMNS
@@ -399,7 +399,10 @@ def _fill(db: Session, run: Run) -> None:
     lang = i18n.default_language(db).code
     absence_rule = org.get_section(db, "payroll").absence_deduction
     totals = {"lines": 0, "gross": ZERO, "deductions": ZERO, "net": ZERO, "blocking": 0, "by_platform": {}}
+    month_ids = rider_ids.for_employees(db, {p["platform_id"] for p in profiles}, month)
     for p in profiles:
+        if p["platform_id"] in month_ids:  # the ID he worked this month, not the one on his file now
+            p = {**p, "platform_driver_id": month_ids[p["platform_id"]].get(p["id"])}
         platform = plats.get(p["platform_id"])
         st = found.get(p["id"])
         scheme = assigned.get(p["id"])

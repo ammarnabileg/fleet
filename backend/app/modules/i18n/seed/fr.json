@@ -650,7 +650,12 @@
     "companyPending": "Votre demande pour travailler avec {platform} attend le bureau",
     "companyChange": "Changer mon choix",
     "companyNone": "Aucune société n'est disponible pour le moment. Contactez le bureau.",
-    "endOrdersKept": "Conservé et affiché dans le rapport du jour, où vous remplissez le reste"
+    "endOrdersKept": "Conservé et affiché dans le rapport du jour, où vous remplissez le reste",
+    "languageFirst": "Choisissez la langue de l'application. Vous pourrez la changer plus tard dans les réglages.",
+    "schemeKindPick": "Choisissez d'abord votre mode de paiement",
+    "schemeKind_per_order": "À la commande",
+    "schemeKind_fixed_salary": "Salaire fixe",
+    "schemeKind_batch": "Batch"
   },
   "server": {
     "deduction_source": {
@@ -1280,7 +1285,9 @@
       "site_message_not_found": "Message introuvable.",
       "site_off": "Le site n'est pas disponible pour le moment.",
       "internal_error": "Une erreur s'est produite de notre côté. Réessayez dans un instant.",
-      "import_empty": "Le fichier ne contient aucune ligne : remplissez les lignes sous l'exemple et vérifiez le fichier choisi."
+      "import_empty": "Le fichier ne contient aucune ligne : remplissez les lignes sous l'exemple et vérifiez le fichier choisi.",
+      "scheme_has_drivers": "{drivers} chauffeur(s) sont sur ce barème depuis ce mois : choisissez d'abord un autre barème de la même société vers lequel les déplacer.",
+      "scheme_requests_pending": "{requests} demande(s) de chauffeur pour ce barème sont en attente : approuvez-les ou refusez-les d'abord."
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",

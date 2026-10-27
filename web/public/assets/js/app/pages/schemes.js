@@ -52,18 +52,44 @@
       // a new scheme starts in the rules designer (from a template or a single price); a scheme built there opens
       // there, one still on its old calculator in the old form (its versions to view, its terms by version)
       A.delegate(el, 'click', '[data-new]', function (e, b) { var p = plats.find(function (x) { return String(x.id) === b.getAttribute('data-new'); }); A.newBlockScheme(p, again); });
+      A.delegate(el, 'click', '[data-del-scheme]', function (e, b) { removeScheme(schemes.find(function (x) { return x.id === b.getAttribute('data-del-scheme'); }), schemes, again); });
       A.delegate(el, 'click', '[data-scheme]', function (e, b) { var s = schemes.find(function (x) { return x.id === b.getAttribute('data-scheme'); }); if (s.designed) { A.go('payroll/scheme/' + s.id); return; } var p = plats.find(function (x) { return x.id === s.platform_id; }); schemeForm(p, s, again); });
       return h`<div class="hint mb-12">كل منصة تعرض أنظمتها، وكل سائق على نظام واحد في الشهر. تغيير شروط نظام نسخة جديدة «يسري من شهر»: كل شهر يُحسب على نسخة شهره، فلا يُعاد حساب شهر صُرف بسعر لم يكن له. طريقة الحساب لا تتغير لنظام مستخدم: نظام جديد تنقل السائقين إليه من شهر (قائمة الموظفين ← حدّدهم ← «نظام الدفع»). منصة بلا أنظمة تبقى على قاعدتها (صفحة الشركة).</div>
         ${plats.filter(function (p) { return p.is_active && (!only || p.id === only); }).map(function (p) {
           var mine = schemes.filter(function (s) { return s.platform_id === p.id; });
           return h`<div class="card mb-12"><div class="card-h"><div class="card-t">${api.name(p.name)}</div><span class="muted fs-sm">${mine.length ? mine.length + ' نظام' : 'بلا أنظمة: قاعدة المنصة'}</span>${canEdit ? h`<button type="button" class="btn btn-sm btn-primary ms-auto" data-new="${p.id}">${icon('plus', 14)} نظام جديد</button>` : ''}</div>
             ${mine.length ? h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;padding:12px">${mine.map(function (s) {
-              return h`<button type="button" class="card" data-scheme="${s.id}" style="text-align:start;cursor:pointer"><div class="card-h"><div class="card-t">${api.name(s.name)}</div>${s.is_active ? '' : BT.pill('موقوف', 'n')}${s.driver_selectable ? BT.pill('يختاره السائق', 'b') : BT.pill('من المكتب فقط', 'n')}</div>
-                <div class="card-b">${BT.kv([['الحساب', api.t('scheme_calculator', s.designed ? 'blocks' : s.calculator)], ['النسخة', 'النسخة ' + s.version_no + ' · من ' + monthLabel(s.effective_month)]].concat(A.schemeTerms(s)).concat([['السائقون هذا الشهر', fmt.int(s.drivers)]]).concat(s.next_version ? [['نسخة قادمة', h`<span data-next-version>النسخة ${s.next_version.version_no} من ${monthLabel(s.next_version.effective_month)}</span>`]] : []))}</div></button>`;
+              return h`<div data-scheme-box="${s.id}"><button type="button" class="card" data-scheme="${s.id}" style="text-align:start;cursor:pointer"><div class="card-h"><div class="card-t">${api.name(s.name)}</div>${s.is_active ? '' : BT.pill('موقوف', 'n')}${s.driver_selectable ? BT.pill('يختاره السائق', 'b') : BT.pill('من المكتب فقط', 'n')}</div>
+                <div class="card-b">${BT.kv([['الحساب', api.t('scheme_calculator', s.designed ? 'blocks' : s.calculator)], ['النسخة', 'النسخة ' + s.version_no + ' · من ' + monthLabel(s.effective_month)]].concat(A.schemeTerms(s)).concat([['السائقون هذا الشهر', fmt.int(s.drivers)]]).concat(s.next_version ? [['نسخة قادمة', h`<span data-next-version>النسخة ${s.next_version.version_no} من ${monthLabel(s.next_version.effective_month)}</span>`]] : []))}</div></button>${canEdit ? h`<div class="flex mt-4"><button type="button" class="btn btn-sm btn-ghost t-danger" data-del-scheme="${s.id}">${icon('trash-2', 14)} حذف النظام</button></div>` : ''}</div>`;
             })}</div>` : ''}</div>`;
         })}`;
     }).catch(function () {});
   };
+
+  /* حذف نظام: عليه سواقين من هذا الشهر ← يُنقلون لنظام آخر لنفس الشركة أولاً؛ ثم يُحذف إن لم يُستخدم قط، وإلا يُوقف
+     (لا يُعرض بعد ذلك، وتبقى الأشهر التي حُسبت عليه كما هي) */
+  function removeScheme(s, schemes, after) {
+    function done(r) {
+      BT.toast(r.deleted ? 'حُذف النظام' : r.retired ? 'أُوقف النظام: استُخدم في أشهر سابقة فبقي لها' : 'لم يُحذف: ' + r.skipped.length + ' سائق لم يُنقل (شهر مقفل)');
+      after();
+    }
+    var others = schemes.filter(function (x) { return x.platform_id === s.platform_id && x.id !== s.id && x.is_active; });
+    function move() {
+      if (!others.length) { BT.toast('لا يوجد نظام آخر نشط لهذه الشركة يُنقل إليه السائقون', { type: 'error' }); return; }
+      A.formModal({
+        title: 'نقل السائقين ثم حذف النظام', subtitle: api.name(s.name), icon: 'users', submitText: 'نقل وحذف', submitCls: 'btn-danger-solid', done: false,
+        body: h`<div class="banner warn fs-sm mb-12">${icon('users', 15)}<div>على هذا النظام سائقون من هذا الشهر. اختر نظاماً آخر لنفس الشركة يُنقلون إليه من هذا الشهر.</div></div>
+          ${BT.f.select({ name: 'move_to', label: 'ينقلون إلى', required: true, options: others.map(function (x) { return { v: x.id, t: api.name(x.name) }; }) })}`,
+        submit: function (v) { return api.del('/payroll/schemes/' + s.id + '?move_to=' + encodeURIComponent(v.move_to)).then(done); }
+      });
+    }
+    BT.confirm({ title: 'حذف النظام', message: 'يُحذف «' + api.name(s.name) + '». لو استُخدم في أشهر سابقة يُوقف بدل الحذف ويبقى لتلك الأشهر.', confirmText: 'حذف', tone: 'danger' }).then(function (c) {
+      if (!c.ok) return;
+      api.del('/payroll/schemes/' + s.id).then(done, function (err) {
+        if (err && err.code === 'scheme_has_drivers') move(); else api.fail(err);
+      });
+    });
+  }
 
   function stepRows(steps, calc) {
     var kinds = STEPS[calc] || [];

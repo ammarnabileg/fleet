@@ -707,7 +707,9 @@
     "site_off": "The site is not available now.",
     "contact_needed": "Give a phone number or an email so we can reply.",
     "internal_error": "Something went wrong on our side. Please try again shortly.",
-    "import_empty": "The file has no rows: fill the rows under the example row in the vehicles, people or opening balances sheets, and check you chose the right file."
+    "import_empty": "The file has no rows: fill the rows under the example row in the vehicles, people or opening balances sheets, and check you chose the right file.",
+    "scheme_has_drivers": "{drivers} driver(s) are on this scheme from this month: pick another scheme of the same company to move them to first.",
+    "scheme_requests_pending": "{requests} driver request(s) for this scheme are waiting: approve or reject them first."
   },
   "settings": {
     "branding": "Branding",
@@ -1317,7 +1319,8 @@
     "special_day_violation": "Special day violation",
     "price_change": "Change the price of all orders",
     "expense": "Expense",
-    "exception_days": "Approved exceptions"
+    "exception_days": "Approved exceptions",
+    "platform_amounts": "Platform sheet amounts"
   },
   "rule_block_help": {
     "per_order": "Count × price: the orders or any number field of the platform.",
@@ -1339,7 +1342,8 @@
     "special_day_violation": "A fixed amount when the star day is missed or the month is invalid.",
     "price_change": "Changes the price of every order when its condition holds: replaces the base price, or a separate line with the difference.",
     "expense": "Who bears the expense (informational). An actual deduction only with an explicit, approved amount. Advances stay in deductions.",
-    "exception_days": "The driver's approved exceptions this month: counted as valid days, or excusing attendance violations."
+    "exception_days": "The driver's approved exceptions this month: counted as valid days, or excusing attendance violations.",
+    "platform_amounts": "From the platform sheet: tips added; food damage compensation, other adjustments and the platform discount deducted."
   },
   "rule_param": {
     "rate": "Price",
@@ -1371,7 +1375,11 @@
     "condition": "Condition",
     "on_exception": "On an exception",
     "rate_from": "Price of a missing order",
-    "batch_pick": "Several batches in the month"
+    "batch_pick": "Several batches in the month",
+    "tips": "Add tips",
+    "food_damage": "Deduct food damage compensation",
+    "other_adjustment": "Deduct other adjustment",
+    "platform_discount": "Deduct platform discount"
   },
   "rule_choice": {
     "amount": "Fixed amount",

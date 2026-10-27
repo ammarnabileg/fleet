@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.core.text import cell_text, norm
 from app.modules.audit import service as audit
-from app.modules.payroll import forms, month
+from app.modules.payroll import forms, month, rider_ids
 from app.modules.payroll.month_models import MonthException, MonthImport, MonthValue
 from app.modules.payroll.rules.catalog import EXCUSES
 from app.modules.payroll.service import month_start
@@ -60,6 +60,14 @@ ALIASES = {
     "exception_note": ("exception_note", "ملاحظه الاستثناء"),
 }  # fmt: skip
 # the partner's report of orders by batch (Rider ID, Batch No., Total Completed Deliveries): a preset of the mapping
+SHEET_AMOUNTS = {
+    "tips": ("البقشيش", "بقشيش", "tips", "tip"),
+    "food_damage": ("تعويض عن تلف الطعام", "تلف الطعام", "food damage", "food damage compensation"),
+    "other_adjustment": ("تعديل آخر", "تعديل اخر", "other adjustment", "adjustment"),
+    "platform_discount": ("الخصم", "خصم", "discount", "deduction"),
+    "sheet_orders": ("الطلبات المسلمة", "الطلبات المُسلمة", "delivered orders", "total completed deliveries"),
+    "sheet_valid_days": ("أيام الاتصال-صالحة", "الأيام الصالحة", "valid days"),
+}
 PARTNER = ("platform_driver_id", "batch", "orders")
 PARTNER_ALIASES = {
     "platform_driver_id": ("rider id", "rider", "رقم السائق", "driver id"),
@@ -181,10 +189,12 @@ def _who(p: dict) -> dict:
     return {"id": p["public_id"], "name": p["name"], "platform_driver_id": p["platform_driver_id"]}
 
 
-def _drivers(db: Session, platform_id: int, scope: dict) -> tuple[dict, dict]:
-    profiles = people.platform_profiles(db, platform_id, departed=True, **scope)
+def _drivers(db: Session, platform_id: int, scope: dict, the_month: date) -> tuple[dict, dict]:
+    """Who a row is: by the driver ID as the month's list has it (an ID moves between employees), or civil ID."""
+    ids = rider_ids.ids_for(db, platform_id, the_month)
+    profiles = people.platform_profiles(db, platform_id, departed=True, employee_ids=list(ids), **scope)
+    by_ref = {norm(ids[p["id"]]): {**p, "platform_driver_id": ids[p["id"]]} for p in profiles if p["id"] in ids}
     profiles = [p for p in profiles if p["platform_id"] == platform_id]
-    by_ref = {norm(p["platform_driver_id"]): p for p in profiles if p["platform_driver_id"]}
     by_civil = {norm(p["civil_id"]): p for p in profiles if p["civil_id"]}
     return by_ref, by_civil
 
@@ -233,6 +243,12 @@ def fields(db: Session, platform_id: int) -> list[dict]:
                 {"key": it["key"], "group": "field", "label": it["label"], "kind": kind,
                  "aliases": [it["key"], *it["label"].values()]}
             )  # fmt: skip
+    listed = {x["key"] for x in out}
+    out += [
+        {"key": k, "group": "field", "label": None, "kind": kind, "aliases": [k, *SHEET_AMOUNTS[k]]}
+        for k, kind in ((k, forms.MONTHLY_BUILTINS[k]) for k in SHEET_AMOUNTS)
+        if k not in listed
+    ]  # every platform's sheet may carry them
     out += [{"key": k, "group": "exception", "label": None, "aliases": list(ALIASES[k])} for k in EXCEPTION_COLUMNS]
     return out
 
@@ -380,7 +396,7 @@ def _read(db: Session, rows: list[list], at: int, cols: dict, platform_id: int, 
                     raw = cell(key)
                     if kind == "bool":
                         raw = norm(raw) in ("1", "yes", "true", "نعم", "x", "✓")
-                    staged.append((key, "", month._number(kind, raw), None))
+                    staged.append((key, "", month._number(kind, raw, signed=key in forms.SIGNED), None))
             for key in cols:
                 if key.startswith("task:") and cell_text(cell(key)):
                     staged.append(("task_counts", key[5:], Decimal(_int(cell(key))), None))
@@ -424,7 +440,7 @@ def _parse(
     rows = _sheet_rows(data, (mapping or {}).get("sheet") if fmt == "mapped" else None)
     at, cols = _layout(db, rows, platform_id=platform_id, fmt=fmt, mapping=mapping)
     out = _Parsed()
-    _read(db, rows, at, cols, platform_id, the_month, _drivers(db, platform_id, scope), out)
+    _read(db, rows, at, cols, platform_id, the_month, _drivers(db, platform_id, scope, the_month), out)
     return out
 
 

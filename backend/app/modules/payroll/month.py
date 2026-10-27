@@ -18,7 +18,7 @@ from app.core.errors import AppError
 from app.modules.audit import service as audit
 from app.modules.daily_ops import service as daily_ops
 from app.modules.identity import service as identity
-from app.modules.payroll import forms
+from app.modules.payroll import forms, rider_ids
 from app.modules.payroll.month_models import MonthException, MonthValue
 from app.modules.payroll.rules.engine import Facts
 from app.modules.payroll.rules.engine import MonthException as Excused
@@ -162,7 +162,7 @@ def personal_rates(db: Session, employee_ids, month: date) -> dict:
 # ------------------------------------------------------------------ the office enters a driver's month
 
 
-def _number(kind: str, raw) -> Decimal:
+def _number(kind: str, raw, *, signed: bool = False) -> Decimal:
     if kind == "bool":
         if not isinstance(raw, bool):
             raise ValueError
@@ -170,7 +170,7 @@ def _number(kind: str, raw) -> Decimal:
     if isinstance(raw, bool):
         raise ValueError
     d = Decimal(str(raw))
-    if d < 0 or d >= Decimal("1000000") or d != d.quantize(Decimal("0.001")):
+    if (d < 0 and not signed) or abs(d) >= Decimal("1000000") or d != d.quantize(Decimal("0.001")):
         raise ValueError
     if kind == "int" and d != d.to_integral_value():
         raise ValueError
@@ -206,7 +206,7 @@ def set_values(db: Session, public_id, *, month: date, data: dict, actor_user_id
             kind = kinds.get(key)
             if kind is None or kind in ("batch_orders", "task_counts", "choice"):
                 raise AppError(422, "field_unknown", field=key)
-            rows.append((key, "", None if raw is None or raw == "" else _number(kind, raw)))
+            rows.append((key, "", None if raw is None or raw == "" else _number(kind, raw, signed=key in forms.SIGNED)))
     except (ValueError, InvalidOperation, TypeError):
         raise AppError(422, "field_invalid", field=key) from None
     batches, tasks = data.get("batches"), data.get("tasks")
@@ -469,6 +469,7 @@ def review(db: Session, *, platform_id: int, month: date, all_companies: bool, c
     required = [x["key"] for x in form["monthly"] if x["required"]]
     terms = schemes.rules_for(db, {s.id: s for s in assigned.values()}, month)
     personal = personal_rates(db, ids, month)
+    month_ids = rider_ids.ids_for(db, platform_id, month)  # the IDs worked that month
     rows, problems = [], defaultdict(int)
     for p in profiles:
         f, sy, st = found[p["id"]], system[p["id"]], sts.get(p["id"])
@@ -498,11 +499,14 @@ def review(db: Session, *, platform_id: int, month: date, all_companies: bool, c
             issues.append("values_missing")
         if f.batches and sum(b[1] for b in f.batches) != orders and orders:
             issues.append("orders_conflict")  # the partner's batch rows and the approved daily orders differ
+        for key, ours in (("sheet_orders", orders), ("sheet_valid_days", valid)):
+            if key in f.values and ours is not None and int(f.values[key]) != ours:
+                issues.append(key + "_differ")  # the platform's sheet counts the month otherwise than the app
         if sy["pending_reports"]:
             issues.append("daily_pending")
         if has_schemes and scheme is None:
             issues.append("scheme_missing")
-        if not p["platform_driver_id"]:
+        if not month_ids.get(p["id"]):
             issues.append("driver_id_missing")
         for i in issues:
             problems[i] += 1
@@ -510,7 +514,7 @@ def review(db: Session, *, platform_id: int, month: date, all_companies: bool, c
             {
                 "employee": {"id": p["public_id"], "name": p["name"], "number": p["employee_number"]},
                 "company_id": p["company_id"],
-                "platform_driver_id": p["platform_driver_id"],
+                "platform_driver_id": month_ids.get(p["id"]),
                 "scheme": {"id": str(scheme.public_id), "name": scheme.name} if scheme else None,
                 "orders": orders,
                 "valid_days": valid,

@@ -706,6 +706,7 @@ class PayScheme {
     required this.name,
     this.description,
     required this.calculator,
+    this.payKind = 'per_order',
     this.perOrder,
     required this.targetOrders,
     required this.requiredValidDays,
@@ -723,6 +724,7 @@ class PayScheme {
     name: Map<String, String>.from(j['name'] as Map),
     description: j['description'] == null ? null : Map<String, String>.from(j['description'] as Map),
     calculator: j['calculator'] as String,
+    payKind: j['pay_kind'] as String? ?? 'per_order',
     perOrder: j['per_order'] as String?,
     targetOrders: (j['target_orders'] as num).toInt(),
     requiredValidDays: (j['required_valid_days'] as num).toInt(),
@@ -739,6 +741,7 @@ class PayScheme {
   final Map<String, String> name;
   final Map<String, String>? description;
   final String calculator; // per_order | batch | tiered_target | platform_rates
+  final String payKind; // how it pays, his first choice: per_order | fixed_salary | batch
   final String? perOrder;
   final int targetOrders;
   final int requiredValidDays;

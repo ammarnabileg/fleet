@@ -201,6 +201,16 @@ def _version_out(v: SchemeVersion, users: dict[int, str]) -> dict:
     }
 
 
+def pay_kind(s: Scheme, blocks: list | None) -> str:
+    """How the scheme pays, the driver's first choice in the app: a fixed salary, by batch, or per order."""
+    types = {b["type"] for b in blocks or ()}
+    if "fixed_salary" in types:
+        return "fixed_salary"
+    if "batch_rate" in types or s.calculator == "batch":
+        return "batch"
+    return "per_order"
+
+
 def _out(
     s: Scheme,
     versions: list[SchemeVersion],
@@ -220,6 +230,7 @@ def _out(
         "name": s.name,
         "description": s.description,
         "calculator": s.calculator,
+        "pay_kind": pay_kind(s, v.blocks),
         **_terms(v),  # this month's terms
         "driver_selectable": s.driver_selectable,
         "is_active": s.is_active,
@@ -814,3 +825,58 @@ def reject(db: Session, public_id, *, version: int | None, note: str, actor_user
     db.commit()
     _notify(db, people.ref(db, r.employee_id), "messages.scheme_rejected", reason=note)
     return _request_out(db, [r])[0]
+
+
+def _on_from(db: Session, scheme_id: int, month: date) -> list[int]:
+    """The drivers on the scheme from the month on (on it that month, or put on it for a later month)."""
+    q = select(DriverScheme.employee_id).where(
+        DriverScheme.scheme_id == scheme_id, or_(DriverScheme.valid_to.is_(None), DriverScheme.valid_to > month)
+    )
+    return list(dict.fromkeys(db.scalars(q)))
+
+
+def remove(db: Session, public_id, *, move_to=None, actor_user_id: int, **scope) -> dict:
+    """The office's «delete»: a scheme with drivers on it from this month needs another of its platform's schemes to
+    move them to first; then a scheme nothing ever used is deleted, and one an earlier month used (a payroll paid on
+    it, a driver was on it) is retired: offered no more, kept for those months."""
+    s = _by_public_id(db, public_id, lock=True)
+    month = month_start(today())
+    on = _on_from(db, s.id, month)
+    moved, skipped = 0, []
+    if on:
+        if move_to is None:
+            raise AppError(409, "scheme_has_drivers", drivers=len(on))
+        target = _by_public_id(db, move_to)
+        if target.id == s.id or target.platform_id != s.platform_id:
+            raise AppError(422, "scheme_platform_mismatch")
+        everyone = {"all_companies": True, "company_ids": ()}
+        refs = [people.ref(db, e) for e in on]
+        out = assign_many(db, target.public_id, [r.public_id for r in refs], month, actor_user_id=actor_user_id,
+                          **everyone)  # fmt: skip
+        moved, skipped = out["set"], out["skipped"]
+        if skipped:  # a driver could not move (a month already paid): the scheme stays as it is
+            return {"deleted": False, "retired": False, "moved": moved, "skipped": skipped}
+        s = _by_public_id(db, public_id, lock=True)
+    pending = db.scalar(select(func.count()).where(
+        SchemeChangeRequest.requested_scheme_id == s.id, SchemeChangeRequest.status == "pending"))  # fmt: skip
+    if pending:
+        raise AppError(409, "scheme_requests_pending", requests=pending)
+    used = bool(_used_ids(db, [s.id])) or bool(db.scalar(select(func.count()).where(or_(
+        SchemeChangeRequest.requested_scheme_id == s.id, SchemeChangeRequest.current_scheme_id == s.id))))  # fmt: skip
+    before = {"name": s.name, "is_active": s.is_active}
+    if used:
+        s.is_active, s.driver_selectable = False, False
+        s.version += 1
+    else:
+        db.delete(s)
+    audit.record(
+        db,
+        action="payroll.scheme_retired" if used else "payroll.scheme_deleted",
+        entity_type="scheme",
+        entity_id=s.public_id,
+        actor_user_id=actor_user_id,
+        before=before,
+        after={"moved": moved, "to": str(move_to) if move_to else None},
+    )
+    db.commit()
+    return {"deleted": not used, "retired": used, "moved": moved, "skipped": []}

@@ -42,7 +42,7 @@
       if (!plat) return h`<div class="card"><div class="card-b">${BT.empty('building-2', 'الشركة غير موجودة', '')}</div></div>`;
       A.setTitle(api.name(plat.name), [['الشركات المتعاقد معها', 'platforms'], [api.name(plat.name)]]);
       var tabs = [['overview', 'نظرة عامة']];
-      if (api.can('payroll.view')) tabs.push(['schemes', 'أنظمة الدفع'], ['drivers', 'السواقين ومعرّفاتهم']);
+      if (api.can('payroll.view')) tabs.push(['schemes', 'أنظمة الدفع'], ['drivers', 'السواقين ومعرّفاتهم'], ['ids', 'معرّفات الشهر']);
       tabs.push(['fields', 'حقول التقرير']);
       if (api.can('payroll.view')) tabs.push(['import', 'استيراد الشهر']);
       var tab = tabs.some(function (t) { return t[0] === q.tab; }) ? q.tab : 'overview';
@@ -51,7 +51,7 @@
         function show(t) {
           if (drawn[t]) return; drawn[t] = true;
           var el = v.querySelector('[data-p="' + t + '"]');
-          ({ overview: overviewPanel, schemes: function (e) { A.schemesPanel(e, q, id); }, drivers: driversPanel, fields: fieldsPanel, import: function (e) { A.monthPanel(e, q, id); } })[t](el, plat);
+          ({ overview: overviewPanel, schemes: function (e) { A.schemesPanel(e, q, id); }, drivers: driversPanel, ids: idsPanel, fields: fieldsPanel, import: function (e) { A.monthPanel(e, q, id); } })[t](el, plat);
         }
         v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/platforms/' + id + (e.detail === 'overview' ? '' : '?tab=' + e.detail)); });
         show(tab);
@@ -118,6 +118,43 @@
       }, function (err) { btn.disabled = false; api.fail(err); });
     });
     return t;
+  }
+
+  /* المعرّف لا يلزم موظفاً: كل شهر يبدأ بمعرّفات الشهر الذي قبله، ويُغيَّر ما انتقل لموظف آخر فقط، وملف الشهر يُقرأ بمعرّفات شهره */
+  function idsPanel(el, plat) {
+    var canEdit = api.can('employees.update');
+    var month = BT.config.today.slice(0, 7);
+    BT.render(el, h`<div class="card"><div class="banner note fs-sm mb-12">${icon('info', 15)}<div>كل شهر يبدأ بمعرّفات الشهر الذي قبله. لو اشتغل موظف على معرّف موظف آخر هذا الشهر اكتب المعرّف عنده واحفظ: ينتقل له من هذا الشهر، ومرتب المعرّف عن الشهر يكون له. الشهور السابقة لا تتغير، وملف الشركة يُقرأ بمعرّفات شهره.</div></div>
+      <div class="flex gap-8 items-center mb-12"><label class="label" for="ids-month">الشهر</label><input type="month" class="input" id="ids-month" value="${month}" style="max-width:180px"></div><div data-t></div></div>`);
+    var box = el.querySelector('[data-t]');
+    function draw() {
+      BT.table(box, {
+        key: 'plat-ids-' + plat.id,
+        fetch: function (s) { return api.get('/payroll/platforms/' + plat.id + '/rider-ids', { month: month + '-01' }).then(function (rows) { var q = (s.q || '').toLowerCase(); rows = s.chip === 'changed' ? rows.filter(function (r) { return r.changed; }) : rows; return (q ? rows.filter(function (r) { return (api.name(r.name) + ' ' + r.employee_number + ' ' + (r.rider_id || '') + ' ' + (r.previous || '')).toLowerCase().indexOf(q) >= 0; }) : rows).slice(s.offset, s.offset + s.limit); }); },
+        search: { placeholder: 'ابحث بالاسم أو الرقم أو المعرّف' },
+        chips: { value: 'all', all: false, options: [{ v: 'all', t: 'الكل' }, { v: 'changed', t: 'تغيّر عن الشهر السابق' }] },
+        columns: [
+          { key: 'name', label: 'السائق', render: function (r) { return h`${A.person(r, r.employee_number)}`; } },
+          { key: 'previous', label: 'الشهر السابق', render: function (r) { return r.previous ? h`<span class="ltr">${r.previous}</span>` : h`<span class="muted">—</span>`; } },
+          { key: 'rider_id', label: 'معرّف هذا الشهر', render: function (r) {
+            return canEdit ? h`<form class="flex gap-4 items-center" data-rid="${r.id}" novalidate><input class="input ltr" name="rid" value="${r.rider_id || ''}" maxlength="60" placeholder="—" aria-label="معرّف هذا الشهر" style="max-width:180px"><button type="submit" class="btn btn-sm btn-outline">حفظ</button></form>` : (r.rider_id ? h`<span class="ltr">${r.rider_id}</span>` : h`<span class="muted">—</span>`);
+          } },
+          { key: 'changed', label: '', render: function (r) { return r.changed ? BT.pill('تغيّر', 'b') : ''; } }
+        ],
+        empty: { icon: 'users', title: 'لا سائقين هنا', text: 'لا سائقين على هذه الشركة في هذا الشهر' }
+      });
+    }
+    draw();
+    el.querySelector('#ids-month').addEventListener('change', function (e) { if (e.target.value) { month = e.target.value; draw(); } });
+    A.delegate(el, 'submit', 'form[data-rid]', function (e, f) {
+      e.preventDefault();
+      var input = f.querySelector('[name=rid]'), btn = f.querySelector('button'), value = input.value.trim();
+      btn.disabled = true;
+      api.put('/payroll/platforms/' + plat.id + '/rider-ids/' + f.getAttribute('data-rid'), { month: month + '-01', rider_id: value || null }).then(function () {
+        BT.toast(value ? 'المعرّف ' + value + ' له من هذا الشهر' : 'أُزيل معرّفه لهذا الشهر');
+        draw();
+      }, function (err) { btn.disabled = false; api.fail(err); });
+    });
   }
 
   function fieldsPanel(el, plat) {
