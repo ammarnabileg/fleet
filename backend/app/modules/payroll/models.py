@@ -412,7 +412,9 @@ class SchemeChangeRequest(Base):
         CheckConstraint(
             "requested_scheme_id IS NULL OR requested_scheme_id IS DISTINCT FROM current_scheme_id", name="change"
         ),
-        CheckConstraint("picked_at IS NULL OR (status = 'approved' AND requested_scheme_id IS NOT NULL)", name="picked"),
+        CheckConstraint(
+            "picked_at IS NULL OR (status = 'approved' AND requested_scheme_id IS NOT NULL)", name="picked"
+        ),
         CheckConstraint("(status IN ('approved', 'rejected')) = (decided_at IS NOT NULL)", name="decided"),
         Index(
             "scheme_change_requests_employee_id_idx",

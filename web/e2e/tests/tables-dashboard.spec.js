@@ -5,10 +5,10 @@ const { test, expect, uid, phone, settled, jpeg } = require('./fixtures');
 test('a dashboard figure lists what it counts, sorted from the keyboard', async ({ admin, api }) => {
   const n = uid();
   const company = await api.post('/companies', { name: { ar: 'شركة الأرقام ' + n, en: 'Drill company ' + n } });
-  const idle = await api.post('/employees', { employee_number: 'I' + uid(), name: { ar: 'سائق بلا سيارة ' + n, en: 'Idle ' + n }, company_id: company.id, is_driver: true, phone: phone() });
+  await api.post('/employees', { employee_number: 'I' + uid(), name: { ar: 'سائق بلا سيارة ' + n, en: 'Idle ' + n }, company_id: company.id, is_driver: true, phone: phone() });
   const vehicle = await api.post('/vehicles', { plate_number: '4/' + n.slice(-6), company_id: company.id, last_odometer_km: 100 });
   const driving = await api.post('/employees', { employee_number: 'D' + uid(), name: { ar: 'سائق صامت ' + n, en: 'Silent ' + n }, company_id: company.id, is_driver: true, phone: phone() });
-  await api.post('/custodies', { vehicle_id: vehicle.id, driver_id: driving.id, odometer_km: 100, photo_sha256: await api.upload('o.jpg', 'image/jpeg', jpeg()), started_at: new Date(Date.now() - 3 * 3600e3).toISOString() });
+  await api.post('/custodies', { vehicle_id: vehicle.id, driver_id: driving.id, odometer_km: 100, photo_sha256: await api.upload('o.jpg', 'image/jpeg', jpeg()), started_at: new Date(Date.now() - 6.5 * 86400e3).toISOString() }); // silent the longest: first in the capped list
   const d = await api.get('/dashboard');
 
   await admin.goto('/admin.html#/dashboard');
@@ -38,9 +38,12 @@ test('a dashboard figure lists what it counts, sorted from the keyboard', async 
   await expect(drawer.locator('th [data-sort=driver]')).toBeFocused();
   await admin.keyboard.press('Enter');
   await expect(drawer.locator('th[aria-sort=descending]')).toContainText('السائق');
-  // «فتح» on the row opens the driver
-  await drawer.locator('tbody tr', { hasText: idle.name.ar }).locator('[data-row-open]').click();
-  await expect(admin.locator('.overlay[data-open]').last()).toContainText(idle.name.ar);
+  // «فتح» on the row opens that driver (the first row: on a shared database the list is capped and paged, so a new
+  // driver is not always on the first page after sorting)
+  const first = rows.first();
+  const name = (await first.locator('td').first().innerText()).split('\n').map((x) => x.trim()).find((x) => x.length > 2);
+  await first.locator('[data-row-open]').click();
+  await expect(admin.locator('.overlay[data-open]').last()).toContainText(name);
 });
 
 test('columns chosen and a view saved; back returns to the same search, chip and page', async ({ admin, api }) => {

@@ -3498,13 +3498,13 @@ void main() {
     await pumpApp(tester, w);
     await open();
     final current = find.byKey(const Key('scheme-current'));
-    expect(find.descendant(of: current, matching: find.text('سعر الطلب: ⁦0.350⁩ د.ك')), findsOneWidget);
+    expect(find.descendant(of: current, matching: find.text('سعر الطلب: \u20660.350\u2069 د.ك')), findsOneWidget);
     expect(
       find.descendant(of: current, matching: find.text('على الشركة: الصيانة، السكن، البنزين، الشريحة')),
       findsOneWidget,
     );
     expect(find.byKey(const Key('scheme-pick-batch')), findsNothing, reason: 'the list waits for the office');
-    expect(find.text('• باتش ⁦1⁩: ⁦0.700⁩ د.ك'), findsNothing);
+    expect(find.text('• باتش \u20661\u2069: \u20660.700\u2069 د.ك'), findsNothing);
     await shot(tester, '25-schemes');
     await tester.tap(find.byKey(const Key('scheme-change')));
     await settle(tester);
@@ -3524,10 +3524,10 @@ void main() {
     now = view(leave('approved'), choose: true);
     await tester.fling(find.byKey(const Key('scheme-current')), const Offset(0, 500), 1500); // pull to refresh
     await idle(tester);
-    expect(find.text('وافق المكتب: اختر نظامك الجديد، يبدأ من ⁦11-2026⁩'), findsOneWidget);
+    expect(find.text('وافق المكتب: اختر نظامك الجديد، يبدأ من \u206611-2026\u2069'), findsOneWidget);
     expect(find.byKey(const Key('scheme-pick-fixed_350')), findsNothing, reason: 'not his own scheme');
     expect(find.text('لا خصم على الطلبات الناقصة عن التارجت'), findsNWidgets(2));
-    expect(find.text('• باتش ⁦1⁩: ⁦0.700⁩ د.ك'), findsOneWidget, reason: 'levels in order');
+    expect(find.text('• باتش \u20661\u2069: \u20660.700\u2069 د.ك'), findsOneWidget, reason: 'levels in order');
     expect(find.text('المصاريف عليك: الصيانة والسكن والبنزين والشريحة'), findsOneWidget);
     await tester.tap(find.byKey(const Key('scheme-pick-batch')));
     await settle(tester);
