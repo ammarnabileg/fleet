@@ -402,13 +402,17 @@ class SchemeStep(Base):
 
 
 class SchemeChangeRequest(Base):
-    """A driver asks from the app to move to another of his platform's schemes from the next month."""
+    """A driver asks from the app to move to another of his platform's schemes from the next month. With no scheme
+    named he asks leave to change: once the office approves he picks one himself (picked_at)."""
 
     __tablename__ = "scheme_change_requests"
     __table_args__ = (
         CheckConstraint("extract(day FROM effective_month) = 1", name="month"),
         CheckConstraint("status IN ('pending', 'approved', 'rejected', 'cancelled')", name="status"),
-        CheckConstraint("requested_scheme_id IS DISTINCT FROM current_scheme_id", name="change"),
+        CheckConstraint(
+            "requested_scheme_id IS NULL OR requested_scheme_id IS DISTINCT FROM current_scheme_id", name="change"
+        ),
+        CheckConstraint("picked_at IS NULL OR (status = 'approved' AND requested_scheme_id IS NOT NULL)", name="picked"),
         CheckConstraint("(status IN ('approved', 'rejected')) = (decided_at IS NOT NULL)", name="decided"),
         Index(
             "scheme_change_requests_employee_id_idx",
@@ -425,7 +429,7 @@ class SchemeChangeRequest(Base):
     employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
     company_id: Mapped[int] = mapped_column(BigInteger)
     current_scheme_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.schemes.id"))
-    requested_scheme_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("payroll.schemes.id"))
+    requested_scheme_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.schemes.id"))
     effective_month: Mapped[date] = mapped_column(Date)
     status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
     driver_note: Mapped[str | None] = mapped_column(Text)
@@ -433,6 +437,7 @@ class SchemeChangeRequest(Base):
     submitted_by_device: Mapped[int | None] = mapped_column(BigInteger)
     decided_by: Mapped[int | None] = mapped_column(BigInteger)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    picked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
 

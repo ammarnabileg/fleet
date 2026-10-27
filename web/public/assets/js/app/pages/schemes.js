@@ -43,6 +43,72 @@
     return out;
   };
 
+  /* نظام مبني بالقواعد مكتوب بلغة صاحب الشركة: نوعه، سعره الأساسي، شروطه سطراً سطراً، ومن يدفع كل مصروف */
+  A.schemeSummary = function (s) {
+    var en = BT.lang === 'en', T = function (ar, e) { return en ? e : ar; };
+    var kind = s.pay_kind || 'per_order', rows = [], company = [], driver = [], head = null, unit = '';
+    var KWD = function (v) { return fmt.money(v); }, sep = T(' · ', ' · ');
+    (s.blocks || []).forEach(function (b) {
+      var x = b.params || {}, c = b.condition || [];
+      var star = c.some(function (y) { return y.fact === 'month_invalid' && y.op === 'is_true'; });
+      var many = c.filter(function (y) { return y.fact === 'marks' && y.op === 'gt'; })[0];
+      if ((b.type === 'per_order' || b.type === 'price_change') && (star || many)) {
+        rows.push(['triangle-alert', star ? T('علامة في يوم النجمة', 'A mark on a Star Day') : T('أكثر من ' + many.value + ' علامات', 'More than ' + many.value + ' marks'),
+          T('كل الطلبات بـ ' + KWD(x.rate) + ' بدل الراتب والبونص', 'Every order at ' + KWD(x.rate) + ' instead of the salary and bonus')]);
+        return;
+      }
+      switch (b.type) {
+        case 'fixed_salary': head = x.mode === 'contract' ? T('حسب العقد', 'Per contract') : KWD(x.amount); unit = x.mode === 'contract' ? '' : T('د.ك / شهر', 'KWD / month'); break;
+        case 'per_order': if (!head) { head = KWD(x.rate); unit = T('د.ك / طلب', 'KWD / order'); } else rows.push(['receipt', T('سعر الطلب', 'Order price'), KWD(x.rate)]); break;
+        case 'batch_rate':
+          var rates = (x.rates || []).map(function (r) { return Number(r.rate); });
+          head = KWD(Math.min.apply(null, rates)) + ' – ' + KWD(Math.max.apply(null, rates)); unit = T('د.ك / طلب حسب الباتش', 'KWD / order by batch');
+          rows.push(['list-ordered', T('الباتشات', 'Batches'), (x.rates || []).map(function (r) { return T('باتش ', 'Batch ') + r.batch + ': ' + KWD(r.rate); }).join(sep)]);
+          break;
+        case 'tiered_rate': rows.push(['list-ordered', T('سعر الطلب بالشرائح', 'Order price by tier'), (x.tiers || []).map(function (r) { return T('من ', 'From ') + r.from + ': ' + KWD(r.rate); }).join(sep)]); break;
+        case 'target_overage': rows.push(['trending-up', T('التارجت ' + x.threshold + ' طلب', 'Target ' + x.threshold + ' orders'), T('+ ' + KWD(x.rate) + ' لكل طلب فوقه', '+ ' + KWD(x.rate) + ' per order above') + (x.below_rate ? sep + T('− ' + KWD(x.below_rate) + ' لكل طلب ناقص', '− ' + KWD(x.below_rate) + ' per order short') : '')]); break;
+        case 'missing_orders': rows.push(['trending-up', T('التارجت ' + x.target + ' طلب', 'Target ' + x.target + ' orders'), T('− ' + KWD(x.rate) + ' لكل طلب ناقص', '− ' + KWD(x.rate) + ' per order short')]); break;
+        case 'tier_bonus': rows.push(['hand-coins', T('البونص', 'Bonus'), (x.tiers || []).map(function (r) { return r.from + T(' طلب: ', ' orders: ') + KWD(r.amount); }).join(sep)]); break;
+        case 'monthly_bonus': rows.push(['hand-coins', T('بونص شهري', 'Monthly bonus'), KWD(x.amount)]); break;
+        case 'attendance_marks':
+          if (x.mode === 'per_mark') rows.push(['circle-x', T('العلامات الحمراء', 'Red marks'), T('− ' + KWD(x.amount) + ' لكل علامة', '− ' + KWD(x.amount) + ' per mark')]);
+          else {
+            var t = x.table || [], free = t.length ? t[0].from - 1 : 0;
+            rows.push(['circle-x', T('العلامات الحمراء', 'Red marks'), (free > 0 ? T('حتى ' + free + ' بدون خصم', 'Up to ' + free + ' free') + sep : '') + t.map(function (r) { return r.from + ': − ' + KWD(r.amount); }).join(sep)]);
+          }
+          break;
+        case 'required_days': rows.push(['calendar', T('أيام صالحة', 'Valid days'), T(x.days + ' يوماً في الشهر', x.days + ' days a month')]); break;
+        case 'platform_amounts': rows.push(['file-spreadsheet', T('من شيت المنصة', 'From the platform sheet'), T('البقشيش يُضاف، والتلف والتعديلات والخصم تُخصم', 'Tips added; food damage, adjustments and discount deducted')]); break;
+        case 'expense': (x.responsibility === 'company' ? company : driver).push(api.t('expense', x.kind === 'phone' ? 'sim' : x.kind)); break;
+      }
+    });
+    return { kind: kind, head: head, unit: unit, rows: rows, company: company, driver: driver };
+  };
+  var KIND = { fixed_salary: ['راتب ثابت', 'wallet', 'g'], per_order: ['بالطلب', 'receipt', 'b'], batch: ['باتش', 'list-ordered', 'o'] };
+
+  function schemeCard(s, canEdit) {
+    var k = KIND[s.pay_kind || 'per_order'] || KIND.per_order;
+    var body;
+    if (s.blocks) {
+      var m = A.schemeSummary(s);
+      body = h`<div class="sc-price">${m.head ? h`<b class="num">${m.head}</b><span>${m.unit}</span>` : h`<span class="muted">قواعد مخصصة</span>`}</div>
+        <ul class="sc-rows">${m.rows.map(function (r) { return h`<li>${icon(r[0], 16)}<div><b>${r[1]}</b><span>${r[2]}</span></div></li>`; })}</ul>
+        <div class="sc-exp">${m.company.length ? h`<div><small>على الشركة</small>${m.company.map(function (x) { return h`<span class="pill g">${x}</span>`; })}</div>` : ''}${m.driver.length ? h`<div><small>على السائق</small>${m.driver.map(function (x) { return h`<span class="pill n">${x}</span>`; })}</div>` : ''}</div>`;
+    } else {
+      body = h`<div class="sc-legacy">${BT.kv(A.schemeTerms(s))}</div>`;
+    }
+    return h`<div class="sc-card${s.is_active ? '' : ' off'}" data-scheme-box="${s.id}">
+      <button type="button" class="sc-main" data-scheme="${s.id}">
+        <div class="sc-top"><span class="sc-ic t-${k[2]}">${icon(k[1], 18)}</span><div class="sc-name"><b>${api.name(s.name)}</b><small><span>${k[0]}</span> · <span>${'النسخة ' + s.version_no}</span> · <span>${monthLabel(s.effective_month)}</span></small></div>
+          ${s.is_active ? '' : BT.pill('موقوف', 'n')}</div>
+        ${body}
+        ${s.next_version ? h`<div class="sc-next" data-next-version>${icon('history', 14)} النسخة ${s.next_version.version_no} من ${monthLabel(s.next_version.effective_month)}</div>` : ''}
+      </button>
+      <div class="sc-foot"><span>${icon('users', 14)} <b class="num">${fmt.int(s.drivers)}</b> سائق هذا الشهر</span>${s.driver_selectable ? BT.pill('يختاره السائق', 'b') : BT.pill('من المكتب فقط', 'n')}
+        ${canEdit ? h`<button type="button" class="btn btn-sm btn-ghost t-danger ms-auto" data-del-scheme="${s.id}">${icon('trash-2', 14)} حذف النظام</button>` : ''}</div>
+    </div>`;
+  }
+
   /* ================= أنظمة الدفع ================= */
   A.schemesPanel = function (el, q, only) { // only: one platform's page
     var canEdit = api.can('payroll.schemes');
@@ -58,9 +124,9 @@
         ${plats.filter(function (p) { return p.is_active && (!only || p.id === only); }).map(function (p) {
           var mine = schemes.filter(function (s) { return s.platform_id === p.id; });
           return h`<div class="card mb-12"><div class="card-h"><div class="card-t">${api.name(p.name)}</div><span class="muted fs-sm">${mine.length ? mine.length + ' نظام' : 'بلا أنظمة: قاعدة المنصة'}</span>${canEdit ? h`<button type="button" class="btn btn-sm btn-primary ms-auto" data-new="${p.id}">${icon('plus', 14)} نظام جديد</button>` : ''}</div>
-            ${mine.length ? h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;padding:12px">${mine.map(function (s) {
-              return h`<div data-scheme-box="${s.id}"><button type="button" class="card" data-scheme="${s.id}" style="text-align:start;cursor:pointer"><div class="card-h"><div class="card-t">${api.name(s.name)}</div>${s.is_active ? '' : BT.pill('موقوف', 'n')}${s.driver_selectable ? BT.pill('يختاره السائق', 'b') : BT.pill('من المكتب فقط', 'n')}</div>
-                <div class="card-b">${BT.kv([['الحساب', api.t('scheme_calculator', s.designed ? 'blocks' : s.calculator)], ['النسخة', 'النسخة ' + s.version_no + ' · من ' + monthLabel(s.effective_month)]].concat(A.schemeTerms(s)).concat([['السائقون هذا الشهر', fmt.int(s.drivers)]]).concat(s.next_version ? [['نسخة قادمة', h`<span data-next-version>النسخة ${s.next_version.version_no} من ${monthLabel(s.next_version.effective_month)}</span>`]] : []))}</div></button>${canEdit ? h`<div class="flex mt-4"><button type="button" class="btn btn-sm btn-ghost t-danger" data-del-scheme="${s.id}">${icon('trash-2', 14)} حذف النظام</button></div>` : ''}</div>`;
+            ${mine.length ? h`<div class="sc-groups">${['fixed_salary', 'per_order', 'batch'].map(function (kind) {
+              var list = mine.filter(function (s) { return (s.pay_kind || 'per_order') === kind; });
+              return list.length ? h`<div class="sc-group"><div class="sc-gt">${icon(KIND[kind][1], 15)} ${KIND[kind][0]} <span class="muted">${list.length}</span></div><div class="sc-grid">${list.map(function (s) { return schemeCard(s, canEdit); })}</div></div>` : '';
             })}</div>` : ''}</div>`;
         })}`;
     }).catch(function () {});
@@ -255,7 +321,7 @@
       fetch: function (s) { return api.get('/payroll/scheme-requests', { status: s.chip === 'all' ? null : s.chip, limit: s.limit, offset: s.offset }); },
       columns: [
         { key: 'employee', label: 'السائق', render: function (r) { return A.person(r.employee); } },
-        { key: 'change', label: 'من ← إلى', render: function (r) { return h`${r.current ? api.name(r.current.name) : h`<span class="muted">لا نظام</span>`} ${icon('arrow-left', 13)} <b>${api.name(r.requested.name)}</b>`; } },
+        { key: 'change', label: 'من ← إلى', render: function (r) { return h`${r.current ? api.name(r.current.name) : h`<span class="muted">لا نظام</span>`} ${icon('arrow-left', 13)} ${r.requested ? h`<b>${api.name(r.requested.name)}</b>` : h`<span class="muted">${r.status === 'approved' ? 'لم يختر بعد' : 'يختار بعد الموافقة'}</span>`}`; } },
         { key: 'month', label: 'من شهر', render: function (r) { return monthLabel(r.effective_month); } },
         { key: 'note', label: 'ملاحظة', render: function (r) { return r.driver_note || r.admin_note || '—'; } },
         { key: 'status', label: 'الحالة', render: function (r) { return BT.pill(api.t('scheme_request_status', r.status), REQ_TONE[r.status]); } },
@@ -267,7 +333,7 @@
   function decide(r, done) {
     var can = api.can('payroll.schemes') && r.status === 'pending';
     Promise.all([api.get('/payroll/schemes')]).then(function (res) {
-      var all = res[0], want = all.find(function (s) { return s.id === r.requested.id; }), cur = r.current && all.find(function (s) { return s.id === r.current.id; });
+      var all = res[0], want = r.requested && all.find(function (s) { return s.id === r.requested.id; }), cur = r.current && all.find(function (s) { return s.id === r.current.id; });
       var btns = [{ label: 'إغلاق', cls: 'btn-ghost' }];
       if (can) {
         btns.push({ label: 'رفض', cls: 'btn-outline', icon: 'ban', close: false, onClick: function (dlg) {
@@ -283,7 +349,7 @@
         body: h`${BT.kv([['الحالة', BT.pill(api.t('scheme_request_status', r.status), REQ_TONE[r.status])], ['من شهر', monthLabel(r.effective_month)], r.driver_note ? ['ملاحظة السائق', r.driver_note] : null, r.admin_note ? ['رد المكتب', r.admin_note] : null].filter(Boolean))}
           <div class="grid mt-12" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
             <div class="card"><div class="card-h"><div class="card-t">الآن: ${cur ? api.name(cur.name) : 'لا نظام'}</div></div><div class="card-b">${cur ? BT.kv(A.schemeTerms(cur)) : ''}</div></div>
-            <div class="card"><div class="card-h"><div class="card-t">يطلب: ${want ? api.name(want.name) : api.name(r.requested.name)}</div></div><div class="card-b">${want ? BT.kv(A.schemeTerms(want)) : ''}</div></div>
+            ${r.requested ? h`<div class="card"><div class="card-h"><div class="card-t">${r.picked_at ? 'اختار' : 'يطلب'}: ${want ? api.name(want.name) : api.name(r.requested.name)}</div></div><div class="card-b">${want ? BT.kv(A.schemeTerms(want)) : ''}</div></div>` : h`<div class="card"><div class="card-h"><div class="card-t">يطلب تغيير نظامه</div></div><div class="card-b muted">لم يحدد نظاماً: بعد موافقتك تظهر له أنظمة المنصة في التطبيق ويختار منها مرة واحدة، ويبدأ النظام الجديد من الشهر الموافق عليه.</div></div>`}
           </div>
           ${can ? h`<div class="form mt-12">${BT.f.input({ name: 'month', label: 'يبدأ من (اختياري: شهر أبعد مما طلب، لا أقرب)', type: 'month', optional: true, value: '' })}<div class="hint">بلا تعديل: من ${monthLabel(r.effective_month)}، أو أول شهر بعده لم تُعتمد رواتبه.</div></div>` : ''}`
       });

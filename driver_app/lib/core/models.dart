@@ -794,25 +794,32 @@ class SchemeRequest {
   final String? adminNote;
 
   bool get pending => status == 'pending';
+
+  /// Leave to change his scheme (none named): he picks one once the office approves.
+  bool get leave => requested.isEmpty;
   String requestedLabel(String lang) => inLang(requested, lang) ?? requested.values.firstOrNull ?? '';
 }
 
 /// GET /driver/schemes: his scheme this month (and next month when it changes), what his platform offers, and his
 /// latest request.
 class DriverSchemes {
-  DriverSchemes({this.current, this.nextMonth, required this.offered, this.request});
+  DriverSchemes({this.current, this.nextMonth, required this.offered, this.request, this.canChoose = false});
 
   factory DriverSchemes.fromJson(Map<String, dynamic> j) => DriverSchemes(
     current: j['current'] == null ? null : PayScheme.fromJson(j['current'] as Map<String, dynamic>),
     nextMonth: j['next_month'] == null ? null : PayScheme.fromJson(j['next_month'] as Map<String, dynamic>),
     offered: [for (final s in j['schemes'] as List) PayScheme.fromJson(s as Map<String, dynamic>)],
     request: j['request'] == null ? null : SchemeRequest.fromJson(j['request'] as Map<String, dynamic>),
+    canChoose: j['can_choose'] as bool? ?? false,
   );
 
   final PayScheme? current;
   final PayScheme? nextMonth;
   final List<PayScheme> offered;
   final SchemeRequest? request;
+
+  /// He picks a scheme himself: the first time, or once after the office approved his request to change.
+  final bool canChoose;
 }
 
 /// Something the office or the system told the driver (GET /driver/notifications): a receipt, a decision on his

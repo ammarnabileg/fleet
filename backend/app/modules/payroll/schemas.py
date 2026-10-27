@@ -438,7 +438,7 @@ class SchemeHistoryOut(BaseModel):
 class SchemeRequestIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    scheme_id: uuid.UUID
+    scheme_id: uuid.UUID | None = None  # none: leave to change, he picks one once the office approves
     note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)] | None = None
 
 
@@ -454,7 +454,14 @@ class SchemeRequestOut(BaseModel):
     admin_note: str | None
     created_at: datetime
     decided_at: datetime | None
+    picked_at: datetime | None = None
     version: int
+
+
+class SchemeChoiceIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scheme_id: uuid.UUID
 
 
 class DriverSchemeOut(BaseModel):
@@ -484,6 +491,7 @@ class DriverSchemesOut(BaseModel):
     next_month: DriverSchemeOut | None  # when it changes next month
     schemes: list[DriverSchemeOut]  # what his platform offers
     request: SchemeRequestOut | None  # his latest request
+    can_choose: bool = False  # he picks a scheme himself: the first time, or after the office's leave to change
 
 
 class ApproveSchemeRequestIn(BaseModel):

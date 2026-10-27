@@ -4116,5 +4116,15 @@ window.BT_EN = {
 "— لا يوجد —": "— None —",
 "— لم يُحفظ شيء بعد.": "— nothing saved yet.",
 "… و": "… and",
-"⚠ صلاحية حساسة (تعديل مبالغ، اعتماد، رواتب): امنحها لمن يحتاجها فقط.": "⚠ Sensitive permission (editing amounts, approval, payroll): grant it only to those who need it."
+"⚠ صلاحية حساسة (تعديل مبالغ، اعتماد، رواتب): امنحها لمن يحتاجها فقط.": "⚠ Sensitive permission (editing amounts, approval, payroll): grant it only to those who need it.",
+"النسخة 1": "Version 1",
+"راتب ثابت": "Fixed salary",
+"بالطلب": "Per order",
+"قواعد مخصصة": "Custom rules",
+"على السائق": "On the driver",
+"سائق هذا الشهر": "drivers this month",
+"لم يختر بعد": "Not picked yet",
+"يختار بعد الموافقة": "Picks after approval",
+"يطلب تغيير نظامه": "Asks to change scheme",
+"لم يحدد نظاماً: بعد موافقتك تظهر له أنظمة المنصة في التطبيق ويختار منها مرة واحدة، ويبدأ النظام الجديد من الشهر الموافق عليه.": "No scheme named: once you approve, the platform's schemes show in the app and they pick one once; the new scheme starts from the approved month."
 };

@@ -1305,10 +1305,19 @@ class AppState extends ChangeNotifier {
   Future<void> loadSchemes() async =>
       schemes = DriverSchemes.fromJson(await api.get('/driver/schemes') as Map<String, dynamic>);
 
-  /// Asks the office to move him to another scheme of his platform, from next month.
-  Future<void> requestScheme(String schemeId, {String? note}) async {
+  /// Asks the office to move him to another scheme of his platform, from next month; with no scheme, leave to change
+  /// (he picks one once the office approves).
+  Future<void> requestScheme(String? schemeId, {String? note}) async {
     schemes = DriverSchemes.fromJson(
-      await api.post('/driver/scheme-requests', body: {'scheme_id': schemeId, 'note': ?note}) as Map<String, dynamic>,
+      await api.post('/driver/scheme-requests', body: {'scheme_id': ?schemeId, 'note': ?note}) as Map<String, dynamic>,
+    );
+    notifyListeners();
+  }
+
+  /// He picks his scheme: the first time, or once after the office's leave to change.
+  Future<void> chooseScheme(String schemeId) async {
+    schemes = DriverSchemes.fromJson(
+      await api.post('/driver/scheme-choice', body: {'scheme_id': schemeId}) as Map<String, dynamic>,
     );
     notifyListeners();
   }

@@ -671,7 +671,16 @@
     "schemeReducedMarks": "Higit sa {marks} pulang marka: bawat order ng buwan ay {rate} KWD kapalit ng sahod at bonus",
     "schemeRequiredDays": "{days} valid na araw ang kailangan sa buwan",
     "schemePlatformAmounts": "Idinadagdag ang tips; ibinabawas ang sira sa pagkain, adjustment at diskwento ng platform",
-    "schemeDriverPays": "Sagot mo: {items}"
+    "schemeDriverPays": "Sagot mo: {items}",
+    "schemeChange": "Humiling na palitan ang scheme",
+    "schemeChangeBody": "Rerepasuhin ng opisina ang request mo; kapag naaprubahan, lalabas dito ang mga scheme ng platform mo para pumili ng bago.",
+    "schemeChangePending": "Naghihintay sa opisina ang request mong palitan ang scheme",
+    "schemeChangeRejected": "Tinanggihan ng opisina ang pagpapalit ng scheme mo: {note}",
+    "schemePickFirst": "Piliin ang pay scheme na pinagtatrabahuhan mo",
+    "schemePickAllowed": "Aprubado: piliin ang bagong scheme mo, magsisimula sa {month}",
+    "schemePick": "Piliin ang scheme na ito",
+    "schemePickConfirm": "Pinipili mo ang “{name}”, simula {month}. Pagkatapos, bagong request lang sa opisina ang makakapagpalit nito.",
+    "schemePicked": "Naitakda na ang scheme mo"
   },
   "server": {
     "deduction_source": {
@@ -724,7 +733,8 @@
       "petty_approved": "Naaprubahan ang iyong gastos na {amount} KWD mula sa petty cash at ibinawas sa iyong hawak",
       "petty_rejected": "Tinanggihan ang iyong gastos na {amount} KWD mula sa petty cash: {reason}",
       "platform_request_approved": "Inaprubahan ng opisina: nasa {platform} ka na ngayon",
-      "platform_request_rejected": "Tinanggihan ng opisina ang request mo para sa {platform}: {reason}"
+      "platform_request_rejected": "Tinanggihan ng opisina ang request mo para sa {platform}: {reason}",
+      "scheme_change_allowed": "Inaprubahan ng opisina ang pagpapalit ng scheme mo: piliin ang bagong scheme mula {month}."
     },
     "errors": {
       "accident_exists": "Naka-record na ang aksidenteng ito",
@@ -1303,7 +1313,9 @@
       "internal_error": "May nangyaring mali sa amin. Subukan muli mamaya.",
       "import_empty": "Walang laman ang file: punan ang mga row sa ilalim ng halimbawa at tiyaking tama ang napiling file.",
       "scheme_has_drivers": "May {drivers} driver sa scheme na ito mula ngayong buwan: pumili muna ng ibang scheme ng parehong kompanya na paglilipatan sa kanila.",
-      "scheme_requests_pending": "May {requests} kahilingan ng driver para sa scheme na ito na naghihintay: aprubahan o tanggihan muna ang mga ito."
+      "scheme_requests_pending": "May {requests} kahilingan ng driver para sa scheme na ito na naghihintay: aprubahan o tanggihan muna ang mga ito.",
+      "scheme_choice_closed": "Humiling muna na palitan ang scheme mo: pipili ka ng bago kapag inaprubahan ng opisina.",
+      "scheme_choice_open": "Maaari mo nang piliin ang scheme mo ngayon mula sa listahan."
     },
     "finance_source": {
       "cash_journal": "Cash ledger: {kind} {reason}",
@@ -1361,7 +1373,8 @@
       "otp": "Ang sign-in code mo: {code}. Valid sa loob ng {minutes} minuto. Huwag itong ibahagi.",
       "password_reset": "Ang code mo para i-reset ang password: {code}. Valid sa loob ng {minutes} minuto. Kung hindi mo ito hiningi, huwag pansinin at huwag ibahagi kanino man.",
       "scheme_approved": "{name}, naaprubahan ang request mo: mula {month} ang scheme mo ay {scheme}.",
-      "scheme_rejected": "{name}, hindi naaprubahan ang pagpapalit mo ng scheme: {reason}"
+      "scheme_rejected": "{name}, hindi naaprubahan ang pagpapalit mo ng scheme: {reason}",
+      "scheme_change_allowed": "{name}, inaprubahan ng opisina ang pagpapalit ng scheme mo: buksan ang app at piliin ang bagong scheme mula {month}."
     }
   },
   "status_templates": {

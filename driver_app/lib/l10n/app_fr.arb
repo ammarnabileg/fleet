@@ -670,5 +670,14 @@
   "schemeReducedMarks": "Plus de {marks} marques rouges : toutes les commandes du mois à {rate} KWD au lieu du salaire et des primes",
   "schemeRequiredDays": "{days} jours valides requis dans le mois",
   "schemePlatformAmounts": "Les pourboires sont ajoutés ; les dommages alimentaires, ajustements et remises de la plateforme sont retenus",
-  "schemeDriverPays": "À votre charge : {items}"
+  "schemeDriverPays": "À votre charge : {items}",
+  "schemeChange": "Demander à changer de formule",
+  "schemeChangeBody": "Le bureau examine votre demande ; après accord, les formules de votre plateforme s'affichent ici pour choisir la nouvelle.",
+  "schemeChangePending": "Votre demande de changement de formule attend le bureau",
+  "schemeChangeRejected": "Le bureau a refusé le changement de formule : {note}",
+  "schemePickFirst": "Choisissez votre formule de rémunération",
+  "schemePickAllowed": "Accordé : choisissez votre nouvelle formule, elle commence en {month}",
+  "schemePick": "Choisir cette formule",
+  "schemePickConfirm": "Vous choisissez « {name} », à partir de {month}. Ensuite, seule une nouvelle demande au bureau peut la changer.",
+  "schemePicked": "Votre formule est choisie"
 }

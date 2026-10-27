@@ -13,8 +13,8 @@ String _money(String? amount) =>
 String _int(num n) => '\u2066${n.toInt()}\u2069';
 String _month(DateTime m) => '\u2066${DateFormat('MM-yyyy', 'en').format(m)}\u2069';
 
-/// His pay scheme this month, the other schemes his platform offers with their terms, and a request to move to one of
-/// them from next month (the office decides).
+/// His pay scheme this month with its terms. He picks a scheme himself only the first time; after that he asks the
+/// office to change it, and once approved his platform's schemes show here for him to pick one, from next month.
 class SchemesScreen extends StatefulWidget {
   const SchemesScreen({super.key, required this.state});
 
@@ -26,7 +26,7 @@ class SchemesScreen extends StatefulWidget {
 
 class _SchemesScreenState extends State<SchemesScreen> {
   bool _loading = true;
-  String? _kind; // the kind of scheme he looks at among the others
+  String? _kind; // the kind of scheme he looks at while picking
 
   @override
   void initState() {
@@ -43,19 +43,18 @@ class _SchemesScreenState extends State<SchemesScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
-  Future<void> _ask(PayScheme s) async {
+  Future<void> _askChange() async {
     final l = context.l;
     final note = TextEditingController();
-    final next = DateTime(DateTime.now().year, DateTime.now().month + 1);
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text(s.label(widget.state.lang)),
+        title: Text(l.schemeChange),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l.schemeAskBody(s.label(widget.state.lang), _month(next)), style: const TextStyle(height: 1.6)),
+            Text(l.schemeChangeBody, style: const TextStyle(height: 1.6)),
             const SizedBox(height: 10),
             TextField(
               key: const Key('scheme-note'),
@@ -80,10 +79,44 @@ class _SchemesScreenState extends State<SchemesScreen> {
     );
     if (ok != true || !mounted) return;
     try {
-      await widget.state.requestScheme(s.id, note: note.text.trim().isEmpty ? null : note.text.trim());
+      await widget.state.requestScheme(null, note: note.text.trim().isEmpty ? null : note.text.trim());
       if (!mounted) return;
       setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.schemeSent)));
+    } catch (e) {
+      if (mounted) showError(context, widget.state, e);
+    }
+  }
+
+  Future<void> _pick(PayScheme s, DateTime from) async {
+    final l = context.l;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(s.label(widget.state.lang)),
+        content: Text(
+          l.schemePickConfirm(s.label(widget.state.lang), _month(from)),
+          style: const TextStyle(height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: Text(MaterialLocalizations.of(c).cancelButtonLabel),
+          ),
+          FilledButton(
+            key: const Key('scheme-pick-ok'),
+            onPressed: () => Navigator.pop(c, true),
+            child: Text(l.schemePick),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await widget.state.chooseScheme(s.id);
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.schemePicked)));
     } catch (e) {
       if (mounted) showError(context, widget.state, e);
     }
@@ -105,20 +138,43 @@ class _SchemesScreenState extends State<SchemesScreen> {
     final v = widget.state.schemes;
     final req = v?.request;
     final current = v?.current;
+    final picking = v?.canChoose ?? false;
+    final now = DateTime.now();
+    // the first time from this month; after the office's leave from the month it approved
+    final from = current == null
+        ? DateTime(now.year, now.month)
+        : (req != null && req.leave && req.status == 'approved'
+              ? req.effectiveMonth
+              : DateTime(now.year, now.month + 1));
     final all = [
-      for (final s in v?.offered ?? const <PayScheme>[])
-        if (s.id != current?.id) s,
+      if (picking)
+        for (final s in v?.offered ?? const <PayScheme>[])
+          if (s.id != (v?.nextMonth ?? current)?.id) s,
     ];
     final kinds = SchemeKindPicker.of(all);
     final kind = kinds.contains(_kind)
         ? _kind
         : (kinds.contains(current?.payKind) ? current!.payKind : kinds.firstOrNull);
-    final others = kinds.length > 1
+    final shown = kinds.length > 1
         ? [
             for (final s in all)
               if (s.payKind == kind) s,
           ]
         : all;
+    // what he last asked, when it still matters (a picked leave shows as his next month's scheme)
+    final String? said = req == null || picking
+        ? null
+        : req.leave
+        ? switch (req.status) {
+            'pending' => l.schemeChangePending,
+            'rejected' => l.schemeChangeRejected(req.adminNote ?? ''),
+            _ => null,
+          }
+        : switch (req.status) {
+            'approved' => l.schemeApproved(req.requestedLabel(lang), _month(req.effectiveMonth)),
+            'rejected' => l.schemeRejected(req.requestedLabel(lang), req.adminNote ?? ''),
+            _ => l.schemePending(req.requestedLabel(lang), _month(req.effectiveMonth)),
+          };
     return Scaffold(
       appBar: AppBar(title: Text(l.paySchemes)),
       body: RefreshIndicator(
@@ -126,19 +182,13 @@ class _SchemesScreenState extends State<SchemesScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            Text(l.schemesIntro, style: const TextStyle(color: AppColors.muted, height: 1.6)),
-            const SizedBox(height: 12),
             if (v == null && _loading) const Center(child: CircularProgressIndicator()),
             if (v == null && !_loading) Text(l.networkError, style: const TextStyle(color: AppColors.muted)),
-            if (req != null) ...[
+            if (said != null) ...[
               Banner2(
                 key: const Key('scheme-request'),
-                text: switch (req.status) {
-                  'approved' => l.schemeApproved(req.requestedLabel(lang), _month(req.effectiveMonth)),
-                  'rejected' => l.schemeRejected(req.requestedLabel(lang), req.adminNote ?? ''),
-                  _ => l.schemePending(req.requestedLabel(lang), _month(req.effectiveMonth)),
-                },
-                tone: switch (req.status) {
+                text: said,
+                tone: switch (req!.status) {
                   'approved' => BannerTone.success,
                   'rejected' => BannerTone.danger,
                   _ => BannerTone.warn,
@@ -155,30 +205,47 @@ class _SchemesScreenState extends State<SchemesScreen> {
                 ),
               const SizedBox(height: 8),
             ],
-            if (v != null) ...[
+            if (v != null && current != null) ...[
               SectionTitle(l.schemeNow),
-              if (current != null)
-                SchemeCard(scheme: current, lang: lang, key: const Key('scheme-current'))
-              else
-                Text(l.schemeNone, style: const TextStyle(color: AppColors.muted)),
+              SchemeCard(scheme: current, lang: lang, key: const Key('scheme-current')),
               if (v.nextMonth != null) ...[
                 const SizedBox(height: 6),
                 Text(l.schemeNextMonth(v.nextMonth!.label(lang)), style: const TextStyle(fontWeight: FontWeight.w600)),
               ],
-              if (all.isNotEmpty) SectionTitle(l.schemeOthers),
+              if (!picking && !(req?.pending ?? false) && v.offered.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    key: const Key('scheme-change'),
+                    onPressed: _askChange,
+                    icon: const Icon(Icons.swap_horiz),
+                    label: Text(l.schemeChange),
+                  ),
+                ),
+              ],
+            ],
+            if (v != null && current == null && !picking)
+              Text(l.schemeNone, style: const TextStyle(color: AppColors.muted)),
+            if (v != null && picking) ...[
+              const SizedBox(height: 8),
+              Banner2(
+                key: const Key('scheme-picking'),
+                text: current == null ? l.schemePickFirst : l.schemePickAllowed(_month(from)),
+                tone: current == null ? BannerTone.warn : BannerTone.success,
+              ),
+              const SizedBox(height: 8),
               if (kinds.length > 1)
                 SchemeKindPicker(kinds: kinds, value: kind, onChanged: (k) => setState(() => _kind = k)),
-              for (final s in others)
+              for (final s in shown)
                 SchemeCard(
                   scheme: s,
                   lang: lang,
-                  action: req != null && req.pending
-                      ? null
-                      : OutlinedButton(
-                          key: Key('scheme-ask-${s.code}'),
-                          onPressed: () => _ask(s),
-                          child: Text(l.schemeAsk),
-                        ),
+                  action: FilledButton(
+                    key: Key('scheme-pick-${s.code}'),
+                    onPressed: () => _pick(s, from),
+                    child: Text(l.schemePick),
+                  ),
                 ),
             ],
           ],

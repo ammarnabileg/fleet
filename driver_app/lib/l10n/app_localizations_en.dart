@@ -2340,4 +2340,39 @@ class AppLocalizationsEn extends AppLocalizations {
   String schemeDriverPays(String items) {
     return 'On you: $items';
   }
+
+  @override
+  String get schemeChange => 'Ask to change scheme';
+
+  @override
+  String get schemeChangeBody =>
+      'The office reviews your request; once approved, your platform\'s schemes appear here for you to pick your new one.';
+
+  @override
+  String get schemeChangePending =>
+      'Your request to change scheme is waiting for the office';
+
+  @override
+  String schemeChangeRejected(String note) {
+    return 'The office turned down changing your scheme: $note';
+  }
+
+  @override
+  String get schemePickFirst => 'Pick the pay scheme you work on';
+
+  @override
+  String schemePickAllowed(String month) {
+    return 'Approved: pick your new scheme, it starts from $month';
+  }
+
+  @override
+  String get schemePick => 'Pick this scheme';
+
+  @override
+  String schemePickConfirm(String name, String month) {
+    return 'You pick “$name”, starting $month. After that only a new request to the office can change it.';
+  }
+
+  @override
+  String get schemePicked => 'Your scheme is set';
 }

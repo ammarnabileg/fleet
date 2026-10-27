@@ -709,7 +709,9 @@
     "internal_error": "Something went wrong on our side. Please try again shortly.",
     "import_empty": "The file has no rows: fill the rows under the example row in the vehicles, people or opening balances sheets, and check you chose the right file.",
     "scheme_has_drivers": "{drivers} driver(s) are on this scheme from this month: pick another scheme of the same company to move them to first.",
-    "scheme_requests_pending": "{requests} driver request(s) for this scheme are waiting: approve or reject them first."
+    "scheme_requests_pending": "{requests} driver request(s) for this scheme are waiting: approve or reject them first.",
+    "scheme_choice_closed": "Ask to change your scheme first: you pick a new one once the office approves.",
+    "scheme_choice_open": "You can pick your scheme now, straight from the list."
   },
   "settings": {
     "branding": "Branding",
@@ -965,7 +967,8 @@
     "scheme_approved": "{name}, your request was approved: from {month} your scheme is {scheme}.",
     "scheme_rejected": "{name}, your scheme change was not approved: {reason}",
     "notice_title": "New notification",
-    "password_reset": "Your password reset code: {code}. Valid for {minutes} minutes. If you did not ask for it, ignore it and share it with no one."
+    "password_reset": "Your password reset code: {code}. Valid for {minutes} minutes. If you did not ask for it, ignore it and share it with no one.",
+    "scheme_change_allowed": "{name}, the office approved changing your scheme: open the app and pick your new scheme from {month}."
   },
   "vehicle_status": {
     "available": "Available",
@@ -1870,7 +1873,8 @@
     "petty_approved": "Your petty cash spending of {amount} KWD was approved and taken off your custody",
     "petty_rejected": "Your petty cash spending of {amount} KWD was rejected: {reason}",
     "platform_request_approved": "The office approved: you are now on {platform}",
-    "platform_request_rejected": "The office rejected your request for {platform}: {reason}"
+    "platform_request_rejected": "The office rejected your request for {platform}: {reason}",
+    "scheme_change_allowed": "The office approved changing your scheme: pick your new scheme from {month}."
   },
   "cash_account": {
     "driver": "Driver's cash",

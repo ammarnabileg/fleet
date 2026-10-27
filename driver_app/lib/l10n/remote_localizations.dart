@@ -1353,4 +1353,22 @@ class RemoteLocalizations extends AppLocalizations {
   String get schemePlatformAmounts => _remote.text('schemePlatformAmounts') ?? _base.schemePlatformAmounts;
   @override
   String schemeDriverPays(String items) => _remote.format('schemeDriverPays', {'items': items}) ?? _base.schemeDriverPays(items);
+  @override
+  String get schemeChange => _remote.text('schemeChange') ?? _base.schemeChange;
+  @override
+  String get schemeChangeBody => _remote.text('schemeChangeBody') ?? _base.schemeChangeBody;
+  @override
+  String get schemeChangePending => _remote.text('schemeChangePending') ?? _base.schemeChangePending;
+  @override
+  String schemeChangeRejected(String note) => _remote.format('schemeChangeRejected', {'note': note}) ?? _base.schemeChangeRejected(note);
+  @override
+  String get schemePickFirst => _remote.text('schemePickFirst') ?? _base.schemePickFirst;
+  @override
+  String schemePickAllowed(String month) => _remote.format('schemePickAllowed', {'month': month}) ?? _base.schemePickAllowed(month);
+  @override
+  String get schemePick => _remote.text('schemePick') ?? _base.schemePick;
+  @override
+  String schemePickConfirm(String name, String month) => _remote.format('schemePickConfirm', {'name': name, 'month': month}) ?? _base.schemePickConfirm(name, month);
+  @override
+  String get schemePicked => _remote.text('schemePicked') ?? _base.schemePicked;
 }

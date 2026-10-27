@@ -624,6 +624,7 @@ def _request_out(db: Session, rows: list[SchemeChangeRequest]) -> list[dict]:
             "admin_note": r.admin_note,
             "created_at": r.created_at,
             "decided_at": r.decided_at,
+            "picked_at": r.picked_at,
             "version": r.version,
         }
         for r in rows
@@ -648,23 +649,77 @@ def driver_view(db: Session, employee_id: int) -> dict:
         "next_month": _many(db, [upcoming])[0] if upcoming and (not now or upcoming.id != now.id) else None,
         "schemes": offered,
         "request": _request_out(db, [latest])[0] if latest else None,
+        "can_choose": _leave(db, employee_id, upcoming) is not False,
     }
 
 
-def request_change(db: Session, employee_id: int, *, device_id: int, scheme_public_id, note: str | None) -> dict:
+def _leave(db: Session, employee_id: int, upcoming: Scheme | None):
+    """May he pick a scheme himself: the first time (no scheme from next month: None), or once after the office
+    approved his request to change (that request); else False."""
+    if upcoming is None:
+        return None
+    r = db.scalar(
+        select(SchemeChangeRequest)
+        .where(
+            SchemeChangeRequest.employee_id == employee_id,
+            SchemeChangeRequest.status == "approved",
+            SchemeChangeRequest.requested_scheme_id.is_(None),
+        )
+        .order_by(SchemeChangeRequest.id.desc())
+        .limit(1)
+        .with_for_update()
+    )
+    return r if r is not None else False
+
+
+def choose(db: Session, employee_id: int, *, scheme_public_id) -> dict:
+    """The driver picks his scheme: the first time from this month, after the office's leave from next month."""
     driver = people.ref(db, employee_id)
     scheme = _by_public_id(db, scheme_public_id)
     if not (scheme.is_active and scheme.driver_selectable and scheme.platform_id == driver.platform_id):
         raise AppError(422, "scheme_not_available")
-    month = add_months(month_start(today()), 1)
-    upcoming = scheme_of(db, employee_id, month)
+    this = month_start(today())
+    upcoming = scheme_of(db, employee_id, add_months(this, 1))
+    leave = _leave(db, employee_id, upcoming)
+    if leave is False:
+        raise AppError(409, "scheme_choice_closed")
     if upcoming is not None and upcoming.id == scheme.id:
         raise AppError(422, "scheme_already_yours")
+    start = leave.effective_month if leave is not None else this
+    for _ in range(24):  # the first month with no approved payroll
+        if not _locked_from(db, driver.company_id, start):
+            break
+        start = add_months(start, 1)
+    assign(db, driver, scheme, start, source="request" if leave is not None else "registration", actor_user_id=None,
+           request=leave)  # fmt: skip
+    if leave is not None:
+        leave.requested_scheme_id, leave.effective_month, leave.picked_at = scheme.id, start, utcnow()
+        leave.version += 1
+    db.commit()
+    return driver_view(db, employee_id)
+
+
+def request_change(db: Session, employee_id: int, *, device_id: int, scheme_public_id, note: str | None) -> dict:
+    """With a scheme: a request to move to it. Without: leave to change, after which he picks one himself (none
+    needed while he has no scheme: he picks straight away)."""
+    driver = people.ref(db, employee_id)
+    month = add_months(month_start(today()), 1)
+    upcoming = scheme_of(db, employee_id, month)
+    scheme = None
+    if scheme_public_id is None:
+        if _leave(db, employee_id, upcoming) is not False:
+            raise AppError(422, "scheme_choice_open")  # nothing to ask: he picks one himself now
+    else:
+        scheme = _by_public_id(db, scheme_public_id)
+        if not (scheme.is_active and scheme.driver_selectable and scheme.platform_id == driver.platform_id):
+            raise AppError(422, "scheme_not_available")
+        if upcoming is not None and upcoming.id == scheme.id:
+            raise AppError(422, "scheme_already_yours")
     r = SchemeChangeRequest(
         employee_id=employee_id,
         company_id=driver.company_id,
         current_scheme_id=upcoming.id if upcoming else None,
-        requested_scheme_id=scheme.id,
+        requested_scheme_id=scheme.id if scheme else None,
         effective_month=month,
         driver_note=note,
         submitted_by_device=device_id,
@@ -685,7 +740,7 @@ def request_change(db: Session, employee_id: int, *, device_id: int, scheme_publ
         entity_id=r.public_id,
         actor_type="device",
         company_id=r.company_id,
-        after={"scheme": str(scheme.public_id), "from": month.isoformat()},
+        after={"scheme": str(scheme.public_id) if scheme else None, "from": month.isoformat()},
     )
     db.commit()
     return driver_view(db, employee_id)
@@ -766,6 +821,8 @@ def approve(
 ) -> dict:
     r = _pending(db, public_id, version=version, **scope)
     driver = people.ref(db, r.employee_id)
+    if r.requested_scheme_id is None:
+        return _allow(db, r, driver, month=month, note=note, actor_user_id=actor_user_id)
     scheme = db.get(Scheme, r.requested_scheme_id)
     if not scheme.is_active or scheme.platform_id != driver.platform_id:
         raise AppError(409, "scheme_not_available")  # changed since the driver asked: reject it with the reason
@@ -800,6 +857,38 @@ def approve(
     return _request_out(db, [r])[0]
 
 
+def _allow(db: Session, r: SchemeChangeRequest, driver, *, month, note, actor_user_id: int) -> dict:
+    """Leave to change: nothing moves yet; the app now lets him pick a scheme, from the month approved."""
+    start = max(r.effective_month, month_start(month)) if month else r.effective_month
+    for _ in range(24):
+        if not _locked_from(db, driver.company_id, start):
+            break
+        start = add_months(start, 1)
+    r.status, r.effective_month, r.admin_note = "approved", start, note
+    r.decided_by, r.decided_at = actor_user_id, utcnow()
+    r.version += 1
+    audit.record(
+        db,
+        action="scheme_request.approved",
+        entity_type="scheme_request",
+        entity_id=r.public_id,
+        actor_user_id=actor_user_id,
+        company_id=r.company_id,
+        after={"scheme": None, "from": start.isoformat(), "note": note},
+    )
+    notifications.notify_driver(
+        db,
+        r.employee_id,
+        "scheme_change_allowed",
+        params={"month": start.strftime("%m-%Y")},
+        entity_type="scheme_request",
+        entity_id=r.public_id,
+    )
+    db.commit()
+    _notify(db, driver, "messages.scheme_change_allowed", month=start.strftime("%m-%Y"))
+    return _request_out(db, [r])[0]
+
+
 def reject(db: Session, public_id, *, version: int | None, note: str, actor_user_id: int, **scope) -> dict:
     r = _pending(db, public_id, version=version, **scope)
     r.status, r.admin_note, r.decided_by, r.decided_at = "rejected", note, actor_user_id, utcnow()
@@ -813,12 +902,12 @@ def reject(db: Session, public_id, *, version: int | None, note: str, actor_user
         company_id=r.company_id,
         after={"note": note},
     )
-    scheme = db.get(Scheme, r.requested_scheme_id)
+    scheme = db.get(Scheme, r.requested_scheme_id) if r.requested_scheme_id else None
     notifications.notify_driver(
         db,
         r.employee_id,
         "scheme_request_rejected",
-        params={"scheme": scheme.name, "reason": note},
+        params={"scheme": scheme.name if scheme else "—", "reason": note},
         entity_type="scheme_request",
         entity_id=r.public_id,
     )

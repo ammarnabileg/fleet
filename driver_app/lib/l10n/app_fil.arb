@@ -670,5 +670,14 @@
   "schemeReducedMarks": "Higit sa {marks} pulang marka: bawat order ng buwan ay {rate} KWD kapalit ng sahod at bonus",
   "schemeRequiredDays": "{days} valid na araw ang kailangan sa buwan",
   "schemePlatformAmounts": "Idinadagdag ang tips; ibinabawas ang sira sa pagkain, adjustment at diskwento ng platform",
-  "schemeDriverPays": "Sagot mo: {items}"
+  "schemeDriverPays": "Sagot mo: {items}",
+  "schemeChange": "Humiling na palitan ang scheme",
+  "schemeChangeBody": "Rerepasuhin ng opisina ang request mo; kapag naaprubahan, lalabas dito ang mga scheme ng platform mo para pumili ng bago.",
+  "schemeChangePending": "Naghihintay sa opisina ang request mong palitan ang scheme",
+  "schemeChangeRejected": "Tinanggihan ng opisina ang pagpapalit ng scheme mo: {note}",
+  "schemePickFirst": "Piliin ang pay scheme na pinagtatrabahuhan mo",
+  "schemePickAllowed": "Aprubado: piliin ang bagong scheme mo, magsisimula sa {month}",
+  "schemePick": "Piliin ang scheme na ito",
+  "schemePickConfirm": "Pinipili mo ang “{name}”, simula {month}. Pagkatapos, bagong request lang sa opisina ang makakapagpalit nito.",
+  "schemePicked": "Naitakda na ang scheme mo"
 }

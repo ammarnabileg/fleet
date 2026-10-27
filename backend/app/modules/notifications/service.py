@@ -509,6 +509,7 @@ DRIVER_KINDS: dict[str, tuple[str, ...]] = {  # kind: the params its text uses
     "document_expiring": ("document", "date", "days"),
     "document_expired": ("document", "date"),
     "scheme_request_approved": ("scheme", "month"),
+    "scheme_change_allowed": ("month",),
     "scheme_request_rejected": ("scheme", "reason"),
     "fuel_approved": ("amount",),
     "fuel_rejected": ("reason",),

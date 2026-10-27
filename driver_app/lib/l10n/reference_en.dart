@@ -674,4 +674,13 @@ const Map<String, String> englishMessages = {
   'schemeRequiredDays': "{days} valid days needed in the month",
   'schemePlatformAmounts': "Tips are added to your pay; food damage, adjustments and the platform's discount are deducted",
   'schemeDriverPays': "On you: {items}",
+  'schemeChange': "Ask to change scheme",
+  'schemeChangeBody': "The office reviews your request; once approved, your platform's schemes appear here for you to pick your new one.",
+  'schemeChangePending': "Your request to change scheme is waiting for the office",
+  'schemeChangeRejected': "The office turned down changing your scheme: {note}",
+  'schemePickFirst': "Pick the pay scheme you work on",
+  'schemePickAllowed': "Approved: pick your new scheme, it starts from {month}",
+  'schemePick': "Pick this scheme",
+  'schemePickConfirm': "You pick “{name}”, starting {month}. After that only a new request to the office can change it.",
+  'schemePicked': "Your scheme is set",
 };

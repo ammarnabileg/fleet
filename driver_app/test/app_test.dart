@@ -3458,62 +3458,85 @@ void main() {
     await shot(tester, '23-hidden-screens');
   });
 
-  testWidgets('pay scheme: his terms, another scheme asked for from next month, then the request cancelled', (
+  testWidgets('pay scheme: his terms only; he asks leave to change, and once approved picks a scheme from the list', (
     tester,
   ) async {
     final w = (await tester.runAsync(() => world()))!;
-    Map<String, dynamic> view(Map<String, dynamic>? request) => {
+    Map<String, dynamic> view(Map<String, dynamic>? request, {bool choose = false, Map? next}) => {
       'current': fixedScheme,
-      'next_month': null,
+      'next_month': next,
       'schemes': [fixedScheme, batchScheme],
       'request': request,
+      'can_choose': choose,
     };
-    final pending = {
+    Map<String, dynamic> leave(String status) => {
       'id': 'q1',
       'employee': null,
       'company_id': 1,
       'current': {'id': 'id-fixed_350', 'code': 'fixed_350', 'name': fixedScheme['name']},
-      'requested': {'id': 'id-batch', 'code': 'batch', 'name': batchScheme['name']},
+      'requested': null,
       'effective_month': '2026-11-01',
-      'status': 'pending',
+      'status': status,
       'driver_note': 'عاوز الباتش',
       'admin_note': null,
       'created_at': '2026-10-06T10:00:00Z',
-      'decided_at': null,
+      'decided_at': status == 'pending' ? null : '2026-10-06T12:00:00Z',
       'version': 1,
     };
-    w.server.on('GET', '/api/v1/driver/schemes', (r) => (200, view(null)));
-    w.server.on('POST', '/api/v1/driver/scheme-requests', (r) => (201, view(pending)));
-    w.server.on('DELETE', '/api/v1/driver/scheme-requests/q1', (r) => (200, view(null)));
+    var now = view(null);
+    w.server.on('GET', '/api/v1/driver/schemes', (r) => (200, now));
+    w.server.on('POST', '/api/v1/driver/scheme-requests', (r) => (201, now = view(leave('pending'))));
+    w.server.on('DELETE', '/api/v1/driver/scheme-requests/q1', (r) => (200, now = view(null)));
+    w.server.on('POST', '/api/v1/driver/scheme-choice', (r) => (200, now = view(leave('approved'), next: batchScheme)));
+    Future<void> open() async {
+      await reveal(tester, find.byKey(const Key('schemes')));
+      await settle(tester);
+      await tester.tap(find.byKey(const Key('schemes')));
+      await idle(tester);
+    }
+
     await pumpApp(tester, w);
-    await reveal(tester, find.byKey(const Key('schemes')));
-    await settle(tester);
-    await tester.tap(find.byKey(const Key('schemes')));
-    await idle(tester);
+    await open();
     final current = find.byKey(const Key('scheme-current'));
-    expect(find.descendant(of: current, matching: find.text('سعر الطلب: \u20660.350\u2069 د.ك')), findsOneWidget);
+    expect(find.descendant(of: current, matching: find.text('سعر الطلب: ⁦0.350⁩ د.ك')), findsOneWidget);
     expect(
       find.descendant(of: current, matching: find.text('على الشركة: الصيانة، السكن، البنزين، الشريحة')),
       findsOneWidget,
     );
-    expect(find.text('لا خصم على الطلبات الناقصة عن التارجت'), findsNWidgets(2));
-    expect(find.text('• باتش \u20661\u2069: \u20660.700\u2069 د.ك'), findsOneWidget, reason: 'levels in order');
-    expect(find.text('المصاريف عليك: الصيانة والسكن والبنزين والشريحة'), findsOneWidget);
-    expect(find.byKey(const Key('scheme-ask-fixed_350')), findsNothing, reason: 'not his own scheme');
+    expect(find.byKey(const Key('scheme-pick-batch')), findsNothing, reason: 'the list waits for the office');
+    expect(find.text('• باتش ⁦1⁩: ⁦0.700⁩ د.ك'), findsNothing);
     await shot(tester, '25-schemes');
-    await tester.tap(find.byKey(const Key('scheme-ask-batch')));
+    await tester.tap(find.byKey(const Key('scheme-change')));
     await settle(tester);
     await tester.enterText(find.byKey(const Key('scheme-note')), 'عاوز الباتش');
     await tester.tap(find.byKey(const Key('scheme-send')));
     await idle(tester);
     final sent = jsonDecode(w.server.calls('/api/v1/driver/scheme-requests', method: 'POST').single.body);
-    expect(sent, {'scheme_id': 'id-batch', 'note': 'عاوز الباتش'});
-    expect(find.textContaining('بانتظار المكتب'), findsOneWidget);
-    expect(find.byKey(const Key('scheme-ask-batch')), findsNothing, reason: 'one request at a time');
+    expect(sent, {'note': 'عاوز الباتش'}, reason: 'no scheme named: leave to change');
+    expect(find.text('طلب تغيير نظامك بانتظار موافقة المكتب'), findsOneWidget);
+    expect(find.byKey(const Key('scheme-change')), findsNothing, reason: 'one request at a time');
     await tester.tap(find.byKey(const Key('scheme-cancel')));
     await idle(tester);
     expect(w.server.calls('/api/v1/driver/scheme-requests/q1', method: 'DELETE'), hasLength(1));
-    expect(find.byKey(const Key('scheme-ask-batch')), findsOneWidget);
+    expect(find.byKey(const Key('scheme-change')), findsOneWidget);
+
+    // the office approves: his platform's other schemes show, he picks one from the approved month
+    now = view(leave('approved'), choose: true);
+    await tester.fling(find.byKey(const Key('scheme-current')), const Offset(0, 500), 1500); // pull to refresh
+    await idle(tester);
+    expect(find.text('وافق المكتب: اختر نظامك الجديد، يبدأ من ⁦11-2026⁩'), findsOneWidget);
+    expect(find.byKey(const Key('scheme-pick-fixed_350')), findsNothing, reason: 'not his own scheme');
+    expect(find.text('لا خصم على الطلبات الناقصة عن التارجت'), findsNWidgets(2));
+    expect(find.text('• باتش ⁦1⁩: ⁦0.700⁩ د.ك'), findsOneWidget, reason: 'levels in order');
+    expect(find.text('المصاريف عليك: الصيانة والسكن والبنزين والشريحة'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('scheme-pick-batch')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('scheme-pick-ok')));
+    await idle(tester);
+    final picked = jsonDecode(w.server.calls('/api/v1/driver/scheme-choice', method: 'POST').single.body);
+    expect(picked, {'scheme_id': 'id-batch'});
+    expect(find.byKey(const Key('scheme-pick-batch')), findsNothing, reason: 'one pick per approval');
+    expect(find.byKey(const Key('scheme-change')), findsOneWidget);
   });
 
   testWidgets('pay scheme on tiers: the reduced price, the tiers and the marks, and a refusal with its reason', (

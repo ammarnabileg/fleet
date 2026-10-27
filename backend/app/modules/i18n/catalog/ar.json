@@ -709,7 +709,9 @@
     "internal_error": "حصل خطأ في السيستم، وفريق الدعم وصله تنبيه. جرّب تاني بعد شوية.",
     "import_empty": "الملف ما فيهوش بيانات: املا الصفوف تحت صف «مثال» في أوراق السيارات أو الموظفين أو الأرصدة، واتأكد إنك اخترت الملف الصح.",
     "scheme_has_drivers": "على هذا النظام {drivers} سائق من هذا الشهر: اختر نظاماً آخر لنفس الشركة يُنقلون إليه أولاً.",
-    "scheme_requests_pending": "على هذا النظام {requests} طلب سائق بانتظار القرار: اعتمدها أو ارفضها أولاً."
+    "scheme_requests_pending": "على هذا النظام {requests} طلب سائق بانتظار القرار: اعتمدها أو ارفضها أولاً.",
+    "scheme_choice_closed": "اطلب تغيير النظام أولاً: تختار نظاماً جديداً بعد موافقة المكتب.",
+    "scheme_choice_open": "يمكنك اختيار نظامك الآن مباشرة من قائمة الأنظمة."
   },
   "settings": {
     "branding": "الهوية",
@@ -965,7 +967,8 @@
     "scheme_approved": "{name}، تمت الموافقة على طلبك: نظامك من {month} هو {scheme}.",
     "scheme_rejected": "{name}، لم تتم الموافقة على طلب تغيير نظامك: {reason}",
     "notice_title": "إشعار جديد",
-    "password_reset": "رمز تغيير كلمة المرور: {code}. صالح لمدة {minutes} دقائق. إن لم تطلبه فتجاهله ولا تشاركه مع أحد."
+    "password_reset": "رمز تغيير كلمة المرور: {code}. صالح لمدة {minutes} دقائق. إن لم تطلبه فتجاهله ولا تشاركه مع أحد.",
+    "scheme_change_allowed": "{name}، وافق المكتب على تغيير نظامك: افتح التطبيق واختر نظامك الجديد من {month}."
   },
   "vehicle_status": {
     "available": "متاحة",
@@ -1870,7 +1873,8 @@
     "petty_approved": "تمت الموافقة على مصروفك من العهدة بمبلغ {amount} د.ك وخُصم من عهدتك",
     "petty_rejected": "تم رفض مصروفك من العهدة بمبلغ {amount} د.ك: {reason}",
     "platform_request_approved": "وافق المكتب: أنت الآن على {platform}",
-    "platform_request_rejected": "رفض المكتب طلبك للعمل مع {platform}: {reason}"
+    "platform_request_rejected": "رفض المكتب طلبك للعمل مع {platform}: {reason}",
+    "scheme_change_allowed": "وافق المكتب على تغيير نظامك: اختر نظامك الجديد من شهر {month}."
   },
   "cash_account": {
     "driver": "كاش السائق",

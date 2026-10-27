@@ -1574,5 +1574,38 @@
         "type": "String"
       }
     }
-  }
+  },
+  "schemeChange": "طلب تغيير النظام",
+  "schemeChangeBody": "يراجع المكتب طلبك، وبعد موافقته تظهر لك أنظمة منصتك لتختار منها نظامك الجديد.",
+  "schemeChangePending": "طلب تغيير نظامك بانتظار موافقة المكتب",
+  "schemeChangeRejected": "رفض المكتب تغيير نظامك: {note}",
+  "@schemeChangeRejected": {
+    "placeholders": {
+      "note": {
+        "type": "String"
+      }
+    }
+  },
+  "schemePickFirst": "اختر نظام الدفع الذي تعمل عليه",
+  "schemePickAllowed": "وافق المكتب: اختر نظامك الجديد، يبدأ من {month}",
+  "@schemePickAllowed": {
+    "placeholders": {
+      "month": {
+        "type": "String"
+      }
+    }
+  },
+  "schemePick": "اختر هذا النظام",
+  "schemePickConfirm": "تختار «{name}»، يبدأ من {month}. لا يمكنك تغييره بعد ذلك إلا بطلب جديد للمكتب.",
+  "@schemePickConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      }
+    }
+  },
+  "schemePicked": "تم اختيار نظامك"
 }

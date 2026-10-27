@@ -2324,4 +2324,38 @@ class AppLocalizationsAr extends AppLocalizations {
   String schemeDriverPays(String items) {
     return 'عليك: $items';
   }
+
+  @override
+  String get schemeChange => 'طلب تغيير النظام';
+
+  @override
+  String get schemeChangeBody =>
+      'يراجع المكتب طلبك، وبعد موافقته تظهر لك أنظمة منصتك لتختار منها نظامك الجديد.';
+
+  @override
+  String get schemeChangePending => 'طلب تغيير نظامك بانتظار موافقة المكتب';
+
+  @override
+  String schemeChangeRejected(String note) {
+    return 'رفض المكتب تغيير نظامك: $note';
+  }
+
+  @override
+  String get schemePickFirst => 'اختر نظام الدفع الذي تعمل عليه';
+
+  @override
+  String schemePickAllowed(String month) {
+    return 'وافق المكتب: اختر نظامك الجديد، يبدأ من $month';
+  }
+
+  @override
+  String get schemePick => 'اختر هذا النظام';
+
+  @override
+  String schemePickConfirm(String name, String month) {
+    return 'تختار «$name»، يبدأ من $month. لا يمكنك تغييره بعد ذلك إلا بطلب جديد للمكتب.';
+  }
+
+  @override
+  String get schemePicked => 'تم اختيار نظامك';
 }

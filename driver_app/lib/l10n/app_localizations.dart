@@ -4131,6 +4131,60 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'عليك: {items}'**
   String schemeDriverPays(String items);
+
+  /// No description provided for @schemeChange.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلب تغيير النظام'**
+  String get schemeChange;
+
+  /// No description provided for @schemeChangeBody.
+  ///
+  /// In ar, this message translates to:
+  /// **'يراجع المكتب طلبك، وبعد موافقته تظهر لك أنظمة منصتك لتختار منها نظامك الجديد.'**
+  String get schemeChangeBody;
+
+  /// No description provided for @schemeChangePending.
+  ///
+  /// In ar, this message translates to:
+  /// **'طلب تغيير نظامك بانتظار موافقة المكتب'**
+  String get schemeChangePending;
+
+  /// No description provided for @schemeChangeRejected.
+  ///
+  /// In ar, this message translates to:
+  /// **'رفض المكتب تغيير نظامك: {note}'**
+  String schemeChangeRejected(String note);
+
+  /// No description provided for @schemePickFirst.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختر نظام الدفع الذي تعمل عليه'**
+  String get schemePickFirst;
+
+  /// No description provided for @schemePickAllowed.
+  ///
+  /// In ar, this message translates to:
+  /// **'وافق المكتب: اختر نظامك الجديد، يبدأ من {month}'**
+  String schemePickAllowed(String month);
+
+  /// No description provided for @schemePick.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختر هذا النظام'**
+  String get schemePick;
+
+  /// No description provided for @schemePickConfirm.
+  ///
+  /// In ar, this message translates to:
+  /// **'تختار «{name}»، يبدأ من {month}. لا يمكنك تغييره بعد ذلك إلا بطلب جديد للمكتب.'**
+  String schemePickConfirm(String name, String month);
+
+  /// No description provided for @schemePicked.
+  ///
+  /// In ar, this message translates to:
+  /// **'تم اختيار نظامك'**
+  String get schemePicked;
 }
 
 class _AppLocalizationsDelegate

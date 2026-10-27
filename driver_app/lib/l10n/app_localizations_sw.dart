@@ -2345,4 +2345,39 @@ class AppLocalizationsSw extends AppLocalizations {
   String schemeDriverPays(String items) {
     return 'Juu yako: $items';
   }
+
+  @override
+  String get schemeChange => 'Omba kubadilisha mpango';
+
+  @override
+  String get schemeChangeBody =>
+      'Ofisi itakagua ombi lako; ikikubali, mipango ya jukwaa lako itaonekana hapa uchague mpya.';
+
+  @override
+  String get schemeChangePending =>
+      'Ombi lako la kubadilisha mpango linasubiri ofisi';
+
+  @override
+  String schemeChangeRejected(String note) {
+    return 'Ofisi imekataa kubadilisha mpango wako: $note';
+  }
+
+  @override
+  String get schemePickFirst => 'Chagua mpango wa malipo unaofanyia kazi';
+
+  @override
+  String schemePickAllowed(String month) {
+    return 'Imekubaliwa: chagua mpango mpya, unaanza $month';
+  }
+
+  @override
+  String get schemePick => 'Chagua mpango huu';
+
+  @override
+  String schemePickConfirm(String name, String month) {
+    return 'Unachagua “$name”, kuanzia $month. Baada ya hapo ni ombi jipya kwa ofisi tu linaloweza kuubadilisha.';
+  }
+
+  @override
+  String get schemePicked => 'Mpango wako umewekwa';
 }

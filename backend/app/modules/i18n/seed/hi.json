@@ -671,7 +671,16 @@
     "schemeReducedMarks": "{marks} से अधिक लाल निशान: महीने के हर ऑर्डर पर {rate} KWD, वेतन और बोनस के बजाय",
     "schemeRequiredDays": "महीने में {days} मान्य दिन आवश्यक",
     "schemePlatformAmounts": "टिप्स जोड़ी जाती हैं; खाने का नुकसान, समायोजन और प्लेटफ़ॉर्म की छूट काटी जाती है",
-    "schemeDriverPays": "आप पर: {items}"
+    "schemeDriverPays": "आप पर: {items}",
+    "schemeChange": "योजना बदलने का अनुरोध",
+    "schemeChangeBody": "ऑफिस आपका अनुरोध देखेगा; मंज़ूरी के बाद आपके प्लेटफ़ॉर्म की योजनाएँ यहाँ दिखेंगी ताकि आप नई चुनें।",
+    "schemeChangePending": "योजना बदलने का आपका अनुरोध ऑफिस के पास लंबित है",
+    "schemeChangeRejected": "ऑफिस ने योजना बदलने से मना किया: {note}",
+    "schemePickFirst": "अपनी वेतन योजना चुनें",
+    "schemePickAllowed": "मंज़ूर: अपनी नई योजना चुनें, यह {month} से शुरू होगी",
+    "schemePick": "यह योजना चुनें",
+    "schemePickConfirm": "आप “{name}” चुन रहे हैं, {month} से। इसके बाद केवल ऑफिस को नया अनुरोध ही इसे बदल सकता है।",
+    "schemePicked": "आपकी योजना तय हो गई"
   },
   "server": {
     "deduction_source": {
@@ -724,7 +733,8 @@
       "petty_approved": "छोटी नकदी से आपका {amount} KWD का खर्च मंज़ूर हुआ और आपकी अमानत से घटा दिया गया",
       "petty_rejected": "छोटी नकदी से आपका {amount} KWD का खर्च अस्वीकार हुआ: {reason}",
       "platform_request_approved": "ऑफ़िस ने मंज़ूरी दी: अब आप {platform} पर हैं",
-      "platform_request_rejected": "ऑफ़िस ने {platform} के लिए आपका अनुरोध अस्वीकार किया: {reason}"
+      "platform_request_rejected": "ऑफ़िस ने {platform} के लिए आपका अनुरोध अस्वीकार किया: {reason}",
+      "scheme_change_allowed": "ऑफिस ने आपकी योजना बदलने की मंज़ूरी दी: {month} से अपनी नई योजना चुनें।"
     },
     "errors": {
       "accident_exists": "यह दुर्घटना पहले से दर्ज है",
@@ -1303,7 +1313,9 @@
       "internal_error": "हमारी ओर से कुछ गड़बड़ हुई। थोड़ी देर बाद फिर कोशिश करें।",
       "import_empty": "फ़ाइल में कोई पंक्ति नहीं है: उदाहरण के नीचे पंक्तियाँ भरें और सही फ़ाइल चुनें।",
       "scheme_has_drivers": "इस महीने से इस योजना पर {drivers} ड्राइवर हैं: पहले उन्हें ले जाने के लिए उसी कंपनी की दूसरी योजना चुनें।",
-      "scheme_requests_pending": "इस योजना के लिए {requests} ड्राइवर अनुरोध लंबित हैं: पहले उन्हें स्वीकार या अस्वीकार करें।"
+      "scheme_requests_pending": "इस योजना के लिए {requests} ड्राइवर अनुरोध लंबित हैं: पहले उन्हें स्वीकार या अस्वीकार करें।",
+      "scheme_choice_closed": "पहले योजना बदलने का अनुरोध करें: ऑफिस की मंज़ूरी के बाद आप नई योजना चुनेंगे।",
+      "scheme_choice_open": "आप अभी सीधे सूची से अपनी योजना चुन सकते हैं।"
     },
     "finance_source": {
       "cash_journal": "कैश लेजर: {kind} {reason}",
@@ -1361,7 +1373,8 @@
       "otp": "आपका साइन-इन कोड: {code}। {minutes} मिनट तक मान्य। इसे किसी से साझा न करें।",
       "password_reset": "आपका पासवर्ड रीसेट कोड: {code}। {minutes} मिनट तक मान्य। अगर आपने इसे नहीं माँगा, तो इसे अनदेखा करें और किसी से साझा न करें।",
       "scheme_approved": "{name}, आपका अनुरोध मंज़ूर हुआ: {month} से आपकी योजना {scheme} है।",
-      "scheme_rejected": "{name}, आपकी योजना का बदलाव मंज़ूर नहीं हुआ: {reason}"
+      "scheme_rejected": "{name}, आपकी योजना का बदलाव मंज़ूर नहीं हुआ: {reason}",
+      "scheme_change_allowed": "{name}, ऑफिस ने आपकी योजना बदलने की मंज़ूरी दी: ऐप खोलें और {month} से अपनी नई योजना चुनें।"
     }
   },
   "status_templates": {

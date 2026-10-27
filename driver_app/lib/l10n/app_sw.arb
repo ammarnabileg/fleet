@@ -670,5 +670,14 @@
   "schemeReducedMarks": "Zaidi ya alama nyekundu {marks}: kila oda ya mwezi kwa {rate} KWD badala ya mshahara na bonasi",
   "schemeRequiredDays": "Siku {days} halali zinahitajika katika mwezi",
   "schemePlatformAmounts": "Bakshishi huongezwa; uharibifu wa chakula, marekebisho na punguzo la jukwaa hukatwa",
-  "schemeDriverPays": "Juu yako: {items}"
+  "schemeDriverPays": "Juu yako: {items}",
+  "schemeChange": "Omba kubadilisha mpango",
+  "schemeChangeBody": "Ofisi itakagua ombi lako; ikikubali, mipango ya jukwaa lako itaonekana hapa uchague mpya.",
+  "schemeChangePending": "Ombi lako la kubadilisha mpango linasubiri ofisi",
+  "schemeChangeRejected": "Ofisi imekataa kubadilisha mpango wako: {note}",
+  "schemePickFirst": "Chagua mpango wa malipo unaofanyia kazi",
+  "schemePickAllowed": "Imekubaliwa: chagua mpango mpya, unaanza {month}",
+  "schemePick": "Chagua mpango huu",
+  "schemePickConfirm": "Unachagua “{name}”, kuanzia {month}. Baada ya hapo ni ombi jipya kwa ofisi tu linaloweza kuubadilisha.",
+  "schemePicked": "Mpango wako umewekwa"
 }

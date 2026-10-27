@@ -671,7 +671,16 @@
     "schemeReducedMarks": "Zaidi ya alama nyekundu {marks}: kila oda ya mwezi kwa {rate} KWD badala ya mshahara na bonasi",
     "schemeRequiredDays": "Siku {days} halali zinahitajika katika mwezi",
     "schemePlatformAmounts": "Bakshishi huongezwa; uharibifu wa chakula, marekebisho na punguzo la jukwaa hukatwa",
-    "schemeDriverPays": "Juu yako: {items}"
+    "schemeDriverPays": "Juu yako: {items}",
+    "schemeChange": "Omba kubadilisha mpango",
+    "schemeChangeBody": "Ofisi itakagua ombi lako; ikikubali, mipango ya jukwaa lako itaonekana hapa uchague mpya.",
+    "schemeChangePending": "Ombi lako la kubadilisha mpango linasubiri ofisi",
+    "schemeChangeRejected": "Ofisi imekataa kubadilisha mpango wako: {note}",
+    "schemePickFirst": "Chagua mpango wa malipo unaofanyia kazi",
+    "schemePickAllowed": "Imekubaliwa: chagua mpango mpya, unaanza {month}",
+    "schemePick": "Chagua mpango huu",
+    "schemePickConfirm": "Unachagua “{name}”, kuanzia {month}. Baada ya hapo ni ombi jipya kwa ofisi tu linaloweza kuubadilisha.",
+    "schemePicked": "Mpango wako umewekwa"
   },
   "server": {
     "deduction_source": {
@@ -724,7 +733,8 @@
       "petty_approved": "Matumizi yako ya fedha ndogo ya {amount} KWD yamekubaliwa na kutolewa kwenye dhamana yako",
       "petty_rejected": "Matumizi yako ya fedha ndogo ya {amount} KWD yamekataliwa: {reason}",
       "platform_request_approved": "Ofisi imekubali: sasa uko kwenye {platform}",
-      "platform_request_rejected": "Ofisi imekataa ombi lako la {platform}: {reason}"
+      "platform_request_rejected": "Ofisi imekataa ombi lako la {platform}: {reason}",
+      "scheme_change_allowed": "Ofisi imekubali kubadilisha mpango wako: chagua mpango mpya kuanzia {month}."
     },
     "errors": {
       "accident_exists": "Ajali hii tayari imerekodiwa",
@@ -1303,7 +1313,9 @@
       "internal_error": "Hitilafu imetokea upande wetu. Jaribu tena baada ya muda mfupi.",
       "import_empty": "Faili halina safu: jaza safu chini ya mfano na hakikisha umechagua faili sahihi.",
       "scheme_has_drivers": "Madereva {drivers} wako kwenye mpango huu kuanzia mwezi huu: chagua mpango mwingine wa kampuni hiyo hiyo wa kuwahamishia kwanza.",
-      "scheme_requests_pending": "Maombi {requests} ya madereva kwa mpango huu yanasubiri: yaidhinishe au yakatae kwanza."
+      "scheme_requests_pending": "Maombi {requests} ya madereva kwa mpango huu yanasubiri: yaidhinishe au yakatae kwanza.",
+      "scheme_choice_closed": "Omba kubadilisha mpango kwanza: utachagua mpya baada ya ofisi kukubali.",
+      "scheme_choice_open": "Unaweza kuchagua mpango wako sasa moja kwa moja kutoka kwenye orodha."
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",
@@ -1361,7 +1373,8 @@
       "otp": "Msimbo wako wa kuingia: {code}. Unatumika kwa dakika {minutes}. Usiushiriki.",
       "password_reset": "Msimbo wako wa kubadilisha nenosiri: {code}. Unatumika kwa dakika {minutes}. Kama hukuuomba, upuuze na usimpe mtu yeyote.",
       "scheme_approved": "{name}, ombi lako limekubaliwa: kuanzia {month} mpango wako ni {scheme}.",
-      "scheme_rejected": "{name}, mabadiliko yako ya mpango hayakukubaliwa: {reason}"
+      "scheme_rejected": "{name}, mabadiliko yako ya mpango hayakukubaliwa: {reason}",
+      "scheme_change_allowed": "{name}, ofisi imekubali kubadilisha mpango wako: fungua programu uchague mpango mpya kuanzia {month}."
     }
   },
   "status_templates": {

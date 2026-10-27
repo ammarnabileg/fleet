@@ -671,7 +671,16 @@
     "schemeReducedMarks": "Plus de {marks} marques rouges : toutes les commandes du mois à {rate} KWD au lieu du salaire et des primes",
     "schemeRequiredDays": "{days} jours valides requis dans le mois",
     "schemePlatformAmounts": "Les pourboires sont ajoutés ; les dommages alimentaires, ajustements et remises de la plateforme sont retenus",
-    "schemeDriverPays": "À votre charge : {items}"
+    "schemeDriverPays": "À votre charge : {items}",
+    "schemeChange": "Demander à changer de formule",
+    "schemeChangeBody": "Le bureau examine votre demande ; après accord, les formules de votre plateforme s'affichent ici pour choisir la nouvelle.",
+    "schemeChangePending": "Votre demande de changement de formule attend le bureau",
+    "schemeChangeRejected": "Le bureau a refusé le changement de formule : {note}",
+    "schemePickFirst": "Choisissez votre formule de rémunération",
+    "schemePickAllowed": "Accordé : choisissez votre nouvelle formule, elle commence en {month}",
+    "schemePick": "Choisir cette formule",
+    "schemePickConfirm": "Vous choisissez « {name} », à partir de {month}. Ensuite, seule une nouvelle demande au bureau peut la changer.",
+    "schemePicked": "Votre formule est choisie"
   },
   "server": {
     "deduction_source": {
@@ -724,7 +733,8 @@
       "petty_approved": "Votre dépense de caisse de {amount} KWD a été approuvée et déduite de votre caisse",
       "petty_rejected": "Votre dépense de caisse de {amount} KWD a été refusée : {reason}",
       "platform_request_approved": "Le bureau a approuvé : vous êtes maintenant sur {platform}",
-      "platform_request_rejected": "Le bureau a refusé votre demande pour {platform} : {reason}"
+      "platform_request_rejected": "Le bureau a refusé votre demande pour {platform} : {reason}",
+      "scheme_change_allowed": "Le bureau a accepté le changement de votre formule : choisissez la nouvelle à partir de {month}."
     },
     "errors": {
       "accident_exists": "Cet accident est déjà enregistré",
@@ -1303,7 +1313,9 @@
       "internal_error": "Une erreur s'est produite de notre côté. Réessayez dans un instant.",
       "import_empty": "Le fichier ne contient aucune ligne : remplissez les lignes sous l'exemple et vérifiez le fichier choisi.",
       "scheme_has_drivers": "{drivers} chauffeur(s) sont sur ce barème depuis ce mois : choisissez d'abord un autre barème de la même société vers lequel les déplacer.",
-      "scheme_requests_pending": "{requests} demande(s) de chauffeur pour ce barème sont en attente : approuvez-les ou refusez-les d'abord."
+      "scheme_requests_pending": "{requests} demande(s) de chauffeur pour ce barème sont en attente : approuvez-les ou refusez-les d'abord.",
+      "scheme_choice_closed": "Demandez d'abord à changer de formule : vous en choisissez une nouvelle après l'accord du bureau.",
+      "scheme_choice_open": "Vous pouvez choisir votre formule dès maintenant dans la liste."
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",
@@ -1361,7 +1373,8 @@
       "otp": "Votre code de connexion : {code}. Valable {minutes} minutes. Ne le partagez pas.",
       "password_reset": "Votre code de réinitialisation du mot de passe : {code}. Valable {minutes} minutes. Si vous ne l'avez pas demandé, ignorez-le et ne le partagez avec personne.",
       "scheme_approved": "{name}, votre demande a été approuvée : à partir de {month}, votre formule est {scheme}.",
-      "scheme_rejected": "{name}, votre changement de formule n'a pas été approuvé : {reason}"
+      "scheme_rejected": "{name}, votre changement de formule n'a pas été approuvé : {reason}",
+      "scheme_change_allowed": "{name}, le bureau a accepté le changement de votre formule : ouvrez l'application et choisissez la nouvelle à partir de {month}."
     }
   },
   "status_templates": {

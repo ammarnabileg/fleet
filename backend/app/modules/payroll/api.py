@@ -514,6 +514,16 @@ def ask_scheme(
     )
 
 
+@router.post(
+    "/driver/scheme-choice", response_model=schemas.DriverSchemesOut, dependencies=[Depends(org.screen("schemes"))]
+)
+def choose_scheme(
+    body: schemas.SchemeChoiceIn, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
+):
+    """He picks his scheme: the first time, or once the office approved his request to change."""
+    return schemes.choose(db, device.employee_id, scheme_public_id=body.scheme_id)
+
+
 @router.delete(
     "/driver/scheme-requests/{public_id}",
     response_model=schemas.DriverSchemesOut,

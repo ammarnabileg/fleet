@@ -2366,4 +2366,39 @@ class AppLocalizationsFr extends AppLocalizations {
   String schemeDriverPays(String items) {
     return 'À votre charge : $items';
   }
+
+  @override
+  String get schemeChange => 'Demander à changer de formule';
+
+  @override
+  String get schemeChangeBody =>
+      'Le bureau examine votre demande ; après accord, les formules de votre plateforme s\'affichent ici pour choisir la nouvelle.';
+
+  @override
+  String get schemeChangePending =>
+      'Votre demande de changement de formule attend le bureau';
+
+  @override
+  String schemeChangeRejected(String note) {
+    return 'Le bureau a refusé le changement de formule : $note';
+  }
+
+  @override
+  String get schemePickFirst => 'Choisissez votre formule de rémunération';
+
+  @override
+  String schemePickAllowed(String month) {
+    return 'Accordé : choisissez votre nouvelle formule, elle commence en $month';
+  }
+
+  @override
+  String get schemePick => 'Choisir cette formule';
+
+  @override
+  String schemePickConfirm(String name, String month) {
+    return 'Vous choisissez « $name », à partir de $month. Ensuite, seule une nouvelle demande au bureau peut la changer.';
+  }
+
+  @override
+  String get schemePicked => 'Votre formule est choisie';
 }

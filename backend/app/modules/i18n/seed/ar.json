@@ -670,7 +670,16 @@
     "schemeReducedMarks": "أكثر من {marks} علامات حمراء: كل طلبات الشهر بـ {rate} د.ك بدل الراتب والبونص",
     "schemeRequiredDays": "مطلوب {days} يوماً صالحاً في الشهر",
     "schemePlatformAmounts": "البقشيش يُضاف لراتبك، وتعويض تلف الطعام والتعديلات وخصم المنصة تُخصم منه",
-    "schemeDriverPays": "عليك: {items}"
+    "schemeDriverPays": "عليك: {items}",
+    "schemeChange": "طلب تغيير النظام",
+    "schemeChangeBody": "يراجع المكتب طلبك، وبعد موافقته تظهر لك أنظمة منصتك لتختار منها نظامك الجديد.",
+    "schemeChangePending": "طلب تغيير نظامك بانتظار موافقة المكتب",
+    "schemeChangeRejected": "رفض المكتب تغيير نظامك: {note}",
+    "schemePickFirst": "اختر نظام الدفع الذي تعمل عليه",
+    "schemePickAllowed": "وافق المكتب: اختر نظامك الجديد، يبدأ من {month}",
+    "schemePick": "اختر هذا النظام",
+    "schemePickConfirm": "تختار «{name}»، يبدأ من {month}. لا يمكنك تغييره بعد ذلك إلا بطلب جديد للمكتب.",
+    "schemePicked": "تم اختيار نظامك"
   },
   "status_templates": {
     "shift_working.name": "في العمل",

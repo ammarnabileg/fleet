@@ -395,3 +395,45 @@ def test_an_office_assignment_is_not_overridden_by_the_registration_choice(admin
     assert payroll.scheme_from_registration(db, driver, s["keeta"]["id"], actor_user_id=1) is False
     assert payroll.scheme_from_registration(db, driver, s["office_only"]["id"], actor_user_id=1) is False
     assert payroll.scheme_from_registration(db, driver, s["fixed_2"]["id"], actor_user_id=1) is True
+
+
+def test_the_driver_picks_first_then_asks_leave_and_picks_again_once_approved(admin_client, client, company, setup):
+    s = setup["schemes"]
+    d = make_driver(admin_client, company["id"], platform_id=setup["talabat"]["id"])
+    h = bearer(bind_device(client, d["phone"]))
+    pick = lambda code: client.post(  # noqa: E731
+        "/api/v1/driver/scheme-choice", headers=h, json={"scheme_id": s[code]["id"]}
+    )
+    view = client.get("/api/v1/driver/schemes", headers=h).json()
+    assert view["current"] is None and view["can_choose"] is True  # the first time he picks himself
+    assert client.post("/api/v1/driver/scheme-requests", headers=h, json={}).json()["code"] == "scheme_choice_open"
+    assert pick("office_only").json()["code"] == "scheme_not_available"
+    r = pick("fixed_1")
+    assert r.status_code == 200 and r.json()["current"]["code"] == "fixed_1" and r.json()["can_choose"] is False
+    assert pick("fixed_2").json()["code"] == "scheme_choice_closed"  # then only with the office's leave
+
+    r = client.post("/api/v1/driver/scheme-requests", headers=h, json={"note": "أريد راتباً ثابتاً أعلى"})
+    assert r.status_code == 201 and r.json()["request"]["requested"] is None and r.json()["can_choose"] is False
+    rid = r.json()["request"]["id"]
+    queue = admin_client.get(f"{P}/scheme-requests", params={"status": "pending"}).json()
+    assert [(q["current"]["code"], q["requested"]) for q in queue] == [("fixed_1", None)]
+    assert admin_client.post(f"{P}/scheme-requests/{rid}/approve", json={}).json()["status"] == "approved"
+    view = client.get("/api/v1/driver/schemes", headers=h).json()
+    assert view["can_choose"] is True and view["current"]["code"] == "fixed_1"  # nothing moved yet
+    told = client.get("/api/v1/driver/notifications", headers=h).json()["items"]
+    assert told[0]["kind"] == "scheme_change_allowed" and NEXT.strftime("%m-%Y") in told[0]["message"]
+
+    assert pick("fixed_1").json()["code"] == "scheme_already_yours"
+    r = pick("fixed_2")
+    assert r.status_code == 200, r.text
+    v = r.json()
+    assert (v["current"]["code"], v["next_month"]["code"], v["can_choose"]) == ("fixed_1", "fixed_2", False)
+    assert v["request"]["requested"]["code"] == "fixed_2" and v["request"]["picked_at"] is not None
+    assert pick("batch").json()["code"] == "scheme_choice_closed"  # one pick per leave
+
+    # rejected leave: nothing to pick
+    rid = client.post("/api/v1/driver/scheme-requests", headers=h, json={}).json()["request"]["id"]
+    assert admin_client.post(f"{P}/scheme-requests/{rid}/reject", json={"note": "ليس الآن"}).json()["status"] == (
+        "rejected"
+    )
+    assert client.get("/api/v1/driver/schemes", headers=h).json()["can_choose"] is False

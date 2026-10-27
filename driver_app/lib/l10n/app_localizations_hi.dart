@@ -2338,4 +2338,39 @@ class AppLocalizationsHi extends AppLocalizations {
   String schemeDriverPays(String items) {
     return 'आप पर: $items';
   }
+
+  @override
+  String get schemeChange => 'योजना बदलने का अनुरोध';
+
+  @override
+  String get schemeChangeBody =>
+      'ऑफिस आपका अनुरोध देखेगा; मंज़ूरी के बाद आपके प्लेटफ़ॉर्म की योजनाएँ यहाँ दिखेंगी ताकि आप नई चुनें।';
+
+  @override
+  String get schemeChangePending =>
+      'योजना बदलने का आपका अनुरोध ऑफिस के पास लंबित है';
+
+  @override
+  String schemeChangeRejected(String note) {
+    return 'ऑफिस ने योजना बदलने से मना किया: $note';
+  }
+
+  @override
+  String get schemePickFirst => 'अपनी वेतन योजना चुनें';
+
+  @override
+  String schemePickAllowed(String month) {
+    return 'मंज़ूर: अपनी नई योजना चुनें, यह $month से शुरू होगी';
+  }
+
+  @override
+  String get schemePick => 'यह योजना चुनें';
+
+  @override
+  String schemePickConfirm(String name, String month) {
+    return 'आप “$name” चुन रहे हैं, $month से। इसके बाद केवल ऑफिस को नया अनुरोध ही इसे बदल सकता है।';
+  }
+
+  @override
+  String get schemePicked => 'आपकी योजना तय हो गई';
 }

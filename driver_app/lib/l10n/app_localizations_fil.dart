@@ -2352,4 +2352,39 @@ class AppLocalizationsFil extends AppLocalizations {
   String schemeDriverPays(String items) {
     return 'Sagot mo: $items';
   }
+
+  @override
+  String get schemeChange => 'Humiling na palitan ang scheme';
+
+  @override
+  String get schemeChangeBody =>
+      'Rerepasuhin ng opisina ang request mo; kapag naaprubahan, lalabas dito ang mga scheme ng platform mo para pumili ng bago.';
+
+  @override
+  String get schemeChangePending =>
+      'Naghihintay sa opisina ang request mong palitan ang scheme';
+
+  @override
+  String schemeChangeRejected(String note) {
+    return 'Tinanggihan ng opisina ang pagpapalit ng scheme mo: $note';
+  }
+
+  @override
+  String get schemePickFirst => 'Piliin ang pay scheme na pinagtatrabahuhan mo';
+
+  @override
+  String schemePickAllowed(String month) {
+    return 'Aprubado: piliin ang bagong scheme mo, magsisimula sa $month';
+  }
+
+  @override
+  String get schemePick => 'Piliin ang scheme na ito';
+
+  @override
+  String schemePickConfirm(String name, String month) {
+    return 'Pinipili mo ang “$name”, simula $month. Pagkatapos, bagong request lang sa opisina ang makakapagpalit nito.';
+  }
+
+  @override
+  String get schemePicked => 'Naitakda na ang scheme mo';
 }

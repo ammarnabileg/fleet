@@ -670,5 +670,14 @@
   "schemeReducedMarks": "{marks} से अधिक लाल निशान: महीने के हर ऑर्डर पर {rate} KWD, वेतन और बोनस के बजाय",
   "schemeRequiredDays": "महीने में {days} मान्य दिन आवश्यक",
   "schemePlatformAmounts": "टिप्स जोड़ी जाती हैं; खाने का नुकसान, समायोजन और प्लेटफ़ॉर्म की छूट काटी जाती है",
-  "schemeDriverPays": "आप पर: {items}"
+  "schemeDriverPays": "आप पर: {items}",
+  "schemeChange": "योजना बदलने का अनुरोध",
+  "schemeChangeBody": "ऑफिस आपका अनुरोध देखेगा; मंज़ूरी के बाद आपके प्लेटफ़ॉर्म की योजनाएँ यहाँ दिखेंगी ताकि आप नई चुनें।",
+  "schemeChangePending": "योजना बदलने का आपका अनुरोध ऑफिस के पास लंबित है",
+  "schemeChangeRejected": "ऑफिस ने योजना बदलने से मना किया: {note}",
+  "schemePickFirst": "अपनी वेतन योजना चुनें",
+  "schemePickAllowed": "मंज़ूर: अपनी नई योजना चुनें, यह {month} से शुरू होगी",
+  "schemePick": "यह योजना चुनें",
+  "schemePickConfirm": "आप “{name}” चुन रहे हैं, {month} से। इसके बाद केवल ऑफिस को नया अनुरोध ही इसे बदल सकता है।",
+  "schemePicked": "आपकी योजना तय हो गई"
 }
