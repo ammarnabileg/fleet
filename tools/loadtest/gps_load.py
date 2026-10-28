@@ -40,6 +40,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from http.cookiejar import CookieJar
 
@@ -113,10 +114,25 @@ def setup(a) -> None:
     st, company = office.call("POST", "/companies", {"name": {"ar": f"LOADTEST {tag}", "en": f"LOADTEST {tag}"}})
     if st not in (200, 201):
         sys.exit(f"could not create the test company ({st}): {company}")
-    print(f"company LOADTEST {tag} (id {company['id']})")
+    print(f"company LOADTEST {tag} (id {company['id']})", flush=True)
 
-    phones, failed = [], 0
-    for i in range(a.drivers):
+    # one handover photo for every car: the server limits uploads per user (600 an hour by default)
+    photo = office.upload_photo()
+    phones, failed, lock = [], [0], threading.Lock()
+
+    def save():  # after every phone: a setup cut short keeps what it bound
+        tmp = a.file + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump({"base": a.base, "company_id": company["id"], "phones": phones}, f)
+        os.chmod(tmp, 0o600)  # the tokens sign in as these drivers
+        os.replace(tmp, a.file)
+
+    def one(i: int) -> None:
+        def fail(what, st, r):
+            with lock:
+                failed[0] += 1
+            print(f"  {what} {i + 1}: {st} {r}", flush=True)
+
         n = f"{tag}{i:04d}"
         st, emp = office.call("POST", "/employees", {
             "employee_number": f"LT{n}",
@@ -126,50 +142,49 @@ def setup(a) -> None:
             "phone": f"+9659{random.randint(1000000, 9999999)}",
         })
         if st not in (200, 201):
-            failed += 1
-            print(f"  driver {i + 1}: {st} {emp}")
-            continue
+            return fail("driver", st, emp)
         # a car handed over to him: the server keeps a driver's positions only while a car is in his custody
         st, car = office.call("POST", "/vehicles", {"plate_number": f"LT{n}", "company_id": company["id"],
                                                      "make": "LoadTest", "last_odometer_km": 1000})
         if st not in (200, 201):
-            failed += 1
-            print(f"  car {i + 1}: {st} {car}")
-            continue
+            return fail("car", st, car)
         st, cust = office.call("POST", "/custodies", {
-            "vehicle_id": car["id"], "driver_id": emp["id"], "odometer_km": 1000, "photo_sha256": office.upload_photo(),
+            "vehicle_id": car["id"], "driver_id": emp["id"], "odometer_km": 1000, "photo_sha256": photo,
             "started_at": datetime.now(UTC).replace(microsecond=0).isoformat(),
         })
         if st not in (200, 201):
-            failed += 1
-            print(f"  handover {i + 1}: {st} {cust}")
-            continue
+            return fail("handover", st, cust)
         st, r = office.call("PUT", f"/employees/{emp['id']}/app-access", {"app_access": "active"})
         if st != 200:
-            failed += 1
-            print(f"  app access {i + 1}: {st} {r}")
-            continue
+            return fail("app access", st, r)
         st, link = office.call("POST", f"/employees/{emp['id']}/activation-link", {"channel": "manual", "onboarding": False})
         if st != 201 or not link.get("url") or "#" not in link["url"]:
-            failed += 1
-            print(f"  link {i + 1}: {st} {link}")
-            continue
+            return fail("link", st, link)
         device_uid = "loadtest-" + uuid.uuid4().hex
         st, tokens = Http(a.base, a.timeout, a.insecure).call("POST", "/driver/auth/activate", {
             "token": link["url"].split("#", 1)[1].split("=")[-1],
             "device_uid": device_uid, "platform": "android", "model": "LoadTest", "app_version": "loadtest",
         })
         if st != 200:
-            failed += 1
-            print(f"  activate {i + 1}: {st} {tokens}")
-            continue
-        phones.append({"device_uid": device_uid, "access": tokens["access_token"], "refresh": tokens["refresh_token"]})
-        if (i + 1) % 25 == 0:
-            print(f"  {i + 1}/{a.drivers} phones bound")
-    with open(a.file, "w") as f:
-        json.dump({"base": a.base, "company_id": company["id"], "phones": phones}, f)
-    os.chmod(a.file, 0o600)  # the tokens sign in as these drivers
-    print(f"{len(phones)} phones saved to {a.file}" + (f", {failed} failed" if failed else ""))
+            return fail("activate", st, tokens)
+        with lock:
+            phones.append({"device_uid": device_uid, "access": tokens["access_token"], "refresh": tokens["refresh_token"]})
+            save()
+            if len(phones) % 25 == 0:
+                print(f"  {len(phones)}/{a.drivers} phones bound", flush=True)
+
+    def guarded(i: int) -> None:  # one driver that fails (a timeout, a dropped connection) does not stop the others
+        try:
+            one(i)
+        except Exception as e:  # noqa: BLE001
+            with lock:
+                failed[0] += 1
+            print(f"  driver {i + 1}: {type(e).__name__} {e}", flush=True)
+
+    # several drivers at a time: over a long distance each request takes about a second
+    with ThreadPoolExecutor(a.parallel) as pool:
+        list(pool.map(guarded, range(a.drivers)))
+    print(f"{len(phones)} phones saved to {a.file}" + (f", {failed[0]} failed" if failed[0] else ""), flush=True)
 
 
 # ------------------------------------------------------------------ run
@@ -262,7 +277,7 @@ class Phone(threading.Thread):
             return
         batch = self.queue[:500]
         t0 = time.monotonic()
-        try:
+        try:  # a refresh that fails on the way counts like a failed send: the points stay queued
             st, r = self.http.call("POST", "/driver/positions", {"sent_at": now_iso(), "points": batch}, self.auth())
             if st == 401:  # expired early (as the app does: refresh once and send again)
                 st, r = self.http.call("POST", "/driver/positions", {"sent_at": now_iso(), "points": batch}, self.auth(True))
@@ -278,6 +293,12 @@ class Phone(threading.Thread):
             self.stats.fail(f"HTTP {st} {(r or {}).get('code', '')}".strip(), ms)
 
     def heartbeat(self) -> None:
+        try:
+            self._heartbeat()
+        except Exception as e:  # noqa: BLE001 - a dropped connection: the next one goes as usual
+            self.stats.fail(f"heartbeat {type(e).__name__}")
+
+    def _heartbeat(self) -> None:
         st, _ = self.http.call("POST", "/driver/status", {"gps_enabled": True, "tracking_service_running": True,
                                                          "location_permission": "always", "app_version": "loadtest",
                                                          "battery_level": random.randint(20, 100), "queue_size": len(self.queue),
@@ -287,7 +308,9 @@ class Phone(threading.Thread):
 
     def run(self) -> None:
         if self.a.mode == "app":
-            self.stop.wait(random.uniform(0, SEND_EVERY))  # real phones are not in step
+            send_every = self.a.send_every or SEND_EVERY
+            point_every = min(POINT_EVERY, send_every)
+            self.stop.wait(random.uniform(0, send_every))  # real phones are not in step
             last_send = last_beat = 0.0
             while not self.stop.is_set():
                 self.fix()
@@ -295,10 +318,10 @@ class Phone(threading.Thread):
                 if t - last_beat >= HEARTBEAT_EVERY:
                     self.heartbeat()
                     last_beat = t
-                if t - last_send >= SEND_EVERY:
+                if t - last_send >= send_every:
                     self.send()
                     last_send = t
-                self.stop.wait(POINT_EVERY)
+                self.stop.wait(point_every)
         else:  # burst: everyone fires in the same instant, every --every seconds
             while not self.stop.is_set():
                 self.fix()
@@ -357,11 +380,13 @@ def main() -> None:
     s = sub.choices["setup"]
     s.add_argument("--user", required=True, help="an office user who may add employees and bind phones")
     s.add_argument("--drivers", type=int, default=300)
+    s.add_argument("--parallel", type=int, default=10, help="drivers prepared at a time")
     r = sub.choices["run"]
     r.add_argument("--vehicles", type=int, default=0, help="how many of the saved phones (default: all)")
     r.add_argument("--minutes", type=float, default=10)
     r.add_argument("--mode", choices=("app", "burst"), default="app")
     r.add_argument("--every", type=float, default=10, help="burst: seconds between two volleys")
+    r.add_argument("--send-every", type=float, default=0, help="app: seconds between two uploads of a phone (default 60, as the app)")
     a = ap.parse_args()
     setup(a) if a.cmd == "setup" else run(a)
 
