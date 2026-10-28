@@ -471,6 +471,23 @@ void main() {
       expect(find.byKey(const Key('update-banner')), findsNothing);
     });
 
+    testWidgets('the check button says up to date out loud, or that the server was not reached', (tester) async {
+      final (state, server, _) = await stateWith(tester, {'latest': null, 'required': false});
+      await tester.pumpWidget(app(state, UpdateRow(state: state)));
+      await tester.tap(find.byType(TextButton));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('update-checked')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('update-checked')),
+          matching: find.text('You have the latest version'),
+        ),
+        findsOneWidget,
+      );
+      expect(server.calls('/api/v1/driver/app-update'), isNotEmpty);
+    });
+
     testWidgets('optional: a banner with the version, the notes and size in the sheet, closed for good', (
       tester,
     ) async {

@@ -659,8 +659,14 @@
     if (gi) gi.onclick = function () {
       gi.classList.add('is-loading'); gi.disabled = true;
       api.post('/app-update/github-import').then(function (r) {
-        BT.toast((r.created ? 'استُورد الإصدار ' : 'الإصدار موجود: ') + r.release.version_name + ' (' + r.release.version_code + ') — ' + (r.release.status === 'draft' ? 'مسودة: اكتب رقمه في «رقم الإصدار الجديد» واحفظ لإعلانه' : 'منشور'), { timeout: 8000 });
+        var x = r.release;
         reload();
+        if (x.status !== 'draft') { BT.toast('الإصدار ' + x.version_name + ' منشور بالفعل', { timeout: 6000 }); return; }
+        // استيراد إصدار جديد غرضه نشره: يُسأل مرة واحدة بدل أن يبقى مسودة لا يراها أي سائق
+        A.confirmRun({ title: (r.created ? 'استُورد الإصدار ' : 'الإصدار موجود: ') + x.version_name, icon: 'upload', tone: 'success', confirmText: 'نشر الآن',
+          message: 'المسودة لا تظهر لأي سائق، وزر «تحديث» في التطبيق لا يجد شيئاً. انشره الآن ليظهر للسائقين عند فحص التطبيق التالي، أو أغلق ليبقى مسودة.',
+          done: 'نُشر ' + x.version_name + ': يظهر للسائقين عند فحص التطبيق التالي',
+          run: function () { return api.post('/app-releases/' + x.id + '/publish'); }, after: reload });
       }, function (err) { gi.classList.remove('is-loading'); gi.disabled = false; BT.toast(api.message(err), { type: 'error', timeout: 8000 }); reload(); });
     };
   }

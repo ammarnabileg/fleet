@@ -4127,5 +4127,10 @@ window.BT_EN = {
 "يختار بعد الموافقة": "Picks after approval",
 "يطلب تغيير نظامه": "Asks to change scheme",
 "لم يحدد نظاماً: بعد موافقتك تظهر له أنظمة المنصة في التطبيق ويختار منها مرة واحدة، ويبدأ النظام الجديد من الشهر الموافق عليه.": "No scheme named: once you approve, the platform's schemes show in the app and they pick one once; the new scheme starts from the approved month.",
-"النظام الذي اختاره": "Scheme picked"
+"النظام الذي اختاره": "Scheme picked",
+"نشر الآن": "Publish now",
+"المسودة لا تظهر لأي سائق، وزر «تحديث» في التطبيق لا يجد شيئاً. انشره الآن ليظهر للسائقين عند فحص التطبيق التالي، أو أغلق ليبقى مسودة.": "A draft is shown to no driver, and the app's Update button finds nothing. Publish it now so drivers see it at the app's next check, or close to keep it a draft.",
+"منشور بالفعل": "already published",
+"نُشر": "Published",
+"يظهر للسائقين عند فحص التطبيق التالي": "drivers see it at the app's next check"
 };

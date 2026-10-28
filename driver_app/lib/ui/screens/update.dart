@@ -259,7 +259,15 @@ class _UpdateRowState extends State<UpdateRow> {
     final ok = await u.check(force: true);
     if (!mounted) return;
     setState(() => _reached = ok);
-    if (ok && u.available != null) await showUpdateSheet(context, widget.state);
+    if (ok && u.available != null) {
+      await showUpdateSheet(context, widget.state);
+    } else {
+      // said out loud: a quiet line under the version looked like a button that does nothing
+      final l = context.l;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(key: const Key('update-checked'), content: Text(ok ? l.upToDate : l.updateCheckFailed)));
+    }
   }
 
   @override
