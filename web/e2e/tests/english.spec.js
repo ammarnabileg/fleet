@@ -49,7 +49,10 @@ test('every page and tab of the panel reads in English', async ({ admin }) => {
     await admin.waitForFunction((k) => window.BT.A.router && window.BT.A.router.current === k, key);
     await settled(admin);
     await admin.waitForLoadState('networkidle');
-    const add = async (where) => { await Promise.all(reading); for (const t of (await leftovers(admin)).filter((x) => !isData(x))) (found[t] = found[t] || new Set()).add(where); };
+    const add = async (where) => {
+      // an object put where text goes (a list of cards in a text field) reads «[object Object]» in any language
+      if ((await admin.locator('#view').innerText()).includes('[object Object]')) (found['[object Object]'] = found['[object Object]'] || new Set()).add(where);
+      await Promise.all(reading); for (const t of (await leftovers(admin)).filter((x) => !isData(x))) (found[t] = found[t] || new Set()).add(where); };
     await add(key);
     const tabs = admin.locator('#view [role=tab]');
     for (let i = 0; i < (await tabs.count()); i++) {

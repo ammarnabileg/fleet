@@ -425,7 +425,7 @@
           });
         });
       });
-      return h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr))">${Object.keys(sections).filter(function (name) { return name !== 'driver_app' && name !== 'app_update'; }).map(function (name) {
+      return h`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr))">${Object.keys(sections).filter(function (name) { return name !== 'driver_app' && name !== 'app_update' && name !== 'site'; } /* site: its own page (services are a list of cards, not a text field) */).map(function (name) {
         var s = sections[name];
         return h`<form class="card" data-sec="${name}" novalidate><div class="card-h"><div class="card-t">${api.t('settings', name)}</div><span class="muted fs-sm">نسخة ${s.version}</span></div><div class="form">${Object.keys(s.value).filter(function (k) { return !HIDDEN[name + '.' + k]; }).map(function (k) {
           var val = s.value[k], label = api.t('settings', name + '.' + k), key = name + '.' + k, hint = HINTS[key];
