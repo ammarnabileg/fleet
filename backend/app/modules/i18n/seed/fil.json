@@ -680,7 +680,27 @@
     "schemePickAllowed": "Aprubado: piliin ang bagong scheme mo, magsisimula sa {month}",
     "schemePick": "Piliin ang scheme na ito",
     "schemePickConfirm": "Pinipili mo ang “{name}”, simula {month}. Pagkatapos, bagong request lang sa opisina ang makakapagpalit nito.",
-    "schemePicked": "Naitakda na ang scheme mo"
+    "schemePicked": "Naitakda na ang scheme mo",
+    "offerTitle": "Piliin ang scheme na bagay sa iyo",
+    "offerSub": "Lahat ng detalye ng pay scheme sa isang lugar. Rerepasuhin ng opisina ang pinili mo kasama ang request.",
+    "offerKwd": "KWD",
+    "offerPerMonth": "Nakapirming buwanang sahod",
+    "offerPerOrder": "Bawat order",
+    "offerByBatch": "Bawat order, ayon sa batch",
+    "offerTarget": "Target na order",
+    "offerOver": "bawat dagdag na order",
+    "offerUnder": "bawat kulang na order",
+    "offerBonus": "Buwanang bonus",
+    "offerBonusTop": "Bonus lang ng pinakamataas na tier ang ibinibigay",
+    "offerOrders": "{orders} order",
+    "offerCovers": "Sagot ng kompanya",
+    "offerYouPay": "Sagot mo",
+    "offerTerms": "Mga tuntunin at detalye",
+    "offerSelect": "Piliin ang scheme na ito",
+    "offerSelected": "Napili",
+    "offerNext": "Susunod: piliin ang pay scheme",
+    "offerNone": "Walang scheme na mapipili sa kompanyang ito: ang opisina ang magtatakda.",
+    "offerPickOne": "Pumili muna ng scheme"
   },
   "server": {
     "deduction_source": {

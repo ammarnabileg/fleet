@@ -2375,4 +2375,68 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get schemePicked => 'Your scheme is set';
+
+  @override
+  String get offerTitle => 'Pick the scheme that suits you';
+
+  @override
+  String get offerSub =>
+      'Every detail of the pay scheme in one place. The office reviews your pick with your company request.';
+
+  @override
+  String get offerKwd => 'KWD';
+
+  @override
+  String get offerPerMonth => 'Fixed monthly salary';
+
+  @override
+  String get offerPerOrder => 'Per order';
+
+  @override
+  String get offerByBatch => 'Per order, by batch';
+
+  @override
+  String get offerTarget => 'Order target';
+
+  @override
+  String get offerOver => 'each extra order';
+
+  @override
+  String get offerUnder => 'each order short';
+
+  @override
+  String get offerBonus => 'Monthly bonus';
+
+  @override
+  String get offerBonusTop => 'Only the highest tier\'s bonus is paid';
+
+  @override
+  String offerOrders(String orders) {
+    return '$orders orders';
+  }
+
+  @override
+  String get offerCovers => 'Paid by the company';
+
+  @override
+  String get offerYouPay => 'Paid by you';
+
+  @override
+  String get offerTerms => 'Terms and details';
+
+  @override
+  String get offerSelect => 'Pick this scheme';
+
+  @override
+  String get offerSelected => 'Picked';
+
+  @override
+  String get offerNext => 'Next: pick your pay scheme';
+
+  @override
+  String get offerNone =>
+      'This company has no schemes for drivers to pick: the office sets yours.';
+
+  @override
+  String get offerPickOne => 'Pick a scheme first';
 }

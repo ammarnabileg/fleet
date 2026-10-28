@@ -1371,4 +1371,44 @@ class RemoteLocalizations extends AppLocalizations {
   String schemePickConfirm(String name, String month) => _remote.format('schemePickConfirm', {'name': name, 'month': month}) ?? _base.schemePickConfirm(name, month);
   @override
   String get schemePicked => _remote.text('schemePicked') ?? _base.schemePicked;
+  @override
+  String get offerTitle => _remote.text('offerTitle') ?? _base.offerTitle;
+  @override
+  String get offerSub => _remote.text('offerSub') ?? _base.offerSub;
+  @override
+  String get offerKwd => _remote.text('offerKwd') ?? _base.offerKwd;
+  @override
+  String get offerPerMonth => _remote.text('offerPerMonth') ?? _base.offerPerMonth;
+  @override
+  String get offerPerOrder => _remote.text('offerPerOrder') ?? _base.offerPerOrder;
+  @override
+  String get offerByBatch => _remote.text('offerByBatch') ?? _base.offerByBatch;
+  @override
+  String get offerTarget => _remote.text('offerTarget') ?? _base.offerTarget;
+  @override
+  String get offerOver => _remote.text('offerOver') ?? _base.offerOver;
+  @override
+  String get offerUnder => _remote.text('offerUnder') ?? _base.offerUnder;
+  @override
+  String get offerBonus => _remote.text('offerBonus') ?? _base.offerBonus;
+  @override
+  String get offerBonusTop => _remote.text('offerBonusTop') ?? _base.offerBonusTop;
+  @override
+  String offerOrders(String orders) => _remote.format('offerOrders', {'orders': orders}) ?? _base.offerOrders(orders);
+  @override
+  String get offerCovers => _remote.text('offerCovers') ?? _base.offerCovers;
+  @override
+  String get offerYouPay => _remote.text('offerYouPay') ?? _base.offerYouPay;
+  @override
+  String get offerTerms => _remote.text('offerTerms') ?? _base.offerTerms;
+  @override
+  String get offerSelect => _remote.text('offerSelect') ?? _base.offerSelect;
+  @override
+  String get offerSelected => _remote.text('offerSelected') ?? _base.offerSelected;
+  @override
+  String get offerNext => _remote.text('offerNext') ?? _base.offerNext;
+  @override
+  String get offerNone => _remote.text('offerNone') ?? _base.offerNone;
+  @override
+  String get offerPickOne => _remote.text('offerPickOne') ?? _base.offerPickOne;
 }

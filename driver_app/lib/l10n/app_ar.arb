@@ -1607,5 +1607,32 @@
       }
     }
   },
-  "schemePicked": "تم اختيار نظامك"
+  "schemePicked": "تم اختيار نظامك",
+  "offerTitle": "اختر النظام المناسب لك",
+  "offerSub": "كل تفاصيل نظام الدفع في مكان واحد. يراجع المكتب اختيارك مع طلب الشركة.",
+  "offerKwd": "د.ك",
+  "offerPerMonth": "راتب شهري ثابت",
+  "offerPerOrder": "سعر الطلب",
+  "offerByBatch": "سعر الطلب حسب الباتش",
+  "offerTarget": "تارجت الطلبات",
+  "offerOver": "لكل طلب إضافي",
+  "offerUnder": "لكل طلب ناقص",
+  "offerBonus": "البونص الشهري",
+  "offerBonusTop": "يُصرف بونص أعلى شريحة فقط",
+  "offerOrders": "{orders} طلب",
+  "@offerOrders": {
+    "placeholders": {
+      "orders": {
+        "type": "String"
+      }
+    }
+  },
+  "offerCovers": "المزايا على الشركة",
+  "offerYouPay": "عليك",
+  "offerTerms": "الشروط والتفاصيل",
+  "offerSelect": "اختيار النظام",
+  "offerSelected": "تم الاختيار",
+  "offerNext": "التالي: اختر نظام الدفع",
+  "offerNone": "لا توجد أنظمة يختارها السائق في هذه الشركة: يحدد المكتب نظامك.",
+  "offerPickOne": "اختر نظاماً أولاً"
 }

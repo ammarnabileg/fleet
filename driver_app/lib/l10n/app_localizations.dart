@@ -4185,6 +4185,126 @@ abstract class AppLocalizations {
   /// In ar, this message translates to:
   /// **'تم اختيار نظامك'**
   String get schemePicked;
+
+  /// No description provided for @offerTitle.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختر النظام المناسب لك'**
+  String get offerTitle;
+
+  /// No description provided for @offerSub.
+  ///
+  /// In ar, this message translates to:
+  /// **'كل تفاصيل نظام الدفع في مكان واحد. يراجع المكتب اختيارك مع طلب الشركة.'**
+  String get offerSub;
+
+  /// No description provided for @offerKwd.
+  ///
+  /// In ar, this message translates to:
+  /// **'د.ك'**
+  String get offerKwd;
+
+  /// No description provided for @offerPerMonth.
+  ///
+  /// In ar, this message translates to:
+  /// **'راتب شهري ثابت'**
+  String get offerPerMonth;
+
+  /// No description provided for @offerPerOrder.
+  ///
+  /// In ar, this message translates to:
+  /// **'سعر الطلب'**
+  String get offerPerOrder;
+
+  /// No description provided for @offerByBatch.
+  ///
+  /// In ar, this message translates to:
+  /// **'سعر الطلب حسب الباتش'**
+  String get offerByBatch;
+
+  /// No description provided for @offerTarget.
+  ///
+  /// In ar, this message translates to:
+  /// **'تارجت الطلبات'**
+  String get offerTarget;
+
+  /// No description provided for @offerOver.
+  ///
+  /// In ar, this message translates to:
+  /// **'لكل طلب إضافي'**
+  String get offerOver;
+
+  /// No description provided for @offerUnder.
+  ///
+  /// In ar, this message translates to:
+  /// **'لكل طلب ناقص'**
+  String get offerUnder;
+
+  /// No description provided for @offerBonus.
+  ///
+  /// In ar, this message translates to:
+  /// **'البونص الشهري'**
+  String get offerBonus;
+
+  /// No description provided for @offerBonusTop.
+  ///
+  /// In ar, this message translates to:
+  /// **'يُصرف بونص أعلى شريحة فقط'**
+  String get offerBonusTop;
+
+  /// No description provided for @offerOrders.
+  ///
+  /// In ar, this message translates to:
+  /// **'{orders} طلب'**
+  String offerOrders(String orders);
+
+  /// No description provided for @offerCovers.
+  ///
+  /// In ar, this message translates to:
+  /// **'المزايا على الشركة'**
+  String get offerCovers;
+
+  /// No description provided for @offerYouPay.
+  ///
+  /// In ar, this message translates to:
+  /// **'عليك'**
+  String get offerYouPay;
+
+  /// No description provided for @offerTerms.
+  ///
+  /// In ar, this message translates to:
+  /// **'الشروط والتفاصيل'**
+  String get offerTerms;
+
+  /// No description provided for @offerSelect.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختيار النظام'**
+  String get offerSelect;
+
+  /// No description provided for @offerSelected.
+  ///
+  /// In ar, this message translates to:
+  /// **'تم الاختيار'**
+  String get offerSelected;
+
+  /// No description provided for @offerNext.
+  ///
+  /// In ar, this message translates to:
+  /// **'التالي: اختر نظام الدفع'**
+  String get offerNext;
+
+  /// No description provided for @offerNone.
+  ///
+  /// In ar, this message translates to:
+  /// **'لا توجد أنظمة يختارها السائق في هذه الشركة: يحدد المكتب نظامك.'**
+  String get offerNone;
+
+  /// No description provided for @offerPickOne.
+  ///
+  /// In ar, this message translates to:
+  /// **'اختر نظاماً أولاً'**
+  String get offerPickOne;
 }
 
 class _AppLocalizationsDelegate

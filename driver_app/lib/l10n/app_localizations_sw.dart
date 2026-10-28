@@ -2380,4 +2380,68 @@ class AppLocalizationsSw extends AppLocalizations {
 
   @override
   String get schemePicked => 'Mpango wako umewekwa';
+
+  @override
+  String get offerTitle => 'Chagua mpango unaokufaa';
+
+  @override
+  String get offerSub =>
+      'Maelezo yote ya mpango mahali pamoja. Ofisi itakagua chaguo lako pamoja na ombi la kampuni.';
+
+  @override
+  String get offerKwd => 'KWD';
+
+  @override
+  String get offerPerMonth => 'Mshahara wa kudumu wa mwezi';
+
+  @override
+  String get offerPerOrder => 'Kwa kila oda';
+
+  @override
+  String get offerByBatch => 'Kwa oda, kulingana na batch';
+
+  @override
+  String get offerTarget => 'Lengo la oda';
+
+  @override
+  String get offerOver => 'kila oda ya ziada';
+
+  @override
+  String get offerUnder => 'kila oda iliyopungua';
+
+  @override
+  String get offerBonus => 'Bonasi ya mwezi';
+
+  @override
+  String get offerBonusTop => 'Bonasi ya ngazi ya juu tu inalipwa';
+
+  @override
+  String offerOrders(String orders) {
+    return 'Oda $orders';
+  }
+
+  @override
+  String get offerCovers => 'Inalipwa na kampuni';
+
+  @override
+  String get offerYouPay => 'Unalipa wewe';
+
+  @override
+  String get offerTerms => 'Masharti na maelezo';
+
+  @override
+  String get offerSelect => 'Chagua mpango huu';
+
+  @override
+  String get offerSelected => 'Imechaguliwa';
+
+  @override
+  String get offerNext => 'Ifuatayo: chagua mpango wa malipo';
+
+  @override
+  String get offerNone =>
+      'Kampuni hii haina mipango ya kuchagua: ofisi itaweka wako.';
+
+  @override
+  String get offerPickOne => 'Chagua mpango kwanza';
 }

@@ -4126,5 +4126,6 @@ window.BT_EN = {
 "لم يختر بعد": "Not picked yet",
 "يختار بعد الموافقة": "Picks after approval",
 "يطلب تغيير نظامه": "Asks to change scheme",
-"لم يحدد نظاماً: بعد موافقتك تظهر له أنظمة المنصة في التطبيق ويختار منها مرة واحدة، ويبدأ النظام الجديد من الشهر الموافق عليه.": "No scheme named: once you approve, the platform's schemes show in the app and they pick one once; the new scheme starts from the approved month."
+"لم يحدد نظاماً: بعد موافقتك تظهر له أنظمة المنصة في التطبيق ويختار منها مرة واحدة، ويبدأ النظام الجديد من الشهر الموافق عليه.": "No scheme named: once you approve, the platform's schemes show in the app and they pick one once; the new scheme starts from the approved month.",
+"النظام الذي اختاره": "Scheme picked"
 };

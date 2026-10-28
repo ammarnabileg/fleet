@@ -2401,4 +2401,69 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get schemePicked => 'Votre formule est choisie';
+
+  @override
+  String get offerTitle => 'Choisissez la formule qui vous convient';
+
+  @override
+  String get offerSub =>
+      'Tous les détails de la formule au même endroit. Le bureau examine votre choix avec votre demande.';
+
+  @override
+  String get offerKwd => 'KWD';
+
+  @override
+  String get offerPerMonth => 'Salaire mensuel fixe';
+
+  @override
+  String get offerPerOrder => 'Par commande';
+
+  @override
+  String get offerByBatch => 'Par commande, selon le batch';
+
+  @override
+  String get offerTarget => 'Objectif de commandes';
+
+  @override
+  String get offerOver => 'par commande en plus';
+
+  @override
+  String get offerUnder => 'par commande manquante';
+
+  @override
+  String get offerBonus => 'Prime mensuelle';
+
+  @override
+  String get offerBonusTop =>
+      'Seule la prime du palier le plus haut est versée';
+
+  @override
+  String offerOrders(String orders) {
+    return '$orders commandes';
+  }
+
+  @override
+  String get offerCovers => 'Payé par la société';
+
+  @override
+  String get offerYouPay => 'À votre charge';
+
+  @override
+  String get offerTerms => 'Conditions et détails';
+
+  @override
+  String get offerSelect => 'Choisir cette formule';
+
+  @override
+  String get offerSelected => 'Choisie';
+
+  @override
+  String get offerNext => 'Suivant : choisissez votre formule';
+
+  @override
+  String get offerNone =>
+      'Cette société n\'a pas de formule à choisir : le bureau fixe la vôtre.';
+
+  @override
+  String get offerPickOne => 'Choisissez d\'abord une formule';
 }

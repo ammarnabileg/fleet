@@ -680,7 +680,27 @@
     "schemePickAllowed": "Imekubaliwa: chagua mpango mpya, unaanza {month}",
     "schemePick": "Chagua mpango huu",
     "schemePickConfirm": "Unachagua “{name}”, kuanzia {month}. Baada ya hapo ni ombi jipya kwa ofisi tu linaloweza kuubadilisha.",
-    "schemePicked": "Mpango wako umewekwa"
+    "schemePicked": "Mpango wako umewekwa",
+    "offerTitle": "Chagua mpango unaokufaa",
+    "offerSub": "Maelezo yote ya mpango mahali pamoja. Ofisi itakagua chaguo lako pamoja na ombi la kampuni.",
+    "offerKwd": "KWD",
+    "offerPerMonth": "Mshahara wa kudumu wa mwezi",
+    "offerPerOrder": "Kwa kila oda",
+    "offerByBatch": "Kwa oda, kulingana na batch",
+    "offerTarget": "Lengo la oda",
+    "offerOver": "kila oda ya ziada",
+    "offerUnder": "kila oda iliyopungua",
+    "offerBonus": "Bonasi ya mwezi",
+    "offerBonusTop": "Bonasi ya ngazi ya juu tu inalipwa",
+    "offerOrders": "Oda {orders}",
+    "offerCovers": "Inalipwa na kampuni",
+    "offerYouPay": "Unalipa wewe",
+    "offerTerms": "Masharti na maelezo",
+    "offerSelect": "Chagua mpango huu",
+    "offerSelected": "Imechaguliwa",
+    "offerNext": "Ifuatayo: chagua mpango wa malipo",
+    "offerNone": "Kampuni hii haina mipango ya kuchagua: ofisi itaweka wako.",
+    "offerPickOne": "Chagua mpango kwanza"
   },
   "server": {
     "deduction_source": {

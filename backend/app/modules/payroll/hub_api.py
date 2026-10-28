@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_session
 from app.modules.identity.service import DevicePrincipal, Principal, require_device, require_permission
 from app.modules.payroll import platform_requests, platforms, rider_ids
+from app.modules.payroll.schemas import DriverSchemeOut
 from app.modules.payroll.service import month_start
 
 router = APIRouter(prefix="/api/v1", tags=["platforms"])
@@ -34,6 +35,7 @@ class AskIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     platform_id: int
     note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)] | None = None
+    scheme_id: uuid.UUID | None = None  # the scheme he picks with it (one the company offers)
 
 
 class ApproveIn(BaseModel):
@@ -187,8 +189,21 @@ def my_platform(device: DevicePrincipal = Depends(require_device), db: Session =
 @router.post("/driver/platform-request", status_code=201)
 def ask_platform(body: AskIn, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)):
     return platform_requests.ask(
-        db, device.employee_id, device_id=device.device_id, platform_id=body.platform_id, note=body.note
+        db,
+        device.employee_id,
+        device_id=device.device_id,
+        platform_id=body.platform_id,
+        note=body.note,
+        scheme_public_id=body.scheme_id,
     )
+
+
+@router.get("/driver/platform-request/{platform_id}/schemes", response_model=list[DriverSchemeOut])
+def platform_schemes(
+    platform_id: int, device: DevicePrincipal = Depends(require_device), db: Session = Depends(get_session)
+):
+    """The schemes of a company he is about to pick, with their terms: he picks one with it."""
+    return platform_requests.offered_schemes(db, device.employee_id, platform_id)
 
 
 @router.post("/driver/platform-request/{public_id}/cancel")

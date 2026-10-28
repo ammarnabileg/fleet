@@ -680,7 +680,27 @@
     "schemePickAllowed": "मंज़ूर: अपनी नई योजना चुनें, यह {month} से शुरू होगी",
     "schemePick": "यह योजना चुनें",
     "schemePickConfirm": "आप “{name}” चुन रहे हैं, {month} से। इसके बाद केवल ऑफिस को नया अनुरोध ही इसे बदल सकता है।",
-    "schemePicked": "आपकी योजना तय हो गई"
+    "schemePicked": "आपकी योजना तय हो गई",
+    "offerTitle": "अपने लिए सही योजना चुनें",
+    "offerSub": "वेतन योजना की हर जानकारी एक जगह। ऑफिस आपकी पसंद कंपनी अनुरोध के साथ देखेगा।",
+    "offerKwd": "KWD",
+    "offerPerMonth": "निश्चित मासिक वेतन",
+    "offerPerOrder": "प्रति ऑर्डर",
+    "offerByBatch": "प्रति ऑर्डर, बैच के अनुसार",
+    "offerTarget": "ऑर्डर लक्ष्य",
+    "offerOver": "हर अतिरिक्त ऑर्डर",
+    "offerUnder": "हर कम ऑर्डर",
+    "offerBonus": "मासिक बोनस",
+    "offerBonusTop": "सिर्फ़ सबसे ऊँचे स्तर का बोनस मिलता है",
+    "offerOrders": "{orders} ऑर्डर",
+    "offerCovers": "कंपनी देती है",
+    "offerYouPay": "आप देते हैं",
+    "offerTerms": "शर्तें और विवरण",
+    "offerSelect": "यह योजना चुनें",
+    "offerSelected": "चुनी गई",
+    "offerNext": "आगे: वेतन योजना चुनें",
+    "offerNone": "इस कंपनी में चुनने के लिए योजना नहीं है: ऑफिस आपकी तय करेगा।",
+    "offerPickOne": "पहले एक योजना चुनें"
   },
   "server": {
     "deduction_source": {

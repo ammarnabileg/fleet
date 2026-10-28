@@ -2387,4 +2387,69 @@ class AppLocalizationsFil extends AppLocalizations {
 
   @override
   String get schemePicked => 'Naitakda na ang scheme mo';
+
+  @override
+  String get offerTitle => 'Piliin ang scheme na bagay sa iyo';
+
+  @override
+  String get offerSub =>
+      'Lahat ng detalye ng pay scheme sa isang lugar. Rerepasuhin ng opisina ang pinili mo kasama ang request.';
+
+  @override
+  String get offerKwd => 'KWD';
+
+  @override
+  String get offerPerMonth => 'Nakapirming buwanang sahod';
+
+  @override
+  String get offerPerOrder => 'Bawat order';
+
+  @override
+  String get offerByBatch => 'Bawat order, ayon sa batch';
+
+  @override
+  String get offerTarget => 'Target na order';
+
+  @override
+  String get offerOver => 'bawat dagdag na order';
+
+  @override
+  String get offerUnder => 'bawat kulang na order';
+
+  @override
+  String get offerBonus => 'Buwanang bonus';
+
+  @override
+  String get offerBonusTop =>
+      'Bonus lang ng pinakamataas na tier ang ibinibigay';
+
+  @override
+  String offerOrders(String orders) {
+    return '$orders order';
+  }
+
+  @override
+  String get offerCovers => 'Sagot ng kompanya';
+
+  @override
+  String get offerYouPay => 'Sagot mo';
+
+  @override
+  String get offerTerms => 'Mga tuntunin at detalye';
+
+  @override
+  String get offerSelect => 'Piliin ang scheme na ito';
+
+  @override
+  String get offerSelected => 'Napili';
+
+  @override
+  String get offerNext => 'Susunod: piliin ang pay scheme';
+
+  @override
+  String get offerNone =>
+      'Walang scheme na mapipili sa kompanyang ito: ang opisina ang magtatakda.';
+
+  @override
+  String get offerPickOne => 'Pumili muna ng scheme';
 }

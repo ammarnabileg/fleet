@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import '../../app/state.dart';
 import '../../core/errors.dart';
 import '../theme.dart';
+import '../../core/models.dart';
 import '../widgets/common.dart';
+import 'scheme_offers.dart';
 
-/// The first screen after sign-in for a driver with no company: «which company do you work with?». His choice goes to
-/// the office as a request (approved with his ID on the platform, or rejected with a reason); a rejection shows here
+/// The first screen after sign-in for a driver with no company: «which company do you work with?», then that company's
+/// pay schemes to pick one from (SchemeOffersScreen). Both go to the office as one request (approved with his ID on the platform, or rejected with a reason); a rejection shows here
 /// with its reason so he picks again.
 class CompanyScreen extends StatefulWidget {
   const CompanyScreen({super.key, required this.state});
@@ -19,27 +21,14 @@ class CompanyScreen extends StatefulWidget {
 
 class _CompanyScreenState extends State<CompanyScreen> {
   int? _picked;
-  final _note = TextEditingController();
-  bool _busy = false;
 
-  @override
-  void dispose() {
-    _note.dispose();
-    super.dispose();
-  }
-
-  Future<void> _send() async {
-    final id = _picked;
-    if (id == null) return;
-    setState(() => _busy = true);
-    try {
-      final note = _note.text.trim();
-      await widget.state.chooseCompany(id, note: note.isEmpty ? null : note);
-    } on ApiError catch (e) {
-      if (mounted) showError(context, widget.state, e);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+  void _next(List<Company> offered) {
+    final c = offered.firstWhere((p) => p.id == _picked);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SchemeOffersScreen(state: widget.state, company: c),
+      ),
+    );
   }
 
   @override
@@ -97,23 +86,14 @@ class _CompanyScreenState extends State<CompanyScreen> {
                       color: _picked == p.id ? AppColors.primary : AppColors.muted,
                     ),
                     title: Text(p.nameIn(s.lang), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-                    onTap: _busy ? null : () => setState(() => _picked = p.id),
+                    onTap: () => setState(() => _picked = p.id),
                   ),
                 ),
-              const SizedBox(height: 8),
-              TextField(
-                key: const Key('company-note'),
-                controller: _note,
-                maxLength: 500,
-                decoration: InputDecoration(labelText: l.companyNote),
-              ),
               const SizedBox(height: 12),
               FilledButton(
-                key: const Key('company-send'),
-                onPressed: _picked == null || _busy ? null : _send,
-                child: _busy
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : Text(l.companySend),
+                key: const Key('company-next'),
+                onPressed: _picked == null ? null : () => _next(offered),
+                child: Text(l.offerNext),
               ),
             ],
           ),

@@ -130,6 +130,7 @@ class PlatformRequest(Base):
     employee_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
     company_id: Mapped[int] = mapped_column(BigInteger)
     platform_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("payroll.platforms.id"))
+    scheme_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.schemes.id"))  # his pick, if any
     status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
     driver_note: Mapped[str | None] = mapped_column(Text)
     admin_note: Mapped[str | None] = mapped_column(Text)

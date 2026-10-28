@@ -680,7 +680,27 @@
     "schemePickAllowed": "Accordé : choisissez votre nouvelle formule, elle commence en {month}",
     "schemePick": "Choisir cette formule",
     "schemePickConfirm": "Vous choisissez « {name} », à partir de {month}. Ensuite, seule une nouvelle demande au bureau peut la changer.",
-    "schemePicked": "Votre formule est choisie"
+    "schemePicked": "Votre formule est choisie",
+    "offerTitle": "Choisissez la formule qui vous convient",
+    "offerSub": "Tous les détails de la formule au même endroit. Le bureau examine votre choix avec votre demande.",
+    "offerKwd": "KWD",
+    "offerPerMonth": "Salaire mensuel fixe",
+    "offerPerOrder": "Par commande",
+    "offerByBatch": "Par commande, selon le batch",
+    "offerTarget": "Objectif de commandes",
+    "offerOver": "par commande en plus",
+    "offerUnder": "par commande manquante",
+    "offerBonus": "Prime mensuelle",
+    "offerBonusTop": "Seule la prime du palier le plus haut est versée",
+    "offerOrders": "{orders} commandes",
+    "offerCovers": "Payé par la société",
+    "offerYouPay": "À votre charge",
+    "offerTerms": "Conditions et détails",
+    "offerSelect": "Choisir cette formule",
+    "offerSelected": "Choisie",
+    "offerNext": "Suivant : choisissez votre formule",
+    "offerNone": "Cette société n'a pas de formule à choisir : le bureau fixe la vôtre.",
+    "offerPickOne": "Choisissez d'abord une formule"
   },
   "server": {
     "deduction_source": {

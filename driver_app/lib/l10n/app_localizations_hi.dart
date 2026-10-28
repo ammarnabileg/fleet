@@ -2373,4 +2373,68 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get schemePicked => 'आपकी योजना तय हो गई';
+
+  @override
+  String get offerTitle => 'अपने लिए सही योजना चुनें';
+
+  @override
+  String get offerSub =>
+      'वेतन योजना की हर जानकारी एक जगह। ऑफिस आपकी पसंद कंपनी अनुरोध के साथ देखेगा।';
+
+  @override
+  String get offerKwd => 'KWD';
+
+  @override
+  String get offerPerMonth => 'निश्चित मासिक वेतन';
+
+  @override
+  String get offerPerOrder => 'प्रति ऑर्डर';
+
+  @override
+  String get offerByBatch => 'प्रति ऑर्डर, बैच के अनुसार';
+
+  @override
+  String get offerTarget => 'ऑर्डर लक्ष्य';
+
+  @override
+  String get offerOver => 'हर अतिरिक्त ऑर्डर';
+
+  @override
+  String get offerUnder => 'हर कम ऑर्डर';
+
+  @override
+  String get offerBonus => 'मासिक बोनस';
+
+  @override
+  String get offerBonusTop => 'सिर्फ़ सबसे ऊँचे स्तर का बोनस मिलता है';
+
+  @override
+  String offerOrders(String orders) {
+    return '$orders ऑर्डर';
+  }
+
+  @override
+  String get offerCovers => 'कंपनी देती है';
+
+  @override
+  String get offerYouPay => 'आप देते हैं';
+
+  @override
+  String get offerTerms => 'शर्तें और विवरण';
+
+  @override
+  String get offerSelect => 'यह योजना चुनें';
+
+  @override
+  String get offerSelected => 'चुनी गई';
+
+  @override
+  String get offerNext => 'आगे: वेतन योजना चुनें';
+
+  @override
+  String get offerNone =>
+      'इस कंपनी में चुनने के लिए योजना नहीं है: ऑफिस आपकी तय करेगा।';
+
+  @override
+  String get offerPickOne => 'पहले एक योजना चुनें';
 }

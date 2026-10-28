@@ -575,6 +575,17 @@ def assign_many(
     return {"set": done, "skipped": skipped, "from": month_start(month)}
 
 
+def set_first(db: Session, employee: people.EmployeeRef, scheme: Scheme, *, actor_user_id: int) -> None:
+    """In the caller's transaction: the scheme a new driver picked, from this month (or the first one after it with no
+    approved payroll)."""
+    start = month_start(today())
+    for _ in range(24):
+        if not _locked_from(db, employee.company_id, start):
+            break
+        start = add_months(start, 1)
+    assign(db, employee, scheme, start, source="registration", actor_user_id=actor_user_id)
+
+
 def history(db: Session, employee_id: int) -> list[dict]:
     q = (
         select(DriverScheme, Scheme)

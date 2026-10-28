@@ -2358,4 +2358,68 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get schemePicked => 'تم اختيار نظامك';
+
+  @override
+  String get offerTitle => 'اختر النظام المناسب لك';
+
+  @override
+  String get offerSub =>
+      'كل تفاصيل نظام الدفع في مكان واحد. يراجع المكتب اختيارك مع طلب الشركة.';
+
+  @override
+  String get offerKwd => 'د.ك';
+
+  @override
+  String get offerPerMonth => 'راتب شهري ثابت';
+
+  @override
+  String get offerPerOrder => 'سعر الطلب';
+
+  @override
+  String get offerByBatch => 'سعر الطلب حسب الباتش';
+
+  @override
+  String get offerTarget => 'تارجت الطلبات';
+
+  @override
+  String get offerOver => 'لكل طلب إضافي';
+
+  @override
+  String get offerUnder => 'لكل طلب ناقص';
+
+  @override
+  String get offerBonus => 'البونص الشهري';
+
+  @override
+  String get offerBonusTop => 'يُصرف بونص أعلى شريحة فقط';
+
+  @override
+  String offerOrders(String orders) {
+    return '$orders طلب';
+  }
+
+  @override
+  String get offerCovers => 'المزايا على الشركة';
+
+  @override
+  String get offerYouPay => 'عليك';
+
+  @override
+  String get offerTerms => 'الشروط والتفاصيل';
+
+  @override
+  String get offerSelect => 'اختيار النظام';
+
+  @override
+  String get offerSelected => 'تم الاختيار';
+
+  @override
+  String get offerNext => 'التالي: اختر نظام الدفع';
+
+  @override
+  String get offerNone =>
+      'لا توجد أنظمة يختارها السائق في هذه الشركة: يحدد المكتب نظامك.';
+
+  @override
+  String get offerPickOne => 'اختر نظاماً أولاً';
 }

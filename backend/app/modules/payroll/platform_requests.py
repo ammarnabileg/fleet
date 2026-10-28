@@ -12,7 +12,8 @@ from app.core.db import violated_constraint
 from app.core.errors import AppError
 from app.modules.audit import service as audit
 from app.modules.notifications import service as notifications
-from app.modules.payroll.models import Platform, PlatformRequest
+from app.modules.payroll import schemes as pay_schemes
+from app.modules.payroll.models import Platform, PlatformRequest, Scheme
 from app.modules.people import service as people
 
 
@@ -26,15 +27,22 @@ def _brief(p: Platform | None) -> dict | None:
     return {"id": p.id, "code": p.code, "name": p.name, "is_core": p.is_core} if p else None
 
 
+def _scheme(s: Scheme | None) -> dict | None:
+    return {"id": str(s.public_id), "code": s.code, "name": s.name} if s else None
+
+
 def _out(db: Session, rows: list[PlatformRequest]) -> list[dict]:
     names = people.names(db, {r.employee_id for r in rows})
     plats = {p.id: p for p in db.scalars(select(Platform).where(Platform.id.in_({r.platform_id for r in rows})))}
+    picked = {r.scheme_id for r in rows if r.scheme_id}
+    chosen = {s.id: s for s in db.scalars(select(Scheme).where(Scheme.id.in_(picked)))} if picked else {}
     return [
         {
             "id": str(r.public_id),
             "employee": names.get(r.employee_id),
             "company_id": r.company_id,
             "platform": _brief(plats.get(r.platform_id)),
+            "scheme": _scheme(chosen.get(r.scheme_id)),
             "status": r.status,
             "driver_note": r.driver_note,
             "admin_note": r.admin_note,
@@ -82,7 +90,18 @@ def _alert_key(r: PlatformRequest) -> str:
     return f"platform_request:{r.id}"
 
 
-def ask(db: Session, employee_id: int, *, device_id: int, platform_id: int, note: str | None) -> dict:
+def offered_schemes(db: Session, employee_id: int, platform_id: int) -> list[dict]:
+    """The schemes a company offers its drivers, for the one who is about to pick it (he is not on it yet)."""
+    people.ref(db, employee_id)
+    p = db.get(Platform, platform_id)
+    if p is None or not p.is_active:
+        raise AppError(422, "platform_not_found")
+    return pay_schemes.list_schemes(db, platform_id=p.id, offered_only=True)
+
+
+def ask(
+    db: Session, employee_id: int, *, device_id: int, platform_id: int, note: str | None, scheme_public_id=None
+) -> dict:
     driver = people.ref(db, employee_id)
     if not driver.is_driver:
         raise AppError(422, "not_a_driver")
@@ -91,10 +110,16 @@ def ask(db: Session, employee_id: int, *, device_id: int, platform_id: int, note
     p = db.get(Platform, platform_id)
     if p is None or not p.is_active:
         raise AppError(422, "platform_not_found")
+    scheme = None
+    if scheme_public_id is not None:
+        scheme = db.scalar(select(Scheme).where(Scheme.public_id == scheme_public_id))
+        if scheme is None or not (scheme.is_active and scheme.driver_selectable and scheme.platform_id == p.id):
+            raise AppError(422, "scheme_not_available")
     r = PlatformRequest(
         employee_id=employee_id,
         company_id=driver.company_id,
         platform_id=p.id,
+        scheme_id=scheme.id if scheme else None,
         driver_note=(note or "").strip() or None,
         submitted_by_device=device_id,
     )
@@ -123,7 +148,7 @@ def ask(db: Session, employee_id: int, *, device_id: int, platform_id: int, note
         entity_id=r.public_id,
         actor_type="device",
         company_id=r.company_id,
-        after={"platform": p.code},
+        after={"platform": p.code, "scheme": scheme.code if scheme else None},
     )
     db.commit()
     return driver_view(db, employee_id)
@@ -234,6 +259,10 @@ def approve(
         commit=False,
         **scope,
     )
+    # the scheme he picked with it, from the first month still open, when it is still offered on that company
+    scheme = db.get(Scheme, r.scheme_id) if r.scheme_id else None
+    if scheme is not None and scheme.is_active and scheme.platform_id == p.id:
+        pay_schemes.set_first(db, people.ref(db, r.employee_id), scheme, actor_user_id=actor_user_id)
     audit.record(
         db,
         action="platform_request.approved",

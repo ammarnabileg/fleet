@@ -142,3 +142,35 @@ def test_a_rejected_request_is_told_with_its_reason_and_he_picks_again(admin_cli
     r = admin_client.post(f"{P}/platform-requests/{third['id']}/approve", json={"platform_id": k["id"]})
     assert r.status_code == 200 and r.json()["platform"]["code"] == "keeta"
     assert admin_client.get(f"/api/v1/employees/{d['id']}").json()["platform_id"] == k["id"]
+
+
+def test_he_picks_a_scheme_with_his_company_and_it_is_set_when_the_office_approves(admin_client, client, company):
+    from tests.test_scheme_blocks import from_template, platform
+
+    k, other = platform(admin_client, "kpick"), platform(admin_client, "opick")
+    s200 = from_template(admin_client, k, "keeta_fixed_200", "kpick_200")
+    s165 = from_template(admin_client, k, "keeta_fixed_165", "kpick_165")
+    elsewhere = from_template(admin_client, other, "keeta_fixed_140", "opick_140")
+    off = admin_client.patch(f"{P}/schemes/{s165['id']}", json={"version": 1, "driver_selectable": False})
+    assert off.status_code == 200, off.text
+    d = make_driver(admin_client, company["id"])
+    h = bearer(bind_device(client, d["phone"]))
+
+    # before he is on the company: its schemes the drivers may pick, with their terms
+    shown = client.get(f"{D}/{k['id']}/schemes", headers=h).json()
+    assert [s["code"] for s in shown] == ["kpick_200"] and shown[0]["pay_kind"] == "fixed_salary" and shown[0]["blocks"]
+    assert client.get(f"{D}/999999/schemes", headers=h).json()["code"] == "platform_not_found"
+
+    for bad in (elsewhere, s165):  # another company's, one the office keeps to itself
+        r = client.post(D, headers=h, json={"platform_id": k["id"], "scheme_id": bad["id"]})
+        assert r.status_code == 422 and r.json()["code"] == "scheme_not_available", r.text
+    r = client.post(D, headers=h, json={"platform_id": k["id"], "scheme_id": s200["id"]})
+    assert r.status_code == 201 and r.json()["request"]["scheme"]["code"] == "kpick_200", r.text
+    [req] = [x for x in admin_client.get(f"{P}/platform-requests", params={"status": "pending"}).json()
+             if x["employee"]["id"] == d["id"]]  # fmt: skip
+    assert req["scheme"]["code"] == "kpick_200"  # the office sees what he picked
+
+    r = admin_client.post(f"{P}/platform-requests/{req['id']}/approve", json={"version": req["version"]})
+    assert r.status_code == 200, r.text
+    now = admin_client.get(f"/api/v1/employees/{d['id']}/schemes").json()
+    assert [(x["scheme"]["code"], x["source"]) for x in now] == [("kpick_200", "registration")]

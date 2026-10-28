@@ -702,13 +702,21 @@ class AppState extends ChangeNotifier {
   }
 
   /// He picks the company he works with: sent to the office as a request; the home screen opens meanwhile.
-  Future<void> chooseCompany(int platformId, {String? note}) async {
+  Future<void> chooseCompany(int platformId, {String? schemeId, String? note}) async {
     company = CompanyChoice.fromJson(
-      await api.post('/driver/platform-request', body: {'platform_id': platformId, 'note': ?note})
-          as Map<String, dynamic>,
+      await api.post(
+        '/driver/platform-request',
+        body: {'platform_id': platformId, 'scheme_id': ?schemeId, 'note': ?note},
+      ) as Map<String, dynamic>,
     );
     await refresh();
   }
+
+  /// The schemes a company offers its drivers, for the one about to pick it (he picks one with it).
+  Future<List<PayScheme>> companySchemes(int platformId) async => [
+    for (final s in await api.get('/driver/platform-request/$platformId/schemes') as List)
+      PayScheme.fromJson(s as Map<String, dynamic>),
+  ];
 
   /// He changes his mind while the office has not answered: back to the company screen.
   Future<void> cancelCompanyRequest() async {

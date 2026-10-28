@@ -187,6 +187,7 @@
       columns: [
         { key: 'employee', label: 'السائق', render: function (r) { return A.person(r.employee); } },
         { key: 'platform', label: 'الشركة', render: function (r) { return r.platform ? api.name(r.platform.name) : '—'; } },
+        { key: 'scheme', label: 'النظام الذي اختاره', render: function (r) { return r.scheme ? api.name(r.scheme.name) : h`<span class="muted">—</span>`; } },
         { key: 'status', label: 'الحالة', render: function (r) { return h`${BT.pill(REQ_STATUS[r.status], REQ_TONE[r.status])}${r.admin_note ? h`<span class="sub">${r.admin_note}</span>` : ''}${r.platform_driver_id ? h`<span class="sub ltr">${r.platform_driver_id}</span>` : ''}`; } },
         { key: 'created_at', label: 'الطلب', render: function (r) { return h`<span class="num">${fmt.dt(r.created_at)}</span>${r.driver_note ? h`<span class="sub">${r.driver_note}</span>` : ''}`; } },
         { key: 'act', label: '', render: function (r) { return r.status === 'pending' && canDecide ? h`<span class="nowrap">${actBtns(r)}</span>` : ''; } }
@@ -198,7 +199,7 @@
     return t;
   }
   function actBtns(r) {
-    var data = JSON.stringify({ id: r.id, version: r.version, platform: r.platform, employee: r.employee });
+    var data = JSON.stringify({ id: r.id, version: r.version, platform: r.platform, scheme: r.scheme, employee: r.employee });
     return h`<button type="button" class="btn btn-sm btn-primary" data-req-act="approve" data-req="${data}">موافقة</button> <button type="button" class="btn btn-sm btn-outline" data-req-act="reject" data-req="${data}">رفض</button>`;
   }
   function reqRow(r, canDecide) {
@@ -215,7 +216,8 @@
       A.formModal({
         title: 'موافقة: ' + api.name(r.employee.name), subtitle: 'اختار ' + api.name(r.platform.name), icon: 'building-2', size: 'sm', submitText: 'موافقة', done: 'وُوفق الطلب: الشركة والمعرّف محفوظان',
         body: h`<div class="form">${BT.f.select({ name: 'platform_id', label: 'الشركة', value: String(r.platform.id), placeholder: false, options: plats.filter(function (p) { return p.is_active; }).map(function (p) { return { v: String(p.id), t: api.name(p.name) }; }) })}
-          ${BT.f.input({ name: 'platform_driver_id', label: 'معرّفه في المنصة', optional: true, hint: 'يمكن إضافته لاحقاً من «السواقين ومعرّفاتهم»' })}</div>`,
+          ${BT.f.input({ name: 'platform_driver_id', label: 'معرّفه في المنصة', optional: true, hint: 'يمكن إضافته لاحقاً من «السواقين ومعرّفاتهم»' })}
+          ${r.scheme ? h`<div class="banner info fs-sm" data-picked-scheme>${icon('banknote', 15)}<div>${BT.lang === 'en' ? 'Picked the scheme «' + api.name(r.scheme.name) + '»: set on him from this month with the approval (not if you change the company: then set his scheme from his file).' : 'اختار نظام «' + api.name(r.scheme.name) + '»: يوضع عليه من هذا الشهر مع الموافقة (إن غيّرت الشركة لا يوضع، فحدد نظامه من ملفه).'}</div></div>` : ''}</div>`,
         submit: function (v) { return api.post('/payroll/platform-requests/' + r.id + '/approve', { version: r.version, platform_id: +v.platform_id, platform_driver_id: v.platform_driver_id || null }); },
         after: done
       });
