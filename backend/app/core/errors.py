@@ -1,3 +1,4 @@
+import threading
 from http import HTTPStatus
 
 from fastapi import FastAPI, HTTPException, Request
@@ -38,6 +39,28 @@ def fallback_message(request: Request, code: str, params: dict | None) -> dict:
     return {"message_key": f"errors.{code}", "message": message}
 
 
+_reporting = threading.BoundedSemaphore(2)
+
+
+def _report(where: str, exc: Exception) -> None:
+    """The error email is queued in a thread of its own: this handler runs on the event loop, and queuing takes a
+    database connection. When the error was the pool running out, waiting for one there stopped the whole worker,
+    and with it every request that would have given a connection back. Two reports at most at a time: in a storm
+    of errors the others are only logged (the email of an error is sent once per 30 minutes anyway)."""
+    from app.modules.integrations import service as integrations
+
+    if not _reporting.acquire(blocking=False):
+        return
+
+    def run():
+        try:
+            integrations.report_error(where, exc)
+        finally:
+            _reporting.release()
+
+    threading.Thread(target=run, name="report-error", daemon=True).start()
+
+
 def install(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(request: Request, exc: AppError):
@@ -53,9 +76,7 @@ def install(app: FastAPI) -> None:
     @app.exception_handler(Exception)
     async def _unexpected(request: Request, exc: Exception):
         # a bug or an outage: the office is emailed (at most once per 30 minutes per error); the answer says nothing
-        from app.modules.integrations import service as integrations
-
-        integrations.report_error(f"{request.method} {request.url.path}", exc)
+        _report(f"{request.method} {request.url.path}", exc)
         return problem(500, "internal_error", **fallback_message(request, "internal_error", None))
 
     @app.exception_handler(HTTPException)
