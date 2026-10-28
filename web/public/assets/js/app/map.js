@@ -143,9 +143,16 @@
           title: function (x) { el.title = x; },
           /* مخفية: داخل مجموعة، أو خارج التصفية */
           show: function (on) { el.style.display = on ? '' : 'none'; if (!on && popup && popup.isOpen()) popup.remove(); },
+          /* x: the HTML, or a function that builds it, called only when the popup opens (and on updates while it is
+             open): hundreds of live markers do not rebuild hundreds of closed popups on every position */
           popup: function (x) {
-            if (popup) popup.setHTML(x);
-            else mk.setPopup(popup = new ml.Popup({ offset: 18, maxWidth: '300px' }).setHTML(x));
+            var build = typeof x === 'function' ? x : function () { return x; };
+            if (!popup) {
+              mk.setPopup(popup = new ml.Popup({ offset: 18, maxWidth: '300px' }));
+              popup.on('open', function () { popup.setHTML(popup._build()); });
+            }
+            popup._build = build;
+            if (popup.isOpen()) popup.setHTML(build());
           },
           open: function () { if (popup && !popup.isOpen()) mk.togglePopup(); },
           pos: function () { var c = mk.getLngLat(); return [c.lat, c.lng]; },

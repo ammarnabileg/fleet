@@ -36,7 +36,8 @@
           <div class="chips mb-8" data-chips></div><div class="side-list list" data-list>${A.spinner()}</div></div>
         <div class="trk-main" data-map-wrap><div class="live-map" data-map dir="ltr"></div></div>
       </div>`);
-    var state = { rows: [], filter: '', q: '', selected: null, follow: false, markers: {}, clusters: {}, stream: 'connecting', lastEvent: null, fitted: false };
+    var state = { rows: [], byId: {}, rowEls: {}, filter: '', q: '', selected: null, follow: false, markers: {}, clusters: {}, stream: 'connecting', lastEvent: null, fitted: false };
+    function index() { state.byId = {}; state.rows.forEach(function (r) { state.byId[r.vehicle.id] = r; }); }
     var listEl = v.querySelector('[data-list]'), chipsEl = v.querySelector('[data-chips]'), liveEl = v.querySelector('[data-live-state]');
     var trk = v.querySelector('[data-trk]'), mapEl = v.querySelector('[data-map]');
     var map, tools;
@@ -52,22 +53,35 @@
     function narrow() { return getComputedStyle(v.querySelector('.trk-switch')).display !== 'none'; }
 
     function tone(r) { return vehicleState(r).tone; }
-    function visible() {
-      var nq = BT.norm(state.q);
-      return state.rows.filter(function (r) {
-        if (state.filter === 'g' && tone(r) !== 'g') return false;
-        if (state.filter === 'r' && tone(r) === 'g') return false;
-        return !nq || BT.norm(r.vehicle.plate_number + ' ' + api.name(r.driver && r.driver.name)).indexOf(nq) > -1;
-      });
-    }
-    function drawList() {
+    function visible() { return state.rows.filter(matches); }
+    function drawChips() {
       var n = { all: state.rows.length, g: state.rows.filter(function (r) { return tone(r) === 'g'; }).length };
       BT.render(chipsEl, h`${[['', 'الكل', n.all], ['g', 'يرسل الآن', n.g], ['r', 'انقطاع / بلا موقع', n.all - n.g]].map(function (c) { return h`<button type="button" class="chip${state.filter === c[0] ? ' active' : ''}" aria-pressed="${state.filter === c[0] ? 'true' : 'false'}" data-chip="${c[0]}">${c[1]} <span class="n">${c[2]}</span></button>`; })}`);
+    }
+    function drawList() {
+      drawChips();
       var rows = visible();
       BT.render(listEl, rows.length ? h`${rows.map(function (r) {
         var st = vehicleState(r);
         return h`<button type="button" class="li${state.selected === r.vehicle.id ? ' active' : ''}" aria-pressed="${state.selected === r.vehicle.id ? 'true' : 'false'}" data-veh="${r.vehicle.id}" style="width:100%;text-align:start"><span class="sdot ${st.tone}" style="margin-top:6px"></span><div class="li-main"><div class="li-t"><span class="plate">${r.vehicle.plate_number}</span> <bdi>${api.name(r.driver && r.driver.name)}</bdi></div><div class="li-d" data-veh-state>${st.text}</div></div></button>`;
       })}` : BT.empty('map', 'لا توجد سيارات', state.rows.length ? 'غيّر البحث أو التصفية' : 'لا توجد عهد مفتوحة الآن'));
+      state.rowEls = {};
+      BT.$$('[data-veh]', listEl).forEach(function (b) { state.rowEls[b.getAttribute('data-veh')] = b; });
+      drawTools();
+    }
+    /* السيارات التي وصل منها موقع: لون صفها ونص حالتها في مكانهما، بلا إعادة بناء القائمة؛ إلا إن خرجت سيارة من
+       التصفية أو دخلتها (يرسل الآن / انقطاع)، فالقائمة كلها */
+    function updateRows(ids) {
+      drawChips();
+      var rebuild = ids.some(function (id) { var r = state.byId[id]; return r && !!state.rowEls[id] !== matches(r); });
+      if (rebuild) { drawList(); return; }
+      ids.forEach(function (id) {
+        var r = state.byId[id], b = state.rowEls[id];
+        if (!r || !b) return;
+        var st = vehicleState(r), dot = b.querySelector('.sdot'), txt = b.querySelector('[data-veh-state]');
+        if (dot) dot.className = 'sdot ' + st.tone;
+        if (txt && txt.textContent !== st.text) txt.textContent = st.text;
+      });
       drawTools();
     }
     function popup(r) {
@@ -78,19 +92,27 @@
       if (!map) return; // الخريطة لم تُحمّل (أو تعذرت): القائمة تعمل وحدها
       var shown = {};
       visible().forEach(function (r) { shown[r.vehicle.id] = true; });
-      state.rows.forEach(function (r) {
-        var m = state.markers[r.vehicle.id];
-        if (!r.position) { if (m) { m.remove(); delete state.markers[r.vehicle.id]; } return; }
-        var st = vehicleState(r), ll = [r.position.lat, r.position.lng], moving = r.position.speed_kmh != null && r.position.speed_kmh >= 3, html = BT.map.carHtml(st.tone, state.selected === r.vehicle.id, st.stale, moving ? r.position.heading : null);
-        if (!m) m = state.markers[r.vehicle.id] = map.marker(ll, html, { onClick: function () { select(r.vehicle.id, true); } });
-        else { m.move(ll, GLIDE_MS); m.html(html); }
-        m.title(r.vehicle.plate_number + ' — ' + st.text);
-        m.el.setAttribute('data-veh-mark', r.vehicle.id);
-        m.shown = !!shown[r.vehicle.id];
-        m.popup(popup(r));
-      });
-      Object.keys(state.markers).forEach(function (id) { if (!state.rows.some(function (r) { return r.vehicle.id === id; })) { state.markers[id].remove(); delete state.markers[id]; } });
+      state.rows.forEach(function (r) { drawMarker(r, !!shown[r.vehicle.id]); });
+      Object.keys(state.markers).forEach(function (id) { if (!state.byId[id]) { state.markers[id].remove(); delete state.markers[id]; } });
       cluster();
+    }
+    /* علامة سيارة واحدة: الموقع الواصل من البث يحرّك علامته وحدها، لا كل العلامات */
+    function drawMarker(r, shown) {
+      var m = state.markers[r.vehicle.id];
+      if (!r.position) { if (m) { m.remove(); delete state.markers[r.vehicle.id]; } return; }
+      var st = vehicleState(r), ll = [r.position.lat, r.position.lng], moving = r.position.speed_kmh != null && r.position.speed_kmh >= 3, html = BT.map.carHtml(st.tone, state.selected === r.vehicle.id, st.stale, moving ? r.position.heading : null);
+      if (!m) m = state.markers[r.vehicle.id] = map.marker(ll, html, { onClick: function () { select(r.vehicle.id, true); } });
+      else { m.move(ll, GLIDE_MS); m.html(html); }
+      m.title(r.vehicle.plate_number + ' — ' + st.text);
+      m.el.setAttribute('data-veh-mark', r.vehicle.id);
+      m.shown = shown;
+      m.popup(function () { return popup(r); }); // تُبنى عند فتحها فقط
+    }
+    function matches(r) {
+      if (state.filter === 'g' && tone(r) !== 'g') return false;
+      if (state.filter === 'r' && tone(r) === 'g') return false;
+      var nq = BT.norm(state.q);
+      return !nq || BT.norm(r.vehicle.plate_number + ' ' + api.name(r.driver && r.driver.name)).indexOf(nq) > -1;
     }
     /* تجميع العلامات المتقاربة على الشاشة عند كثرتها؛ السيارة المحددة تبقى وحدها دائماً */
     function cluster() {
@@ -111,7 +133,7 @@
         g.sort();
         var sig = g.join(','), pts = g.map(function (id) { return state.markers[id].pos(); });
         var center = [BT.sum(pts, function (x) { return x[0]; }) / pts.length, BT.sum(pts, function (x) { return x[1]; }) / pts.length];
-        var lost = g.filter(function (id) { var r = state.rows.find(function (x) { return x.vehicle.id === id; }); return r && vehicleState(r).tone !== 'g'; }).length;
+        var lost = g.filter(function (id) { var r = state.byId[id]; return r && vehicleState(r).tone !== 'g'; }).length;
         var c = state.clusters[sig];
         if (!c) c = state.clusters[sig] = map.marker(center, BT.map.clusterHtml(g.length, lost), { onClick: function () { map.fitBounds(pts.slice(), 16); } });
         else { c.move(center); c.html(BT.map.clusterHtml(g.length, lost)); }
@@ -123,7 +145,7 @@
       Object.keys(state.markers).forEach(function (id) { var m = state.markers[id]; m.show(m.shown && !inCluster[id]); });
     }
     function positioned() { return visible().filter(function (r) { return r.position; }).map(function (r) { return [r.position.lat, r.position.lng]; }); }
-    function selectedRow() { return state.rows.find(function (x) { return x.vehicle.id === state.selected; }); }
+    function selectedRow() { return state.byId[state.selected]; }
     function drawTools() {
       if (!tools) return;
       var r = selectedRow(), n = positioned().length;
@@ -160,7 +182,7 @@
     }
     function refresh() {
       return api.get('/tracking/live').then(function (rows) {
-        state.rows = rows; drawList(); drawMarkers();
+        state.rows = rows; index(); drawList(); drawMarkers();
         if (map && !state.fitted) { state.fitted = true; map.fit(positioned(), 13); }
       }, function (err) { BT.render(listEl, A.errorBox(err)); });
     }
@@ -169,18 +191,28 @@
       es.onopen = function () { state.stream = 'live'; drawLive(); };
       es.onerror = function () { state.stream = es.readyState === 2 ? 'closed' : 'reconnecting'; drawLive(); };
       // موقع جديد ← تحريك العلامة فوراً (وتوسيط الخريطة عليها إن كانت متابَعة)
+      // مئات السيارات ترسل معاً: كل موقع يُسجَّل فوراً، والرسم مجمّع (العلامات التي تغيّرت كل ربع ثانية، والقائمة
+      // والتجميع كل ثانيتين) بدل إعادة رسم كل العلامات والقائمة مع كل موقع، وهو ما كان يجمّد الصفحة
+      var dirty = {}, listed = {}, flushT = null, listT = null, unknownT = null;
+      function flush() {
+        flushT = null;
+        var ids = Object.keys(dirty); dirty = {};
+        ids.forEach(function (id) { listed[id] = true; var r = state.byId[id]; if (map && r) drawMarker(r, matches(r)); });
+        if (!listT) listT = setTimeout(function () { listT = null; var l = Object.keys(listed); listed = {}; updateRows(l); cluster(); }, 2000);
+      }
       es.addEventListener('position', function (e) {
-        var m = JSON.parse(e.data), r = state.rows.find(function (x) { return x.vehicle.id === m.vehicle.id; });
-        state.lastEvent = new Date().toISOString(); drawLive();
-        if (!r) { refresh(); return; }
+        var m = JSON.parse(e.data), r = state.byId[m.vehicle.id];
+        state.lastEvent = new Date().toISOString();
+        if (!r) { if (!unknownT) unknownT = setTimeout(function () { unknownT = null; refresh(); }, 10000); return; } // سيارة سُلّمت بعد فتح الصفحة: مرة كل 10 ثوانٍ
         r.position = { lat: m.lat, lng: m.lng, speed_kmh: m.speed_kmh, heading: m.heading, recorded_at: m.recorded_at };
         r.signal_lost = false; r.on_duty = m.on_duty; r.position_hidden = false; // الحداثة من وقت الموقع نفسه (vehicleState)
-        drawMarkers(); drawList();
+        dirty[r.vehicle.id] = true;
+        if (!flushT) flushT = setTimeout(function () { drawLive(); flush(); }, 250);
         if (map && state.follow && r.vehicle.id === state.selected) map.view([m.lat, m.lng], map.zoom(), GLIDE_MS);
       });
       var poll = setInterval(function () { if (!document.hidden) refresh(); }, 30000); // الانقطاع والسيارات الجديدة من الخادم
       var tick = setInterval(function () { if (!document.hidden) { drawList(); drawMarkers(); } }, 15000); // عمر كل موقع يتقدم
-      A.onLeave(function () { es.close(); clearInterval(poll); clearInterval(tick); });
+      A.onLeave(function () { es.close(); clearInterval(poll); clearInterval(tick); clearTimeout(flushT); clearTimeout(listT); clearTimeout(unknownT); });
     }
     function mapTools() {
       tools = document.createElement('div');
