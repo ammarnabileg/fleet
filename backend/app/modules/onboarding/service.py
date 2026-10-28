@@ -61,12 +61,13 @@ def for_driver(db: Session, employee_id: int) -> dict:
     submission = _get(db, employee_id)
     settings = org.get_section(db, "onboarding")
     types = {t["code"]: t for t in documents.list_types(db) if t["applies_to"] == "employee"}
-    schemes = payroll.offered_schemes(db, people.ref(db, employee_id).platform_id)
     return {
         "known": people.registration_known(db, employee_id),
         "nationalities": people.nationalities(),
-        "schemes": schemes,
-        "scheme_required": bool(schemes),
+        # the pay scheme is picked with the company (or first on the schemes screen), not in the registration: none
+        # listed here, so an app that still shows them in the registration shows nothing to pick
+        "schemes": [],
+        "scheme_required": False,
         "required": submission is not None and submission.status in OPEN,
         "status": submission.status if submission else "none",
         "data": submission.data if submission else {},
@@ -141,9 +142,6 @@ def _missing(db: Session, data: dict, driver: people.EmployeeRef) -> list[str]:
     missing += [f"document.{code}" for code in settings.required_documents if code in types and code not in docs]
     if settings.require_bank:
         missing += [f for f in ("iban", "bank_name") if not data.get(f) and f not in locked]
-    offered = {s["id"] for s in payroll.offered_schemes(db, driver.platform_id)}
-    if offered and data.get("scheme_id") not in offered:
-        missing.append("scheme")  # his platform's schemes: he chooses one (the office decides at the review)
     if not data.get("no_vehicle"):
         vehicle = data.get("vehicle") or {}
         missing += [f"vehicle.{f}" for f in ("plate_number", "odometer_km", "odometer_photo") if vehicle.get(f) is None]

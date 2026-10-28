@@ -3591,7 +3591,7 @@ void main() {
     await shot(tester, '26-scheme-tiers');
   });
 
-  testWidgets('self-registration: the driver chooses one of his platform\'s pay schemes', (tester) async {
+  testWidgets('self-registration asks no pay scheme, even from a server that still lists them', (tester) async {
     final ob = {
       'required': true,
       'status': 'draft',
@@ -3610,16 +3610,12 @@ void main() {
       return (200, {...ob, 'data': saved});
     });
     await pumpApp(tester, w);
-    await reveal(tester, find.byKey(const Key('ob-scheme-batch')));
-    await settle(tester);
-    expect(find.byIcon(Icons.radio_button_checked), findsNothing);
-    await tester.tap(find.byKey(const Key('ob-scheme-batch')));
-    await settle(tester);
-    expect(find.byIcon(Icons.radio_button_checked), findsOneWidget);
-    await shot(tester, '27-onboarding-scheme');
+    expect(find.text('نظام الدفع'), findsNothing, reason: 'picked with his company, not in the registration');
+    expect(find.byKey(const Key('ob-scheme-batch'), skipOffstage: false), findsNothing);
+    await reveal(tester, find.byKey(const Key('ob-next')));
     await tester.tap(find.byKey(const Key('ob-next')));
     await idle(tester);
-    expect(saved!['scheme_id'], 'id-batch');
+    expect(saved!.containsKey('scheme_id'), isFalse);
   });
 
   testWidgets('the splash screen the office designed shows when the app opens, from the next launch', (tester) async {

@@ -347,7 +347,7 @@ def test_the_payslip_explains_the_month_item_by_item(admin_client, client, compa
     assert (slip["gross"], slip["net"]) == ("140.000", "123.000")
 
 
-def test_the_driver_chooses_his_scheme_in_self_registration(admin_client, client, company, setup):
+def test_the_registration_asks_no_scheme_he_picks_it_on_the_schemes_screen(admin_client, client, company, setup):
     from tests.conftest import make_vehicle
     from tests.test_onboarding import activate, full_draft, save, submission_id
 
@@ -356,18 +356,30 @@ def test_the_driver_chooses_his_scheme_in_self_registration(admin_client, client
     make_vehicle(admin_client, company["id"], km=39_000, plate_number="45 678")
     h, _ = activate(admin_client, client, d)
     view = client.get("/api/v1/driver/onboarding", headers=h).json()
-    assert view["scheme_required"] and {x["code"] for x in view["schemes"]} == {"batch", "fixed_1", "fixed_2"}
-    assert "drivers" not in view["schemes"][0] and view["schemes"][0]["company_covers"] is not None
+    assert not view["scheme_required"] and view["schemes"] == []  # picked with his company, not here
 
-    draft = full_draft(client, h, "45678")
-    save(client, h, draft)
+    save(client, h, full_draft(client, h, "45678"))
     r = client.post("/api/v1/driver/onboarding/submit", headers=h)
-    assert r.status_code == 422 and "scheme" in r.json()["params"]["missing"], r.text
-    save(client, h, draft | {"scheme_id": s["office_only"]["id"]})  # not offered to drivers
-    assert client.post("/api/v1/driver/onboarding/submit", headers=h).status_code == 422
-    save(client, h, draft | {"scheme_id": s["fixed_2"]["id"]})
-    assert client.post("/api/v1/driver/onboarding/submit", headers=h).json()["status"] == "submitted"
+    assert r.status_code == 200 and r.json()["status"] == "submitted", r.text
+    assert admin_client.post(f"/api/v1/onboarding/{submission_id(admin_client)}/approve").status_code == 200
+    assert admin_client.get(f"/api/v1/employees/{d['id']}/schemes").json() == []
 
+    # on a company the office set (no company screen for him): he picks his first scheme on the schemes screen
+    assert client.get("/api/v1/driver/schemes", headers=h).json()["can_choose"] is True
+    r = client.post("/api/v1/driver/scheme-choice", headers=h, json={"scheme_id": s["fixed_2"]["id"]})
+    assert r.status_code == 200 and r.json()["current"]["code"] == "fixed_2", r.text
+
+
+def test_an_older_app_still_sending_a_scheme_with_the_registration_has_it_set(admin_client, client, company, setup):
+    from tests.conftest import make_vehicle
+    from tests.test_onboarding import activate, full_draft, save, submission_id
+
+    s = setup["schemes"]
+    d = make_driver(admin_client, company["id"], platform_id=setup["talabat"]["id"])
+    make_vehicle(admin_client, company["id"], km=39_000, plate_number="45 679")
+    h, _ = activate(admin_client, client, d)
+    save(client, h, full_draft(client, h, "45679") | {"scheme_id": s["fixed_2"]["id"]})
+    assert client.post("/api/v1/driver/onboarding/submit", headers=h).json()["status"] == "submitted"
     assert admin_client.post(f"/api/v1/onboarding/{submission_id(admin_client)}/approve").status_code == 200
     hist = admin_client.get(f"/api/v1/employees/{d['id']}/schemes").json()
     assert [(x["scheme"]["code"], x["valid_from"], x["source"]) for x in hist] == [
