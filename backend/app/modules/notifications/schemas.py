@@ -55,7 +55,20 @@ class AlertSummary(BaseModel):
     info: int
     new: int  # open and seen by nobody: the bell
     mine: int  # open and assigned to the user asking
+    groups: dict[str, dict[str, int]]  # urgent, important, documents, info: {"open", "new"}
     latest: AlertOut | None  # the newest open alert
+
+
+class AckAllIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    group: Literal["urgent", "important", "documents", "info"] | None = None
+    severity: Literal["critical", "warning", "info"] | None = None
+    kind: str | None = None
+
+
+class AckAllOut(BaseModel):
+    acknowledged: int
 
 
 class ResolveIn(BaseModel):

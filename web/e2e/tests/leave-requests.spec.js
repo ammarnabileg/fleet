@@ -88,7 +88,7 @@ test('the follow-up alert opens the request, which is marked followed up', async
     const alerts = await api.get('/alerts?limit=200');
     expect(alerts.filter((a) => a.kind === 'absence_followup' && a.entity_id === leave.id)).toHaveLength(1);
 
-    await admin.goto('/admin.html#/alerts');
+    await admin.goto('/admin.html#/alerts?group='); // every kind
     await admin.reload();
     await settled(admin);
     const row = admin.locator('#alerts-table tbody tr', { hasText: driver.name.ar }).filter({ hasText: 'متابعة طلب تغيب' });

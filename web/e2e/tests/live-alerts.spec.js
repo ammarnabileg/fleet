@@ -25,7 +25,7 @@ test('a new alert shows on the open dashboard without reloading', async ({ admin
 
 test('the alerts page lists a new alert by itself, and an open drawer is left alone', async ({ admin, api }) => {
   const n = uid();
-  await admin.goto('/admin.html#/alerts');
+  await admin.goto('/admin.html#/alerts?group='); // every kind
   await settled(admin);
   const first = await fineWithNobodyDriving(api, n);
   await poll(admin);

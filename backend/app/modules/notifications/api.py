@@ -19,6 +19,7 @@ def list_alerts(
     status: Literal["open", "new", "seen", "resolved", "all"] | None = None,
     severity: Literal["critical", "warning", "info"] | None = None,
     kind: str | None = None,
+    group: Literal["urgent", "important", "documents", "info"] | None = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     since: AwareDatetime | None = None,
     until: AwareDatetime | None = None,
@@ -42,6 +43,7 @@ def list_alerts(
         status=status,
         severity=severity,
         kind=kind,
+        group=group,
         q=q,
         since=since,
         until=until,
@@ -69,6 +71,21 @@ def alerts_summary(
         user_id=principal.user_id,
         **principal.scope,
     )
+
+
+@router.post("/alerts/ack-all", response_model=schemas.AckAllOut)
+def acknowledge_all(
+    body: schemas.AckAllIn, principal: Principal = Depends(get_principal), db: Session = Depends(get_session)
+):
+    """Seen, all at once (of a tier, a severity or a kind when given): they stay open until handled."""
+    seen = service.acknowledge_all(
+        db,
+        actor_user_id=principal.user_id,
+        permissions=principal.permissions,
+        **body.model_dump(),
+        **principal.scope,
+    )
+    return {"acknowledged": seen}
 
 
 @router.get("/alerts/{public_id}", response_model=schemas.AlertDetail)

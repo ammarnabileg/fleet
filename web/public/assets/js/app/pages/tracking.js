@@ -415,26 +415,43 @@
   BT.pages['alerts'] = function (p, q) {
     A.setTitle('التنبيهات');
     var v = A.view();
-    var f = { severity: q.severity || '', kind: q.kind || '', sort: 'severity', since: '', until: '' };
+    var f = { group: q.group != null ? q.group : q.severity || q.kind ? '' : 'urgent', severity: q.severity || '', kind: q.kind || '', sort: 'severity', since: '', until: '' };
+    var TIERS = [
+      ['urgent', 'عاجل', 'يحتاج تصرفاً الآن: حوادث، تلاعب، توقف الخدمات', 'r'],
+      ['important', 'مهم', 'يحتاج متابعة: الإشارة، العداد، الكاش، التقارير', 'o'],
+      ['documents', 'المستندات', 'منتهية أو قاربت على الانتهاء', 'p'],
+      ['info', 'للعلم', 'طلبات ومعلومات', 'b']
+    ];
     var kinds = Object.keys(api.cat.alert_kind || {}).sort(function (x, y) { return A.alertKind(x).localeCompare(A.alertKind(y), 'ar'); });
     BT.render(v, h`${A.head('التنبيهات', 'تظهر لك تنبيهات صلاحياتك وشركاتك فقط. «تم الاطلاع» يسجّل أنك رأيته ويبقى مفتوحاً حتى يُعالج أو يزول سببه؛ كل إجراء يُحفظ في سجل التنبيه وسجل التدقيق. الأوقات بتوقيت الكويت', '')}
       <div class="kpis alerts-kpis" data-alert-counts></div>
+      <div class="flex gap-8 mb-12" style="flex-wrap:wrap;align-items:center"><span class="muted fs-sm" data-tier-label></span><span class="ms-auto"></span>
+        <button type="button" class="btn btn-sm btn-outline" data-ack-all>${icon('eye', 14)} تم الاطلاع على الكل</button>
+        <button type="button" class="btn btn-sm btn-ghost" data-tier-all>عرض كل الأنواع</button></div>
       <div class="card"><div id="alerts-table"></div></div>`);
     var countsEl = v.querySelector('[data-alert-counts]');
+    var last = null;
     function counts() {
       api.get('/alerts/summary').then(function (s) {
         if (!document.contains(countsEl)) return;
-        BT.render(countsEl, h`${BT.kpi({ label: 'مفتوحة', value: fmt.int(s.open), sub: fmt.int(s.critical) + ' حرجة · ' + fmt.int(s.warning) + ' تحذير · ' + fmt.int(s.info) + ' معلومة', dot: 'o', action: 'alerts-chip', arg: 'open' })}
-          ${BT.kpi({ label: 'لم يطّلع عليها أحد', value: fmt.int(s['new']), sub: 'تظهر في الجرس', dot: 'b', tone: s['new'] ? 'warning' : null, action: 'alerts-chip', arg: 'new' })}
-          ${BT.kpi({ label: 'مسندة إليك', value: fmt.int(s.mine), sub: 'مفتوحة وأنت المسؤول عنها', dot: 'p', action: 'alerts-chip', arg: 'mine' })}
-          ${BT.kpi({ label: 'حرجة مفتوحة', value: fmt.int(s.critical), sub: 'الأخطر أولاً في القائمة', dot: 'r', tone: s.critical ? 'danger' : null, action: 'alerts-severity', arg: 'critical' })}`);
+        last = s;
+        BT.render(countsEl, h`${TIERS.map(function (t) {
+          var g = (s.groups || {})[t[0]] || { open: 0, 'new': 0 };
+          return h`<div class="${f.group === t[0] ? 'kpi-active' : ''}" data-tier="${t[0]}">${BT.kpi({ label: t[1], value: fmt.int(g.open), sub: h`${g['new'] ? h`<span class="num">${fmt.int(g['new'])}</span> <span>لم يُطّلع عليها</span> · ` : ''}<span>${t[2]}</span>`, dot: t[3], tone: t[0] === 'urgent' && g.open ? 'danger' : null, action: 'alerts-tier', arg: t[0] })}</div>`;
+        })}`);
+        tierLabel();
       }, function () {});
+    }
+    function tierLabel() {
+      var t = TIERS.find(function (x) { return x[0] === f.group; });
+      var el = v.querySelector('[data-tier-label]');
+      if (el) BT.render(el, t ? h`<span>تعرض:</span> <b>${t[1]}</b>` : h`<span>تعرض: كل الأنواع</span>`);
     }
     var sel = function (key, label, all, options) { return h`<select class="select" data-f="${key}" aria-label="${label}"><option value="">${all}</option>${options.map(function (o) { return h`<option value="${o[0]}"${String(o[0]) === f[key] ? raw(' selected') : ''}>${o[1]}</option>`; })}</select>`; };
     var t = BT.table(document.getElementById('alerts-table'), {
       key: 'alerts',
       fetch: function (s) {
-        var query = { status: s.chip === 'mine' ? 'open' : s.chip, assigned: s.chip === 'mine' ? 'me' : null, q: s.q, severity: f.severity, kind: f.kind, sort: f.sort, offset: s.offset, limit: s.limit };
+        var query = { status: s.chip === 'mine' ? 'open' : s.chip, assigned: s.chip === 'mine' ? 'me' : null, q: s.q, group: f.group || null, severity: f.severity, kind: f.kind, sort: f.sort, offset: s.offset, limit: s.limit };
         if (f.since) query.since = f.since + 'T00:00:00+03:00';
         if (f.until) query.until = BT.date.add(f.until, 1) + 'T00:00:00+03:00';
         return api.get('/alerts', query);
@@ -462,13 +479,31 @@
     A._alertsTable = { refresh: function () { t.refresh(); counts(); } }; // redrawn in place after a decision or a new alert
     counts();
     var tableEl = document.getElementById('alerts-table');
-    BT.on(tableEl, 'change', '[data-f]', function (e, s) { f[s.getAttribute('data-f')] = s.value; t.refresh(); });
+    BT.on(tableEl, 'change', '[data-f]', function (e, s) {
+      var key = s.getAttribute('data-f');
+      f[key] = s.value;
+      if ((key === 'severity' || key === 'kind') && s.value && f.group) { f.group = ''; counts(); } // a kind or a severity is looked for across the tiers
+      t.refresh();
+    });
     BT.on(v, 'click', '[data-ack]', function (e, b) {
       b.disabled = true;
       api.post('/alerts/' + b.getAttribute('data-ack') + '/ack').then(function () { BT.toast('تم تسجيل الاطلاع، ويبقى مفتوحاً حتى يُعالج'); A._alertsTable.refresh(); A.refreshCounts(); }, function (err) { b.disabled = false; BT.toast(api.message(err), { type: 'error' }); });
     });
     BT.actions['alerts-chip'] = function (c) { t.setChip(c); };
-    BT.actions['alerts-severity'] = function (s) { var x = tableEl.querySelector('[data-f=severity]'); x.value = s; f.severity = s; t.setChip('open'); };
+    BT.actions['alerts-tier'] = function (g) { f.group = g; history.replaceState(null, '', '#/alerts?group=' + g); counts(); t.refresh(); };
+    v.querySelector('[data-tier-all]').onclick = function () { f.group = ''; history.replaceState(null, '', '#/alerts?group='); counts(); t.refresh(); };
+    v.querySelector('[data-ack-all]').onclick = function () {
+      var tier = TIERS.find(function (x) { return x[0] === f.group; });
+      var n = !last ? null : tier ? ((last.groups || {})[f.group] || {})['new'] : last['new'];
+      if (n === 0) { BT.toast('لا يوجد ما لم يُطّلع عليه هنا'); return; }
+      A.confirmRun({
+        title: 'تم الاطلاع على الكل', tone: 'primary', confirmText: 'تم الاطلاع',
+        message: 'يُسجَّل أنك اطلعت على ' + (n == null ? 'كل' : fmt.int(n)) + ' تنبيه' + (tier ? ' في «' + tier[1] + '»' : '') + ' لم يطّلع عليها أحد. تبقى مفتوحة حتى تُعالج أو يزول سببها.',
+        run: function () { return api.post('/alerts/ack-all', { group: f.group || null, severity: f.severity || null, kind: f.kind || null }); },
+        done: 'تم تسجيل الاطلاع', after: function () { A._alertsTable.refresh(); A.refreshCounts(); }
+      });
+    };
+    BT.actions['alerts-severity'] = function (s) { var x = tableEl.querySelector('[data-f=severity]'); x.value = s; f.severity = s; f.group = ''; counts(); t.setChip('open'); };
   };
 
   /* تفاصيل التنبيه: ما قاله وقت إنشائه، الحالة الآن، من أُسند إليه، وسجل ما فُعل به؛ والإجراءات */

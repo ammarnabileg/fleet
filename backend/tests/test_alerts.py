@@ -101,6 +101,7 @@ def test_the_summary_is_not_capped_and_follows_permissions(admin_client, new_cli
         "info": 0,
         "new": 0,
         "mine": 0,
+        "groups": {g: {"open": 0, "new": 0} for g in ("urgent", "important", "documents", "info")},
         "latest": None,
     }
 
@@ -208,3 +209,43 @@ def test_dates_in_a_text_read_day_first_and_the_cause_gone_closes_it_automatical
     db.commit()
     closed = admin_client.get("/api/v1/alerts", params={"status": "resolved"}).json()[0]
     assert closed["resolution"] == "auto" and closed["resolved_by"] is None and closed["acknowledged_at"] is None
+
+
+def test_the_tiers_keep_the_documents_apart_and_all_are_seen_at_once(admin_client, new_client, db, companies):
+    a, b = companies["a"]["id"], companies["b"]["id"]
+    before = admin_client.get("/api/v1/alerts/summary").json()["groups"]
+    for i in range(3):
+        notifications.raise_alert(
+            db,
+            "document_expired",
+            company_id=a,
+            params={"document": "license", "owner": f"T{i}", "date": "2026-01-01"},
+            dedupe_key=f"tier:doc:{i}",
+        )
+    notifications.raise_alert(db, "mock_location", company_id=a, params={"driver": "T"}, dedupe_key="tier:urgent")
+    notifications.raise_alert(
+        db, "gps_off", company_id=a, params={"driver": "T", "plate": "1"}, dedupe_key="tier:important"
+    )
+    notifications.raise_alert(db, "contact_acknowledged", company_id=b, params={"driver": "T"}, dedupe_key="tier:info")
+    db.commit()
+    g = admin_client.get("/api/v1/alerts/summary").json()["groups"]
+    # an expired document is critical, yet a tier of its own: it does not bury the urgent ones
+    assert {k: g[k]["open"] - before[k]["open"] for k in g} == {"urgent": 1, "important": 1, "documents": 3, "info": 1}
+    urgent = admin_client.get("/api/v1/alerts", params={"group": "urgent"}).json()
+    assert {x["kind"] for x in urgent} <= {k for k, v in notifications.KINDS.items() if v.severity == "critical"}
+    assert "document_expired" not in {x["kind"] for x in urgent}
+    docs = admin_client.get("/api/v1/alerts", params={"group": "documents", "limit": 200}).json()
+    assert {x["kind"] for x in docs} <= set(notifications.DOCUMENT_KINDS)
+
+    # a company A user sees all of A's documents at once; B's info stays unseen
+    u = make_user(admin_client, "tiers_a", permissions=["documents.view"], company_ids=[a])
+    c = new_client()
+    login(c, u["username"])
+    r = c.post("/api/v1/alerts/ack-all", json={"group": "documents"})
+    assert r.status_code == 200 and r.json()["acknowledged"] >= 3
+    g2 = admin_client.get("/api/v1/alerts/summary").json()["groups"]
+    assert g2["documents"]["new"] == 0 and g2["documents"]["open"] == g["documents"]["open"]  # seen, still open
+    assert g2["urgent"]["new"] == g["urgent"]["new"]  # only the tier asked
+    r = admin_client.post("/api/v1/alerts/ack-all", json={})
+    assert r.json()["acknowledged"] == sum(x["new"] for x in g2.values())
+    assert admin_client.get("/api/v1/alerts/summary").json()["new"] == 0

@@ -89,6 +89,21 @@ KINDS: dict[str, Kind] = {
     "absence_followup": Kind("warning", "leaves.view", ("driver", "kind", "from", "to", "days")),
 }
 
+# The alerts page in tiers, most important first: what needs someone now (urgent), what needs attention (important),
+# the documents to renew (many at once, apart so they do not bury the rest), and the ones to know about (info).
+DOCUMENT_KINDS = ("document_expired", "document_expiring", "document_renewal_submitted")
+GROUPS = ("urgent", "important", "documents", "info")
+
+
+def group_of(kind: str) -> str:
+    if kind in DOCUMENT_KINDS:
+        return "documents"
+    return {"critical": "urgent", "warning": "important"}.get(KINDS[kind].severity, "info") if kind in KINDS else "info"
+
+
+def _kinds_in(group: str) -> list[str]:
+    return [k for k in KINDS if group_of(k) == group]
+
 
 def raise_alert(
     db: Session,
@@ -242,6 +257,7 @@ def list_alerts(
     status: str = "open",
     severity: str | None = None,
     kind: str | None = None,
+    group: str | None = None,
     q: str | None = None,
     since: datetime | None = None,
     until: datetime | None = None,
@@ -275,6 +291,8 @@ def list_alerts(
         query = query.where(Alert.severity == severity)
     if kind:
         query = query.where(Alert.kind == kind)
+    if group:
+        query = query.where(Alert.kind.in_(_kinds_in(group)))
     if q and q.strip():
         words = q.strip()
         like = words.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -328,11 +346,24 @@ def summary(
         )
     ).one()
     latest = db.scalar(_visible(select(Alert).where(open_).order_by(Alert.id.desc()).limit(1), **scope))
+    by_kind = db.execute(
+        _visible(
+            select(Alert.kind, func.count(), func.count().filter(Alert.acknowledged_at.is_(None)))
+            .where(open_)
+            .group_by(Alert.kind),
+            **scope,
+        )
+    ).all()
+    groups = {g: {"open": 0, "new": 0} for g in GROUPS}
+    for k, n, unseen in by_kind:
+        groups[group_of(k)]["open"] += n
+        groups[group_of(k)]["new"] += unseen
     return {
         "open": sum(counts.values()),
         **{s: counts.get(s, 0) for s in ("critical", "warning", "info")},
         "new": new,
         "mine": mine,
+        "groups": groups,
         "latest": _outs(db, [latest], lang)[0] if latest else None,
     }
 
@@ -376,6 +407,39 @@ def acknowledge(
         alert.acknowledged_at, alert.acknowledged_by = func.now(), actor_user_id
         _log(db, alert, "acknowledged", actor_user_id)
     db.commit()
+
+
+def acknowledge_all(
+    db: Session,
+    *,
+    actor_user_id: int,
+    permissions: Iterable[str],
+    all_companies: bool,
+    company_ids,
+    group: str | None = None,
+    severity: str | None = None,
+    kind: str | None = None,
+) -> int:
+    """Seen, all at once: every open alert nobody has seen yet that the user sees (of a tier, a severity or a kind
+    when given), each with its log entry. They stay open until handled. Returns how many."""
+    query = _visible(
+        select(Alert).where(Alert.resolved_at.is_(None), Alert.acknowledged_at.is_(None)).with_for_update(),
+        permissions=permissions,
+        all_companies=all_companies,
+        company_ids=company_ids,
+    )
+    if group:
+        query = query.where(Alert.kind.in_(_kinds_in(group)))
+    if severity:
+        query = query.where(Alert.severity == severity)
+    if kind:
+        query = query.where(Alert.kind == kind)
+    alerts = list(db.scalars(query))
+    for alert in alerts:
+        alert.acknowledged_at, alert.acknowledged_by = func.now(), actor_user_id
+        _log(db, alert, "acknowledged", actor_user_id)
+    db.commit()
+    return len(alerts)
 
 
 def resolve_by_user(

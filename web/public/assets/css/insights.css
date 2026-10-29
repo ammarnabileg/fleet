@@ -58,6 +58,8 @@ table.t td .t-acts { display: inline-flex; align-items: center; gap: 4px; white-
 
 /* ---------- التنبيهات ---------- */
 .alerts-kpis { margin-bottom: 16px; }
+.alerts-kpis > [data-tier] > .kpi { width: 100%; height: 100%; }
+.alerts-kpis > .kpi-active > .kpi { box-shadow: 0 0 0 2px var(--primary); }
 .alert-msg { white-space: normal; display: block; min-width: 240px; color: var(--text); }
 .alert-now { white-space: normal; min-width: 170px; }
 .alert-now .sub { display: block; }

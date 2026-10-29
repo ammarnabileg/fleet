@@ -55,7 +55,7 @@ test('a fine with nobody driving is decided from the alerts page, and its alert 
   });
   const top = () => admin.locator('.overlay[data-open]').last();
 
-  await admin.goto('/admin.html#/alerts');
+  await admin.goto('/admin.html#/alerts?group=important'); // a fine with nobody driving: a warning, in «مهم»
   await admin.reload();
   await settled(admin);
   const row = admin.locator('#alerts-table tbody tr', { hasText: vehicle.plate_number });

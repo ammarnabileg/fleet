@@ -4178,5 +4178,16 @@ window.BT_EN = {
 "لا توجد شركات تأمين بعد": "No insurance companies yet",
 "أضف أول شركة": "Add the first one",
 "تعديل شركة التأمين": "Edit insurance company",
-"الشخص المسؤول": "Contact person"
+"الشخص المسؤول": "Contact person",
+"يحتاج تصرفاً الآن: حوادث، تلاعب، توقف الخدمات": "Needs action now: accidents, tampering, services down",
+"مهم": "Important",
+"يحتاج متابعة: الإشارة، العداد، الكاش، التقارير": "Needs follow-up: signal, odometer, cash, reports",
+"منتهية أو قاربت على الانتهاء": "Expired or about to expire",
+"للعلم": "For info",
+"طلبات ومعلومات": "Requests and information",
+"تم الاطلاع على الكل": "Mark all as seen",
+"عرض كل الأنواع": "Show all kinds",
+"تعرض: كل الأنواع": "Showing: all kinds",
+"لا يوجد ما لم يُطّلع عليه هنا": "Nothing unseen here",
+"تعرض:": "Showing:"
 };

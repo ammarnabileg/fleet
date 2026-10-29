@@ -17,7 +17,7 @@ test('an alert seen, escalated to another user, handled, with its log', async ({
   await api.post('/roles', { code: role, name: { ar: 'مخالفات ' + n, en: 'Fines ' + n }, permissions: ['fines.manage', 'fines.view'] });
   const boss = await api.post('/users', { username: 'boss' + n, full_name: 'المدير ' + n, password: 'a-long-password-' + n, role_codes: [role], all_companies: true, company_ids: [] });
 
-  await admin.goto('/admin.html#/alerts');
+  await admin.goto('/admin.html#/alerts?group='); // every kind
   await settled(admin);
   const table = admin.locator('#alerts-table');
   await table.locator('input[type=search]').fill(vehicle.plate_number); // a plate, searched on the server
@@ -63,7 +63,7 @@ test('an alert seen, escalated to another user, handled, with its log', async ({
 test('the most severe first, filtered by severity and kind', async ({ admin, api }) => {
   const n = uid();
   await fineWithNobodyDriving(api, n);
-  await admin.goto('/admin.html#/alerts');
+  await admin.goto('/admin.html#/alerts?group='); // every kind
   await settled(admin);
   const table = admin.locator('#alerts-table');
   const sev = await api.get('/alerts?sort=severity&limit=50');
@@ -76,4 +76,29 @@ test('the most severe first, filtered by severity and kind', async ({ admin, api
   for (const text of await rows.allInnerTexts()) expect(text).toContain('مخالفة بلا سائق');
   await table.locator('[data-f=severity]').selectOption('critical');
   await expect(table.locator('tbody tr', { hasText: 'مخالفة بلا سائق' })).toHaveCount(0); // a fine is a warning
+});
+
+// The page opens on «عاجل»; the documents are a tier of their own; «تم الاطلاع على الكل» marks the tier shown as seen,
+// and they stay open.
+test('the tiers, and all of a tier seen at once', async ({ admin, api }) => {
+  const n = uid();
+  await fineWithNobodyDriving(api, n); // a warning: «مهم»
+  await admin.goto('/admin.html#/alerts');
+  await settled(admin);
+  await expect(admin.locator('[data-tier=urgent] .kpi')).toBeVisible();
+  await expect(admin.locator('.kpi-active')).toHaveAttribute('data-tier', 'urgent');
+  const table = admin.locator('#alerts-table');
+  await expect(table.locator('[aria-busy]')).toHaveCount(0);
+  await expect(table.locator('tbody tr', { hasText: 'وقوف ' + n })).toHaveCount(0); // not urgent
+
+  await admin.click('[data-tier=important] .kpi');
+  await expect(admin.locator('.kpi-active')).toHaveAttribute('data-tier', 'important');
+  await expect(table.locator('tbody tr', { hasText: '6/' + n.slice(-6) })).toHaveCount(1);
+  for (const a of await api.get('/alerts?group=documents&limit=200')) expect(a.kind).toMatch(/^document_/);
+
+  await admin.click('[data-ack-all]');
+  await admin.locator('.overlay[data-open] .btn-primary').last().click();
+  await expect.poll(async () => (await api.get('/alerts/summary')).groups.important.new).toBe(0);
+  const s = await api.get('/alerts/summary');
+  expect(s.groups.important.open).toBeGreaterThan(0); // seen, still open
 });
