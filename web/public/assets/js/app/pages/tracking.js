@@ -427,6 +427,7 @@
       <div class="kpis alerts-kpis" data-alert-counts></div>
       <div class="flex gap-8 mb-12" style="flex-wrap:wrap;align-items:center"><span class="muted fs-sm" data-tier-label></span><span class="ms-auto"></span>
         <button type="button" class="btn btn-sm btn-outline" data-ack-all>${icon('eye', 14)} تم الاطلاع على الكل</button>
+        <button type="button" class="btn btn-sm btn-outline" data-resolve-all>${icon('circle-check', 14)} إغلاق الكل</button>
         <button type="button" class="btn btn-sm btn-ghost" data-tier-all>عرض كل الأنواع</button></div>
       <div class="card"><div id="alerts-table"></div></div>`);
     var countsEl = v.querySelector('[data-alert-counts]');
@@ -492,6 +493,18 @@
     BT.actions['alerts-chip'] = function (c) { t.setChip(c); };
     BT.actions['alerts-tier'] = function (g) { f.group = g; history.replaceState(null, '', '#/alerts?group=' + g); counts(); t.refresh(); };
     v.querySelector('[data-tier-all]').onclick = function () { f.group = ''; history.replaceState(null, '', '#/alerts?group='); counts(); t.refresh(); };
+    v.querySelector('[data-resolve-all]').onclick = function () {
+      var tier = TIERS.find(function (x) { return x[0] === f.group; });
+      var n = !last ? null : tier ? ((last.groups || {})[f.group] || {}).open : last.open;
+      if (n === 0) { BT.toast('لا يوجد تنبيه مفتوح هنا'); return; }
+      A.confirmRun({
+        title: 'إغلاق الكل', tone: 'danger', confirmText: 'إغلاق الكل',
+        message: 'يُغلق ' + (n == null ? 'كل' : fmt.int(n)) + ' تنبيه مفتوح' + (tier ? ' في «' + tier[1] + '»' : '') + '، وتُحفظ ملاحظتك باسمك في سجل كل واحد. ما بقي سببه يعود غداً (مثل مستند ما زال منتهياً حتى يُجدَّد).',
+        reason: { label: 'ماذا فُعل؟', required: true, placeholder: 'مثال: راجعنا الكل وأبلغنا السائقين' },
+        run: function (note) { return api.post('/alerts/resolve-all', { group: f.group || null, severity: f.severity || null, kind: f.kind || null, note: note }); },
+        done: 'أُغلقت التنبيهات', after: function () { A._alertsTable.refresh(); A.refreshCounts(); }
+      });
+    };
     v.querySelector('[data-ack-all]').onclick = function () {
       var tier = TIERS.find(function (x) { return x[0] === f.group; });
       var n = !last ? null : tier ? ((last.groups || {})[f.group] || {})['new'] : last['new'];

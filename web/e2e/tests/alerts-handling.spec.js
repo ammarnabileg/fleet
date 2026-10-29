@@ -102,3 +102,22 @@ test('the tiers, and all of a tier seen at once', async ({ admin, api }) => {
   const s = await api.get('/alerts/summary');
   expect(s.groups.important.open).toBeGreaterThan(0); // seen, still open
 });
+
+// «إغلاق الكل» closes the tier shown, with what was done; the other tiers stay as they were.
+test('a tier closed at once, with what was done', async ({ admin, api }) => {
+  const n = uid();
+  await fineWithNobodyDriving(api, n); // «مهم»
+  const before = await api.get('/alerts/summary');
+  await admin.goto('/admin.html#/alerts?group=important');
+  await settled(admin);
+  await admin.click('[data-resolve-all]');
+  const dlg = admin.locator('.overlay[data-open]').last();
+  await expect(dlg).toContainText('يعود غداً');
+  await dlg.locator('textarea, input[type=text]').first().fill('راجعنا الكل');
+  await dlg.getByRole('button', { name: 'إغلاق الكل' }).click();
+  await expect.poll(async () => (await api.get('/alerts/summary')).groups.important.open).toBe(0);
+  const after = await api.get('/alerts/summary');
+  expect(after.groups.urgent.open).toBe(before.groups.urgent.open);
+  const [closed] = await api.get('/alerts?status=resolved&kind=fine_no_driver&limit=1');
+  expect((await api.get('/alerts/' + closed.id)).resolution_note).toBe('راجعنا الكل');
+});

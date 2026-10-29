@@ -4192,5 +4192,9 @@ window.BT_EN = {
 "تعرض:": "Showing:",
 "عاجلة ·": "Urgent ·",
 "مهمة ·": "Important ·",
-"تنبيهات عاجلة مفتوحة": "Open urgent alerts"
+"تنبيهات عاجلة مفتوحة": "Open urgent alerts",
+"إغلاق الكل": "Close all",
+"لا يوجد تنبيه مفتوح هنا": "No open alert here",
+"مثال: راجعنا الكل وأبلغنا السائقين": "e.g. We reviewed them all and told the drivers",
+"أُغلقت التنبيهات": "Alerts closed"
 };

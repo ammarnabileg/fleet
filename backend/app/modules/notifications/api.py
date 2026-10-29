@@ -88,6 +88,21 @@ def acknowledge_all(
     return {"acknowledged": seen}
 
 
+@router.post("/alerts/resolve-all", response_model=schemas.ResolveAllOut)
+def resolve_all(
+    body: schemas.ResolveAllIn, principal: Principal = Depends(get_principal), db: Session = Depends(get_session)
+):
+    """Handled, all at once (of a tier, a severity or a kind when given), with what was done."""
+    closed = service.resolve_all(
+        db,
+        actor_user_id=principal.user_id,
+        permissions=principal.permissions,
+        **body.model_dump(),
+        **principal.scope,
+    )
+    return {"resolved": closed}
+
+
 @router.get("/alerts/{public_id}", response_model=schemas.AlertDetail)
 def alert_detail(
     public_id: uuid.UUID,

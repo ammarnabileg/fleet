@@ -409,6 +409,25 @@ def acknowledge(
     db.commit()
 
 
+def _unhandled(db: Session, *, unseen: bool, permissions, all_companies: bool, company_ids, group, severity, kind):
+    """The open alerts the user sees (only the unseen ones when asked), of a tier, a severity or a kind when given."""
+    query = _visible(
+        select(Alert).where(Alert.resolved_at.is_(None)).with_for_update(),
+        permissions=permissions,
+        all_companies=all_companies,
+        company_ids=company_ids,
+    )
+    if unseen:
+        query = query.where(Alert.acknowledged_at.is_(None))
+    if group:
+        query = query.where(Alert.kind.in_(_kinds_in(group)))
+    if severity:
+        query = query.where(Alert.severity == severity)
+    if kind:
+        query = query.where(Alert.kind == kind)
+    return list(db.scalars(query))
+
+
 def acknowledge_all(
     db: Session,
     *,
@@ -422,22 +441,58 @@ def acknowledge_all(
 ) -> int:
     """Seen, all at once: every open alert nobody has seen yet that the user sees (of a tier, a severity or a kind
     when given), each with its log entry. They stay open until handled. Returns how many."""
-    query = _visible(
-        select(Alert).where(Alert.resolved_at.is_(None), Alert.acknowledged_at.is_(None)).with_for_update(),
+    alerts = _unhandled(
+        db,
+        unseen=True,
         permissions=permissions,
         all_companies=all_companies,
         company_ids=company_ids,
+        group=group,
+        severity=severity,
+        kind=kind,
     )
-    if group:
-        query = query.where(Alert.kind.in_(_kinds_in(group)))
-    if severity:
-        query = query.where(Alert.severity == severity)
-    if kind:
-        query = query.where(Alert.kind == kind)
-    alerts = list(db.scalars(query))
     for alert in alerts:
         alert.acknowledged_at, alert.acknowledged_by = func.now(), actor_user_id
         _log(db, alert, "acknowledged", actor_user_id)
+    db.commit()
+    return len(alerts)
+
+
+def resolve_all(
+    db: Session,
+    *,
+    note: str,
+    actor_user_id: int,
+    permissions: Iterable[str],
+    all_companies: bool,
+    company_ids,
+    group: str | None = None,
+    severity: str | None = None,
+    kind: str | None = None,
+) -> int:
+    """Handled, all at once: every open alert the user sees (of a tier, a severity or a kind when given), closed with
+    the same note, each in its log. One whose cause remains (a document still expired) is raised again by its next
+    check. Returns how many."""
+    alerts = _unhandled(
+        db,
+        unseen=False,
+        permissions=permissions,
+        all_companies=all_companies,
+        company_ids=company_ids,
+        group=group,
+        severity=severity,
+        kind=kind,
+    )
+    for alert in alerts:
+        if alert.acknowledged_at is None:
+            alert.acknowledged_at, alert.acknowledged_by = func.now(), actor_user_id
+        alert.resolved_at, alert.resolved_by, alert.resolution, alert.resolution_note = (
+            func.now(),
+            actor_user_id,
+            "manual",
+            note,
+        )
+        _log(db, alert, "resolved", actor_user_id, note=note)
     db.commit()
     return len(alerts)
 

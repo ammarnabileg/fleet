@@ -71,6 +71,14 @@ class AckAllOut(BaseModel):
     acknowledged: int
 
 
+class ResolveAllIn(AckAllIn):
+    note: Note
+
+
+class ResolveAllOut(BaseModel):
+    resolved: int
+
+
 class ResolveIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

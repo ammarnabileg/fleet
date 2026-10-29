@@ -249,3 +249,23 @@ def test_the_tiers_keep_the_documents_apart_and_all_are_seen_at_once(admin_clien
     r = admin_client.post("/api/v1/alerts/ack-all", json={})
     assert r.json()["acknowledged"] == sum(x["new"] for x in g2.values())
     assert admin_client.get("/api/v1/alerts/summary").json()["new"] == 0
+
+
+def test_a_tier_closed_at_once_with_what_was_done(admin_client, db, companies):
+    a = companies["a"]["id"]
+    for i in range(2):
+        notifications.raise_alert(
+            db, "gps_off", company_id=a, params={"driver": f"R{i}", "plate": "1"}, dedupe_key=f"rall:{i}"
+        )
+    notifications.raise_alert(db, "mock_location", company_id=a, params={"driver": "R"}, dedupe_key="rall:urgent")
+    db.commit()
+    before = admin_client.get("/api/v1/alerts/summary").json()["groups"]
+    r = admin_client.post("/api/v1/alerts/resolve-all", json={"group": "important"})
+    assert r.status_code == 422  # what was done is required
+    r = admin_client.post("/api/v1/alerts/resolve-all", json={"group": "important", "note": "Checked with the drivers"})
+    assert r.status_code == 200 and r.json()["resolved"] == before["important"]["open"]
+    after = admin_client.get("/api/v1/alerts/summary").json()["groups"]
+    assert after["important"]["open"] == 0 and after["urgent"]["open"] == before["urgent"]["open"]
+    closed = admin_client.get("/api/v1/alerts", params={"status": "resolved", "kind": "gps_off", "limit": 5}).json()
+    detail = admin_client.get(f"/api/v1/alerts/{closed[0]['id']}").json()
+    assert detail["resolution_note"] == "Checked with the drivers" and detail["events"][-1]["action"] == "resolved"
