@@ -289,6 +289,48 @@ def list_employees(
     return [_out(e, s, show_salary) for e, s in db.execute(query)]
 
 
+def working_drivers(
+    db: Session,
+    *,
+    all_companies: bool,
+    company_ids: Iterable[int],
+    platform_id: int | None = None,
+    q: str | None = None,
+) -> list[dict]:
+    """The drivers still employed, by employee number, for a page about each of them (their pay schemes): the internal
+    id for the caller's own lookups, the public one and the name to show."""
+    query = _scoped(
+        select(Employee)
+        .join(EmploymentStatus, EmploymentStatus.code == Employee.status_code)
+        .where(Employee.is_driver.is_(True), EmploymentStatus.is_terminal.is_(False))
+        .order_by(Employee.employee_number),
+        all_companies,
+        company_ids,
+    )
+    if platform_id is not None:
+        query = query.where(Employee.platform_id == platform_id)
+    if q and q.strip():
+        pattern = like_pattern(q.strip())
+        query = query.where(
+            or_(
+                Employee.employee_number.ilike(pattern),
+                Employee.platform_driver_id.ilike(pattern),
+                cast(Employee.name, Text).ilike(pattern),
+            )
+        )
+    return [
+        {
+            "id": e.id,
+            "public_id": str(e.public_id),
+            "employee_number": e.employee_number,
+            "name": e.name,
+            "company_id": e.company_id,
+            "platform_id": e.platform_id,
+        }
+        for e in db.scalars(query)
+    ]
+
+
 def get_employee(db: Session, public_id, *, show_salary: bool, **scope) -> dict:
     e = _get(db, public_id, **scope)
     return _out(e, db.get(EmploymentStatus, e.status_code), show_salary)

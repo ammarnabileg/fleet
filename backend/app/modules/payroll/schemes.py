@@ -473,6 +473,57 @@ def for_month(db: Session, employee_ids, month: date, *, lock: bool = False) -> 
     return {e: s for e, s in db.execute(q)}
 
 
+def drivers_view(
+    db: Session,
+    *,
+    platform_id: int | None,
+    show: str | None,
+    q: str | None,
+    limit: int,
+    offset: int,
+    all_companies: bool,
+    company_ids,
+) -> dict:
+    """The office's page of drivers and their schemes: this month's, next month's when it changes, and whether one
+    asked to change. show: "none" (no scheme this month or next) or "pending" (a request waits)."""
+    this = month_start(today())
+    nxt = add_months(this, 1)
+    drivers = people.working_drivers(
+        db, all_companies=all_companies, company_ids=company_ids, platform_id=platform_id, q=q
+    )
+    ids = [d["id"] for d in drivers]
+    now, later = for_month(db, ids, this), for_month(db, ids, nxt)
+    waiting = set(
+        db.scalars(
+            select(SchemeChangeRequest.employee_id).where(
+                SchemeChangeRequest.employee_id.in_(ids), SchemeChangeRequest.status == "pending"
+            )
+        )
+    ) if ids else set()  # fmt: skip
+
+    def brief(s: Scheme | None) -> dict | None:
+        return {"id": str(s.public_id), "code": s.code, "name": s.name, "platform_id": s.platform_id} if s else None
+
+    rows = []
+    for d in drivers:
+        cur, upcoming = now.get(d["id"]), later.get(d["id"])
+        if show == "none" and (cur or upcoming):
+            continue
+        if show == "pending" and d["id"] not in waiting:
+            continue
+        rows.append(
+            {
+                "employee": {"id": d["public_id"], "employee_number": d["employee_number"], "name": d["name"]},
+                "company_id": d["company_id"],
+                "platform_id": d["platform_id"],
+                "current": brief(cur),
+                "next_month": brief(upcoming) if upcoming and (not cur or upcoming.id != cur.id) else None,
+                "pending_request": d["id"] in waiting,
+            }
+        )
+    return {"total": len(rows), "items": rows[offset : offset + limit]}
+
+
 def platforms_with_schemes(db: Session) -> set[int]:
     return set(db.scalars(select(Scheme.platform_id).where(Scheme.is_active.is_(True)).distinct()))
 

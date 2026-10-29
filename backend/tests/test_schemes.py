@@ -449,3 +449,38 @@ def test_the_driver_picks_first_then_asks_leave_and_picks_again_once_approved(ad
         "rejected"
     )
     assert client.get("/api/v1/driver/schemes", headers=h).json()["can_choose"] is False
+
+
+def test_the_office_sees_every_drivers_scheme_and_sets_or_changes_it_unasked(admin_client, client, company, setup):
+    s, t = setup["schemes"], setup["talabat"]
+    on = make_driver(admin_client, company["id"], platform_id=t["id"])
+    none = make_driver(admin_client, company["id"], platform_id=t["id"])
+    asks = make_driver(admin_client, company["id"], platform_id=t["id"])
+    assign(admin_client, s["fixed_1"], on, asks)
+    h = bearer(bind_device(client, asks["phone"]))
+    assert client.post("/api/v1/driver/scheme-requests", headers=h, json={}).status_code == 201
+
+    def page(**params):
+        r = admin_client.get(f"{P}/driver-schemes", params={"platform_id": t["id"], **params})
+        assert r.status_code == 200, r.text
+        return {x["employee"]["id"]: x for x in r.json()["items"]}
+
+    rows = page()
+    assert rows[on["id"]]["current"]["code"] == "fixed_1" and rows[on["id"]]["next_month"] is None
+    assert rows[none["id"]]["current"] is None and not rows[none["id"]]["pending_request"]
+    assert rows[asks["id"]]["pending_request"] is True
+    assert set(page(show="none")) == {none["id"]}
+    assert set(page(show="pending")) == {asks["id"]}
+    assert set(page(q=on["employee_number"])) == {on["id"]}
+
+    # the office, unasked: one from this month, another moved from next month
+    assert assign(admin_client, s["fixed_2"], none).json()["set"] == 1
+    assert assign(admin_client, s["fixed_2"], on, month=NEXT).json()["set"] == 1
+    rows = page()
+    assert rows[none["id"]]["current"]["code"] == "fixed_2"
+    assert (rows[on["id"]]["current"]["code"], rows[on["id"]]["next_month"]["code"]) == ("fixed_1", "fixed_2")
+
+    make_user(admin_client, "no_payroll", permissions=["employees.view"])
+    other = client
+    login(other, "no_payroll")
+    assert other.get(f"{P}/driver-schemes").status_code == 403

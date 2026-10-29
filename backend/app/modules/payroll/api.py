@@ -433,6 +433,22 @@ def assign_scheme(
     )
 
 
+@router.get("/payroll/driver-schemes")
+def driver_schemes(
+    platform_id: int | None = None,
+    show: Literal["none", "pending"] | None = None,
+    q: str | None = Query(None, max_length=100),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    principal: Principal = Depends(require_permission("payroll.view")),
+    db: Session = Depends(get_session),
+):
+    """Each driver's scheme this month and next, and whether he asked to change: the office sets or changes it."""
+    return schemes.drivers_view(
+        db, platform_id=platform_id, show=show, q=q, limit=limit, offset=offset, **principal.scope
+    )
+
+
 @router.get("/employees/{public_id}/schemes", response_model=list[schemas.SchemeHistoryOut])
 def scheme_history(
     public_id: uuid.UUID,

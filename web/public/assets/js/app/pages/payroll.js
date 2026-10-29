@@ -51,6 +51,7 @@
     var v = A.view();
     var tabs = [];
     if (api.can('payroll.view')) tabs.push(['month', 'بيانات الشهر'], ['statements', 'كشوف المنصات'], ['runs', 'كشوف الرواتب']);
+    if (api.can('payroll.view')) tabs.push(['drivers', 'أنظمة السواقين']);
     if (api.can('payroll.view')) tabs.push(['requests', 'طلبات تغيير النظام' + (A.counts.scheme_requests ? ' (' + A.counts.scheme_requests + ')' : '')]);
     if (api.can('payroll.view')) tabs.push(['uncollected', 'خصومات غير محصلة' + (A.counts.uncollected ? ' (' + A.counts.uncollected + ')' : '')]);
     if (api.can('payroll.view')) tabs.push(['objections', 'الاعتراضات' + (A.counts.objections ? ' (' + A.counts.objections + ')' : '')]);
@@ -64,7 +65,7 @@
     var drawn = {};
     function show(t) {
       if (drawn[t]) return; drawn[t] = true;
-      ({ month: A.monthPanel, statements: statementsPanel, runs: runsPanel, requests: A.schemeRequestsPanel, uncollected: uncollectedPanel, objections: objectionsPanel })[t](v.querySelector('[data-p="' + t + '"]'), q);
+      ({ month: A.monthPanel, statements: statementsPanel, runs: runsPanel, drivers: A.driverSchemesPanel, requests: A.schemeRequestsPanel, uncollected: uncollectedPanel, objections: objectionsPanel })[t](v.querySelector('[data-p="' + t + '"]'), q);
     }
     v.addEventListener('bt:tab', function (e) { show(e.detail); history.replaceState(null, '', '#/payroll?tab=' + e.detail); });
     show(tab);

@@ -263,7 +263,9 @@
     var drivers = rows.filter(function (r) { return r.is_driver; });
     if (!drivers.length) { BT.toast('لا يوجد سائقون في التحديد', { type: 'info' }); return; }
     Promise.all([api.get('/payroll/schemes'), A.platforms()]).then(function (r) {
-      var active = r[0].filter(function (s) { return s.is_active; }), plats = r[1];
+      // drivers all on one platform: only its schemes (a Keeta driver is never put on a Talabat scheme by mistake)
+      var onPlats = drivers.map(function (d) { return d.platform_id; }).filter(function (x, i, a) { return x != null && a.indexOf(x) === i; });
+      var active = r[0].filter(function (s) { return s.is_active && (onPlats.length !== 1 || s.platform_id === onPlats[0]); }), plats = r[1];
       if (!active.length) { BT.toast('لا توجد أنظمة دفع بعد: أضفها من الرواتب ← أنظمة الدفع', { type: 'info' }); return; }
       A.formModal({
         title: 'نظام الدفع', subtitle: drivers.length === 1 ? api.name(drivers[0].name) : drivers.length + ' سائق', icon: 'banknote', size: 'sm', done: false,
@@ -313,6 +315,47 @@
   };
 
   /* ================= طلبات السائقين ================= */
+  /* أنظمة السواقين: نظام كل سائق هذا الشهر والشهر القادم، ويغيّره المكتب لسائق أو لعدة سائقين دون طلب منهم */
+  A.driverSchemesPanel = function (el, q) {
+    var canSet = api.can('payroll.schemes'), platformId = q.platform || '';
+    A.platforms().then(function (plats) {
+      BT.render(el, h`<div class="card"><div class="hint mb-12">نظام كل سائق هذا الشهر، والشهر القادم إن تغيّر. ${canSet ? 'غيّره لسائق من «تغيير النظام»، أو حدد عدة سائقين وغيّره لهم معاً: يبدأ من الشهر الذي تختاره، دون طلب من السائق.' : ''}</div>
+        <div class="flex gap-8 mb-12" style="flex-wrap:wrap">${BT.f.select({ name: 'platform', label: 'الشركة', placeholder: 'كل الشركات', value: platformId, options: plats.map(function (p) { return { v: String(p.id), t: api.name(p.name) }; }) })}</div>
+        <div data-t></div></div>`);
+      var t = BT.table(el.querySelector('[data-t]'), {
+        empty: { icon: 'banknote', title: 'لا يوجد سائقون هنا', text: 'غيّر الشركة أو البحث' },
+        search: { placeholder: 'الاسم أو الرقم الوظيفي أو رقم المنصة…' },
+        chips: { value: q.show || '', options: [{ v: 'none', t: 'بلا نظام' }, { v: 'pending', t: 'طلب تغيير معلّق' }] },
+        fetch: function (s) {
+          return api.get('/payroll/driver-schemes', { platform_id: platformId || null, show: s.chip || null, q: s.q, limit: s.limit, offset: s.offset }).then(function (r) {
+            // صفوف بشكل صفوف الموظفين: «تغيير النظام» نفسه يعمل هنا وفي صفحة الموظفين
+            return r.items.map(function (x) { return Object.assign({ id: x.employee.id, name: x.employee.name, employee_number: x.employee.employee_number, is_driver: true }, x); });
+          });
+        },
+        selectable: canSet,
+        bulk: canSet ? [{ label: 'تغيير النظام', icon: 'banknote', cls: 'btn-primary', run: function (rows, clear) { A.assignScheme(rows, function () { clear(); t.refresh(); }); } }] : [],
+        columns: [
+          { key: 'name', label: 'السائق', render: function (r) { return BT.person(api.name(r.name), r.employee_number); } },
+          { key: 'platform', label: 'الشركة', render: function (r) { return r.platform_id ? A.platformName(plats, r.platform_id) : h`<span class="muted">بلا شركة</span>`; } },
+          { key: 'current', label: 'نظامه هذا الشهر', render: function (r) { return r.current ? h`<b>${api.name(r.current.name)}</b>` : BT.pill('بلا نظام', 'o'); } },
+          { key: 'next', label: 'من الشهر القادم', render: function (r) { return r.next_month ? h`${icon('arrow-left', 13)} ${api.name(r.next_month.name)}` : h`<span class="muted">—</span>`; } },
+          { key: 'req', label: 'طلب منه', render: function (r) { return r.pending_request ? h`<a href="#/payroll?tab=requests" data-req-link>${BT.pill('بانتظار قرارك', 'o')}</a>` : ''; } },
+          { key: 'act', label: '', render: function (r) { return canSet && r.platform_id ? h`<button type="button" class="btn btn-sm btn-outline" data-set-scheme="${r.id}">تغيير النظام</button>` : ''; } }
+        ]
+      });
+      el.querySelector('[name=platform]').addEventListener('change', function (e) {
+        platformId = e.target.value;
+        history.replaceState(null, '', '#/payroll?tab=drivers' + (platformId ? '&platform=' + platformId : ''));
+        t.refresh();
+      });
+      A.delegate(el, 'click', '[data-set-scheme]', function (e, b) {
+        e.stopPropagation();
+        var row = t.rows().find(function (x) { return x.id === b.getAttribute('data-set-scheme'); });
+        if (row) A.assignScheme([row], function () { t.refresh(); });
+      });
+    }, api.fail);
+  };
+
   A.schemeRequestsPanel = function (el, q) {
     BT.render(el, h`<div class="card"><div class="hint mb-12">يطلب السائق من التطبيق نظاماً آخر تعرضه منصته، ويبدأ من الشهر التالي. الموافقة تنقله من أول شهر لم تُعتمد رواتبه، والرفض يصله بسببه.</div><div data-t></div></div>`);
     var t = BT.table(el.querySelector('[data-t]'), {

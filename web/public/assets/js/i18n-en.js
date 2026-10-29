@@ -4132,5 +4132,16 @@ window.BT_EN = {
 "المسودة لا تظهر لأي سائق، وزر «تحديث» في التطبيق لا يجد شيئاً. انشره الآن ليظهر للسائقين عند فحص التطبيق التالي، أو أغلق ليبقى مسودة.": "A draft is shown to no driver, and the app's Update button finds nothing. Publish it now so drivers see it at the app's next check, or close to keep it a draft.",
 "منشور بالفعل": "already published",
 "نُشر": "Published",
-"يظهر للسائقين عند فحص التطبيق التالي": "drivers see it at the app's next check"
+"يظهر للسائقين عند فحص التطبيق التالي": "drivers see it at the app's next check",
+"أنظمة السواقين": "Drivers' schemes",
+"نظام كل سائق هذا الشهر، والشهر القادم إن تغيّر.": "Each driver's scheme this month, and next month if it changes.",
+"غيّره لسائق من «تغيير النظام»، أو حدد عدة سائقين وغيّره لهم معاً: يبدأ من الشهر الذي تختاره، دون طلب من السائق.": "Change it for a driver with «Change scheme», or select several drivers and change it for all: it starts from the month you pick, without a request from the driver.",
+"نظامه هذا الشهر": "Scheme this month",
+"من الشهر القادم": "From next month",
+"طلب منه": "His request",
+"بانتظار قرارك": "Awaiting your decision",
+"طلب تغيير معلّق": "Change request pending",
+"لا يوجد سائقون هنا": "No drivers here",
+"غيّر الشركة أو البحث": "Change the company or the search",
+"الاسم أو الرقم الوظيفي أو رقم المنصة…": "Name, employee number or platform ID…"
 };
