@@ -712,11 +712,14 @@
     "scheme_requests_pending": "على هذا النظام {requests} طلب سائق بانتظار القرار: اعتمدها أو ارفضها أولاً.",
     "scheme_choice_closed": "اطلب تغيير النظام أولاً: تختار نظاماً جديداً بعد موافقة المكتب.",
     "scheme_choice_open": "يمكنك اختيار نظامك الآن مباشرة من قائمة الأنظمة.",
-    "insurer_required": "اكتب اسم شركة التأمين",
+    "insurer_required": "اختر شركة التأمين",
     "settlement_details_required": "اكتب مبلغ التراضي والموظف الذي استلمه",
     "not_insurance": "المسؤولية ليست على شركة التأمين",
     "cheque_recorded": "الشيك مسجّل من قبل",
-    "cheque_not_received": "لا يُغلق الحادث قبل استلام شيك التأمين"
+    "cheque_not_received": "لا يُغلق الحادث قبل استلام شيك التأمين",
+    "insurer_inactive": "شركة التأمين هذه موقوفة",
+    "insurer_not_found": "شركة التأمين غير موجودة",
+    "insurer_name_taken": "شركة تأمين بهذا الاسم مسجّلة من قبل"
   },
   "settings": {
     "branding": "الهوية",

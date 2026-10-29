@@ -1336,11 +1336,14 @@
       "scheme_requests_pending": "{requests} demande(s) de chauffeur pour ce barème sont en attente : approuvez-les ou refusez-les d'abord.",
       "scheme_choice_closed": "Demandez d'abord à changer de formule : vous en choisissez une nouvelle après l'accord du bureau.",
       "scheme_choice_open": "Vous pouvez choisir votre formule dès maintenant dans la liste.",
-      "insurer_required": "Indiquez le nom de la compagnie d'assurance",
+      "insurer_required": "Choisissez la compagnie d'assurance",
       "settlement_details_required": "Indiquez le montant du règlement amiable et l'employé qui l'a reçu",
       "not_insurance": "L'assurance n'est pas responsable de cet accident",
       "cheque_recorded": "Le chèque est déjà enregistré",
-      "cheque_not_received": "L'accident ne peut pas être clôturé avant la réception du chèque de l'assurance"
+      "cheque_not_received": "L'accident ne peut pas être clôturé avant la réception du chèque de l'assurance",
+      "insurer_inactive": "Cette compagnie d'assurance est désactivée",
+      "insurer_not_found": "Compagnie d'assurance introuvable",
+      "insurer_name_taken": "Une compagnie d'assurance porte déjà ce nom"
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",

@@ -95,10 +95,41 @@ class OutcomeIn(_In):
     installments: Annotated[int, Field(ge=1, le=60)] | None = None
     start_month: date | None = None  # any day of the month; the first month deducted
     reason: Short | None = None  # shown on the payslip; "Accident #N" when omitted
-    insurer: Short | None = None
+    insurer_id: uuid.UUID | None = None
     claim_no: Short | None = None
     settlement_amount: Amount | None = None
     received_by: uuid.UUID | None = None  # the employee who took the settlement's cash
+
+
+class InsurerIn(_In):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    phone: Short | None = None
+    contact: Short | None = None
+    email: Short | None = None
+    notes: Note | None = None
+    is_active: bool = True
+
+
+class InsurerPatch(_In):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)] | None = None
+    phone: Short | None = None
+    contact: Short | None = None
+    email: Short | None = None
+    notes: Note | None = None
+    is_active: bool | None = None
+
+
+class InsurerOut(BaseModel):
+    id: str
+    name: str
+    phone: str | None
+    contact: str | None
+    email: str | None
+    notes: str | None
+    is_active: bool
+    accidents: int
+    awaiting_cheque: int
+    cheques_total: Decimal
 
 
 class ChequeIn(_In):
@@ -180,7 +211,7 @@ class AccidentDetailOut(AccidentOut):
     outcome_note: str | None
     outcome_at: datetime | None
     outcome_by: str | None
-    insurer: str | None
+    insurer: dict | None
     insurance_claim_no: str | None
     cheque_no: str | None
     cheque_amount: Decimal | None

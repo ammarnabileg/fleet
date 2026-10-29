@@ -19,6 +19,37 @@ Offset = Annotated[int, Query(ge=0)]
 # ------------------------------------------------------------------ the office
 
 
+@router.get("/accident-insurers", response_model=list[schemas.InsurerOut])
+def list_insurers(
+    principal: Principal = Depends(require_permission("accidents.view")),
+    db: Session = Depends(get_session),
+):
+    return service.list_insurers(db, **principal.scope)
+
+
+@router.post("/accident-insurers", response_model=schemas.InsurerOut, status_code=201)
+def create_insurer(
+    body: schemas.InsurerIn,
+    principal: Principal = Depends(require_permission("accidents.approve")),
+    db: Session = Depends(get_session),
+):
+    return service.create_insurer(db, body.model_dump(), actor_user_id=principal.user_id)
+
+
+@router.patch("/accident-insurers/{public_id}", response_model=schemas.InsurerOut)
+def update_insurer(
+    public_id: uuid.UUID,
+    body: schemas.InsurerPatch,
+    principal: Principal = Depends(require_permission("accidents.approve")),
+    db: Session = Depends(get_session),
+):
+    # a name and the active flag cannot be cleared; the rest can
+    changes = {
+        k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None or k not in ("name", "is_active")
+    }
+    return service.update_insurer(db, public_id, changes, actor_user_id=principal.user_id)
+
+
 @router.get("/accidents", response_model=list[schemas.AccidentOut])
 def list_accidents(
     stage: str | None = None,

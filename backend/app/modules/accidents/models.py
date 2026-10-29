@@ -28,6 +28,27 @@ NUMBER_SEQ = Sequence("accident_number_seq", schema="accidents")
 LIABILITIES = ("insurance", "company", "driver", "settlement")
 
 
+class Insurer(Base):
+    """An insurance company an accident can be on. Deactivated when no longer used, never deleted."""
+
+    __tablename__ = "insurers"
+    __table_args__ = (
+        CheckConstraint("length(btrim(name)) > 0", name="name"),
+        Index("insurers_name_key", text("lower(btrim(name))"), unique=True),
+        SCHEMA,
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(UUID, unique=True, server_default=text("gen_random_uuid()"))
+    name: Mapped[str] = mapped_column(Text)
+    phone: Mapped[str | None] = mapped_column(Text)
+    contact: Mapped[str | None] = mapped_column(Text)
+    email: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Accident(Base):
     """One accident: the report, the police report, the center's damage estimate and its approval, who pays (the
     insurer's cheque, the driver's deduction, the company or a settlement's cash) and the repair request."""
@@ -43,7 +64,7 @@ class Accident(Base):
         CheckConstraint(
             "liability IS NULL OR liability = 'settlement' OR police_report_sha256 IS NOT NULL", name="outcome"
         ),
-        CheckConstraint("liability IS DISTINCT FROM 'insurance' OR insurer IS NOT NULL", name="insurance"),
+        CheckConstraint("liability IS DISTINCT FROM 'insurance' OR insurer_id IS NOT NULL", name="insurance"),
         CheckConstraint(
             "(cheque_received_on IS NULL) = (cheque_amount IS NULL) AND (cheque_amount IS NULL OR cheque_amount > 0)",
             name="cheque",
@@ -58,6 +79,7 @@ class Accident(Base):
         Index("accidents_vehicle_id_idx", "vehicle_id", "occurred_at"),
         Index("accidents_driver_id_idx", "driver_id", "occurred_at"),
         Index("accidents_center_id_idx", "center_id", "estimate_status"),
+        Index("accidents_insurer_id_idx", "insurer_id"),
         SCHEMA,
     )
 
@@ -102,7 +124,7 @@ class Accident(Base):
     outcome_note: Mapped[str | None] = mapped_column(Text)
     outcome_by: Mapped[int | None] = mapped_column(BigInteger)
     outcome_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    insurer: Mapped[str | None] = mapped_column(Text)
+    insurer_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("accidents.insurers.id"))
     insurance_claim_no: Mapped[str | None] = mapped_column(Text)
     cheque_no: Mapped[str | None] = mapped_column(Text)
     cheque_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))

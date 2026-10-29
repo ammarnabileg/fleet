@@ -4,7 +4,7 @@ const { test, expect, settled } = require('./fixtures');
 const fs = require('fs');
 
 const PAGES = [
-  'dashboard', 'tracking', 'driver-status', 'alerts', 'vehicles', 'custody', 'odometer', 'daily', 'maintenance', 'accidents', 'fines',
+  'dashboard', 'tracking', 'driver-status', 'alerts', 'vehicles', 'custody', 'odometer', 'daily', 'maintenance', 'accidents', 'insurers', 'fines',
   'cash', 'finance', 'deductions', 'payroll', 'employees', 'attendance', 'reports', 'report-center', 'approvals', 'import', 'settings',
   'app-download', 'broadcasts', 'site', 'integrations', 'audit', 'guide', 'platforms',
 ];

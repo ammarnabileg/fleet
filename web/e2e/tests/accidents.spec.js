@@ -56,7 +56,7 @@ test('an accident: report, estimate, police report, liability in installments, r
   await pre.locator('[name=liability]').selectOption('driver');
   await expect(pre.locator('[data-for=police]')).toContainText('محضر الشرطة');
   await pre.locator('[name=liability]').selectOption('insurance');
-  await expect(pre.locator('[name=insurer]')).toBeVisible();
+  await expect(pre.locator('[data-for=insurance]')).toBeVisible();
   await admin.keyboard.press('Escape');
   await expect(admin.locator('.overlay[data-open]')).toHaveCount(0);
   expect((await detail(id)).liability).toBeNull();
@@ -125,9 +125,11 @@ test('an accident: report, estimate, police report, liability in installments, r
   expect([mine.liability, mine.deduction.total, mine.deduction.schedule.length]).toEqual(['driver', '150.000', 3]);
 });
 
-// The insurer pays: the decision names it, the accident cannot be closed until its cheque is recorded, then it closes.
+// The insurer pays: registered once in its page, picked in the decision; the accident cannot be closed until its cheque
+// is recorded, then it closes, and the insurer's page counts what it paid.
 test('an accident on the insurer: its cheque recorded, then closed', async ({ admin, api }) => {
   const n = uid();
+  const insurer = 'تأمين الخليج ' + n;
   const company = await api.post('/companies', { name: { ar: 'شركة التأمين ' + n, en: 'Insured company ' + n } });
   const vehicle = await api.post('/vehicles', { plate_number: '4/' + n.slice(-6), make: 'Kia', model: 'Pegas', company_id: company.id, last_odometer_km: 1000 });
   const jpg = () => api.upload('p.jpg', 'image/jpeg', jpeg());
@@ -136,12 +138,24 @@ test('an accident on the insurer: its cheque recorded, then closed', async ({ ad
     police_report: await api.upload('police.pdf', 'application/pdf', pdf()),
   });
   const top = (page) => page.locator('.overlay[data-open]').last();
+  await admin.goto('/admin.html#/accidents');
+  await settled(admin);
+  await admin.click('[data-action="acc-insurers"]');
+  await settled(admin);
+  await admin.click('#ins-new');
+  const f = top(admin);
+  await f.locator('[name=name]').fill(insurer);
+  await f.locator('[name=phone]').fill('22223333');
+  await f.locator('button[type=submit]').click();
+  await expect(f).toBeHidden();
+  await expect(admin.locator('#view tbody')).toContainText(insurer);
+
   await admin.goto('/admin.html#/accidents/' + acc.id);
   await settled(admin);
   await admin.click('[data-action="acc-outcome"]');
   const o = top(admin);
   await o.locator('[name=liability]').selectOption('insurance');
-  await o.locator('[name=insurer]').fill('الخليج للتأمين');
+  await o.locator('[name=insurer_id]').selectOption({ label: insurer });
   await o.locator('[name=claim_no]').fill('C-' + n);
   await o.locator('button[type=submit]').click();
   await expect(o).toBeHidden();
@@ -157,6 +171,8 @@ test('an accident on the insurer: its cheque recorded, then closed', async ({ ad
   await expect(c).toBeHidden();
   await settled(admin);
   const a = await api.get('/accidents/' + acc.id);
-  expect([a.liability, a.insurer, a.cheque_no, a.cheque_amount, a.deduction]).toEqual(['insurance', 'الخليج للتأمين', '998877', '210.000', null]);
+  expect([a.liability, a.insurer.name, a.cheque_no, a.cheque_amount, a.deduction]).toEqual(['insurance', insurer, '998877', '210.000', null]);
   await expect(admin.locator('[data-action="acc-close"]')).toHaveCount(1);
+  const row = (await api.get('/accident-insurers')).find((x) => x.name === insurer);
+  expect([row.accidents, row.awaiting_cheque, row.cheques_total]).toEqual([1, 0, '210.000']);
 });

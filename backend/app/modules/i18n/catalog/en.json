@@ -712,11 +712,14 @@
     "scheme_requests_pending": "{requests} driver request(s) for this scheme are waiting: approve or reject them first.",
     "scheme_choice_closed": "Ask to change your scheme first: you pick a new one once the office approves.",
     "scheme_choice_open": "You can pick your scheme now, straight from the list.",
-    "insurer_required": "Enter the insurance company's name",
+    "insurer_required": "Choose the insurance company",
     "settlement_details_required": "Enter the settlement amount and the employee who received it",
     "not_insurance": "The insurer is not the one liable",
     "cheque_recorded": "The cheque is already recorded",
-    "cheque_not_received": "The accident cannot be closed before the insurance cheque is received"
+    "cheque_not_received": "The accident cannot be closed before the insurance cheque is received",
+    "insurer_inactive": "This insurance company is deactivated",
+    "insurer_not_found": "Insurance company not found",
+    "insurer_name_taken": "An insurance company with this name is already registered"
   },
   "settings": {
     "branding": "Branding",

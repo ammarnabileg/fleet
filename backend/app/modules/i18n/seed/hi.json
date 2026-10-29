@@ -1336,11 +1336,14 @@
       "scheme_requests_pending": "इस योजना के लिए {requests} ड्राइवर अनुरोध लंबित हैं: पहले उन्हें स्वीकार या अस्वीकार करें।",
       "scheme_choice_closed": "पहले योजना बदलने का अनुरोध करें: ऑफिस की मंज़ूरी के बाद आप नई योजना चुनेंगे।",
       "scheme_choice_open": "आप अभी सीधे सूची से अपनी योजना चुन सकते हैं।",
-      "insurer_required": "बीमा कंपनी का नाम लिखें",
+      "insurer_required": "बीमा कंपनी चुनें",
       "settlement_details_required": "आपसी समझौते की राशि और उसे लेने वाले कर्मचारी को लिखें",
       "not_insurance": "इस दुर्घटना की ज़िम्मेदारी बीमा कंपनी की नहीं है",
       "cheque_recorded": "चेक पहले ही दर्ज है",
-      "cheque_not_received": "बीमा का चेक मिलने से पहले दुर्घटना बंद नहीं की जा सकती"
+      "cheque_not_received": "बीमा का चेक मिलने से पहले दुर्घटना बंद नहीं की जा सकती",
+      "insurer_inactive": "यह बीमा कंपनी निष्क्रिय है",
+      "insurer_not_found": "बीमा कंपनी नहीं मिली",
+      "insurer_name_taken": "इस नाम की बीमा कंपनी पहले से दर्ज है"
     },
     "finance_source": {
       "cash_journal": "कैश लेजर: {kind} {reason}",

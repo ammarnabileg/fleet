@@ -1336,11 +1336,14 @@
       "scheme_requests_pending": "Maombi {requests} ya madereva kwa mpango huu yanasubiri: yaidhinishe au yakatae kwanza.",
       "scheme_choice_closed": "Omba kubadilisha mpango kwanza: utachagua mpya baada ya ofisi kukubali.",
       "scheme_choice_open": "Unaweza kuchagua mpango wako sasa moja kwa moja kutoka kwenye orodha.",
-      "insurer_required": "Andika jina la kampuni ya bima",
+      "insurer_required": "Chagua kampuni ya bima",
       "settlement_details_required": "Andika kiasi cha maelewano na mfanyakazi aliyekipokea",
       "not_insurance": "Kampuni ya bima haiwajibiki kwa ajali hii",
       "cheque_recorded": "Hundi tayari imerekodiwa",
-      "cheque_not_received": "Ajali haiwezi kufungwa kabla ya kupokea hundi ya bima"
+      "cheque_not_received": "Ajali haiwezi kufungwa kabla ya kupokea hundi ya bima",
+      "insurer_inactive": "Kampuni hii ya bima imesimamishwa",
+      "insurer_not_found": "Kampuni ya bima haipatikani",
+      "insurer_name_taken": "Kampuni ya bima yenye jina hili tayari imesajiliwa"
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",

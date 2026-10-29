@@ -4167,5 +4167,16 @@ window.BT_EN = {
 "استلمه": "Received by",
 "لا خصم على السائق: التصليح على حساب الشركة (مصروف صيانة)": "No deduction from driver: the repair is on the company (maintenance expense)",
 "على التأمين": "Insurance",
-"بالتراضي": "Settlement"
+"بالتراضي": "Settlement",
+"شركات التأمين": "Insurance companies",
+"لا توجد شركات تأمين مسجّلة: سجّلها من «شركات التأمين» في صفحة الحوادث.": "No insurance companies registered: add them from “Insurance companies” on the accidents page.",
+"تُختار عند تحميل الحادث على التأمين. الموقوفة لا تظهر في الاختيار وتبقى في الحوادث القديمة.": "Picked when an accident is put on the insurer. Deactivated ones aren't offered and stay on past accidents.",
+"إضافة شركة تأمين": "Add insurance company",
+"اسم الشركة أو الهاتف…": "Company name or phone…",
+"حوادث عليها": "Accidents on it",
+"شيكات منتظرة": "Cheques awaited",
+"لا توجد شركات تأمين بعد": "No insurance companies yet",
+"أضف أول شركة": "Add the first one",
+"تعديل شركة التأمين": "Edit insurance company",
+"الشخص المسؤول": "Contact person"
 };

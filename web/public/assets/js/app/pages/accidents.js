@@ -25,7 +25,7 @@
     A.setTitle('الحوادث');
     var v = A.view();
     BT.render(v, h`${A.head('الحوادث', 'السائق المسؤول من سجل التسليم وقت الحادث؛ لا تُسجّل المسؤولية دون محضر الشرطة، ولا يُخصم قبل اعتماد تقدير الأضرار',
-        h`${api.can('deductions.view') ? A.btn('الخصومات', { icon: 'minus-circle', cls: 'btn-outline', action: 'acc-deductions' }) : ''}${api.can('accidents.create') ? A.btn('تسجيل حادث', { icon: 'plus', cls: 'btn-primary', action: 'acc-new' }) : ''}`)}
+        h`${A.btn('شركات التأمين', { icon: 'building-2', cls: 'btn-outline', action: 'acc-insurers' })}${api.can('deductions.view') ? A.btn('الخصومات', { icon: 'minus-circle', cls: 'btn-outline', action: 'acc-deductions' }) : ''}${api.can('accidents.create') ? A.btn('تسجيل حادث', { icon: 'plus', cls: 'btn-primary', action: 'acc-new' }) : ''}`)}
       <div class="card"><div data-t></div></div>`);
     BT.table(v.querySelector('[data-t]'), {
       fetch: function (s) { return api.get('/accidents', Object.assign({ limit: s.limit, offset: s.offset }, CHIPS[s.chip] || { status: 'open' })); },
@@ -138,7 +138,7 @@
       ? h`<div class="flex gap-8 mt-12"><button type="button" class="btn btn-sm btn-primary" data-est-ok>${icon('check', 14)} اعتماد التقدير</button><button type="button" class="btn btn-sm btn-ghost" data-est-no>${icon('x', 14)} رفض</button></div>` : '';
     var outcome = a.liability ? [
       ['المسؤولية', C.liability(a)],
-      a.insurer ? ['شركة التأمين', a.insurer] : null,
+      a.insurer ? ['شركة التأمين', a.insurer.name] : null,
       a.insurance_claim_no ? ['رقم المطالبة', h`<span class="num">${a.insurance_claim_no}</span>`] : null,
       a.liability === 'insurance' ? ['الشيك', a.cheque_received_on ? h`<span class="num">${a.cheque_no}</span> · ${BT.amt(Number(a.cheque_amount))} · ${fmt.date(a.cheque_received_on)}` : BT.pill('بانتظار الشيك', 'o')] : null,
       a.settlement_amount != null ? ['مبلغ التراضي', h`${BT.amt(Number(a.settlement_amount))} <small class="muted">(خارج الحسابات)</small>`] : null,
@@ -223,7 +223,8 @@
   BT.actions['acc-outcome'] = function () {
     var a = acc(), approved = a.estimate_status === 'approved', total = approved ? Number(a.estimate_total) : 0;
     var staff = api.can('employees.view') ? A.allEmployees({}).catch(function () { return []; }) : Promise.resolve([]);
-    staff.then(function (emps) {
+    Promise.all([staff, api.get('/accident-insurers')]).then(function (r) {
+      var emps = r[0], insOpts = r[1].filter(function (i) { return i.is_active; }).map(function (i) { return { v: i.id, t: i.name }; });
       var empOpts = emps.map(function (e) { return { v: e.id, t: e.employee_number + ' · ' + api.name(e.name) }; });
       A.formModal({
         title: 'تحديد المسؤولية', subtitle: 'حادث #' + a.number, icon: 'scale', size: 'lg',
@@ -231,7 +232,7 @@
           <div class="full">${BT.f.select({ name: 'liability', label: 'على من التصليح', required: true, value: a.has_police_report ? 'driver' : 'settlement', options: A.options('accident_liability', ['insurance', 'company', 'driver', 'settlement']) })}</div>
           <div data-for="police" class="full banner warn">${icon('file-warning', 16)}<div>أرفق محضر الشرطة أولاً: لا تُسجّل هذه المسؤولية دونه (التراضي فقط لا يحتاجه).</div></div>
           <div data-for="insurance" class="full"><div class="form-grid">
-            ${BT.f.input({ name: 'insurer', label: 'شركة التأمين', required: true })}
+            ${insOpts.length ? BT.f.select({ name: 'insurer_id', label: 'شركة التأمين', required: true, options: insOpts }) : h`<div class="full banner warn">${icon('triangle-alert', 16)}<div>لا توجد شركات تأمين مسجّلة: سجّلها من «شركات التأمين» في صفحة الحوادث.</div></div>`}
             ${BT.f.input({ name: 'claim_no', label: 'رقم المطالبة', optional: true })}
             <div class="full muted fs-sm">يبقى الحادث مفتوحاً ويصل تنبيه كل يوم للأدمن ولك حتى يُسجَّل استلام الشيك.</div></div></div>
           <div data-for="company" class="full muted fs-sm">لا خصم على السائق. فاتورة التصليح المعتمدة تُقيَّد مصروف صيانة على الشركة تلقائياً.</div>
@@ -268,7 +269,7 @@
         submit: function (f, dlg) {
           var l = dlg.form.querySelector('[name=liability]').value;
           var body = { liability: l, note: f.note || null };
-          if (l === 'insurance') { body.insurer = f.insurer; body.claim_no = f.claim_no || null; }
+          if (l === 'insurance') { body.insurer_id = f.insurer_id; body.claim_no = f.claim_no || null; }
           if (l === 'settlement') { body.settlement_amount = String(f.settlement_amount); body.received_by = f.received_by; }
           if (l === 'driver') {
             body.percent = f.percent === '' || f.percent == null ? null : String(f.percent);
@@ -286,7 +287,7 @@
   BT.actions['acc-cheque'] = function () {
     var a = acc();
     A.formModal({
-      title: 'استلام شيك التأمين', subtitle: 'حادث #' + a.number + ' · ' + a.insurer, icon: 'banknote',
+      title: 'استلام شيك التأمين', subtitle: 'حادث #' + a.number + ' · ' + a.insurer.name, icon: 'banknote',
       body: h`<div class="form-grid">
         ${BT.f.input({ name: 'cheque_no', label: 'رقم الشيك', required: true })}
         ${BT.f.input({ name: 'amount', label: 'المبلغ', required: true, num: true })}
@@ -296,6 +297,53 @@
       submit: function (f) { return api.post('/accidents/' + a.id + '/cheque', { cheque_no: f.cheque_no, amount: String(f.amount), received_on: f.received_on, note: f.note || null }); },
       after: refreshAll
     });
+  };
+
+  /* ================= شركات التأمين ================= */
+  BT.actions['acc-insurers'] = function () { A.go('insurers'); };
+  BT.pages['insurers'] = function () {
+    A.setTitle('شركات التأمين', [['الحوادث', 'accidents'], ['شركات التأمين']]);
+    var v = A.view(), manage = api.can('accidents.approve');
+    BT.render(v, h`${A.head('شركات التأمين', 'تُختار عند تحميل الحادث على التأمين. الموقوفة لا تظهر في الاختيار وتبقى في الحوادث القديمة.', manage ? A.btn('إضافة شركة تأمين', { icon: 'plus', cls: 'btn-primary', id: 'ins-new' }) : '')}
+      <div class="card"><div data-t></div></div>`);
+    var t = { refresh: draw };
+    function draw() { api.get('/accident-insurers').then(function (rows) { BT.table(v.querySelector('[data-t]'), {
+      rows: rows, pageSize: 25,
+      search: { placeholder: 'اسم الشركة أو الهاتف…', text: function (i) { return i.name + ' ' + (i.phone || '') + ' ' + (i.contact || ''); } },
+      chips: { key: 'is_active', options: [{ v: 'true', t: 'نشطة' }, { v: 'false', t: 'موقوفة' }], match: function (i, c) { return String(i.is_active) === c; } },
+      columns: [
+        { key: 'name', label: 'الشركة', render: function (i) { return h`<b>${i.name}</b>${i.contact ? h`<span class="sub">${i.contact}</span>` : ''}`; } },
+        { key: 'phone', label: 'الهاتف', render: function (i) { return i.phone ? h`<span class="num">${i.phone}</span>` : '—'; } },
+        { key: 'email', label: 'البريد', render: function (i) { return i.email || '—'; } },
+        { key: 'accidents', label: 'حوادث عليها', num: true },
+        { key: 'awaiting_cheque', label: 'شيكات منتظرة', num: true, render: function (i) { return i.awaiting_cheque ? BT.pill(fmt.int(i.awaiting_cheque), 'o') : '0'; } },
+        { key: 'cheques_total', label: 'المستلم', num: true, render: function (i) { return BT.amt(Number(i.cheques_total)); } },
+        { key: 'is_active', label: 'الحالة', render: function (i) { return i.is_active ? BT.pill('نشطة', 'g') : BT.pill('موقوفة', 'n'); } }
+      ],
+      rowClick: manage ? function (i) { insurerForm(i); } : null,
+      empty: { icon: 'building-2', title: 'لا توجد شركات تأمين بعد', sub: manage ? 'أضف أول شركة' : '' }
+    }); }); }
+    draw();
+    function insurerForm(i) {
+      A.formModal({
+        title: i ? 'تعديل شركة التأمين' : 'إضافة شركة تأمين', icon: 'building-2',
+        body: h`<div class="form-grid">
+          <div class="full">${BT.f.input({ name: 'name', label: 'اسم الشركة', required: true, value: i ? i.name : '' })}</div>
+          ${BT.f.input({ name: 'phone', label: 'الهاتف', optional: true, value: i ? i.phone || '' : '' })}
+          ${BT.f.input({ name: 'contact', label: 'الشخص المسؤول', optional: true, value: i ? i.contact || '' : '' })}
+          <div class="full">${BT.f.input({ name: 'email', label: 'البريد', optional: true, value: i ? i.email || '' : '' })}</div>
+          ${BT.f.textarea({ name: 'notes', label: 'ملاحظات', optional: true, full: true, rows: 2, value: i ? i.notes || '' : '' })}
+          ${i ? h`<div class="full">${BT.f.select({ name: 'active', label: 'الحالة', required: true, placeholder: false, value: String(i.is_active), options: [{ v: 'true', t: 'نشطة' }, { v: 'false', t: 'موقوفة' }] })}</div>` : ''}</div>`,
+        submitText: 'حفظ', submitCls: 'btn-primary', done: 'تم الحفظ',
+        submit: function (f) {
+          var body = { name: f.name, phone: f.phone || null, contact: f.contact || null, email: f.email || null, notes: f.notes || null };
+          if (i) { body.is_active = f.active === 'true'; return api.patch('/accident-insurers/' + i.id, body); }
+          return api.post('/accident-insurers', body);
+        },
+        after: function () { t.refresh(); }
+      });
+    }
+    var add = v.querySelector('#ins-new'); if (add) add.onclick = function () { insurerForm(null); };
   };
 
   /* ================= الخصومات ================= */

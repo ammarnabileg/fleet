@@ -35,7 +35,7 @@ from app.core.clock import KUWAIT, today, utcnow
 from app.core.db import violated_constraint
 from app.core.errors import AppError
 from app.core.events import emit
-from app.modules.accidents.models import Accident, AccidentEvent, AccidentPhoto
+from app.modules.accidents.models import Accident, AccidentEvent, AccidentPhoto, Insurer
 from app.modules.approvals import service as approvals
 from app.modules.audit import service as audit
 from app.modules.files import service as files
@@ -188,6 +188,94 @@ def stage(a: Accident) -> str:
     return "reported"
 
 
+# ------------------------------------------------------------------ insurance companies
+
+
+def _insurer(db: Session, public_id, *, lock: bool = False) -> Insurer:
+    q = select(Insurer).where(Insurer.public_id == public_id)
+    i = db.scalar(q.with_for_update() if lock else q)
+    if i is None:
+        raise AppError(404, "insurer_not_found")
+    return i
+
+
+def _insurer_brief(db: Session, insurer_id: int | None) -> dict | None:
+    i = db.get(Insurer, insurer_id) if insurer_id else None
+    return {"id": str(i.public_id), "name": i.name} if i else None
+
+
+def _insurer_out(i: Insurer, stats: dict) -> dict:
+    return {
+        "id": str(i.public_id),
+        "name": i.name,
+        "phone": i.phone,
+        "contact": i.contact,
+        "email": i.email,
+        "notes": i.notes,
+        "is_active": i.is_active,
+        "accidents": stats.get("accidents", 0),
+        "awaiting_cheque": stats.get("awaiting", 0),
+        "cheques_total": stats.get("received", Decimal(0)),
+    }
+
+
+def list_insurers(db: Session, *, all_companies: bool, company_ids: Iterable[int]) -> list[dict]:
+    """Every insurance company, with what it owes the caller's companies: its accidents, the cheques still awaited
+    and the total received."""
+    rows = db.execute(
+        _scoped(
+            select(
+                Accident.insurer_id,
+                func.count(),
+                func.count().filter(Accident.cheque_received_on.is_(None), Accident.status == "open"),
+                func.coalesce(func.sum(Accident.cheque_amount), 0),
+            )
+            .where(Accident.liability == "insurance")
+            .group_by(Accident.insurer_id),
+            all_companies,
+            company_ids,
+        )
+    ).all()
+    stats = {r[0]: {"accidents": r[1], "awaiting": r[2], "received": r[3]} for r in rows}
+    insurers = db.scalars(select(Insurer).order_by(Insurer.is_active.desc(), Insurer.name))
+    return [_insurer_out(i, stats.get(i.id, {})) for i in insurers]
+
+
+def _save_insurer(db: Session, i: Insurer, action: str, before: dict | None, *, actor_user_id: int) -> dict:
+    try:
+        db.flush()
+    except IntegrityError as e:
+        db.rollback()
+        if violated_constraint(e) == "insurers_name_key":
+            raise AppError(409, "insurer_name_taken") from None
+        raise
+    audit.record(
+        db,
+        action=action,
+        entity_type="insurer",
+        entity_id=i.public_id,
+        actor_user_id=actor_user_id,
+        before=before,
+        after=_insurer_out(i, {}),
+    )
+    db.commit()
+    return _insurer_out(i, {})
+
+
+def create_insurer(db: Session, data: dict, *, actor_user_id: int) -> dict:
+    i = Insurer(**data)
+    db.add(i)
+    return _save_insurer(db, i, "accident.insurer.created", None, actor_user_id=actor_user_id)
+
+
+def update_insurer(db: Session, public_id, changes: dict, *, actor_user_id: int) -> dict:
+    i = _insurer(db, public_id, lock=True)
+    before = {k: getattr(i, k) for k in changes}
+    for k, v in changes.items():
+        setattr(i, k, v)
+    return _save_insurer(db, i, "accident.insurer.updated", before, actor_user_id=actor_user_id)
+
+
 # ------------------------------------------------------------------ output
 
 
@@ -250,7 +338,7 @@ def _detail(db: Session, a: Accident) -> dict:
         "outcome_note": a.outcome_note,
         "outcome_at": a.outcome_at,
         "outcome_by": users.get(a.outcome_by),
-        "insurer": a.insurer,
+        "insurer": _insurer_brief(db, a.insurer_id),
         "insurance_claim_no": a.insurance_claim_no,
         "cheque_no": a.cheque_no,
         "cheque_amount": a.cheque_amount,
@@ -628,9 +716,12 @@ def record_outcome(db: Session, public_id, *, data: dict, actor_user_id: int, **
         raise AppError(409, "police_report_required")
     amount = None
     if liability == "insurance":
-        if not data.get("insurer"):
+        if data.get("insurer_id") is None:
             raise AppError(422, "insurer_required")
-        a.insurer, a.insurance_claim_no = data["insurer"], data.get("claim_no")
+        insurer = _insurer(db, data["insurer_id"])
+        if not insurer.is_active:
+            raise AppError(409, "insurer_inactive")
+        a.insurer_id, a.insurance_claim_no = insurer.id, data.get("claim_no")
     elif liability == "settlement":
         if data.get("settlement_amount") is None or data.get("received_by") is None:
             raise AppError(422, "settlement_details_required")
@@ -682,7 +773,7 @@ def record_outcome(db: Session, public_id, *, data: dict, actor_user_id: int, **
             "liability": liability,
             "percent": a.liability_percent,
             "deduction": amount,
-            "insurer": a.insurer,
+            "insurer": a.insurer_id,
             "settlement": a.settlement_amount,
         },
     )
@@ -709,7 +800,10 @@ def _chase_cheque(db: Session, a: Accident) -> None:
         entity_type="accident",
         entity_id=a.public_id,
         params=_alert_params(db, a)
-        | {"insurer": a.insurer, "days": (utcnow() - a.outcome_at).days if a.outcome_at else 0},
+        | {
+            "insurer": (_insurer_brief(db, a.insurer_id) or {}).get("name", ""),
+            "days": (utcnow() - a.outcome_at).days if a.outcome_at else 0,
+        },
         dedupe_key=f"acc_cheque:{a.id}",
         assigned_to=a.outcome_by,
     )

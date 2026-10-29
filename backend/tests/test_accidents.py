@@ -21,6 +21,7 @@ from tests.conftest import (
 from tests.test_maintenance import camera, center, portal_client
 
 A = "/api/v1/accidents"
+INS = "/api/v1/accident-insurers"
 P = "/api/v1/portal"
 M = "/api/v1/maintenance"
 
@@ -574,12 +575,22 @@ def test_the_insurer_owes_a_cheque_chased_daily_until_received(admin_client, cli
     aid = estimated_and_approved(admin_client, client, s)
     r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "insurance"})
     assert r.status_code == 422 and r.json()["code"] == "insurer_required"
+    # the insurance companies are registered once, then picked
+    gulf = admin_client.post(INS, json={"name": "Gulf Insurance", "phone": "22223333", "contact": "Claims desk"}).json()
+    r = admin_client.post(INS, json={"name": " gulf insurance "})
+    assert r.status_code == 409 and r.json()["code"] == "insurer_name_taken"
+    old = admin_client.post(INS, json={"name": "Old Insurer", "is_active": False}).json()
+    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "insurance", "insurer_id": old["id"]})
+    assert r.status_code == 409 and r.json()["code"] == "insurer_inactive"
     r = admin_client.post(
-        f"{A}/{aid}/outcome", json={"liability": "insurance", "insurer": "Gulf Insurance", "claim_no": "C-7"}
+        f"{A}/{aid}/outcome", json={"liability": "insurance", "insurer_id": gulf["id"], "claim_no": "C-7"}
     )
     assert r.status_code == 200, r.text
     a = r.json()
-    assert a["insurer"] == "Gulf Insurance" and a["deduction"] is None and a["cheque_received_on"] is None
+    assert a["insurer"] == {"id": gulf["id"], "name": "Gulf Insurance"} and a["deduction"] is None
+    assert a["cheque_received_on"] is None
+    listed = {x["name"]: x for x in admin_client.get(INS).json()}
+    assert (listed["Gulf Insurance"]["accidents"], listed["Gulf Insurance"]["awaiting_cheque"]) == (1, 1)
 
     def open_alerts():
         return db.execute(
@@ -616,6 +627,10 @@ def test_the_insurer_owes_a_cheque_chased_daily_until_received(admin_client, cli
     assert r.status_code == 200, r.text
     assert r.json()["cheque_amount"] == "150.000" and r.json()["cheque_no"] == "554411"
     assert open_alerts() == [] and accidents.scan_insurance_cheques(db) == 0
+    gulf_now = next(x for x in admin_client.get(INS).json() if x["id"] == gulf["id"])
+    assert (gulf_now["awaiting_cheque"], gulf_now["cheques_total"]) == (0, "150.000")
+    r = admin_client.patch(f"{INS}/{gulf['id']}", json={"phone": None, "is_active": False})
+    assert r.status_code == 200 and r.json()["phone"] is None and r.json()["is_active"] is False
     assert admin_client.post(f"{A}/{aid}/cheque", json=cheque).json()["code"] == "cheque_recorded"
     assert admin_client.post(f"{A}/{aid}/close", json={}).json()["status"] == "closed"
 
