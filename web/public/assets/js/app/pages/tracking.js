@@ -10,7 +10,6 @@
   function mapFailed(el) { BT.render(el, BT.empty('map', 'تعذر تحميل الخريطة', 'حدّث الصفحة. إن تكرر: المتصفح لا يدعم WebGL أو ملفات الخريطة غير منشورة على الخادم')); }
 
   var GLIDE_MS = 1200, FOCUS_ZOOM = 16; // انزلاق العلامة للموقع الجديد، والتقريب عند اختيار سيارة
-  var CLUSTER_FROM = 25, CLUSTER_PX = 56, CLUSTER_UNTIL_ZOOM = 15; // من 25 سيارة ظاهرة: المتقاربة على الشاشة مجموعة واحدة
 
   /* حالة السيارة كما تُعرض: لا يظهر موقع قديم كأنه حالي، عمره بجانبه دائماً */
   function vehicleState(r) {
@@ -36,11 +35,11 @@
           <div class="chips mb-8" data-chips></div><div class="side-list list" data-list>${A.spinner()}</div></div>
         <div class="trk-main" data-map-wrap><div class="live-map" data-map dir="ltr"></div></div>
       </div>`);
-    var state = { rows: [], byId: {}, rowEls: {}, filter: '', q: '', selected: null, follow: false, markers: {}, clusters: {}, stream: 'connecting', lastEvent: null, fitted: false };
+    var state = { rows: [], byId: {}, rowEls: {}, filter: '', q: '', selected: null, follow: false, stream: 'connecting', lastEvent: null, fitted: false };
     function index() { state.byId = {}; state.rows.forEach(function (r) { state.byId[r.vehicle.id] = r; }); }
     var listEl = v.querySelector('[data-list]'), chipsEl = v.querySelector('[data-chips]'), liveEl = v.querySelector('[data-live-state]');
     var trk = v.querySelector('[data-trk]'), mapEl = v.querySelector('[data-map]');
-    var map, tools;
+    var map, tools, cars = null;
 
     function setPane(x) {
       pane = x;
@@ -88,61 +87,26 @@
       var st = vehicleState(r);
       return String(h`<div dir="rtl" style="min-width:190px;font-family:inherit"><b class="plate">${r.vehicle.plate_number}</b><div class="mt-4"><bdi>${api.name(r.driver && r.driver.name)}</bdi></div><div class="fs-sm mt-4 ${st.tone === 'g' ? '' : 't-danger'}">${st.text}</div><div class="muted fs-sm mt-4">آخر موقع وصل: ${r.position ? fmt.dt(r.position.recorded_at) : '—'}</div><div class="mt-8 flex gap-8">${api.can('vehicles.view') ? h`<a href="#/vehicles/${r.vehicle.id}">ملف السيارة</a>` : ''}${api.can('tracking.history') ? h`<a href="#/tracking?route=${r.vehicle.id}">المسار</a>` : ''}</div></div>`);
     }
-    function drawMarkers() {
-      if (!map) return; // الخريطة لم تُحمّل (أو تعذرت): القائمة تعمل وحدها
-      var shown = {};
-      visible().forEach(function (r) { shown[r.vehicle.id] = true; });
-      state.rows.forEach(function (r) { drawMarker(r, !!shown[r.vehicle.id]); });
-      Object.keys(state.markers).forEach(function (id) { if (!state.byId[id]) { state.markers[id].remove(); delete state.markers[id]; } });
-      cluster();
+    /* السيارات على الخريطة: طبقة واحدة (map.cars)، لا علامة HTML لكل سيارة */
+    function carOf(r) {
+      var st = vehicleState(r), moving = r.position.speed_kmh != null && r.position.speed_kmh >= 3;
+      return { id: r.vehicle.id, pos: [r.position.lat, r.position.lng], tone: st.tone, stale: st.stale, heading: moving ? r.position.heading : null };
     }
-    /* علامة سيارة واحدة: الموقع الواصل من البث يحرّك علامته وحدها، لا كل العلامات */
+    function drawMarkers() {
+      if (!cars) return; // الخريطة لم تُحمّل (أو تعذرت): القائمة تعمل وحدها
+      cars.set(visible().filter(function (r) { return r.position; }).map(carOf));
+      cars.select(state.selected);
+    }
+    /* موقع واحد وصل من البث: سيارته وحدها */
     function drawMarker(r, shown) {
-      var m = state.markers[r.vehicle.id];
-      if (!r.position) { if (m) { m.remove(); delete state.markers[r.vehicle.id]; } return; }
-      var st = vehicleState(r), ll = [r.position.lat, r.position.lng], moving = r.position.speed_kmh != null && r.position.speed_kmh >= 3, html = BT.map.carHtml(st.tone, state.selected === r.vehicle.id, st.stale, moving ? r.position.heading : null);
-      if (!m) m = state.markers[r.vehicle.id] = map.marker(ll, html, { onClick: function () { select(r.vehicle.id, true); } });
-      else { m.move(ll, GLIDE_MS); m.html(html); }
-      m.title(r.vehicle.plate_number + ' — ' + st.text);
-      m.el.setAttribute('data-veh-mark', r.vehicle.id);
-      m.shown = shown;
-      m.popup(function () { return popup(r); }); // تُبنى عند فتحها فقط
+      if (!cars) return;
+      cars.put(shown && r.position ? carOf(r) : { id: r.vehicle.id });
     }
     function matches(r) {
       if (state.filter === 'g' && tone(r) !== 'g') return false;
       if (state.filter === 'r' && tone(r) === 'g') return false;
       var nq = BT.norm(state.q);
       return !nq || BT.norm(r.vehicle.plate_number + ' ' + api.name(r.driver && r.driver.name)).indexOf(nq) > -1;
-    }
-    /* تجميع العلامات المتقاربة على الشاشة عند كثرتها؛ السيارة المحددة تبقى وحدها دائماً */
-    function cluster() {
-      if (!map) return;
-      var ids = Object.keys(state.markers).filter(function (id) { return state.markers[id].shown; });
-      var groups = {}, keep = {};
-      if (ids.length >= CLUSTER_FROM && map.zoom() < CLUSTER_UNTIL_ZOOM) {
-        ids.forEach(function (id) {
-          if (id === state.selected) return;
-          var px = map.project(state.markers[id].pos()), key = Math.floor(px.x / CLUSTER_PX) + ':' + Math.floor(px.y / CLUSTER_PX);
-          (groups[key] = groups[key] || []).push(id);
-        });
-      }
-      var inCluster = {};
-      Object.keys(groups).forEach(function (k) {
-        var g = groups[k];
-        if (g.length < 2) return;
-        g.sort();
-        var sig = g.join(','), pts = g.map(function (id) { return state.markers[id].pos(); });
-        var center = [BT.sum(pts, function (x) { return x[0]; }) / pts.length, BT.sum(pts, function (x) { return x[1]; }) / pts.length];
-        var lost = g.filter(function (id) { var r = state.byId[id]; return r && vehicleState(r).tone !== 'g'; }).length;
-        var c = state.clusters[sig];
-        if (!c) c = state.clusters[sig] = map.marker(center, BT.map.clusterHtml(g.length, lost), { onClick: function () { map.fitBounds(pts.slice(), 16); } });
-        else { c.move(center); c.html(BT.map.clusterHtml(g.length, lost)); }
-        c.title(g.length + ' سيارات متقاربة' + (lost ? '، منها ' + lost + ' بلا موقع حالي' : '') + ' — اضغط للتكبير');
-        keep[sig] = true;
-        g.forEach(function (id) { inCluster[id] = true; });
-      });
-      Object.keys(state.clusters).forEach(function (sig) { if (!keep[sig]) { state.clusters[sig].remove(); delete state.clusters[sig]; } });
-      Object.keys(state.markers).forEach(function (id) { var m = state.markers[id]; m.show(m.shown && !inCluster[id]); });
     }
     function positioned() { return visible().filter(function (r) { return r.position; }).map(function (r) { return [r.position.lat, r.position.lng]; }); }
     function selectedRow() { return state.byId[state.selected]; }
@@ -161,10 +125,9 @@
       state.selected = id;
       var r = selectedRow();
       drawList(); drawMarkers();
-      var m = state.markers[id];
       if (pan && narrow()) setPane('map');
       // من القائمة أو العلامة: الخريطة تطير إليها وتقرّب وتتابعها مع كل موقع جديد (سحب الخريطة يوقف المتابعة)
-      if (m && pan) { state.follow = !!(r && r.position); map.fly(m.pos(), Math.max(map.zoom(), FOCUS_ZOOM)); m.open(); drawTools(); }
+      if (cars && cars.has(id) && pan) { state.follow = !!(r && r.position); map.fly(cars.pos(id), Math.max(map.zoom(), FOCUS_ZOOM)); cars.popup(id); drawTools(); }
       if (r && !r.position) BT.toast('لا يوجد موقع لهذه السيارة خلال العهدة', { type: 'info' });
     }
     function drawLive() {
@@ -197,8 +160,8 @@
       function flush() {
         flushT = null;
         var ids = Object.keys(dirty); dirty = {};
-        ids.forEach(function (id) { listed[id] = true; var r = state.byId[id]; if (map && r) drawMarker(r, matches(r)); });
-        if (!listT) listT = setTimeout(function () { listT = null; var l = Object.keys(listed); listed = {}; updateRows(l); cluster(); }, 2000);
+        ids.forEach(function (id) { listed[id] = true; var r = state.byId[id]; if (r) drawMarker(r, matches(r)); });
+        if (!listT) listT = setTimeout(function () { listT = null; var l = Object.keys(listed); listed = {}; updateRows(l); }, 2000);
       }
       es.addEventListener('position', function (e) {
         var m = JSON.parse(e.data), r = state.byId[m.vehicle.id];
@@ -227,12 +190,13 @@
       };
       map.control(tools, 'top-right');
       map.on('dragstart', function () { if (state.follow) { state.follow = false; drawTools(); } }); // المستخدم حرّك الخريطة بنفسه
-      map.on('moveend', cluster);
     }
     drawLive();
     BT.map(mapEl, { fullscreen: v.querySelector('[data-map-wrap]') }).then(function (m) {
       if (!m) return;
       map = m;
+      cars = map.cars({ onClick: function (id) { select(id, true); }, popup: function (id) { return state.byId[id] ? popup(state.byId[id]) : ''; } });
+      A._liveCars = cars; // the tests find a car on the map through it
       mapTools();
       refresh();
       stream();

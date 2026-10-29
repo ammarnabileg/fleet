@@ -53,6 +53,7 @@
         fallback: true,
         style: {
           version: 8,
+          glyphs: abs(V + 'fonts/') + '{fontstack}/{range}.pbf', // عدد السيارات في المجموعات
           sources: { raster: { type: 'raster', tiles: [BT.config.mapFallbackTiles], tileSize: 256, maxzoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' } },
           layers: [{ id: 'raster', type: 'raster', source: 'raster' }]
         }
@@ -99,7 +100,7 @@
         var ml = lib.ml;
         var map = new ml.Map({
           container: el, style: base.style, center: lngLat(BT.config.mapCenter), zoom: BT.config.mapZoom, maxZoom: 18,
-          attributionControl: { compact: true }, dragRotate: false, pitchWithRotate: false, touchPitch: false, locale: LOCALE
+          attributionControl: { compact: true }, fadeDuration: 0, dragRotate: false, pitchWithRotate: false, touchPitch: false, locale: LOCALE
         });
         map.touchZoomRotate.disableRotation();
         map.keyboard.disableRotation();
@@ -159,6 +160,69 @@
           remove: function () { mk.remove(); }
         };
       },
+      /* كل السيارات طبقة واحدة ترسمها بطاقة الرسوميات (WebGL)، والخريطة نفسها تجمع المتقاربة: لا عنصر HTML لكل سيارة
+         ولا حركة لكل واحدة. مئات العلامات HTML فوق الخريطة كانت تأخذ نواة معالج كاملة وذاكرة تزيد، فيتوقف المتصفح.
+         set(list): [{id, pos:[lat,lng], tone, stale, heading}] كلها؛ يُرسم مرة كل ثانيتين على الأكثر (كل رسم يعيد
+         رسم الخريطة كلها، ومواقع السيارات تصل كل 30 ثانية)، وبلا تلاشٍ للرموز (fadeDuration: 0) فلا يستمر الرسم بعد كل تحديث.
+         opts.onClick(id) عند الضغط على سيارة؛ popup(id) يفتح نافذتها (opts.popup(id) يبنيها) */
+      cars: function (opts) {
+        var byId = {}, selected = null, pending = null, popup = null, popupId = null, ready = false;
+        function feature(c) {
+          return { type: 'Feature', geometry: { type: 'Point', coordinates: lngLat(c.pos) },
+            properties: { id: c.id, tone: c.tone, stale: c.stale ? 1 : 0, heading: c.heading == null || c.stale ? -1 : Math.round(c.heading), sel: c.id === selected ? 1 : 0, lost: c.tone === 'g' ? 0 : 1 } };
+        }
+        function data() { return { type: 'FeatureCollection', features: Object.keys(byId).map(function (id) { return feature(byId[id]); }) }; }
+        function flush() {
+          pending = null;
+          var src = ready && map.getStyle() && map.getSource('cars');
+          if (!src) return; // not drawn yet, or the page was left
+          src.setData(data());
+          if (popup && popupId && byId[popupId]) { popup.setLngLat(lngLat(byId[popupId].pos)); popup.setHTML(opts.popup(popupId)); }
+        }
+        function later() { if (!pending) pending = setTimeout(flush, 2000); }
+        loaded.then(function () {
+          return Promise.all(['g', 'o', 'r', 'n'].map(function (t) { return carImage(map, t); }).concat([arrowImage(map)]));
+        }).then(function () {
+          if (!map.getStyle()) return; // left the page
+          map.addSource('cars', { type: 'geojson', data: data(), cluster: true, clusterRadius: 48, clusterMaxZoom: 14, clusterProperties: { lost: ['+', ['get', 'lost']] } });
+          var single = ['!', ['has', 'point_count']], many = ['has', 'point_count'];
+          map.addLayer({ id: 'cars-cluster', type: 'circle', source: 'cars', filter: many, paint: { 'circle-color': '#1D4ED8', 'circle-radius': ['step', ['get', 'point_count'], 17, 10, 20, 50, 24, 200, 28], 'circle-stroke-width': 3, 'circle-stroke-color': '#ffffff' } });
+          map.addLayer({ id: 'cars-cluster-n', type: 'symbol', source: 'cars', filter: many, layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': ['Noto Sans Medium'], 'text-size': 13, 'text-allow-overlap': true }, paint: { 'text-color': '#ffffff' } });
+          map.addLayer({ id: 'cars-cluster-lost', type: 'circle', source: 'cars', filter: ['all', many, ['>', ['get', 'lost'], 0]], paint: { 'circle-color': '#B91C1C', 'circle-radius': 9, 'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff', 'circle-translate': [15, -15] } });
+          map.addLayer({ id: 'cars-cluster-lost-n', type: 'symbol', source: 'cars', filter: ['all', many, ['>', ['get', 'lost'], 0]], layout: { 'text-field': ['to-string', ['get', 'lost']], 'text-font': ['Noto Sans Medium'], 'text-size': 10, 'text-allow-overlap': true, 'text-offset': [1.5, -1.5] }, paint: { 'text-color': '#ffffff' } });
+          map.addLayer({ id: 'cars-sel', type: 'circle', source: 'cars', filter: ['all', single, ['==', ['get', 'sel'], 1]], paint: { 'circle-radius': 22, 'circle-color': 'rgba(10,108,255,.18)', 'circle-stroke-width': 3, 'circle-stroke-color': '#0A6CFF' } });
+          map.addLayer({ id: 'cars-dir', type: 'symbol', source: 'cars', filter: ['all', single, ['>=', ['get', 'heading'], 0]], layout: { 'icon-image': 'veh-arrow', 'icon-rotate': ['get', 'heading'], 'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true } });
+          map.addLayer({ id: 'cars', type: 'symbol', source: 'cars', filter: single, layout: { 'icon-image': ['concat', 'veh-', ['get', 'tone']], 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'symbol-sort-key': ['get', 'sel'] }, paint: { 'icon-opacity': ['case', ['==', ['get', 'stale'], 1], 0.6, 1] } });
+          map.on('click', 'cars', function (e) { var id = e.features[0].properties.id; setTimeout(function () { opts.onClick(id); }, 0); });
+          map.on('click', 'cars-cluster', function (e) {
+            var f = e.features[0];
+            map.getSource('cars').getClusterExpansionZoom(f.properties.cluster_id).then(function (z) { map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(z, 16) }); });
+          });
+          ['cars', 'cars-cluster'].forEach(function (l) {
+            map.on('mouseenter', l, function () { map.getCanvas().style.cursor = 'pointer'; });
+            map.on('mouseleave', l, function () { map.getCanvas().style.cursor = ''; });
+          });
+          ready = true;
+          map.once('remove', function () { ready = false; clearTimeout(pending); pending = null; });
+          flush();
+        });
+        return {
+          set: function (list) { byId = {}; list.forEach(function (c) { byId[c.id] = c; }); later(); },
+          put: function (c) { if (c.pos) byId[c.id] = c; else delete byId[c.id]; later(); },
+          select: function (id) { selected = id; later(); },
+          pos: function (id) { return byId[id] ? byId[id].pos : null; },
+          has: function (id) { return !!byId[id]; },
+          count: function () { return Object.keys(byId).length; },
+          /* where a car is on the page, in pixels (the tests click it there) */
+          point: function (id) { var c = byId[id]; if (!c) return null; var p = map.project(lngLat(c.pos)), r = map.getCanvas().getBoundingClientRect(); return { x: r.left + p.x, y: r.top + p.y }; },
+          popup: function (id) {
+            if (!byId[id]) return;
+            if (!popup) { popup = new ml.Popup({ offset: 18, maxWidth: '300px' }); popup.on('close', function () { popupId = null; }); }
+            popupId = id;
+            popup.setLngLat(lngLat(byId[id].pos)).setHTML(opts.popup(id)).addTo(map);
+          }
+        };
+      },
       fit: function (points, maxZoom) {
         if (!points.length) return;
         var b = new ml.LngLatBounds(lngLat(points[0]), lngLat(points[0]));
@@ -202,14 +266,29 @@
     };
   }
 
+  /* صور علامات السيارات للطبقة: دائرة بلون الحالة وإطار أبيض وسيارة، وسهم الاتجاه */
+  var TONE = { g: '#1F9D45', o: '#E08A00', r: '#E5352B', n: '#5F6879' };
+  var CAR = '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/>';
+  function addSvg(map, name, svg, size) {
+    return new Promise(function (ok) {
+      if (map.hasImage(name)) { ok(); return; }
+      var img = new Image(size * 2, size * 2);
+      img.onload = function () { if (map.getStyle() && !map.hasImage(name)) map.addImage(name, img, { pixelRatio: 2 }); ok(); };
+      img.onerror = function () { ok(); };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    });
+  }
+  function carImage(map, tone) {
+    return addSvg(map, 'veh-' + tone, '<svg xmlns="http://www.w3.org/2000/svg" width="68" height="68" viewBox="0 0 34 34"><circle cx="17" cy="17" r="14" fill="' + TONE[tone] + '" stroke="#fff" stroke-width="2.5"/><g transform="translate(9.5 9.5) scale(.62)" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' + CAR + '</g></svg>', 34);
+  }
+  function arrowImage(map) { // the arrow on the circle's edge, pointing up: rotated with the heading
+    return addSvg(map, 'veh-arrow', '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 48 48"><path d="M24 2 L30 11 L18 11 Z" fill="#0A6CFF" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>', 48);
+  }
+
   /* stale: موقع قديم (آخر موقع معروف، لا الموقع الحالي) يُرسم باهتاً بإطار متقطع */
   /* heading: اتجاه الحركة بالدرجات (سهم حول العلامة)، يظهر فقط والسيارة ماشية */
   BT.map.carHtml = function (tone, selected, stale, heading) {
     var arrow = heading != null && !stale ? h`<span class="veh-dir" style="transform:rotate(${Math.round(heading)}deg)"></span>` : '';
     return String(h`<div class="veh-mark ${tone}${selected ? ' sel' : ''}${stale ? ' stale' : ''}">${arrow}${BT.icon('car', 15)}</div>`);
-  };
-  /* مجموعة سيارات متقاربة على الشاشة: العدد، ونقطة حمراء بعدد المنقطعة منها */
-  BT.map.clusterHtml = function (n, lost) {
-    return String(h`<div class="veh-cluster" data-cluster>${n}${lost ? h`<span class="lost">${lost}</span>` : ''}</div>`);
   };
 })();

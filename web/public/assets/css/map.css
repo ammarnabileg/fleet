@@ -37,8 +37,6 @@
 /* a position that is not current (signal lost, at a center, hidden): faded with a dashed edge */
 .veh-mark.stale { opacity: .62; border-style: dashed; }
 /* vehicles close together on screen: how many, and how many of them have no current position */
-.veh-cluster { position: relative; min-width: 36px; height: 36px; padding: 0 9px; border-radius: 18px; background: #1D4ED8; color: #fff; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, .35); cursor: pointer; }
-.veh-cluster .lost { position: absolute; top: -7px; right: -7px; min-width: 19px; height: 19px; padding: 0 4px; border-radius: 10px; background: #B91C1C; color: #fff; font-size: 10.5px; line-height: 19px; text-align: center; border: 2px solid #fff; }
 
 /* route page: stops, playback */
 .route-stop { width: 22px; height: 22px; border-radius: 6px; background: #334155; color: #fff; font: 700 12px/18px system-ui, sans-serif; text-align: center; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }

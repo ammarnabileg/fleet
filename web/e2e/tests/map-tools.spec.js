@@ -53,11 +53,17 @@ test('the live map ages every position, follows the stream and switches list/map
     await expect(tools.locator('[data-follow]')).toHaveAttribute('aria-pressed', 'true');
     await tools.locator('[data-follow]').click();
     await expect(tools.locator('[data-follow]')).toHaveAttribute('aria-pressed', 'false');
-    await admin.locator('[data-veh-mark]').last().click(); // and so does a car on the map (the top one)
+    // the cars are one layer drawn by the map (WebGL), not an element each: a car is clicked where the map draws it
+    await expect.poll(() => admin.evaluate((ids) => ids.every((id) => BT.A._liveCars.has(id)), [fresh.vehicle.id, silent.vehicle.id])).toBe(true);
+    await admin.locator(`[data-veh="${silent.vehicle.id}"]`).click(); // brings it into view (and follows it)
+    await tools.locator('[data-follow]').click(); // stop following: the map stays where it is
+    await admin.waitForTimeout(2500); // the layer is redrawn every 2 s at most
+    const at = await admin.evaluate((id) => BT.A._liveCars.point(id), silent.vehicle.id);
+    await admin.mouse.click(at.x, at.y); // and so does a car on the map
     await expect(tools.locator('[data-follow]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(admin.locator('.maplibregl-popup')).toContainText('آخر موقع وصل'); // its popup, built when opened
     await tools.locator('[data-fit]').click();
     await expect(tools.locator('[data-follow]')).toHaveAttribute('aria-pressed', 'false');
-    await expect(admin.locator('[data-veh-mark]').first()).toHaveAttribute('title', /آخر موقع/);
     await expect(admin.locator('[data-map-fallback]')).toHaveAttribute('data-state', 'none');
     await expect(admin.locator('[data-map-fallback]')).toContainText('خدمة الخرائط');
   }
