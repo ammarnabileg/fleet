@@ -25,6 +25,7 @@ from app.modules.fleet.models import Custody, OdometerReading, Vehicle
 from app.modules.maintenance import service as maintenance
 from app.modules.maintenance.models import Center, Invoice, InvoiceItem
 from app.modules.maintenance.models import Request as MntRequest
+from app.modules.notifications import service as notifications
 from app.modules.notifications.models import Alert
 from app.modules.org import service as org
 from app.modules.payroll.models import Deduction, Run
@@ -241,6 +242,10 @@ def dashboard(
     open_alerts = (visible, alert_scope, Alert.resolved_at.is_(None))  # not handled yet
     rows = db.execute(select(Alert.severity, func.count()).where(*open_alerts).group_by(Alert.severity)).all()
     out["alerts"] = {"critical": 0, "warning": 0, "info": 0} | dict(rows)
+    tiers = {"urgent": 0, "important": 0, "documents": 0, "info": 0}
+    for kind, n in db.execute(select(Alert.kind, func.count()).where(*open_alerts).group_by(Alert.kind)).all():
+        tiers[notifications.group_of(kind)] += n
+    out["alerts"] |= tiers  # the dashboard counts the urgent ones: the documents are critical too, but not urgent
     out["alerts_oldest"] = db.scalar(select(func.min(Alert.created_at)).where(*open_alerts))
 
     companies = org.list_companies(db, all_companies=all_companies, company_ids=company_ids)

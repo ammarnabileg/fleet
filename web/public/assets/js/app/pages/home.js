@@ -63,7 +63,7 @@
       top.push(kpi({ label: 'الكاش لدى السائقين', value: fmt.money(cash.held_by_drivers), sub: fmt.int(cash.over_limit) + ' فوق حد ' + fmt.money(cash.limit) + ' · منه غير معتمد ' + fmt.money(cash.unapproved), dot: 'o', tone: cash.over_limit ? 'warning' : null, href: '#/cash' }));
     }
     if (d.approvals) top.push(kpi({ label: 'اعتمادات بانتظارك', value: fmt.int(d.approvals.waiting), sub: d.approvals.oldest ? h`أقدمها ${fmt.agoEl(d.approvals.oldest)}` : 'لا شيء ينتظر قرارك', dot: 'p', tone: d.approvals.waiting ? 'warning' : null, href: '#/approvals' }));
-    top.push(kpi({ label: 'تنبيهات مفتوحة', value: fmt.int(openAlerts), sub: openAlerts ? h`${fmt.int(a.critical)} حرجة · ${fmt.int(a.warning)} تحذير${d.alerts_oldest ? h` · أقدمها ${fmt.agoEl(d.alerts_oldest)}` : ''}` : 'لا شيء مفتوح', dot: 'r', tone: a.critical ? 'danger' : null, href: a.critical ? '#/alerts?status=open&severity=critical' : '#/alerts' }));
+    top.push(kpi({ label: 'تنبيهات مفتوحة', value: fmt.int(openAlerts), sub: openAlerts ? h`${fmt.int(a.urgent || 0)} عاجلة · ${fmt.int(a.important || 0)} مهمة · ${fmt.int(a.documents || 0)} مستندات` : 'لا شيء مفتوح', dot: 'r', tone: a.urgent ? 'danger' : null, href: '#/alerts?group=' + (a.urgent ? 'urgent' : '') }));
     if (d.documents) top.push(kpi({ label: 'مستندات منتهية', value: fmt.int(d.documents.expired), sub: fmt.int(d.documents.expiring) + ' تنتهي قريباً', dot: 'r', tone: d.documents.expired ? 'danger' : null, href: '#/employees?tab=docs&days=30' }));
 
     var quick = [];
@@ -79,7 +79,7 @@
     /* ---- 2) الاتجاهات والاستثناءات ---- */
     var ex = []; // [tone, icon, text, count, href|drill]
     function x(n, tone, ic, text, target) { if (n) ex.push([tone, ic, text, n, target]); }
-    x(a.critical, 'r', 'siren', 'تنبيهات حرجة مفتوحة', '#/alerts?status=open&severity=critical');
+    x(a.urgent || 0, 'r', 'siren', 'تنبيهات عاجلة مفتوحة', '#/alerts?group=urgent');
     if (drv) x(drv.signal_lost, 'r', 'signal', 'سيارات في العهدة انقطعت إشارتها', { drill: 'signal_lost' });
     if (rep) x(rep.overdue, 'o', 'timer', 'تقارير تأخرت مراجعتها', { drill: 'reports_overdue' });
     if (rep) x(rep.today_missing, 'o', 'clipboard-list', 'بدؤوا يومهم ولم يرسلوا تقريرهم', { drill: 'today_missing' });

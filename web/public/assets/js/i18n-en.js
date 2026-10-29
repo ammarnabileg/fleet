@@ -4189,5 +4189,8 @@ window.BT_EN = {
 "عرض كل الأنواع": "Show all kinds",
 "تعرض: كل الأنواع": "Showing: all kinds",
 "لا يوجد ما لم يُطّلع عليه هنا": "Nothing unseen here",
-"تعرض:": "Showing:"
+"تعرض:": "Showing:",
+"عاجلة ·": "Urgent ·",
+"مهمة ·": "Important ·",
+"تنبيهات عاجلة مفتوحة": "Open urgent alerts"
 };
