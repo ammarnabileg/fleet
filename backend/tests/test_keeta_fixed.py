@@ -69,3 +69,31 @@ def test_the_sheets_tips_and_deductions_are_read_signed_from_its_columns(admin_c
     review = admin_client.get(f"{P}/month-review", params={"platform_id": k["id"], "month": str(MONTH)}).json()
     row = review["rows"][0]  # the app recorded no orders: the sheet's 363 differ
     assert "sheet_orders_differ" in row["problems"] and row["platform_driver_id"] == "KA-1"
+
+
+@pytest.mark.parametrize(
+    ("orders", "marks", "star_missed", "expected"),
+    [
+        (420, 0, False, "147.000"),  # 420 × 0.350, the target reached
+        (400, 0, False, "133.000"),  # 400 × 0.350 − 20 short × 0.350
+        (450, 2, False, "207.500"),  # 157.500 + 50; two marks are free
+        (560, 3, False, "276.000"),  # 196 + 90 − 10
+        (650, 4, False, "327.500"),  # 227.500 + 130 − 30
+        (720, 0, False, "452.000"),  # 252 + 200, the highest tier only
+        (450, 5, False, "90.000"),  # more than 4 marks: 450 × 0.200, no bonus, no marks table
+        (400, 5, False, "73.000"),  # 400 × 0.200 − 20 short × 0.350: the shortfall still taken
+        (500, 0, True, "100.000"),  # a mark on a star day: 500 × 0.200, no bonus
+    ],
+)
+def test_keeta_per_order_0350_with_its_tiers_marks_and_the_0200_month(orders, marks, star_missed, expected):
+    assert pay("keeta_per_order_350", orders=orders, attendance_marks=marks, star_day_failed=star_missed) == D(expected)
+
+
+def test_keeta_per_order_puts_every_expense_on_the_company():
+    blocks = rules.template("keeta_per_order_350")["blocks"]
+    assert {b["params"]["kind"]: b["params"]["responsibility"] for b in blocks if b["type"] == "expense"} == {
+        "housing": "company",
+        "phone": "company",
+        "maintenance": "company",
+        "gas": "company",
+    }

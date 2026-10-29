@@ -430,6 +430,7 @@ def test_templates_are_valid_and_marked():
         "talabat_fixed_680",
         "keeta_batches",
         "keeta_plan",
+        "keeta_per_order_350",
         "keeta_paid",
         "keeta_fixed_200",
         "keeta_fixed_165",
@@ -447,6 +448,11 @@ def test_templates_are_valid_and_marked():
     assert [(t["code"], t.get("default", False), t.get("legacy", False)) for t in keeta] == [
         ("keeta_batches", True, False),
         ("keeta_plan", False, True),
+        (
+            "keeta_per_order_350",
+            False,
+            False,
+        ),  # keeta_plan as the drivers' October sheet confirms it, sheet amounts added
         ("keeta_paid", False, True),
         ("keeta_fixed_200", False, False),
         ("keeta_fixed_165", False, False),

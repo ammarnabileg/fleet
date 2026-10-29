@@ -594,6 +594,224 @@
   "legacy": true
  },
  {
+  "code": "keeta_per_order_350",
+  "platform_hint": "keeta",
+  "name": {
+   "ar": "كيتا — بالطلب 350 فلس مع شرائح البونص",
+   "en": "Keeta — 0.350 per order with bonus tiers"
+  },
+  "description": {
+   "ar": "0.350 د.ك لكل طلب. التارجت 420 طلباً: كل طلب ناقص يُخصم 0.350. مطلوب 28 يوماً صالحاً، وأيام النجمة إلزامية. البونص الشهري لأعلى شريحة فقط: 450 طلباً 50، 540 طلباً 90، 620 طلباً 130، 710 طلباً 200 د.ك. العلامات الحمراء: 1–2 بلا خصم، 3 علامات − 10، 4 علامات − 30. أكثر من 4 علامات أو علامة في يوم نجمة: كل الطلبات بـ 0.200 بلا بونص، ويستمر خصم نقص التارجت (إلا إذا ثبت أن الخطأ ليس منه). البقشيش يُضاف، وتلف الطعام والتعديل الآخر وخصم المنصة تُخصم. السكن والخط وصيانة السيارة والبنزين على الشركة.",
+   "en": "0.350 KWD per order. Target 420 orders: each order short is deducted 0.350. 28 valid days required and star days are mandatory. Monthly bonus for the highest tier only: 450 orders 50, 540 orders 90, 620 orders 130, 710 orders 200 KWD. Red marks: 1–2 free, 3 marks − 10, 4 marks − 30. More than 4 marks or a mark on a star day: every order at 0.200 with no bonus, the shortfall still deducted (unless shown not to be his fault). Tips are added; food damage, other adjustments and the platform discount are deducted. Housing, phone line, car maintenance and fuel are on the company."
+  },
+  "needs_confirmation": false,
+  "blocks": [
+   {
+    "type": "exception_days",
+    "params": {
+     "effect": "count_valid"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "per_order",
+    "params": {
+     "rate": "0.350",
+     "source": "orders"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "star_day",
+    "params": {},
+    "condition": [],
+    "on_exception": "neutralize",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "price_change",
+    "params": {
+     "rate": "0.200",
+     "mode": "replace"
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_true"
+     }
+    ],
+    "on_exception": "none",
+    "group": "reduced",
+    "label": null
+   },
+   {
+    "type": "price_change",
+    "params": {
+     "rate": "0.200",
+     "mode": "replace"
+    },
+    "condition": [
+     {
+      "fact": "marks",
+      "op": "gt",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": "reduced",
+    "label": null
+   },
+   {
+    "type": "tier_bonus",
+    "params": {
+     "source": "orders",
+     "mode": "highest",
+     "tiers": [
+      {
+       "from": 450,
+       "amount": "50.000"
+      },
+      {
+       "from": 540,
+       "amount": "90.000"
+      },
+      {
+       "from": 620,
+       "amount": "130.000"
+      },
+      {
+       "from": 710,
+       "amount": "200.000"
+      }
+     ]
+    },
+    "condition": [
+     {
+      "fact": "price_changed",
+      "op": "is_false"
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "required_days",
+    "params": {
+     "days": 28,
+     "invalidates": false,
+     "deduction": "none"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "missing_orders",
+    "params": {
+     "source": "orders",
+     "target": 420,
+     "rate": "0.350",
+     "rate_from": "fixed"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "attendance_marks",
+    "params": {
+     "mode": "table",
+     "table": [
+      {
+       "from": 3,
+       "amount": "10.000"
+      },
+      {
+       "from": 4,
+       "amount": "30.000"
+      }
+     ]
+    },
+    "condition": [
+     {
+      "fact": "price_changed",
+      "op": "is_false"
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "platform_amounts",
+    "params": {
+     "tips": true,
+     "food_damage": true,
+     "other_adjustment": true,
+     "platform_discount": true
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "housing",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "phone",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "maintenance",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "gas",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   }
+  ]
+ },
+ {
   "code": "keeta_paid",
   "platform_hint": "keeta",
   "name": {
