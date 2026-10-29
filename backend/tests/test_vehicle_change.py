@@ -50,21 +50,24 @@ def test_the_other_car_found_however_he_types_its_plate(admin_client, client, co
     assert r.json()["change_request"]["requested_plate"] == other["plate_number"]
 
 
-def test_a_plate_not_found_his_own_car_and_another_companys_car_are_refused(admin_client, client, companies):
+def test_a_plate_not_found_and_his_own_car_are_refused_a_sister_companys_car_is_found(admin_client, client, companies):
     a, b = companies["a"], companies["b"]
-    make_vehicle(admin_client, b["id"], plate_number="55-12345")
+    sister = make_vehicle(admin_client, b["id"], plate_number="55-12345")
     d, v, h = holding(admin_client, client, a, plate="77-1")
 
     def ask(plate):
         return client.post(ASK, headers=h, json={"requested_plate": plate, "reason": "الفرامل ضعيفة"})
 
-    for plate in ("99-99999", "55-12345"):  # unknown, or another company's: the same answer, he types it again
-        r = ask(plate)
-        assert r.status_code == 422 and r.json()["code"] == "vehicle_plate_not_found", r.text
+    r = ask("99-99999")  # unknown: he types it again
+    assert r.status_code == 422 and r.json()["code"] == "vehicle_plate_not_found", r.text
     r = ask("٧٧-١")
     assert r.status_code == 422 and r.json()["code"] == "vehicle_change_same_vehicle"
     assert client.get("/api/v1/driver/vehicle", headers=h).json()["change_request"] is None
     assert admin_client.get(V, params={"status": "all"}).json() == []
+    # a car of a sister company is one the office may give him: found, by its number alone too
+    r = ask("12345")
+    assert r.status_code in (200, 201), r.text
+    assert admin_client.get(V, params={"status": "all"}).json()[0]["requested_vehicle"]["id"] == sister["id"]
 
 
 def test_the_office_list_shows_the_car_asked_for_and_stays_in_its_companies(

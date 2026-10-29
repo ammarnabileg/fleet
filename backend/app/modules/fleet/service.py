@@ -2170,16 +2170,21 @@ def _plate_key(plate: str) -> str:
     return re.sub(r"[\s/-]", "", normalize_plate(plate))
 
 
-def _vehicle_for_change(db: Session, plate: str, company_id: int) -> Vehicle | None:
-    """His company's vehicle with that plate: the same plate first; else the only one equal ignoring separators
-    ("12-34567" for "12 34567" or "1234567"). Another company's vehicle is not found."""
+def _vehicle_for_change(db: Session, plate: str) -> Vehicle | None:
+    """The vehicle with that plate, whichever of the group's companies holds it (the office hands any of them to any
+    driver, and approves what the driver asks): the same plate first; else the only one equal ignoring separators
+    ("12-34567" for "12 34567" or "1234567"); else, the number alone typed ("34567"), the only plate ending in it."""
     exact = vehicle_by_plate(db, plate)
     if exact is not None:
-        return db.get(Vehicle, exact.id) if exact.company_id == company_id else None
+        return db.get(Vehicle, exact.id)
     key = func.upper(
         func.regexp_replace(func.translate(Vehicle.plate_number, _PLATE_FROM, _PLATE_TO), r"[\s/-]", "", "g")
     )
-    found = list(db.scalars(select(Vehicle).where(key == _plate_key(plate), Vehicle.company_id == company_id).limit(2)))
+    typed = _plate_key(plate)
+    found = list(db.scalars(select(Vehicle).where(key == typed).limit(2)))
+    if not found and typed.isdigit() and 3 <= len(typed) <= 5:
+        number = func.split_part(func.translate(Vehicle.plate_number, _PLATE_FROM, _PLATE_TO), "/", 2)
+        found = list(db.scalars(select(Vehicle).where(number == typed).limit(2)))
     return found[0] if len(found) == 1 else None
 
 
@@ -2252,7 +2257,7 @@ def driver_vehicle(db: Session, employee_id: int) -> dict:
 
 def request_vehicle_change(db: Session, *, employee_id: int, device_id: int, requested_plate: str, reason: str) -> dict:
     """The driver asks for another vehicle, naming it by its plate, with his reason; the supervisors see it
-    (FR-ASG-04). The plate must be one of his company's vehicles: a plate not found is refused so he types it again."""
+    (FR-ASG-04). A plate not found is refused so he types it again."""
     custody = db.scalar(
         select(Custody)
         .where(Custody.driver_id == employee_id, Custody.ended_at.is_(None), Custody.kind != "replacement")
@@ -2260,7 +2265,7 @@ def request_vehicle_change(db: Session, *, employee_id: int, device_id: int, req
     )
     if custody is None:
         raise AppError(409, "no_open_custody")
-    requested = _vehicle_for_change(db, requested_plate, custody.company_id)
+    requested = _vehicle_for_change(db, requested_plate)
     if requested is None:
         raise AppError(422, "vehicle_plate_not_found")
     if requested.id == custody.vehicle_id:
@@ -2538,9 +2543,9 @@ def request_vehicle_claim(
     photos: list,
     client_ref,
 ) -> dict:
-    """The driver, holding no car, registers the one he takes: its plate (one of his company's vehicles, free and
-    available), the odometer reading and its photo from the app's camera on this phone, condition photos. It waits for
-    the office; the custody starts only when approved, at the photo's time."""
+    """The driver, holding no car, registers the one he takes: its plate (a vehicle of any of the group's companies,
+    free and available), the odometer reading and its photo from the app's camera on this phone, condition photos. It
+    waits for the office; the custody starts only when approved, at the photo's time."""
     if db.scalar(select(VehicleClaim.id).where(VehicleClaim.client_ref == client_ref)):
         raise AppError(409, "vehicle_claim_exists")  # a resend: already recorded
     now = utcnow()
@@ -2553,7 +2558,7 @@ def request_vehicle_claim(
         select(VehicleClaim.id).where(VehicleClaim.employee_id == employee_id, VehicleClaim.status == "pending")
     ):
         raise AppError(409, "vehicle_claim_pending")
-    vehicle = _vehicle_for_change(db, plate, driver.company_id)
+    vehicle = _vehicle_for_change(db, plate)
     if vehicle is None:
         raise AppError(422, "vehicle_plate_not_found")
     if holder(db, vehicle.id) is not None:

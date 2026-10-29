@@ -101,7 +101,6 @@ def test_the_refusals_when_registering(admin_client, client, companies):
         return (r.status_code, r.json()["code"])
 
     assert code(ask(client, h, "51-999")[0]) == (422, "vehicle_plate_not_found")
-    assert code(ask(client, h, "51-400")[0]) == (422, "vehicle_plate_not_found")  # another company's
     assert code(ask(client, h, "51-200")[0]) == (409, "vehicle_held_by_other")
     assert code(ask(client, h, "51-300")[0]) == (409, "vehicle_not_available")
     # the photo: from this phone's camera only
