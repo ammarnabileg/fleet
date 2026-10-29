@@ -7,10 +7,16 @@ the accident waits for it (and alerts after the days set in the settings), and n
 without it (UAT-24; the database refuses it too).
 
 The maintenance manager refers the accident to a center, which enters its damage estimate item by item in its portal;
-the manager approves it (or rejects it with a reason: the center estimates again, or another center is chosen). The
-outcome (no liability, driver, shared) is approved by the holder of accidents.approve: when the driver is liable, a
-deduction is created for the driver, the approved damage in full or by the liability percentage, in monthly
-installments that payroll applies and the driver sees in the app (UAT-26). The repair goes to the same center as a
+the manager approves it (or rejects it with a reason: the center estimates again, or another center is chosen). Who
+pays is decided by the holder of accidents.approve, one of four:
+- the insurance company: it owes a cheque to repair the vehicle. Until the cheque is recorded the admins and whoever
+  decided are alerted afresh every day, and the accident cannot be closed;
+- the company: nothing is deducted; the repair's approved invoices are the company's maintenance expense, booked as
+  every invoice is (so not booked a second time here);
+- the driver: a deduction, the approved damage in full or by a percentage, in monthly installments that payroll
+  applies and the driver sees in the app (UAT-26);
+- a settlement: the other party paid cash to an employee and the vehicle is repaired with it. The amount and who
+  took it are recorded, not booked; no police report is needed for it. The repair goes to the same center as a
 maintenance request whose approved quote is the estimate; its approved invoices are the actual cost, compared with
 the estimate (FR-ACC-08).
 
@@ -46,7 +52,7 @@ CLOCK_SKEW = timedelta(minutes=5)
 DRIVER_DELAY = timedelta(hours=48)  # the app may be offline; older accidents are reported by the office
 OFFICE_BACKDATE = timedelta(days=365)
 CENT = Decimal("0.001")
-ALERTS = ("acc_reported", "acc_police", "acc_estimate")
+ALERTS = ("acc_reported", "acc_police", "acc_estimate", "acc_cheque")
 
 
 # ------------------------------------------------------------------ helpers
@@ -222,7 +228,9 @@ def _out(db: Session, rows: list[Accident]) -> list[dict]:
 
 def _detail(db: Session, a: Accident) -> dict:
     events = list(db.scalars(select(AccidentEvent).where(AccidentEvent.accident_id == a.id).order_by(AccidentEvent.id)))
-    users = identity.user_names(db, {e.by_user for e in events} | {a.estimate_decided_by, a.outcome_by} - {None})
+    users = identity.user_names(
+        db, {e.by_user for e in events} | {a.estimate_decided_by, a.outcome_by, a.cheque_recorded_by} - {None}
+    )
     repair = maintenance.repair_summary(db, a.repair_request_id)
     actual = repair["actual_cost"] if repair else None
     return _out(db, [a])[0] | {
@@ -242,6 +250,16 @@ def _detail(db: Session, a: Accident) -> dict:
         "outcome_note": a.outcome_note,
         "outcome_at": a.outcome_at,
         "outcome_by": users.get(a.outcome_by),
+        "insurer": a.insurer,
+        "insurance_claim_no": a.insurance_claim_no,
+        "cheque_no": a.cheque_no,
+        "cheque_amount": a.cheque_amount,
+        "cheque_received_on": a.cheque_received_on,
+        "cheque_recorded_by": users.get(a.cheque_recorded_by),
+        "settlement_amount": a.settlement_amount,
+        "settlement_received_by": people.names(db, [a.settlement_employee_id]).get(a.settlement_employee_id)
+        if a.settlement_employee_id
+        else None,
         "deduction": payroll.deduction(db, a.deduction_id),
         "repair": repair,
         "cost_difference": (actual - a.estimate_total) if actual is not None and a.estimate_total else None,
@@ -291,6 +309,16 @@ def _portal_out(db: Session, a: Accident) -> dict:
     }
 
 
+def _driver_liability(a: Accident) -> str | None:
+    """The app knows only whether the driver pays, in its own words (none, driver, shared): the insurer, the company
+    and a settlement are all "not on you"."""
+    if a.liability is None:
+        return None
+    if a.liability != "driver":
+        return "none"
+    return "shared" if a.liability_percent is not None and a.liability_percent < 100 else "driver"
+
+
 def _driver_out(db: Session, rows: list[Accident]) -> list[dict]:
     plates = fleet.plate_numbers(db, {a.vehicle_id for a in rows})
     return [
@@ -302,7 +330,7 @@ def _driver_out(db: Session, rows: list[Accident]) -> list[dict]:
             "description": a.description,
             "stage": stage(a),
             "has_police_report": a.police_report_sha256 is not None,
-            "liability": a.liability,
+            "liability": _driver_liability(a),
             "liability_percent": a.liability_percent,
             "deduction": d if (d := payroll.deduction(db, a.deduction_id)) and d["status"] == "approved" else None,
             "created_at": a.created_at,
@@ -589,25 +617,30 @@ def decide_estimate(db: Session, public_id, *, approve: bool, reason: str | None
 
 
 def record_outcome(db: Session, public_id, *, data: dict, actor_user_id: int, **scope) -> dict:
-    """The liability per the attached police report (UAT-24: refused without it) and, when the driver is liable,
-    the deduction: the approved estimate in full or by the liability percentage, in monthly installments (UAT-26)."""
+    """Who pays (see the module's notes). The police report is required (UAT-24) except for a settlement; the
+    driver's deduction is the approved estimate in full or by the percentage, in monthly installments (UAT-26)."""
     a = _get(db, public_id, lock=True, **scope)
     _open(a)
     if a.liability is not None:
         raise AppError(409, "outcome_recorded")
-    if a.police_report_sha256 is None:
-        raise AppError(409, "police_report_required")
     liability, percent = data["liability"], data.get("percent")
+    if liability != "settlement" and a.police_report_sha256 is None:
+        raise AppError(409, "police_report_required")
     amount = None
-    if liability != "none":
+    if liability == "insurance":
+        if not data.get("insurer"):
+            raise AppError(422, "insurer_required")
+        a.insurer, a.insurance_claim_no = data["insurer"], data.get("claim_no")
+    elif liability == "settlement":
+        if data.get("settlement_amount") is None or data.get("received_by") is None:
+            raise AppError(422, "settlement_details_required")
+        a.settlement_amount = Decimal(data["settlement_amount"]).quantize(CENT)
+        a.settlement_employee_id = people.ref_by_public_id(db, data["received_by"], **scope).id
+    elif liability == "driver":
         if a.driver_id is None:
             raise AppError(409, "accident_has_no_driver")
         if a.estimate_status != "approved":
             raise AppError(409, "estimate_not_approved")
-        if liability == "shared" and percent is None:
-            raise AppError(422, "liability_percent_required")
-        if liability == "shared" and percent >= 100:
-            raise AppError(422, "shared_percent_below_100")
         if data.get("installments") is None:
             raise AppError(422, "installments_required")
         percent = Decimal(percent if percent is not None else 100).quantize(Decimal("0.01"))
@@ -625,9 +658,11 @@ def record_outcome(db: Session, public_id, *, data: dict, actor_user_id: int, **
             start_month=start,
             actor_user_id=actor_user_id,
         )
-    a.liability, a.liability_percent = liability, (percent if liability != "none" else None)
+    a.liability, a.liability_percent = liability, (percent if liability == "driver" else None)
     a.outcome_note, a.outcome_by, a.outcome_at = data.get("note"), actor_user_id, utcnow()
     _event(db, a, "outcome", by_user=actor_user_id, note=data.get("note"))
+    if liability == "insurance":
+        _chase_cheque(db, a)
     if a.driver_id is not None:
         notifications.notify_driver(
             db,
@@ -643,7 +678,13 @@ def record_outcome(db: Session, public_id, *, data: dict, actor_user_id: int, **
         "accident.outcome",
         a,
         actor_user_id=actor_user_id,
-        after={"liability": liability, "percent": a.liability_percent, "deduction": amount},
+        after={
+            "liability": liability,
+            "percent": a.liability_percent,
+            "deduction": amount,
+            "insurer": a.insurer,
+            "settlement": a.settlement_amount,
+        },
     )
     _emit(
         db,
@@ -655,6 +696,61 @@ def record_outcome(db: Session, public_id, *, data: dict, actor_user_id: int, **
     )
     db.commit()
     return _detail(db, a)
+
+
+def _chase_cheque(db: Session, a: Accident) -> None:
+    """Today's alert that the insurer's cheque is still awaited: the admins see it, and it is given to whoever decided.
+    Yesterday's closes so that each day's is new again."""
+    notifications.resolve(db, f"acc_cheque:{a.id}")
+    notifications.raise_alert(
+        db,
+        "accident_awaiting_insurance_cheque",
+        company_id=a.company_id,
+        entity_type="accident",
+        entity_id=a.public_id,
+        params=_alert_params(db, a)
+        | {"insurer": a.insurer, "days": (utcnow() - a.outcome_at).days if a.outcome_at else 0},
+        dedupe_key=f"acc_cheque:{a.id}",
+        assigned_to=a.outcome_by,
+    )
+
+
+def record_cheque(db: Session, public_id, *, data: dict, actor_user_id: int, **scope) -> dict:
+    """The insurer's cheque arrived: its number, amount and date. The daily alert stops."""
+    a = _get(db, public_id, lock=True, **scope)
+    _open(a)
+    if a.liability != "insurance":
+        raise AppError(409, "not_insurance")
+    if a.cheque_received_on is not None:
+        raise AppError(409, "cheque_recorded")
+    a.cheque_no, a.cheque_amount, a.cheque_received_on = data["cheque_no"], data["amount"], data["received_on"]
+    a.cheque_recorded_by, a.cheque_recorded_at = actor_user_id, utcnow()
+    notifications.resolve(db, f"acc_cheque:{a.id}")
+    _event(db, a, "cheque_received", by_user=actor_user_id, note=data.get("note"))
+    _audit(
+        db,
+        "accident.cheque_received",
+        a,
+        actor_user_id=actor_user_id,
+        after={"cheque_no": a.cheque_no, "amount": a.cheque_amount, "received_on": a.cheque_received_on},
+    )
+    db.commit()
+    return _detail(db, a)
+
+
+def scan_insurance_cheques(db: Session) -> int:
+    """Every day: each insurer's cheque still awaited is alerted again."""
+    rows = list(
+        db.scalars(
+            select(Accident).where(
+                Accident.status == "open", Accident.liability == "insurance", Accident.cheque_received_on.is_(None)
+            )
+        )
+    )
+    for a in rows:
+        _chase_cheque(db, a)
+    db.commit()
+    return len(rows)
 
 
 def create_repair(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
@@ -690,6 +786,8 @@ def close(db: Session, public_id, *, note: str | None, actor_user_id: int, **sco
     _open(a)
     if a.liability is None:
         raise AppError(409, "outcome_required")
+    if a.liability == "insurance" and a.cheque_received_on is None:
+        raise AppError(409, "cheque_not_received")
     a.status, a.closed_at = "closed", utcnow()
     fleet.clear_accident(db, a.vehicle_id)
     approvals.withdrawn(db, "accident_estimate", [a.id])

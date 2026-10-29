@@ -14,14 +14,14 @@
     outcome_recorded: 'g', closed: 'n', cancelled: 'n'
   };
   C.EST_TONE = { none: 'n', pending: 'o', approved: 'g', rejected: 'r' };
-  C.LIAB_TONE = { none: 'g', driver: 'r', shared: 'o' };
+  C.LIAB_TONE = { insurance: 'b', company: 'n', driver: 'r', settlement: 'g' };
   C.NOTES = { ':replaced': 'استُبدل محضر الشرطة' };
 
   C.stage = function (s) { return BT.pill(api.t('accident_stage', s), C.TONE[s] || 'n'); };
   C.estimate = function (s) { return BT.pill(api.t('estimate_status', s), C.EST_TONE[s] || 'n'); };
   C.liability = function (a) {
     if (!a.liability) return raw('<span class="muted">لم تُحدد</span>');
-    var pct = a.liability !== 'none' && a.liability_percent != null && Number(a.liability_percent) !== 100 ? ' · ' + Number(a.liability_percent) + '%' : '';
+    var pct = a.liability === 'driver' && a.liability_percent != null && Number(a.liability_percent) !== 100 ? ' · ' + Number(a.liability_percent) + '%' : '';
     return BT.pill(api.t('accident_liability', a.liability) + pct, C.LIAB_TONE[a.liability]);
   };
   C.police = function (a) {
@@ -30,7 +30,7 @@
   C.note = function (n) { return n && n.charAt(0) === ':' ? (C.NOTES[n] || n.slice(1)) : n; };
 
   C.timeline = function (events) {
-    var tones = { estimate_rejected: 'r', cancelled: 'r', estimate_approved: 'g', outcome: 'g', closed: 'g' };
+    var tones = { estimate_rejected: 'r', cancelled: 'r', estimate_approved: 'g', outcome: 'g', cheque_received: 'g', closed: 'g' };
     return h`<div class="timeline">${events.map(function (e) {
       var by = e.by === 'driver' ? 'السائق (من التطبيق)' : e.by;
       var note = e.kind === 'estimate_submitted' && e.note ? fmt.money(e.note) + ' د.ك' : C.note(e.note);

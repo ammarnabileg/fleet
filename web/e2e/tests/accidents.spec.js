@@ -2,7 +2,7 @@
 // police report, the center estimates in its portal (seeing the damage, not the other party), the manager approves the
 // estimate, the police report, the driver held liable in 3 installments, the repair; the deductions page and the
 // driver's app show the same schedule.
-const { test, expect, uid, phone, settled, clearToasts, jpeg, pdf, centerWithUser, centerSignIn, kuwaitInput } = require('./fixtures');
+const { test, expect, uid, phone, settled, jpeg, pdf, centerWithUser, centerSignIn, kuwaitInput } = require('./fixtures');
 
 // an office computer not set to Kuwait time: the accident time typed is still Kuwait's
 test.use({ timezoneId: 'UTC' });
@@ -47,12 +47,19 @@ test('an accident: report, estimate, police report, liability in installments, r
   expect([a.driver && a.driver.id, a.has_police_report, a.liability]).toEqual([driver.id, false, null]); // the driver who held it
   expect(new Date(a.occurred_at).toISOString()).toBe(new Date(when + ':00+03:00').toISOString()); // Kuwait time
 
-  // ---- no liability without the police report: refused in the screen, nothing sent
+  // ---- without the police report only a settlement can be recorded: the others say so in the form
   await settled(admin);
-  await clearToasts(admin);
   await admin.click('[data-action="acc-outcome"]');
-  await expect(admin.locator('.toast').last()).toContainText('محضر الشرطة');
+  const pre = top(admin);
+  await expect(pre.locator('[name=liability]')).toHaveValue('settlement');
+  await expect(pre.locator('[data-for=police]')).toBeHidden();
+  await pre.locator('[name=liability]').selectOption('driver');
+  await expect(pre.locator('[data-for=police]')).toContainText('محضر الشرطة');
+  await pre.locator('[name=liability]').selectOption('insurance');
+  await expect(pre.locator('[name=insurer]')).toBeVisible();
+  await admin.keyboard.press('Escape');
   await expect(admin.locator('.overlay[data-open]')).toHaveCount(0);
+  expect((await detail(id)).liability).toBeNull();
 
   // ---- referred to the center, which estimates in its portal
   await admin.click('[data-action="acc-refer"]');
@@ -116,4 +123,40 @@ test('an accident: report, estimate, police report, liability in installments, r
   const app = await api.driverPhone(driver.id, 'e2e-' + n);
   const mine = (await app.call('GET', '/driver/accidents')).find((x) => x.id === id);
   expect([mine.liability, mine.deduction.total, mine.deduction.schedule.length]).toEqual(['driver', '150.000', 3]);
+});
+
+// The insurer pays: the decision names it, the accident cannot be closed until its cheque is recorded, then it closes.
+test('an accident on the insurer: its cheque recorded, then closed', async ({ admin, api }) => {
+  const n = uid();
+  const company = await api.post('/companies', { name: { ar: 'شركة التأمين ' + n, en: 'Insured company ' + n } });
+  const vehicle = await api.post('/vehicles', { plate_number: '4/' + n.slice(-6), make: 'Kia', model: 'Pegas', company_id: company.id, last_odometer_km: 1000 });
+  const jpg = () => api.upload('p.jpg', 'image/jpeg', jpeg());
+  const acc = await api.post('/accidents', {
+    vehicle_id: vehicle.id, description: 'صدمة جانبية', photos: [await jpg(), await jpg(), await jpg()],
+    police_report: await api.upload('police.pdf', 'application/pdf', pdf()),
+  });
+  const top = (page) => page.locator('.overlay[data-open]').last();
+  await admin.goto('/admin.html#/accidents/' + acc.id);
+  await settled(admin);
+  await admin.click('[data-action="acc-outcome"]');
+  const o = top(admin);
+  await o.locator('[name=liability]').selectOption('insurance');
+  await o.locator('[name=insurer]').fill('الخليج للتأمين');
+  await o.locator('[name=claim_no]').fill('C-' + n);
+  await o.locator('button[type=submit]').click();
+  await expect(o).toBeHidden();
+  await settled(admin);
+  await expect(admin.locator('#view')).toContainText('بانتظار الشيك');
+  await expect(admin.locator('[data-action="acc-close"]')).toHaveCount(0); // not before the cheque
+
+  await admin.click('[data-action="acc-cheque"]');
+  const c = top(admin);
+  await c.locator('[name=cheque_no]').fill('998877');
+  await c.locator('[name=amount]').fill('210');
+  await c.locator('button[type=submit]').click();
+  await expect(c).toBeHidden();
+  await settled(admin);
+  const a = await api.get('/accidents/' + acc.id);
+  expect([a.liability, a.insurer, a.cheque_no, a.cheque_amount, a.deduction]).toEqual(['insurance', 'الخليج للتأمين', '998877', '210.000', null]);
+  await expect(admin.locator('[data-action="acc-close"]')).toHaveCount(1);
 });

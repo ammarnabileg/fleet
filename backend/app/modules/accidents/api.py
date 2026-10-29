@@ -136,6 +136,18 @@ def outcome(
     )
 
 
+@router.post("/accidents/{public_id}/cheque", response_model=schemas.AccidentDetailOut)
+def cheque(
+    public_id: uuid.UUID,
+    body: schemas.ChequeIn,
+    principal: Principal = Depends(require_permission("accidents.approve")),
+    db: Session = Depends(get_session),
+):
+    return service.record_cheque(
+        db, public_id, data=body.model_dump(), actor_user_id=principal.user_id, **principal.scope
+    )
+
+
 @router.post("/accidents/{public_id}/repair", response_model=schemas.AccidentDetailOut)
 def repair(
     public_id: uuid.UUID,

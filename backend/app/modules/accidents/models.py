@@ -1,11 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Double,
     ForeignKey,
@@ -24,22 +25,33 @@ from app.core.db import Base
 
 SCHEMA = {"schema": "accidents"}
 NUMBER_SEQ = Sequence("accident_number_seq", schema="accidents")
-LIABILITIES = ("none", "driver", "shared")
+LIABILITIES = ("insurance", "company", "driver", "settlement")
 
 
 class Accident(Base):
-    """One accident: the report, the police report, the center's damage estimate and its approval, the liability
-    outcome with the deduction it created, and the repair request that fixes the vehicle."""
+    """One accident: the report, the police report, the center's damage estimate and its approval, who pays (the
+    insurer's cheque, the driver's deduction, the company or a settlement's cash) and the repair request."""
 
     __tablename__ = "accidents"
     __table_args__ = (
         CheckConstraint("estimate_status IN ('none', 'pending', 'approved', 'rejected')", name="estimate_status"),
         CheckConstraint("estimate_total > 0", name="estimate_total"),
-        CheckConstraint("liability IN ('none', 'driver', 'shared')", name="liability"),
+        CheckConstraint("liability IN ('insurance', 'company', 'driver', 'settlement')", name="liability"),
         CheckConstraint("liability_percent > 0 AND liability_percent <= 100", name="liability_percent"),
         CheckConstraint("status IN ('open', 'closed', 'cancelled')", name="status"),
         CheckConstraint("reported_by_user IS NOT NULL OR reported_by_device IS NOT NULL", name="reporter"),
-        CheckConstraint("liability IS NULL OR police_report_sha256 IS NOT NULL", name="outcome"),
+        CheckConstraint(
+            "liability IS NULL OR liability = 'settlement' OR police_report_sha256 IS NOT NULL", name="outcome"
+        ),
+        CheckConstraint("liability IS DISTINCT FROM 'insurance' OR insurer IS NOT NULL", name="insurance"),
+        CheckConstraint(
+            "(cheque_received_on IS NULL) = (cheque_amount IS NULL) AND (cheque_amount IS NULL OR cheque_amount > 0)",
+            name="cheque",
+        ),
+        CheckConstraint(
+            "liability IS DISTINCT FROM 'settlement' OR (settlement_amount > 0 AND settlement_employee_id IS NOT NULL)",
+            name="settlement",
+        ),
         CheckConstraint("estimate_status = 'none' OR center_id IS NOT NULL", name="estimate"),
         CheckConstraint("status <> 'cancelled' OR cancel_reason IS NOT NULL", name="cancelled"),
         Index("accidents_status_idx", "status", "occurred_at"),
@@ -90,6 +102,15 @@ class Accident(Base):
     outcome_note: Mapped[str | None] = mapped_column(Text)
     outcome_by: Mapped[int | None] = mapped_column(BigInteger)
     outcome_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    insurer: Mapped[str | None] = mapped_column(Text)
+    insurance_claim_no: Mapped[str | None] = mapped_column(Text)
+    cheque_no: Mapped[str | None] = mapped_column(Text)
+    cheque_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    cheque_received_on: Mapped[date | None] = mapped_column(Date)
+    cheque_recorded_by: Mapped[int | None] = mapped_column(BigInteger)
+    cheque_recorded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    settlement_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    settlement_employee_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("people.employees.id"))
     deduction_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payroll.deductions.id"))
     repair_request_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("maintenance.requests.id"))
     status: Mapped[str] = mapped_column(Text, server_default=text("'open'"))

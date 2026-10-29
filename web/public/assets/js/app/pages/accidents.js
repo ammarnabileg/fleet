@@ -103,7 +103,9 @@
       if (open && ['none', 'rejected'].indexOf(a.estimate_status) > -1 && api.can('accidents.update')) acts.push(A.btn(a.center ? 'تغيير المركز' : 'إحالة لمركز', { icon: 'send', cls: a.center ? 'btn-outline' : 'btn-primary', action: 'acc-refer' }));
       if (open && a.estimate_status === 'approved' && !a.repair && api.can('accidents.update')) acts.push(A.btn('إرسال للإصلاح', { icon: 'wrench', cls: 'btn-outline', action: 'acc-repair' }));
       if (open && !a.liability && api.can('accidents.approve')) acts.push(A.btn('تحديد المسؤولية', { icon: 'scale', cls: a.stage === 'awaiting_outcome' ? 'btn-primary' : 'btn-outline', action: 'acc-outcome' }));
-      if (open && a.liability && api.can('accidents.approve')) acts.push(A.btn('إغلاق الحادث', { icon: 'circle-check', cls: 'btn-primary', action: 'acc-close' }));
+      var awaitingCheque = a.liability === 'insurance' && !a.cheque_received_on;
+      if (open && awaitingCheque && api.can('accidents.approve')) acts.push(A.btn('استلام شيك التأمين', { icon: 'banknote', cls: 'btn-primary', action: 'acc-cheque' }));
+      if (open && a.liability && !awaitingCheque && api.can('accidents.approve')) acts.push(A.btn('إغلاق الحادث', { icon: 'circle-check', cls: 'btn-primary', action: 'acc-close' }));
       if (open && !a.liability && !a.repair && api.can('accidents.update')) acts.push(A.btn('إلغاء', { icon: 'ban', cls: 'btn-ghost', action: 'acc-cancel' }));
       if (open && api.can('accidents.create')) acts.push(A.btn('إضافة صور', { icon: 'camera', cls: 'btn-ghost', action: 'acc-photos' }));
       return detail(a, acts);
@@ -136,13 +138,18 @@
       ? h`<div class="flex gap-8 mt-12"><button type="button" class="btn btn-sm btn-primary" data-est-ok>${icon('check', 14)} اعتماد التقدير</button><button type="button" class="btn btn-sm btn-ghost" data-est-no>${icon('x', 14)} رفض</button></div>` : '';
     var outcome = a.liability ? [
       ['المسؤولية', C.liability(a)],
+      a.insurer ? ['شركة التأمين', a.insurer] : null,
+      a.insurance_claim_no ? ['رقم المطالبة', h`<span class="num">${a.insurance_claim_no}</span>`] : null,
+      a.liability === 'insurance' ? ['الشيك', a.cheque_received_on ? h`<span class="num">${a.cheque_no}</span> · ${BT.amt(Number(a.cheque_amount))} · ${fmt.date(a.cheque_received_on)}` : BT.pill('بانتظار الشيك', 'o')] : null,
+      a.settlement_amount != null ? ['مبلغ التراضي', h`${BT.amt(Number(a.settlement_amount))} <small class="muted">(خارج الحسابات)</small>`] : null,
+      a.settlement_received_by ? ['استلمه', A.person(a.settlement_received_by)] : null,
       a.outcome_note ? ['ملاحظة', h`<span style="white-space:normal">${a.outcome_note}</span>`] : null,
       ['القرار', (a.outcome_by || '') + ' · ' + fmt.dt(a.outcome_at)]
     ].filter(Boolean) : null;
     var d = a.deduction;
     var repair = a.repair;
     return h`${A.head(h`${M.vehicleLine(a.vehicle)} · حادث <span class="num">#${a.number}</span>`, h`${C.stage(a.stage)} ${a.status === 'open' ? C.police(a) : ''} · ${api.company(a.company_id)}`, acts)}
-      ${a.status === 'open' && !a.has_police_report ? h`<div class="banner warn mb-16">${icon('file-warning', 16)}<div>الحادث <b>بانتظار محضر الشرطة</b>: لا يمكن تسجيل المسؤولية قبل إرفاقه.</div></div>` : ''}
+      ${a.status === 'open' && !a.has_police_report ? h`<div class="banner warn mb-16">${icon('file-warning', 16)}<div>الحادث <b>بانتظار محضر الشرطة</b>: لا يمكن تسجيل المسؤولية قبل إرفاقه (إلا التراضي).</div></div>` : ''}
       ${a.status === 'cancelled' ? h`<div class="banner mb-16">${icon('ban', 16)}<div>أُلغي: ${a.cancel_reason}</div></div>` : ''}
       <div class="grid-2 mb-16">
         <div class="card"><div class="card-h"><div class="card-t">الحادث</div></div>${BT.kv(info)}</div>
@@ -154,7 +161,7 @@
       ${C.estimateCard(a, url, estActions)}
       ${outcome ? h`<div class="card mb-16"><div class="card-h"><div class="card-t">المسؤولية والخصم</div></div><div class="grid-2">
           <div>${BT.kv(outcome)}</div>
-          <div>${d ? h`<div class="highlight-box mb-12 between"><b>الخصم ${d.status === 'cancelled' ? BT.pill('ملغى', 'n') : ''}</b><b>${BT.amt(d.total)} <small class="muted">على ${d.installments} ${d.installments === 1 ? 'قسط' : 'أقساط'}</small></b></div>${C.schedule(d)}${d.cancel_reason ? h`<div class="fs-sm mt-8 muted">سبب الإلغاء: ${d.cancel_reason}</div>` : ''}` : raw('<div class="muted fs-sm">لا خصم على السائق</div>')}</div>
+          <div>${d ? h`<div class="highlight-box mb-12 between"><b>الخصم ${d.status === 'cancelled' ? BT.pill('ملغى', 'n') : ''}</b><b>${BT.amt(d.total)} <small class="muted">على ${d.installments} ${d.installments === 1 ? 'قسط' : 'أقساط'}</small></b></div>${C.schedule(d)}${d.cancel_reason ? h`<div class="fs-sm mt-8 muted">سبب الإلغاء: ${d.cancel_reason}</div>` : ''}` : raw('<div class="muted fs-sm">لا خصم على السائق' + (a.liability === 'company' ? ': التصليح على حساب الشركة (مصروف صيانة)' : '') + '</div>')}</div>
         </div></div>` : ''}
       ${repair ? h`<div class="card mb-16"><div class="card-h"><div class="card-t">الإصلاح</div><a class="link-row" href="#/maintenance/${repair.id}">طلب الصيانة <span class="num">#${repair.number}</span> ${icon('arrow-left', 14)}</a></div>
         ${BT.kv([
@@ -215,46 +222,78 @@
   function nextMonth() { var p = BT.config.today.split('-'), y = +p[0], m = +p[1] + 1; if (m > 12) { m = 1; y++; } return y + '-' + (m < 10 ? '0' : '') + m; }
   BT.actions['acc-outcome'] = function () {
     var a = acc(), approved = a.estimate_status === 'approved', total = approved ? Number(a.estimate_total) : 0;
-    if (!a.has_police_report) { BT.toast('أرفق محضر الشرطة أولاً: لا تُسجّل المسؤولية دونه', { type: 'error', timeout: 6000 }); return; }
+    var staff = api.can('employees.view') ? A.allEmployees({}).catch(function () { return []; }) : Promise.resolve([]);
+    staff.then(function (emps) {
+      var empOpts = emps.map(function (e) { return { v: e.id, t: e.employee_number + ' · ' + api.name(e.name) }; });
+      A.formModal({
+        title: 'تحديد المسؤولية', subtitle: 'حادث #' + a.number, icon: 'scale', size: 'lg',
+        body: h`<div class="form-grid">
+          <div class="full">${BT.f.select({ name: 'liability', label: 'على من التصليح', required: true, value: a.has_police_report ? 'driver' : 'settlement', options: A.options('accident_liability', ['insurance', 'company', 'driver', 'settlement']) })}</div>
+          <div data-for="police" class="full banner warn">${icon('file-warning', 16)}<div>أرفق محضر الشرطة أولاً: لا تُسجّل هذه المسؤولية دونه (التراضي فقط لا يحتاجه).</div></div>
+          <div data-for="insurance" class="full"><div class="form-grid">
+            ${BT.f.input({ name: 'insurer', label: 'شركة التأمين', required: true })}
+            ${BT.f.input({ name: 'claim_no', label: 'رقم المطالبة', optional: true })}
+            <div class="full muted fs-sm">يبقى الحادث مفتوحاً ويصل تنبيه كل يوم للأدمن ولك حتى يُسجَّل استلام الشيك.</div></div></div>
+          <div data-for="company" class="full muted fs-sm">لا خصم على السائق. فاتورة التصليح المعتمدة تُقيَّد مصروف صيانة على الشركة تلقائياً.</div>
+          <div data-for="settlement" class="full"><div class="form-grid">
+            ${BT.f.input({ name: 'settlement_amount', label: 'المبلغ المستلم من الطرف الآخر', required: true, num: true })}
+            ${BT.f.select({ name: 'received_by', label: 'الموظف الذي استلمه', required: true, options: empOpts })}
+            <div class="full muted fs-sm">يُسجَّل المبلغ ومن استلمه فقط، ولا يدخل الحسابات.</div></div></div>
+          <div data-for="driver" class="full"><div class="form-grid">
+            ${!approved ? h`<div class="full banner warn">${icon('triangle-alert', 16)}<div>تقدير الأضرار لم يُعتمد بعد: لا يمكن تحميل السائق.</div></div>` : ''}
+            ${!a.driver ? h`<div class="full banner warn">${icon('triangle-alert', 16)}<div>لا يوجد سائق مسؤول (لم تكن السيارة مسلّمة لأحد وقت الحادث).</div></div>` : ''}
+            ${BT.f.input({ name: 'percent', label: 'نسبة مسؤولية السائق %', optional: true, num: true, value: '100', hint: '100% إلا إذا قررتم أقل' })}
+            ${BT.f.input({ name: 'inst', label: 'عدد الأقساط', required: true, num: true, value: '1' })}
+            ${BT.f.input({ name: 'start', label: 'شهر البدء', type: 'month', required: true, value: nextMonth() })}
+            ${BT.f.input({ name: 'reason', label: 'السبب في كشف الراتب', optional: true, hint: 'افتراضياً: حادث #' + a.number })}
+            <div class="full highlight-box" data-preview></div></div></div>
+          ${BT.f.textarea({ name: 'note', label: 'ملاحظة القرار', optional: true, full: true, rows: 2 })}</div>`,
+        onOpen: function (dlg) {
+          var f = dlg.form, sel = f.querySelector('[name=liability]'), pct = f.querySelector('[name=percent]'), inst = f.querySelector('[name=inst]');
+          function draw() {
+            var l = sel.value;
+            f.querySelectorAll('[data-for]').forEach(function (box) {
+              var on = box.getAttribute('data-for') === 'police' ? l !== 'settlement' && !a.has_police_report : box.getAttribute('data-for') === l;
+              box.style.display = on ? '' : 'none';
+              box.querySelectorAll('input,select').forEach(function (i) { i.disabled = !on; });
+            });
+            var p = Number(pct.value) || 0, n = Math.max(1, Math.round(Number(inst.value) || 1)), amount = BT.round3(total * p / 100);
+            var each = Math.floor(amount / n * 1000) / 1000, last = BT.round3(amount - each * (n - 1));
+            BT.render(f.querySelector('[data-preview]'), approved ? h`<div class="between"><span>التقدير المعتمد ${BT.amt(total)} × ${p}%</span><b>الخصم ${BT.amt(amount)}</b></div><div class="muted fs-sm mt-8">${n === 1 ? 'دفعة واحدة' : n + ' أقساط: ' + fmt.kwd(each) + (last !== each ? ' والأخير ' + fmt.kwd(last) : ' شهرياً')}</div>` : '');
+          }
+          [sel, pct, inst].forEach(function (el) { el.addEventListener('input', draw); el.addEventListener('change', draw); });
+          draw();
+        },
+        submitText: 'تسجيل القرار', submitCls: 'btn-primary', done: 'سُجّلت المسؤولية',
+        submit: function (f, dlg) {
+          var l = dlg.form.querySelector('[name=liability]').value;
+          var body = { liability: l, note: f.note || null };
+          if (l === 'insurance') { body.insurer = f.insurer; body.claim_no = f.claim_no || null; }
+          if (l === 'settlement') { body.settlement_amount = String(f.settlement_amount); body.received_by = f.received_by; }
+          if (l === 'driver') {
+            body.percent = f.percent === '' || f.percent == null ? null : String(f.percent);
+            body.installments = Math.round(f.inst);
+            body.start_month = f.start + '-01';
+            body.reason = f.reason || null;
+          }
+          return api.post('/accidents/' + a.id + '/outcome', body);
+        },
+        after: refreshAll
+      });
+    });
+  };
+
+  BT.actions['acc-cheque'] = function () {
+    var a = acc();
     A.formModal({
-      title: 'تحديد المسؤولية', subtitle: 'حادث #' + a.number + ' · وفق محضر الشرطة المرفق', icon: 'scale', size: 'lg',
+      title: 'استلام شيك التأمين', subtitle: 'حادث #' + a.number + ' · ' + a.insurer, icon: 'banknote',
       body: h`<div class="form-grid">
-        <div class="full">${BT.f.select({ name: 'liability', label: 'المسؤولية', required: true, value: 'driver', options: A.options('accident_liability', ['none', 'driver', 'shared']) })}</div>
-        <div data-charge class="full"><div class="form-grid">
-          ${!approved ? h`<div class="full banner warn">${icon('triangle-alert', 16)}<div>تقدير الأضرار لم يُعتمد بعد: يمكن تسجيل «لا مسؤولية» فقط.</div></div>` : ''}
-          ${!a.driver ? h`<div class="full banner warn">${icon('triangle-alert', 16)}<div>لا يوجد سائق مسؤول (لم تكن السيارة مسلّمة لأحد وقت الحادث).</div></div>` : ''}
-          ${BT.f.input({ name: 'percent', label: 'نسبة مسؤولية السائق %', optional: true, num: true, value: '100', hint: 'مسؤولية السائق: 100% إلا إذا قررتم أقل' })}
-          ${BT.f.input({ name: 'inst', label: 'عدد الأقساط', required: true, num: true, value: '1' })}
-          ${BT.f.input({ name: 'start', label: 'شهر البدء', type: 'month', required: true, value: nextMonth() })}
-          ${BT.f.input({ name: 'reason', label: 'السبب في كشف الراتب', optional: true, hint: 'افتراضياً: حادث #' + a.number })}
-          <div class="full highlight-box" data-preview></div></div></div>
-        ${BT.f.textarea({ name: 'note', label: 'ملاحظة القرار', optional: true, full: true, rows: 2 })}</div>`,
-      onOpen: function (dlg) {
-        var f = dlg.form, sel = f.querySelector('[name=liability]'), pct = f.querySelector('[name=percent]'), inst = f.querySelector('[name=inst]');
-        function draw() {
-          var l = sel.value, box = f.querySelector('[data-charge]');
-          box.style.display = l === 'none' ? 'none' : '';
-          box.querySelectorAll('input').forEach(function (i) { i.disabled = l === 'none'; });
-          if (l === 'shared' && pct.value === '100') pct.value = '50';
-          var p = Number(pct.value) || 0, n = Math.max(1, Math.round(Number(inst.value) || 1)), amount = BT.round3(total * p / 100);
-          var each = Math.floor(amount / n * 1000) / 1000, last = BT.round3(amount - each * (n - 1));
-          BT.render(f.querySelector('[data-preview]'), approved ? h`<div class="between"><span>التقدير المعتمد ${BT.amt(total)} × ${p}%</span><b>الخصم ${BT.amt(amount)}</b></div><div class="muted fs-sm mt-8">${n === 1 ? 'دفعة واحدة' : n + ' أقساط: ' + fmt.kwd(each) + (last !== each ? ' والأخير ' + fmt.kwd(last) : ' شهرياً')}</div>` : '');
-        }
-        [sel, pct, inst].forEach(function (el) { el.addEventListener('input', draw); el.addEventListener('change', draw); });
-        draw();
-      },
-      submitText: 'تسجيل القرار', submitCls: 'btn-primary', done: 'سُجّلت المسؤولية',
-      submit: function (f, dlg) {
-        var l = dlg.form.querySelector('[name=liability]').value;
-        var body = { liability: l, note: f.note || null };
-        if (l !== 'none') {
-          body.percent = f.percent === '' || f.percent == null ? null : String(f.percent);
-          body.installments = Math.round(f.inst);
-          body.start_month = f.start + '-01';
-          body.reason = f.reason || null;
-        }
-        return api.post('/accidents/' + a.id + '/outcome', body);
-      },
+        ${BT.f.input({ name: 'cheque_no', label: 'رقم الشيك', required: true })}
+        ${BT.f.input({ name: 'amount', label: 'المبلغ', required: true, num: true })}
+        ${BT.f.input({ name: 'received_on', label: 'تاريخ الاستلام', type: 'date', required: true, value: BT.config.today })}
+        ${BT.f.textarea({ name: 'note', label: 'ملاحظة', optional: true, full: true, rows: 2 })}</div>`,
+      submitText: 'تسجيل الاستلام', submitCls: 'btn-primary', done: 'سُجّل استلام الشيك',
+      submit: function (f) { return api.post('/accidents/' + a.id + '/cheque', { cheque_no: f.cheque_no, amount: String(f.amount), received_on: f.received_on, note: f.note || null }); },
       after: refreshAll
     });
   };

@@ -224,7 +224,7 @@ def test_accidents_by_driver_vehicle_and_outcome_estimate_against_actual_and_ded
         "/api/v1/accidents",
         json={"vehicle_id": other["id"], "description": "Hit while parked", "police_report": upload(admin_client)},
     ).json()["id"]
-    assert admin_client.post(f"/api/v1/accidents/{five}/outcome", json={"liability": "none"}).status_code == 200
+    assert admin_client.post(f"/api/v1/accidents/{five}/outcome", json={"liability": "company"}).status_code == 200
     # 3. cancelled: not counted; 4. forty days ago, still without a police report
     three = admin_client.post("/api/v1/accidents", json={"vehicle_id": other["id"], "description": "Wrong"}).json()[
         "id"
@@ -244,7 +244,7 @@ def test_accidents_by_driver_vehicle_and_outcome_estimate_against_actual_and_ded
         "deduction": "150.000",
         "waiting_police_report": 2,
     }
-    assert rep["by_outcome"] == {"pending": 1, "none": 1, "driver": 1, "shared": 0}
+    assert rep["by_outcome"] == {"pending": 1, "insurance": 0, "company": 1, "driver": 1, "settlement": 0}
     lines = {x["id"]: x for x in rep["accidents"]}
     assert set(lines) == {one, two, five}
     assert (lines[one]["estimate"], lines[one]["actual_cost"], lines[one]["difference"], lines[one]["deduction"]) == (

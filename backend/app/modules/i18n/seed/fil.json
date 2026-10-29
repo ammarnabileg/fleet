@@ -1335,7 +1335,12 @@
       "scheme_has_drivers": "May {drivers} driver sa scheme na ito mula ngayong buwan: pumili muna ng ibang scheme ng parehong kompanya na paglilipatan sa kanila.",
       "scheme_requests_pending": "May {requests} kahilingan ng driver para sa scheme na ito na naghihintay: aprubahan o tanggihan muna ang mga ito.",
       "scheme_choice_closed": "Humiling muna na palitan ang scheme mo: pipili ka ng bago kapag inaprubahan ng opisina.",
-      "scheme_choice_open": "Maaari mo nang piliin ang scheme mo ngayon mula sa listahan."
+      "scheme_choice_open": "Maaari mo nang piliin ang scheme mo ngayon mula sa listahan.",
+      "insurer_required": "Isulat ang pangalan ng kompanya ng insurance",
+      "settlement_details_required": "Isulat ang halaga ng areglo at ang empleyadong tumanggap nito",
+      "not_insurance": "Hindi ang insurance ang mananagot sa aksidenteng ito",
+      "cheque_recorded": "Naitala na ang tseke",
+      "cheque_not_received": "Hindi maisasara ang aksidente bago matanggap ang tseke ng insurance"
     },
     "finance_source": {
       "cash_journal": "Cash ledger: {kind} {reason}",

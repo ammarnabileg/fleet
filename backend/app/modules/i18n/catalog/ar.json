@@ -711,7 +711,12 @@
     "scheme_has_drivers": "على هذا النظام {drivers} سائق من هذا الشهر: اختر نظاماً آخر لنفس الشركة يُنقلون إليه أولاً.",
     "scheme_requests_pending": "على هذا النظام {requests} طلب سائق بانتظار القرار: اعتمدها أو ارفضها أولاً.",
     "scheme_choice_closed": "اطلب تغيير النظام أولاً: تختار نظاماً جديداً بعد موافقة المكتب.",
-    "scheme_choice_open": "يمكنك اختيار نظامك الآن مباشرة من قائمة الأنظمة."
+    "scheme_choice_open": "يمكنك اختيار نظامك الآن مباشرة من قائمة الأنظمة.",
+    "insurer_required": "اكتب اسم شركة التأمين",
+    "settlement_details_required": "اكتب مبلغ التراضي والموظف الذي استلمه",
+    "not_insurance": "المسؤولية ليست على شركة التأمين",
+    "cheque_recorded": "الشيك مسجّل من قبل",
+    "cheque_not_received": "لا يُغلق الحادث قبل استلام شيك التأمين"
   },
   "settings": {
     "branding": "الهوية",
@@ -894,7 +899,8 @@
     "absence_followup": "متابعة طلب تغيب ({kind}) لـ {driver} من {from} إلى {to}: مضى {days} يوماً",
     "petty_expense": "مصروف من العهدة من {name} بمبلغ {amount} د.ك بانتظار المراجعة",
     "platform_request": "{driver} يقول إنه يعمل مع {platform}: بانتظار الموافقة وتسجيل رقمه في المنصة",
-    "site_message": "رسالة جديدة من الموقع: {name}"
+    "site_message": "رسالة جديدة من الموقع: {name}",
+    "accident_awaiting_insurance_cheque": "الحادث {number} ({plate}): بانتظار شيك {insurer} لتصليح السيارة (الأيام منذ القرار: {days})"
   },
   "alert_kind": {
     "device_replaced": "ربط جهاز جديد لسائق",
@@ -956,7 +962,8 @@
     "absence_followup": "متابعة طلب تغيب",
     "petty_expense": "مصروف من العهدة النقدية",
     "platform_request": "طلب شركة من سائق",
-    "site_message": "رسالة من الموقع"
+    "site_message": "رسالة من الموقع",
+    "accident_awaiting_insurance_cheque": "بانتظار شيك التأمين"
   },
   "messages": {
     "otp": "رمز الدخول: {code}. صالح لمدة {minutes} دقائق. لا تشاركه مع أحد.",
@@ -1094,9 +1101,10 @@
     "cancelled": "ملغى"
   },
   "accident_liability": {
-    "none": "لا مسؤولية على السائق",
-    "driver": "السائق مسؤول",
-    "shared": "مسؤولية مشتركة"
+    "insurance": "على شركة التأمين",
+    "company": "على الشركة",
+    "driver": "على السائق",
+    "settlement": "بالتراضي"
   },
   "accident_event": {
     "reported": "تم الإبلاغ",
@@ -1109,7 +1117,8 @@
     "outcome": "حُددت المسؤولية",
     "repair_requested": "أُرسلت السيارة للإصلاح",
     "closed": "أُغلق",
-    "cancelled": "أُلغي"
+    "cancelled": "أُلغي",
+    "cheque_received": "استُلم شيك التأمين"
   },
   "estimate_status": {
     "none": "لا يوجد",

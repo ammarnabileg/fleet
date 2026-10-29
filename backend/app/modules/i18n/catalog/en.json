@@ -711,7 +711,12 @@
     "scheme_has_drivers": "{drivers} driver(s) are on this scheme from this month: pick another scheme of the same company to move them to first.",
     "scheme_requests_pending": "{requests} driver request(s) for this scheme are waiting: approve or reject them first.",
     "scheme_choice_closed": "Ask to change your scheme first: you pick a new one once the office approves.",
-    "scheme_choice_open": "You can pick your scheme now, straight from the list."
+    "scheme_choice_open": "You can pick your scheme now, straight from the list.",
+    "insurer_required": "Enter the insurance company's name",
+    "settlement_details_required": "Enter the settlement amount and the employee who received it",
+    "not_insurance": "The insurer is not the one liable",
+    "cheque_recorded": "The cheque is already recorded",
+    "cheque_not_received": "The accident cannot be closed before the insurance cheque is received"
   },
   "settings": {
     "branding": "Branding",
@@ -894,7 +899,8 @@
     "absence_followup": "Follow up the absence request ({kind}) of {driver}, {from} to {to}: {days} days passed",
     "petty_expense": "Petty cash spending from {name} for {amount} KWD awaits review",
     "platform_request": "{driver} says he works with {platform}: waiting for approval and his platform ID",
-    "site_message": "New message from the site: {name}"
+    "site_message": "New message from the site: {name}",
+    "accident_awaiting_insurance_cheque": "Accident {number} ({plate}): awaiting {insurer}'s cheque for the repair ({days} days since the decision)"
   },
   "alert_kind": {
     "device_replaced": "Driver's phone replaced",
@@ -956,7 +962,8 @@
     "absence_followup": "Absence request follow-up",
     "petty_expense": "Petty cash spending",
     "platform_request": "Driver's company request",
-    "site_message": "Site message"
+    "site_message": "Site message",
+    "accident_awaiting_insurance_cheque": "Awaiting insurance cheque"
   },
   "messages": {
     "otp": "Your sign-in code: {code}. Valid for {minutes} minutes. Do not share it.",
@@ -1094,9 +1101,10 @@
     "cancelled": "Cancelled"
   },
   "accident_liability": {
-    "none": "Driver not liable",
-    "driver": "Driver liable",
-    "shared": "Shared liability"
+    "insurance": "Insurance company",
+    "company": "The company",
+    "driver": "The driver",
+    "settlement": "Amicable settlement"
   },
   "accident_event": {
     "reported": "Reported",
@@ -1109,7 +1117,8 @@
     "outcome": "Liability recorded",
     "repair_requested": "Sent for repair",
     "closed": "Closed",
-    "cancelled": "Cancelled"
+    "cancelled": "Cancelled",
+    "cheque_received": "Insurance cheque received"
   },
   "estimate_status": {
     "none": "None",

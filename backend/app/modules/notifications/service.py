@@ -79,6 +79,7 @@ KINDS: dict[str, Kind] = {
     "accident_injuries": Kind("critical", "accidents.view", ("plate", "number", "driver")),
     "accident_estimate_submitted": Kind("info", "accidents.update", ("plate", "number", "center", "amount")),
     "accident_awaiting_police_report": Kind("warning", "accidents.view", ("plate", "number", "days")),
+    "accident_awaiting_insurance_cheque": Kind("warning", "accidents.view", ("plate", "number", "insurer", "days")),
     "fine_no_driver": Kind("warning", "fines.manage", ("plate", "number", "at")),
     "approval_escalated": Kind("warning", "approvals.view", ("ref", "hours")),
     "payroll_objection": Kind("info", "payroll.view", ("driver", "month")),
@@ -100,6 +101,7 @@ def raise_alert(
     dedupe_key: str | None = None,
     once: bool = False,
     refresh: bool = False,
+    assigned_to: int | None = None,
 ) -> bool:
     """Adds the alert to the caller's transaction. With a dedupe_key, at most one alert per situation stays open (not
     handled); with once=True, a situation alerts only once even after it was handled; with refresh=True, the open
@@ -121,6 +123,8 @@ def raise_alert(
         entity_id=None if entity_id is None else str(entity_id),
         params=params or {},
         dedupe_key=dedupe_key,
+        assigned_to=assigned_to,
+        assigned_at=None if assigned_to is None else func.now(),
     )
     if dedupe_key and refresh:
         stmt = stmt.on_conflict_do_update(

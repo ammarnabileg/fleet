@@ -407,7 +407,7 @@
             ${BT.kpi({ label: 'الخصومات القائمة', value: fmt.money(T.deduction), dot: 'p' })}
             ${BT.kpi({ label: 'بانتظار محضر الشرطة', value: fmt.int(T.waiting_police_report), sub: 'كل المفتوحة', dot: 'o', tone: T.waiting_police_report ? 'warning' : null })}
           </div>
-          <div class="flex gap-8 wrap mb-12">${BT.pill('بانتظار القرار ' + O.pending, 'o')}${BT.pill('لا مسؤولية ' + O.none, 'g')}${BT.pill('السائق مسؤول ' + O.driver, 'r')}${BT.pill('مشتركة ' + O.shared, 'o')}</div>
+          <div class="flex gap-8 wrap mb-12">${BT.pill('بانتظار القرار ' + O.pending, 'o')}${BT.pill('على التأمين ' + O.insurance, 'b')}${BT.pill('على الشركة ' + O.company, 'n')}${BT.pill('على السائق ' + O.driver, 'r')}${BT.pill('بالتراضي ' + O.settlement, 'g')}</div>
           <div class="section-t">الحوادث</div><div data-acc></div>
           <div class="grid-2 mt-16"><div><div class="section-t">حسب السائق</div><div data-drv></div></div><div><div class="section-t">حسب السيارة</div><div data-veh></div></div></div>
           <div class="section-t mt-16">بانتظار محضر الشرطة</div><div data-wait></div>`;

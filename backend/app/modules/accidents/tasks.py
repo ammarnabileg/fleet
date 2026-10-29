@@ -7,3 +7,9 @@ from app.worker import celery
 def scan_police_reports() -> int:
     with new_session() as db:
         return service.scan_police_reports(db)
+
+
+@celery.task(name="accidents.scan_insurance_cheques")
+def scan_insurance_cheques() -> int:
+    with new_session() as db:
+        return service.scan_insurance_cheques(db)

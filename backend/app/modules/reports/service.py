@@ -846,7 +846,7 @@ def accidents_report(
                 {key: ref, "accidents": 0, "liable": 0, "estimate": ZERO, "actual_cost": ZERO, "deduction": ZERO},
             )
             g["accidents"] += 1
-            g["liable"] += x["liability"] in ("driver", "shared")
+            g["liable"] += x["liability"] == "driver"
             g["estimate"] += x["estimate"] or ZERO
             g["actual_cost"] += x["actual_cost"] or ZERO
             g["deduction"] += x["deduction"] or ZERO
@@ -866,7 +866,7 @@ def accidents_report(
         },
         "by_outcome": {
             k: sum(1 for x in lines if (x["liability"] or "pending") == k)
-            for k in ("pending", "none", "driver", "shared")
+            for k in ("pending", "insurance", "company", "driver", "settlement")
         },
         "by_driver": group("driver"),
         "by_vehicle": group("vehicle"),

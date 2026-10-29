@@ -108,23 +108,23 @@ def test_uat24_no_outcome_without_the_police_report(admin_client, client, setup,
     body = {"liability": "driver", "installments": 3}
     r = admin_client.post(f"{A}/{aid}/outcome", json=body)
     assert r.status_code == 409 and r.json()["code"] == "police_report_required"
-    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "none"})
+    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "company"})
     assert r.status_code == 409 and r.json()["code"] == "police_report_required"
     detail = admin_client.get(f"{A}/{aid}").json()
     assert detail["liability"] is None and detail["deduction"] is None and detail["has_police_report"] is False
 
     # the database refuses it too, whoever writes
     with pytest.raises(Exception, match="accidents_outcome_check"):
-        owner_db.execute(text("UPDATE accidents.accidents SET liability = 'none' WHERE public_id = :a"), {"a": aid})
+        owner_db.execute(text("UPDATE accidents.accidents SET liability = 'company' WHERE public_id = :a"), {"a": aid})
 
     # with the report attached, the outcome goes through
     r = admin_client.post(
         f"{A}/{aid}/police-report", json={"file_sha256": police_pdf(admin_client), "number": "9/2026"}
     )
     assert r.status_code == 200 and r.json()["has_police_report"] is True
-    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "none", "note": "The other party was at fault"})
+    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "company", "note": "Nobody to charge"})
     assert r.status_code == 200, r.text
-    assert r.json()["liability"] == "none" and r.json()["deduction"] is None
+    assert r.json()["liability"] == "company" and r.json()["deduction"] is None
 
 
 def test_uat25_the_report_reaches_the_chosen_center_which_estimates_and_waits_for_the_manager(
@@ -229,23 +229,19 @@ def test_installments_round_down_and_the_last_takes_the_remainder():
     assert sum(x["amount"] for x in schedule(D("0.005"), 2, start)) == D("0.005")
 
 
-def test_shared_liability_charges_the_percentage(admin_client, client, setup):
+def test_the_driver_charged_a_percentage(admin_client, client, setup):
     s = setup
     aid = estimated_and_approved(admin_client, client, s, total="155.000")
-    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "shared", "installments": 2})
-    assert r.status_code == 422 and r.json()["code"] == "liability_percent_required"
-    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "shared", "percent": "100", "installments": 2})
-    assert r.status_code == 422 and r.json()["code"] == "shared_percent_below_100"
     r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "driver"})
     assert r.status_code == 422 and r.json()["code"] == "installments_required"
-    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "shared", "percent": "33.33", "installments": 2})
+    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "driver", "percent": "33.33", "installments": 2})
     assert r.status_code == 200, r.text
     d = r.json()["deduction"]
     assert d["total"] == "51.662"  # 155.000 x 33.33% = 51.6615, rounded half up
     assert [x["amount"] for x in d["schedule"]] == ["25.831", "25.831"]
     assert d["start_month"] == str(next_month())  # next month when not given
     # recorded once
-    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "none"})
+    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "company"})
     assert r.status_code == 409 and r.json()["code"] == "outcome_recorded"
     # the police report is the evidence of the decision now
     r = admin_client.post(f"{A}/{aid}/police-report", json={"file_sha256": police_pdf(admin_client)})
@@ -324,7 +320,7 @@ def test_closing_and_cancelling_release_the_vehicle(admin_client, client, setup,
 
     r = admin_client.post(f"{A}/{aid}/close", json={})
     assert r.status_code == 409 and r.json()["code"] == "outcome_required"
-    admin_client.post(f"{A}/{aid}/outcome", json={"liability": "none"})
+    admin_client.post(f"{A}/{aid}/outcome", json={"liability": "company"})
     r = admin_client.post(f"{A}/{aid}/close", json={"note": "No damage worth repairing"})
     assert r.json()["status"] == "closed" and r.json()["stage"] == "closed"
     assert vehicle_status(admin_client, s) == "available"
@@ -536,9 +532,9 @@ def test_permissions_and_company_scope(admin_client, client, new_client, setup, 
     # another company's user does not see it
     assert b.get(A).json() == []
     assert b.get(f"{A}/{aid}").status_code == 404
-    assert b.post(f"{A}/{aid}/outcome", json={"liability": "none"}).status_code == 404
+    assert b.post(f"{A}/{aid}/outcome", json={"liability": "company"}).status_code == 404
     # the maintenance manager refers and approves estimates but does not decide the liability
-    r = mm.post(f"{A}/{aid}/outcome", json={"liability": "none"})
+    r = mm.post(f"{A}/{aid}/outcome", json={"liability": "company"})
     assert r.status_code == 403
     # the supervisor reports and attaches, nothing more
     assert sup.post(f"{A}/{aid}/refer", json={"center_id": s["center"]["id"]}).status_code == 403
@@ -569,3 +565,72 @@ def test_alert_for_a_missing_police_report_and_the_dashboard(admin_client, clien
     # attaching the report closes the alert
     admin_client.post(f"{A}/{aid}/police-report", json={"file_sha256": police_pdf(admin_client)})
     assert not [a for a in admin_client.get("/api/v1/alerts").json() if a["kind"] == "accident_awaiting_police_report"]
+
+
+def test_the_insurer_owes_a_cheque_chased_daily_until_received(admin_client, client, setup, db):
+    from app.modules.accidents import service as accidents
+
+    s = setup
+    aid = estimated_and_approved(admin_client, client, s)
+    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "insurance"})
+    assert r.status_code == 422 and r.json()["code"] == "insurer_required"
+    r = admin_client.post(
+        f"{A}/{aid}/outcome", json={"liability": "insurance", "insurer": "Gulf Insurance", "claim_no": "C-7"}
+    )
+    assert r.status_code == 200, r.text
+    a = r.json()
+    assert a["insurer"] == "Gulf Insurance" and a["deduction"] is None and a["cheque_received_on"] is None
+
+    def open_alerts():
+        return db.execute(
+            text(
+                "SELECT assigned_to FROM notifications.alerts WHERE kind = 'accident_awaiting_insurance_cheque'"
+                " AND entity_id = :a AND resolved_at IS NULL"
+            ),
+            {"a": aid},
+        ).all()
+
+    first = open_alerts()
+    assert len(first) == 1 and first[0][0] is not None  # given to whoever decided; the admins see it too
+    # every day a new one, yesterday's closed
+    assert accidents.scan_insurance_cheques(db) == 1
+    assert len(open_alerts()) == 1
+    assert (
+        db.execute(
+            text(
+                "SELECT count(*) FROM notifications.alerts"
+                " WHERE kind = 'accident_awaiting_insurance_cheque' AND entity_id = :a"
+            ),
+            {"a": aid},
+        ).scalar()
+        == 2
+    )
+
+    # the driver's app: not on him
+    assert client.get("/api/v1/driver/accidents", headers=s["h"]).json()[0]["liability"] == "none"
+
+    r = admin_client.post(f"{A}/{aid}/close", json={})
+    assert r.status_code == 409 and r.json()["code"] == "cheque_not_received"
+    cheque = {"cheque_no": "554411", "amount": "150.000", "received_on": "2026-10-20"}
+    r = admin_client.post(f"{A}/{aid}/cheque", json=cheque)
+    assert r.status_code == 200, r.text
+    assert r.json()["cheque_amount"] == "150.000" and r.json()["cheque_no"] == "554411"
+    assert open_alerts() == [] and accidents.scan_insurance_cheques(db) == 0
+    assert admin_client.post(f"{A}/{aid}/cheque", json=cheque).json()["code"] == "cheque_recorded"
+    assert admin_client.post(f"{A}/{aid}/close", json={}).json()["status"] == "closed"
+
+
+def test_a_settlement_records_the_cash_and_who_took_it_without_a_police_report(admin_client, client, setup, db):
+    s = setup
+    aid = reported(client, s)  # no police report, no estimate
+    r = admin_client.post(f"{A}/{aid}/outcome", json={"liability": "settlement", "settlement_amount": "80"})
+    assert r.status_code == 422 and r.json()["code"] == "settlement_details_required"
+    body = {"liability": "settlement", "settlement_amount": "80", "received_by": s["driver"]["id"]}
+    r = admin_client.post(f"{A}/{aid}/outcome", json=body)
+    assert r.status_code == 200, r.text
+    a = r.json()
+    assert a["settlement_amount"] == "80.000" and a["settlement_received_by"]["id"] == s["driver"]["id"]
+    assert a["deduction"] is None
+    # not booked: nothing deducted from anyone
+    assert db.execute(text("SELECT count(*) FROM payroll.deductions WHERE source_type = 'accident'")).scalar() == 0
+    assert admin_client.post(f"{A}/{aid}/close", json={}).json()["status"] == "closed"

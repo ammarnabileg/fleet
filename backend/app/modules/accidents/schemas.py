@@ -85,15 +85,29 @@ class EstimateIn(_In):
 
 
 class OutcomeIn(_In):
-    """The liability per the police report (BRD FR-ACC-06) and, when the driver is liable, the deduction
-    (FR-ACC-07): the approved damage in full or by the liability percentage, in monthly installments."""
+    """Who pays (BRD FR-ACC-06): the insurer (its name, the claim's number), the company, the driver (the deduction,
+    FR-ACC-07: the approved damage in full or by a percentage, in monthly installments) or a settlement (the cash the
+    other party paid and the employee who took it)."""
 
-    liability: Literal["none", "driver", "shared"]
+    liability: Literal["insurance", "company", "driver", "settlement"]
     percent: Annotated[Decimal, Field(gt=0, le=100, max_digits=5, decimal_places=2)] | None = None
     note: Note | None = None
     installments: Annotated[int, Field(ge=1, le=60)] | None = None
     start_month: date | None = None  # any day of the month; the first month deducted
     reason: Short | None = None  # shown on the payslip; "Accident #N" when omitted
+    insurer: Short | None = None
+    claim_no: Short | None = None
+    settlement_amount: Amount | None = None
+    received_by: uuid.UUID | None = None  # the employee who took the settlement's cash
+
+
+class ChequeIn(_In):
+    """The insurer's cheque, received."""
+
+    cheque_no: Short
+    amount: Amount
+    received_on: date
+    note: Note | None = None
 
 
 # ---- outputs
@@ -166,6 +180,14 @@ class AccidentDetailOut(AccidentOut):
     outcome_note: str | None
     outcome_at: datetime | None
     outcome_by: str | None
+    insurer: str | None
+    insurance_claim_no: str | None
+    cheque_no: str | None
+    cheque_amount: Decimal | None
+    cheque_received_on: date | None
+    cheque_recorded_by: str | None
+    settlement_amount: Decimal | None
+    settlement_received_by: dict | None
     deduction: DeductionOut | None
     repair: RepairOut | None
     cost_difference: Decimal | None
