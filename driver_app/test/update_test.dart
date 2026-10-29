@@ -141,21 +141,21 @@ void main() {
       expect(req.headers['Authorization'], isNull, reason: 'no session needed: the sign-in screen updates too');
     });
 
-    test('throttled: once every 6 hours unless the driver asks', () async {
+    test('throttled: once every 15 minutes unless asked (each launch asks, see AppState.boot)', () async {
       final (db, api, server, phone) = await setUpPhone();
       server.on('GET', '/api/v1/driver/app-update', (r) => (200, {'latest': null, 'required': false}));
       var clock = DateTime(2026, 10, 1, 8);
       final u = updater(db, api, phone, now: () => clock);
       await u.check();
-      clock = clock.add(const Duration(hours: 2));
+      clock = clock.add(const Duration(minutes: 10));
       await u.check();
       expect(server.calls('/api/v1/driver/app-update'), hasLength(1));
       await u.check(force: true);
       expect(server.calls('/api/v1/driver/app-update'), hasLength(2));
-      clock = clock.add(const Duration(hours: 7));
+      clock = clock.add(const Duration(minutes: 16));
       await u.check();
       expect(server.calls('/api/v1/driver/app-update'), hasLength(3));
-      // the time of the last check is kept: a restart does not ask again at once
+      // the time of the last check is kept: coming back to the app within minutes does not ask again
       final again = updater(db, api, phone, now: () => clock);
       await again.load();
       await again.check();

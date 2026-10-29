@@ -377,7 +377,8 @@ class AppState extends ChangeNotifier {
     _applyLeaves(await db.get('leaves'));
     await _showSplash();
     if (platform.updates != null) await updater.load(); // a required update stays required offline
-    if (checkUpdates) unawaited(Future(() => updater.check()));
+    // every launch asks: a required update the office just published stops the app now, not hours later
+    if (checkUpdates) unawaited(Future(() => updater.check(force: true)));
     unawaited(catalog.load(api, lang).catchError((Object e, StackTrace st) => errors.record('catalog', e, st)));
     if (!await tokens.hasSession()) {
       _set(Phase.signedOut);
@@ -801,7 +802,7 @@ class AppState extends ChangeNotifier {
   Future<void> resumed() async {
     if (updateStringsAtStart) unawaited(translations.check(api, lang)); // at most every 15 minutes
     unawaited(updater.resumed()); // back from the installer or the "install unknown apps" setting
-    if (checkUpdates) unawaited(updater.check()); // at most every 6 hours
+    if (checkUpdates) unawaited(updater.check()); // at most every 15 minutes
     if (phase != Phase.ready) return;
     await reloadData(force: true); // what changed while he was away
     await loadLiveStatus();

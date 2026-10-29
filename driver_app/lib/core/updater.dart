@@ -98,7 +98,7 @@ class Updater extends ChangeNotifier {
     required this.hooks,
     required this.currentBuild,
     http.Client? client,
-    this.every = const Duration(hours: 6),
+    this.every = const Duration(minutes: 15),
     this.beforeBlock,
     this.remote,
     DateTime Function()? now,
