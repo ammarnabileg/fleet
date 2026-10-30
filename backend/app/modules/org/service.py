@@ -6,7 +6,7 @@ from collections.abc import Iterable
 
 from fastapi import Depends
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.orm import Session
 
 from app.core.db import get_session
@@ -375,3 +375,19 @@ def print_company(db: Session, company_id: int | None = None, **scope) -> str:
     from app.modules.org import printing
 
     return printing.layout(db, company_id, **scope)["identity"]["company"]
+
+
+# ------------------------------------------------------------------ the system back to new
+
+
+RESET_PHRASE = "امسح كل البيانات"
+
+
+def factory_reset(db: Session, *, actor_user_id: int, actor_public_id) -> None:
+    """Everything the business recorded emptied, the set-up kept, every office user but this one removed: the
+    database's own function (migration 0083) does it in this one transaction. The audit log records who did it."""
+    db.execute(text("SELECT public.fleet_factory_reset(:u)"), {"u": actor_user_id})
+    audit.record(
+        db, action="system.factory_reset", entity_type="system", entity_id=actor_public_id, actor_user_id=actor_user_id
+    )
+    db.commit()

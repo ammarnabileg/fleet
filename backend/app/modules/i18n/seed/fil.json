@@ -1343,7 +1343,8 @@
       "cheque_not_received": "Hindi maisasara ang aksidente bago matanggap ang tseke ng insurance",
       "insurer_inactive": "Naka-deactivate ang kompanyang ito ng insurance",
       "insurer_not_found": "Hindi nahanap ang kompanya ng insurance",
-      "insurer_name_taken": "May nakarehistro nang kompanya ng insurance na ganito ang pangalan"
+      "insurer_name_taken": "May nakarehistro nang kompanya ng insurance na ganito ang pangalan",
+      "reset_phrase_mismatch": "Isulat nang eksakto ang parirala: امسح كل البيانات"
     },
     "finance_source": {
       "cash_journal": "Cash ledger: {kind} {reason}",

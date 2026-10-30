@@ -324,6 +324,13 @@ def _check_password_policy(password: str) -> None:
         raise AppError(422, "password_too_short", min=minimum)
 
 
+def confirm_own_password(db: Session, principal: Principal, password: str) -> None:
+    """The signed-in user types their password again before something that cannot be undone."""
+    user = db.get(User, principal.user_id)
+    if not security.verify_password(user.password_hash if user else None, password):
+        raise AppError(403, "invalid_credentials")
+
+
 def change_own_password(db: Session, principal: Principal, current: str, new: str) -> None:
     user = db.get(User, principal.user_id)
     if not security.verify_password(user.password_hash, current):

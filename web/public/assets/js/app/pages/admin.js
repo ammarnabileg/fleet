@@ -672,6 +672,40 @@
   }
 
   /* ---------- تنزيل التطبيق: الإصدار المعلن، زر كبير، رمز QR، ورابط على عنوان النظام يُنسخ ويُرسل للسائقين ---------- */
+  /* ---------- إرجاع النظام جديداً: رابط لا يظهر في القائمة (#/system-reset)، لمدير النظام وحده بكلمة مروره والعبارة ---------- */
+  var RESET_PHRASE = 'امسح كل البيانات';
+  BT.pages['system-reset'] = function () {
+    A.setTitle('إرجاع النظام جديداً');
+    var v = A.view();
+    if (!api.me || !api.me.is_superuser) { BT.render(v, A.forbidden()); return; }
+    var gone = ['السائقون والموظفون وسجلاتهم ومستنداتهم', 'السيارات والعهد والعداد ومواقع التتبع', 'الكاش والخزينة وقيود الحسابات والمصروفات', 'الرواتب والخصومات وأنظمة السائقين وطلباتهم', 'الحوادث وشركات التأمين والمخالفات', 'الصيانة ومراكزها وفواتيرها', 'التنبيهات والرسائل والأجهزة المسجلة', 'كل مستخدمي المكتب ما عداك'];
+    var kept = ['الشركات والفروع وإعداداتها', 'المنصات (كيتا، طلبات…) وأنظمة الرواتب', 'الأدوار والصلاحيات', 'دليل الحسابات وأنواع المصروفات', 'أنواع المستندات وحالات التوظيف وأنواع الإجازات', 'مسارات الاعتماد والترجمات وإصدارات التطبيق', 'سجل التدقيق (ويُسجَّل فيه هذا الإجراء)'];
+    BT.render(v, h`${A.head('إرجاع النظام جديداً', 'لما قبل التشغيل الفعلي: يُمسح كل ما سُجّل في التشغيل ويبقى إعداد النظام. لا يمكن التراجع عنه.', '')}
+      <div class="banner danger mb-16">${icon('triangle-alert', 16)}<div><b>لا رجوع بعد التنفيذ.</b> خذ نسخة احتياطية من قاعدة البيانات على الخادم قبله إن كنت قد تحتاج شيئاً مما سيُمسح.</div></div>
+      <div class="grid-2 mb-16">
+        <div class="card"><div class="card-h"><div class="card-t">${icon('trash-2', 16)} يُمسح</div></div><ul class="fs-sm" style="margin:0;padding-inline-start:18px;line-height:1.9">${gone.map(function (x) { return h`<li>${x}</li>`; })}</ul></div>
+        <div class="card"><div class="card-h"><div class="card-t">${icon('shield-check', 16)} يبقى</div></div><ul class="fs-sm" style="margin:0;padding-inline-start:18px;line-height:1.9">${kept.map(function (x) { return h`<li>${x}</li>`; })}</ul></div>
+      </div>
+      <form class="card" data-reset-form style="max-width:520px"><div class="form-grid">
+        <div class="full">${BT.f.input({ name: 'password', label: 'كلمة مرورك', type: 'password', required: true })}</div>
+        <div class="full">${BT.f.input({ name: 'confirm', label: h`اكتب: <b>${RESET_PHRASE}</b>`, required: true })}</div>
+        <div class="full"><button type="submit" class="btn btn-danger" data-reset-go disabled>${icon('rotate-ccw', 15)} إرجاع النظام جديداً</button></div>
+      </div></form>`);
+    var form = v.querySelector('[data-reset-form]'), go = v.querySelector('[data-reset-go]');
+    function ready() { go.disabled = !(form.password.value && form.confirm.value.trim() === RESET_PHRASE); }
+    form.addEventListener('input', ready);
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (go.disabled) return;
+      A.confirmRun({
+        title: 'تأكيد أخير', tone: 'danger', confirmText: 'امسح الآن',
+        message: 'سيُمسح كل ما في القائمة الحمراء الآن ولا يمكن استرجاعه من النظام.',
+        run: function () { go.disabled = true; return api.post('/system/factory-reset', { password: form.password.value, confirm: form.confirm.value.trim() }).catch(function (err) { ready(); throw err; }); },
+        done: 'عاد النظام جديداً', after: function () { A.go(''); }
+      });
+    });
+  };
+
   BT.pages['app-download'] = function () {
     A.setTitle('تنزيل التطبيق');
     var v = A.view();

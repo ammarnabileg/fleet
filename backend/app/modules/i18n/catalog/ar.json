@@ -719,7 +719,8 @@
     "cheque_not_received": "لا يُغلق الحادث قبل استلام شيك التأمين",
     "insurer_inactive": "شركة التأمين هذه موقوفة",
     "insurer_not_found": "شركة التأمين غير موجودة",
-    "insurer_name_taken": "شركة تأمين بهذا الاسم مسجّلة من قبل"
+    "insurer_name_taken": "شركة تأمين بهذا الاسم مسجّلة من قبل",
+    "reset_phrase_mismatch": "اكتب العبارة كما هي بالضبط: امسح كل البيانات"
   },
   "settings": {
     "branding": "الهوية",

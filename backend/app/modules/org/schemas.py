@@ -442,3 +442,10 @@ class BranchOut(BaseModel):
     is_default: bool
     is_active: bool
     version: int
+
+
+class FactoryResetIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    confirm: Annotated[str, StringConstraints(strip_whitespace=True, max_length=50)]

@@ -1343,7 +1343,8 @@
       "cheque_not_received": "बीमा का चेक मिलने से पहले दुर्घटना बंद नहीं की जा सकती",
       "insurer_inactive": "यह बीमा कंपनी निष्क्रिय है",
       "insurer_not_found": "बीमा कंपनी नहीं मिली",
-      "insurer_name_taken": "इस नाम की बीमा कंपनी पहले से दर्ज है"
+      "insurer_name_taken": "इस नाम की बीमा कंपनी पहले से दर्ज है",
+      "reset_phrase_mismatch": "वाक्यांश ठीक वैसा ही लिखें: امسح كل البيانات"
     },
     "finance_source": {
       "cash_journal": "कैश लेजर: {kind} {reason}",

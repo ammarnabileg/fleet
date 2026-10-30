@@ -4,9 +4,11 @@ from datetime import date
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core import ratelimit
 from app.core.db import get_session
 from app.core.errors import AppError
 from app.modules.files import service as files
+from app.modules.identity import service as identity
 from app.modules.identity.service import Principal, get_principal, require_permission
 from app.modules.org import schemas, service
 
@@ -166,3 +168,19 @@ def update_branch(
     changes = body.model_dump(exclude_unset=True)
     version = changes.pop("version")
     return service.update_branch(db, public_id, version=version, changes=changes, actor_user_id=principal.user_id)
+
+
+@router.post("/system/factory-reset", status_code=204, dependencies=[Depends(ratelimit.failures_limited("sign_in"))])
+def factory_reset(
+    body: schemas.FactoryResetIn,
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_session),
+):
+    """The system back to new, before going live: the system administrator only, with their password typed again and
+    the phrase typed out. Wrong passwords count as failed sign-ins (limited the same way)."""
+    if not principal.is_superuser:
+        raise AppError(403, "permission_denied")
+    identity.confirm_own_password(db, principal, body.password)
+    if body.confirm != service.RESET_PHRASE:
+        raise AppError(422, "reset_phrase_mismatch")
+    service.factory_reset(db, actor_user_id=principal.user_id, actor_public_id=principal.public_id)

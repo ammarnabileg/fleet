@@ -1343,7 +1343,8 @@
       "cheque_not_received": "L'accident ne peut pas être clôturé avant la réception du chèque de l'assurance",
       "insurer_inactive": "Cette compagnie d'assurance est désactivée",
       "insurer_not_found": "Compagnie d'assurance introuvable",
-      "insurer_name_taken": "Une compagnie d'assurance porte déjà ce nom"
+      "insurer_name_taken": "Une compagnie d'assurance porte déjà ce nom",
+      "reset_phrase_mismatch": "Tapez la phrase exactement : امسح كل البيانات"
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",

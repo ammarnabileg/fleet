@@ -1343,7 +1343,8 @@
       "cheque_not_received": "Ajali haiwezi kufungwa kabla ya kupokea hundi ya bima",
       "insurer_inactive": "Kampuni hii ya bima imesimamishwa",
       "insurer_not_found": "Kampuni ya bima haipatikani",
-      "insurer_name_taken": "Kampuni ya bima yenye jina hili tayari imesajiliwa"
+      "insurer_name_taken": "Kampuni ya bima yenye jina hili tayari imesajiliwa",
+      "reset_phrase_mismatch": "Andika maneno hasa kama yalivyo: امسح كل البيانات"
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",

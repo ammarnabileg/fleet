@@ -719,7 +719,8 @@
     "cheque_not_received": "The accident cannot be closed before the insurance cheque is received",
     "insurer_inactive": "This insurance company is deactivated",
     "insurer_not_found": "Insurance company not found",
-    "insurer_name_taken": "An insurance company with this name is already registered"
+    "insurer_name_taken": "An insurance company with this name is already registered",
+    "reset_phrase_mismatch": "Type the phrase exactly: امسح كل البيانات"
   },
   "settings": {
     "branding": "Branding",
