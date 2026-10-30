@@ -14,7 +14,7 @@
   function view() { return document.getElementById('view'); }
   function setTitle(t, crumbs) {
     document.title = t + ' — بوابة مراكز الصيانة';
-    BT.render(document.getElementById('tb-title'), h`<div class="crumbs">${crumbs ? h`${crumbs.map(function (c, i) { return h`${i ? icon('chevron-left', 12) : ''}${c[1] ? h`<a href="#/${c[1]}">${c[0]}</a>` : c[0]}`; })}` : h`${P.center ? P.center.name : ''} · ${fmt.dateLong(BT.config.today)}`}</div><h1>${t}</h1>`);
+    BT.render(document.getElementById('tb-title'), h`<div class="crumbs">${crumbs ? h`${crumbs.map(function (c, i) { return h`${i ? icon('chevron-left', 12) : ''}${c[1] ? h`<a href="#/${c[1]}">${c[0]}</a>` : c[0]}`; })}` : h`<span>${P.center ? P.center.name : ''}</span> · <span>${fmt.dateLong(BT.config.today)}</span>`}</div><h1>${t}</h1>`);
   }
   function head(t, s, a) { return h`<div class="page-head"><div><h2>${t}</h2>${s ? h`<p>${s}</p>` : ''}</div>${a ? h`<div class="page-actions">${a}</div>` : ''}</div>`; }
   function spinner() { return h`<div class="page-loading"><span class="spinner"></span>جاري التحميل…</div>`; }
@@ -399,12 +399,14 @@
       { head: api.me.full_name + ' · ' + api.me.username },
       { label: 'تغيير كلمة المرور', icon: 'key-round', onClick: function () { changePassword(false); } },
       { label: dark ? 'الوضع الفاتح' : 'الوضع الداكن', icon: dark ? 'sun' : 'moon', onClick: function () { BT.theme.toggle(); } },
+      { label: BT.lang === 'en' ? 'العربية' : 'English', icon: 'languages', onClick: function () { BT.setLang(BT.lang === 'en' ? 'ar' : 'en'); } },
       { sep: true },
       { label: 'تسجيل الخروج', icon: 'log-out', danger: true, onClick: logout }
     ], { focus: true });
   };
   BT.actions['toggle-nav'] = function () { document.getElementById('app').classList.toggle('nav-open'); };
   BT.actions['theme'] = function () { BT.theme.toggle(); };
+  BT.actions['lang'] = function () { BT.setLang(BT.lang === 'en' ? 'ar' : 'en'); };
   function logout() { api.post('/auth/logout').then(null, function () {}).then(function () { location.href = 'login.html'; }); }
   function changePassword(forced) {
     return BT.modal.open({
@@ -429,7 +431,7 @@
       api.me = me; api.csrf = me.csrf_token;
       if (!api.isCenterAccount(me)) { location.replace('admin.html'); return null; } // حساب إدارة (ومنه مدير النظام) لا حساب مركز
       return Promise.all([
-        api.loadCatalog(me.locale || 'ar').catch(function () { return api.loadCatalog('ar'); }),
+        api.loadCatalog(BT.lang).catch(function () { return api.loadCatalog('ar'); }),
         api.get('/portal/me').then(function (c) { P.center = c; })
       ]);
     }).then(function (ok) {
@@ -437,7 +439,7 @@
       document.querySelectorAll('[data-center-name]').forEach(function (e) { e.textContent = P.center.name; });
       document.querySelectorAll('[data-me-name]').forEach(function (e) { e.textContent = api.me.full_name; });
       document.querySelectorAll('[data-me-av]').forEach(function (e) { e.textContent = fmt.initials(api.me.full_name); });
-      api.get('/branding', null, { noRedirect: true }).then(function (b) { document.querySelectorAll('[data-brand]').forEach(function (e) { e.textContent = 'محالة من ' + b.display_name; }); }, function () {});
+      api.get('/branding', null, { noRedirect: true }).then(function (b) { document.querySelectorAll('[data-brand]').forEach(function (e) { BT.render(e, h`<span>محالة من</span> ${b.display_name}`); }); }, function () {});
       P.router = BT.router(BT.pages, {
         default: 'requests', view: view,
         onBefore: function (r) {
