@@ -611,6 +611,7 @@
      key (أو id العنصر): يحفظ حالة الجدول في سجل المتصفح، فيعود «رجوع» إلى نفس البحث والتصفية والصفحة والترتيب
        (keepPage:false لجدول يتنقل بمؤشرات لا بأرقام صفحات)، ويحفظ الأعمدة الظاهرة والعروض المسماة على هذا الجهاز
      ================================================================= */
+  var ALL_MAX = 5000; // «الكل» from the server: read in parts of 200, up to this many
   BT.table = function (el, o) {
     var st = { q: '', chip: o.chips ? (o.chips.value || '') : '', page: 1, size: o.pageSize || (o.fetch ? 25 : 10), sort: o.fetch ? null : o.sort || null, sel: {}, selRows: {}, loaded: [], more: false, loading: !!o.fetch, error: null, ticket: 0 };
     var getRows = function () { return o.fetch ? st.loaded : typeof o.rows === 'function' ? o.rows() : o.rows; };
@@ -632,7 +633,7 @@
     // back to this page (the browser's «back»): the search, chip, page and order it was left with
     var saved = key && history.state && history.state.bt ? history.state.bt[key] : null;
     if (saved) {
-      st.q = saved.q || ''; st.size = saved.size || st.size; st.sort = saved.sort || st.sort;
+      st.q = saved.q || ''; st.size = saved.size != null ? saved.size : st.size; st.sort = saved.sort || st.sort;
       if (saved.chip != null && o.chips) st.chip = saved.chip;
       if (o.keepPage !== false) st.page = saved.page || 1;
     }
@@ -672,13 +673,30 @@
       });
     }
 
+    /* how many rows a page shows: these, or all (0; a server list up to ALL_MAX) */
+    function sizeSelect(sizes) {
+      var en = BT.lang === 'en';
+      return h`<select class="select" data-size aria-label="عدد الصفوف">${sizes.map(function (n) { return h`<option value="${n}"${n === st.size ? raw(' selected') : ''}>${n} ${en ? 'rows' : 'صف'}</option>`; })}<option value="0"${st.size === 0 ? raw(' selected') : ''}>${en ? 'All' : 'الكل'}</option></select>`;
+    }
+
     var typing = false;
     function load() {
       var ticket = ++st.ticket;
       st.loading = true; st.error = null; draw();
-      Promise.resolve(o.fetch({ q: st.q.trim(), chip: st.chip, offset: (st.page - 1) * st.size, limit: st.size + 1 })).then(function (rows) {
+      // the server gives at most 200 rows a request: a page of 200, or «الكل» (size 0), is read in parts of 200
+      var want = st.size ? st.size + 1 : ALL_MAX + 1, from = st.size ? (st.page - 1) * st.size : 0, got = [];
+      function part() {
+        var ask = Math.min(200, want - got.length);
+        return Promise.resolve(o.fetch({ q: st.q.trim(), chip: st.chip, offset: from + got.length, limit: ask })).then(function (rows) {
+          got = got.concat(rows);
+          // fewer than asked: the end; more than asked: a list that ignores the paging, read whole
+          return rows.length === ask && got.length < want ? part() : got;
+        });
+      }
+      part().then(function (rows) {
         if (ticket !== st.ticket) return;
-        st.loading = false; st.more = rows.length > st.size; st.loaded = rows.slice(0, st.size); draw();
+        var size = st.size || ALL_MAX;
+        st.loading = false; st.more = rows.length > size; st.loaded = rows.slice(0, size); draw();
       }, function (err) {
         if (ticket !== st.ticket) return;
         st.loading = false; st.loaded = []; st.more = false; st.error = (BT.api && BT.api.message) ? BT.api.message(err) : 'تعذر تحميل البيانات'; draw();
@@ -740,7 +758,7 @@
       BT.render(wrapEl, html);
       if (pager && o.fetch) {
         BT.render(pager, h`<span>صفحة <span class="num">${BT.fmt.int(st.page)}</span>${pageRows.length ? h` · <span class="num">${BT.fmt.int(pageRows.length)}</span> صف` : ''}</span>
-          <div class="flex items-center gap-8"><select class="select" data-size aria-label="عدد الصفوف">${[25, 50, 100, 200].map(function (n) { return h`<option value="${n}"${n === st.size ? raw(' selected') : ''}>${n} ${BT.lang === 'en' ? 'rows' : 'صف'}</option>`; })}</select>
+          <div class="flex items-center gap-8">${sizeSelect([25, 50, 100, 200])}
           <div class="pages"><button type="button" data-page="${st.page - 1}"${st.page <= 1 || st.loading ? raw(' disabled') : ''} aria-label="السابق">${icon('chevron-right', 16)}</button>
           <button type="button" class="active" disabled aria-current="page">${st.page}</button>
           <button type="button" data-page="${st.page + 1}"${!st.more || st.loading ? raw(' disabled') : ''} aria-label="التالي">${icon('chevron-left', 16)}</button></div></div>`);
@@ -749,7 +767,7 @@
         var nums = [], p;
         for (p = 1; p <= pages; p++) { if (p === 1 || p === pages || Math.abs(p - st.page) <= 1) nums.push(p); else if (nums[nums.length - 1] !== '…') nums.push('…'); }
         BT.render(pager, h`<span>${BT.lang === 'en' ? 'Showing' : 'عرض'} <span class="num">${BT.fmt.int(from)}–${BT.fmt.int(to)}</span> ${BT.lang === 'en' ? 'of' : 'من'} <span class="num">${BT.fmt.int(current.length)}</span></span>
-          <div class="flex items-center gap-8"><select class="select" data-size aria-label="عدد الصفوف">${[10, 25, 50, 100].map(function (n) { return h`<option value="${n}"${n === st.size ? raw(' selected') : ''}>${n} ${BT.lang === 'en' ? 'rows' : 'صف'}</option>`; })}</select>
+          <div class="flex items-center gap-8">${sizeSelect([10, 25, 50, 100, 200])}
           <div class="pages"><button type="button" data-page="${st.page - 1}"${st.page <= 1 ? raw(' disabled') : ''} aria-label="السابق">${icon('chevron-right', 16)}</button>
           ${nums.map(function (n) { return n === '…' ? raw('<button type="button" disabled>…</button>') : h`<button type="button" data-page="${n}" class="${n === st.page ? 'active' : ''}"${n === st.page ? raw(' aria-current="page"') : ''}>${n}</button>`; })}
           <button type="button" data-page="${st.page + 1}"${st.page >= pages ? raw(' disabled') : ''} aria-label="التالي">${icon('chevron-left', 16)}</button></div></div>`);
@@ -816,7 +834,7 @@
       });
     }
     function applyView(vw) {
-      st.q = vw.q || ''; st.chip = vw.chip != null && o.chips ? vw.chip : st.chip; st.sort = vw.sort || null; st.size = vw.size || st.size; st.page = 1;
+      st.q = vw.q || ''; st.chip = vw.chip != null && o.chips ? vw.chip : st.chip; st.sort = vw.sort || null; st.size = vw.size != null ? vw.size : st.size; st.page = 1;
       hidden = Object.assign({}, vw.hidden || {}); savePrefs();
       if (searchEl) searchEl.value = st.q;
       drawChips(); reload(); applyTools(vw.tools);
