@@ -309,6 +309,25 @@ void main() {
       expect(phone.installed, hasLength(1));
     });
 
+    test('a failure of any kind (a TLS handshake) ends as failed with a retry, never downloading for good', () async {
+      final (db, api, server, phone) = await setUpPhone(phone: Phone(wifi: false));
+      server.on('GET', '/api/v1/driver/app-update', (r) => (200, latest(required: true)));
+      var broken = true;
+      final client = MockClient((req) async {
+        if (!req.url.path.endsWith('.apk')) return server.client.send(req).then(http.Response.fromStream);
+        if (broken) throw const HandshakeException('bad certificate');
+        return http.Response.bytes(apk, 200);
+      });
+      final u = updater(db, api, phone, client: client);
+      await u.check();
+      await u.install(); // the tap
+      expect(u.stage, UpdateStage.failed); // the button is back
+      broken = false;
+      await u.install(); // tapped again
+      expect((u.stage, u.error), (UpdateStage.ready, null));
+      expect(phone.installed, hasLength(1));
+    });
+
     test('a sha256 mismatch is refused and the file deleted', () async {
       final (db, api, server, phone) = await setUpPhone(phone: Phone(wifi: false));
       server.on('GET', '/api/v1/driver/app-update', (r) => (200, latest()));

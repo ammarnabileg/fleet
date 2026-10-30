@@ -185,6 +185,9 @@ class Outbox {
     } on SessionEnded {
       await _release(item, 'session_ended');
       rethrow;
+    } catch (_) {
+      await _park(item.id, 'local'); // shown as needing attention, with retry and remove
+      return SendResult.queued;
     }
   }
 
@@ -234,6 +237,10 @@ class Outbox {
       } on SessionEnded {
         await _release(item, 'session_ended', count: false);
         rethrow;
+      } catch (_) {
+        // something on the phone (its photo deleted, a file unreadable): parked for the driver to retry or remove,
+        // never left "sending" where it held back every later item, the positions' upload included
+        await _park(item.id, 'local');
       }
     }
     return sent;

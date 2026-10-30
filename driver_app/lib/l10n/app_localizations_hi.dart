@@ -49,15 +49,13 @@ class AppLocalizationsHi extends AppLocalizations {
   String get signInTitle => 'साइन इन';
 
   @override
-  String get signInHint =>
-      'कंपनी में दर्ज अपना फ़ोन नंबर डालें। साइन-इन कोड WhatsApp पर आएगा।';
+  String get signInHint => 'कंपनी में दर्ज अपना फ़ोन नंबर डालें। साइन-इन कोड WhatsApp पर आएगा।';
 
   @override
   String get phoneLabel => 'फ़ोन';
 
   @override
-  String get phoneInvalid =>
-      'कुवैत के 8 अंक, या + से शुरू होने वाला अंतरराष्ट्रीय नंबर';
+  String get phoneInvalid => 'कुवैत के 8 अंक, या + से शुरू होने वाला अंतरराष्ट्रीय नंबर';
 
   @override
   String get sendCode => 'कोड भेजें';
@@ -100,15 +98,13 @@ class AppLocalizationsHi extends AppLocalizations {
   String get permLocation => 'लोकेशन: “हमेशा अनुमति दें”';
 
   @override
-  String get permLocationWhy =>
-      'ताकि सुपरवाइज़र आपकी ज़िम्मेदारी के दौरान गाड़ी देख सके।';
+  String get permLocationWhy => 'ताकि सुपरवाइज़र आपकी ज़िम्मेदारी के दौरान गाड़ी देख सके।';
 
   @override
   String get permNotifications => 'सूचनाएँ';
 
   @override
-  String get permNotificationsWhy =>
-      'ट्रैकिंग के दौरान एक स्थायी सूचना दिखती है (Android का नियम)।';
+  String get permNotificationsWhy => 'ट्रैकिंग के दौरान एक स्थायी सूचना दिखती है (Android का नियम)।';
 
   @override
   String get permBattery => 'बैटरी ऑप्टिमाइज़ेशन को अनदेखा करें';
@@ -126,8 +122,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get permSettings => 'सेटिंग्स खोलें';
 
   @override
-  String get permLocationRequired =>
-      'आगे बढ़ने के लिए लोकेशन की अनुमति ज़रूरी है।';
+  String get permLocationRequired => 'आगे बढ़ने के लिए लोकेशन की अनुमति ज़रूरी है।';
 
   @override
   String get gpsOff => 'GPS बंद है: फ़ोन की सेटिंग्स में इसे चालू करें।';
@@ -222,8 +217,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get obWaitingTitle => 'आपकी जानकारी की जाँच हो रही है';
 
   @override
-  String get obWaitingText =>
-      'मंज़ूरी मिलने पर या कुछ ठीक करना हो तो आपको WhatsApp संदेश मिलेगा।';
+  String get obWaitingText => 'मंज़ूरी मिलने पर या कुछ ठीक करना हो तो आपको WhatsApp संदेश मिलेगा।';
 
   @override
   String get refresh => 'रिफ़्रेश करें';
@@ -259,8 +253,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get noCustody => 'अभी कोई गाड़ी आपकी ज़िम्मेदारी में नहीं है';
 
   @override
-  String get noCustodyHint =>
-      'जब आपको कोई गाड़ी सौंपी जाएगी तो वह यहाँ दिखेगी और ट्रैकिंग अपने आप शुरू हो जाएगी।';
+  String get noCustodyHint => 'जब आपको कोई गाड़ी सौंपी जाएगी तो वह यहाँ दिखेगी और ट्रैकिंग अपने आप शुरू हो जाएगी।';
 
   @override
   String custodySince(String when) {
@@ -348,8 +341,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get changeReportTitle => 'मंज़ूर रिपोर्ट बदलने का अनुरोध करें';
 
   @override
-  String get changeReportIntro =>
-      'यह रिपोर्ट मंज़ूर हो चुकी है: आपका अनुरोध दफ़्तर जाएगा और मंज़ूरी के बाद लागू होगा।';
+  String get changeReportIntro => 'यह रिपोर्ट मंज़ूर हो चुकी है: आपका अनुरोध दफ़्तर जाएगा और मंज़ूरी के बाद लागू होगा।';
 
   @override
   String get changeReason => 'बदलाव का कारण';
@@ -358,8 +350,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get newScreenshotOptional => 'नया स्क्रीनशॉट (वैकल्पिक)';
 
   @override
-  String get reportExistsForDay =>
-      'आप इस दिन की रिपोर्ट पहले ही भेज चुके हैं। दूसरी भेजने के बजाय उसे संपादित करें।';
+  String get reportExistsForDay => 'आप इस दिन की रिपोर्ट पहले ही भेज चुके हैं। दूसरी भेजने के बजाय उसे संपादित करें।';
 
   @override
   String get editReport => 'रिपोर्ट संपादित करें';
@@ -391,8 +382,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get vehicleChangeReason => 'कारण';
 
   @override
-  String get vehicleChangePending =>
-      'दूसरी गाड़ी का आपका अनुरोध सुपरवाइज़र के पास है';
+  String get vehicleChangePending => 'दूसरी गाड़ी का आपका अनुरोध सुपरवाइज़र के पास है';
 
   @override
   String vehicleChangeRejected(Object note) {
@@ -440,8 +430,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get uploadRenewal => 'नवीनीकृत दस्तावेज़ अपलोड करें';
 
   @override
-  String get renewalPending =>
-      'नवीनीकरण दफ़्तर की मंज़ूरी का इंतज़ार कर रहा है';
+  String get renewalPending => 'नवीनीकरण दफ़्तर की मंज़ूरी का इंतज़ार कर रहा है';
 
   @override
   String renewalRejected(Object note) {
@@ -493,8 +482,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get endDayTitle => 'दिन का अंत';
 
   @override
-  String get odometerIntro =>
-      'ओडोमीटर की साफ़ फ़ोटो लें, फिर फ़ोटो में दिख रही रीडिंग लिखें।';
+  String get odometerIntro => 'ओडोमीटर की साफ़ फ़ोटो लें, फिर फ़ोटो में दिख रही रीडिंग लिखें।';
 
   @override
   String get retake => 'फिर से लें';
@@ -520,8 +508,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get sentText => 'कंपनी को मिल गया।';
 
   @override
-  String get queuedText =>
-      'अभी नेटवर्क नहीं है। कनेक्शन लौटने पर यह अपने मूल समय के साथ अपने आप भेजा जाएगा।';
+  String get queuedText => 'अभी नेटवर्क नहीं है। कनेक्शन लौटने पर यह अपने मूल समय के साथ अपने आप भेजा जाएगा।';
 
   @override
   String get reportTitle => 'दैनिक रिपोर्ट';
@@ -632,8 +619,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get signOut => 'साइन आउट';
 
   @override
-  String get signOutQ =>
-      'ट्रैकिंग बंद हो जाएगी और साइन इन करने के लिए नए एक्टिवेशन की ज़रूरत होगी। जारी रखें?';
+  String get signOutQ => 'ट्रैकिंग बंद हो जाएगी और साइन इन करने के लिए नए एक्टिवेशन की ज़रूरत होगी। जारी रखें?';
 
   @override
   String get blockedTitle => 'आपका खाता निलंबित है';
@@ -657,8 +643,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get mntNew => 'नया मेंटेनेंस अनुरोध';
 
   @override
-  String get mntIntro =>
-      'समस्या बताएँ और फ़ोटो लें। दुर्घटना वाली गाड़ी की मरम्मत दफ़्तर के ज़रिए होती है।';
+  String get mntIntro => 'समस्या बताएँ और फ़ोटो लें। दुर्घटना वाली गाड़ी की मरम्मत दफ़्तर के ज़रिए होती है।';
 
   @override
   String get mntDirectIntro =>
@@ -923,12 +908,10 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get statementNoPlatform =>
-      'आपका प्लेटफ़ॉर्म अभी तय नहीं है। दफ़्तर से संपर्क करें।';
+  String get statementNoPlatform => 'आपका प्लेटफ़ॉर्म अभी तय नहीं है। दफ़्तर से संपर्क करें।';
 
   @override
-  String get statementNoMonth =>
-      'आपने सभी खुले महीने भेज दिए हैं। दफ़्तर की जाँच का इंतज़ार करें।';
+  String get statementNoMonth => 'आपने सभी खुले महीने भेज दिए हैं। दफ़्तर की जाँच का इंतज़ार करें।';
 
   @override
   String get statementMonth => 'महीना';
@@ -992,8 +975,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get iban => 'IBAN';
 
   @override
-  String get ibanHint =>
-      'आपकी तनख्वाह इसी में आती है: इसे अपने बैंक के ऐप से कॉपी करें';
+  String get ibanHint => 'आपकी तनख्वाह इसी में आती है: इसे अपने बैंक के ऐप से कॉपी करें';
 
   @override
   String get bankName => 'बैंक का नाम';
@@ -1024,8 +1006,7 @@ class AppLocalizationsHi extends AppLocalizations {
       'अपनी सिविल आईडी और पासवर्ड से साइन इन करें। पहली बार: दफ़्तर से मिला शुरुआती पासवर्ड, फिर आप अपना पासवर्ड चुनेंगे।';
 
   @override
-  String get forgotPassword =>
-      'पासवर्ड भूल गए? अपने सुपरवाइज़र से नया शुरुआती पासवर्ड माँगें।';
+  String get forgotPassword => 'पासवर्ड भूल गए? अपने सुपरवाइज़र से नया शुरुआती पासवर्ड माँगें।';
 
   @override
   String choosePassword(String name) {
@@ -1051,8 +1032,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get saveAndSignIn => 'सेव करें और साइन इन करें';
 
   @override
-  String get validDayQuestion =>
-      'क्या प्लेटफ़ॉर्म के ऐप ने इस दिन को मान्य गिना?';
+  String get validDayQuestion => 'क्या प्लेटफ़ॉर्म के ऐप ने इस दिन को मान्य गिना?';
 
   @override
   String get validDayYes => 'मान्य दिन';
@@ -1122,8 +1102,7 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get schemeBatchRates =>
-      'महीने के बैच स्तर के अनुसार प्रति ऑर्डर कीमत:';
+  String get schemeBatchRates => 'महीने के बैच स्तर के अनुसार प्रति ऑर्डर कीमत:';
 
   @override
   String schemeBatchRow(String level, String rate) {
@@ -1144,8 +1123,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get schemeReducedLoses => 'घटाए गए महीने में स्तर बोनस नहीं मिलता';
 
   @override
-  String get schemeTiers =>
-      'स्तर बोनस (सिर्फ़ सबसे ऊँचा स्तर जहाँ तक आप पहुँचते हैं):';
+  String get schemeTiers => 'स्तर बोनस (सिर्फ़ सबसे ऊँचा स्तर जहाँ तक आप पहुँचते हैं):';
 
   @override
   String schemeTierRow(String orders, String amount) {
@@ -1179,12 +1157,10 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get schemeCoversNone =>
-      'खर्च आप भरते हैं: मेंटेनेंस, रहना, पेट्रोल और सिम';
+  String get schemeCoversNone => 'खर्च आप भरते हैं: मेंटेनेंस, रहना, पेट्रोल और सिम';
 
   @override
-  String get schemePlatformRates =>
-      'प्लेटफ़ॉर्म का अपना नियम: मूल वेतन और कंपनी की दरें';
+  String get schemePlatformRates => 'प्लेटफ़ॉर्म का अपना नियम: मूल वेतन और कंपनी की दरें';
 
   @override
   String get expense_maintenance => 'मेंटेनेंस';
@@ -1283,8 +1259,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get noMatches => 'कोई मिलान नहीं';
 
   @override
-  String get ibanInvalid =>
-      'इस IBAN में कोई अक्षर गलत है (जाँच अंक मेल नहीं खाते): इसे अपने बैंक के ऐप से कॉपी करें';
+  String get ibanInvalid => 'इस IBAN में कोई अक्षर गलत है (जाँच अंक मेल नहीं खाते): इसे अपने बैंक के ऐप से कॉपी करें';
 
   @override
   String obFieldsInvalid(String fields) {
@@ -1403,8 +1378,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get workReportDue => 'आज की रिपोर्ट अभी नहीं भेजी गई';
 
   @override
-  String get workReportDueHint =>
-      'प्लेटफ़ॉर्म के ऐप में दिखे अनुसार ऑर्डर और कैश भेजें';
+  String get workReportDueHint => 'प्लेटफ़ॉर्म के ऐप में दिखे अनुसार ऑर्डर और कैश भेजें';
 
   @override
   String get sendDailyReport => 'दैनिक रिपोर्ट भेजें';
@@ -1471,8 +1445,7 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get workReportDueHintDays =>
-      'ऑर्डर भेजें और बताएँ कि दिन मान्य गिना गया या नहीं';
+  String get workReportDueHintDays => 'ऑर्डर भेजें और बताएँ कि दिन मान्य गिना गया या नहीं';
 
   @override
   String get qaReportSubDays => 'आज के ऑर्डर और मान्य दिन';
@@ -1605,8 +1578,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get kind_vehicle_claim => 'गाड़ी का पंजीकरण';
 
   @override
-  String get mntNoCenter =>
-      'कोई मेंटेनेंस सेंटर उपलब्ध नहीं है: दफ़्तर को कॉल करें';
+  String get mntNoCenter => 'कोई मेंटेनेंस सेंटर उपलब्ध नहीं है: दफ़्तर को कॉल करें';
 
   @override
   String mntInMaintenance(String center) {
@@ -1715,8 +1687,7 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get pickupReplacementHint =>
-      'अपनी गाड़ी लेते समय इसे लौटाएँ: इसके ओडोमीटर की फ़ोटो लें और रीडिंग डालें।';
+  String get pickupReplacementHint => 'अपनी गाड़ी लेते समय इसे लौटाएँ: इसके ओडोमीटर की फ़ोटो लें और रीडिंग डालें।';
 
   @override
   String get pickupReplacementPhoto => 'बदले की गाड़ी के ओडोमीटर की फ़ोटो';
@@ -1753,8 +1724,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get startFailedTitle => 'ऐप शुरू नहीं हो सका';
 
   @override
-  String get startFailedBody =>
-      'लोड करते समय कुछ गलत हो गया। कनेक्शन जाँचें और फिर से कोशिश करें।';
+  String get startFailedBody => 'लोड करते समय कुछ गलत हो गया। कनेक्शन जाँचें और फिर से कोशिश करें।';
 
   @override
   String get activationReplaceTitle => 'साइन-इन किए ड्राइवर को बदलें?';
@@ -1786,8 +1756,7 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get noticeBigStaleNever =>
-      'अभी तक कोई लोकेशन नहीं भेजी गई। ऐप खोलें और लोकेशन सेटिंग्स जाँचें';
+  String get noticeBigStaleNever => 'अभी तक कोई लोकेशन नहीं भेजी गई। ऐप खोलें और लोकेशन सेटिंग्स जाँचें';
 
   @override
   String get noticeBigOff => 'अभी आपकी लोकेशन ट्रैक नहीं हो रही';
@@ -1900,8 +1869,7 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get leavePreviewOffline =>
-      'गणना के लिए कनेक्शन चाहिए: अनुरोध भेजा जाएगा और कार्यालय में जांचा जाएगा';
+  String get leavePreviewOffline => 'गणना के लिए कनेक्शन चाहिए: अनुरोध भेजा जाएगा और कार्यालय में जांचा जाएगा';
 
   @override
   String get leaveSend => 'अनुरोध भेजें';
@@ -2024,8 +1992,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get updateRequiredTitle => 'जारी रखने के लिए ऐप अपडेट करना ज़रूरी है';
 
   @override
-  String get updateRequiredBody =>
-      'फ़ोन में सहेजा गया डेटा भेजा जाता रहेगा, और ट्रैकिंग जारी रहेगी।';
+  String get updateRequiredBody => 'फ़ोन में सहेजा गया डेटा भेजा जाता रहेगा, और ट्रैकिंग जारी रहेगी।';
 
   @override
   String updateQueued(String count) {
@@ -2038,8 +2005,7 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get updateMobileData =>
-      'आप मोबाइल डेटा पर हैं: डाउनलोड आपके डेटा प्लान से होगा।';
+  String get updateMobileData => 'आप मोबाइल डेटा पर हैं: डाउनलोड आपके डेटा प्लान से होगा।';
 
   @override
   String updateDownloading(String percent) {
@@ -2050,22 +2016,19 @@ class AppLocalizationsHi extends AppLocalizations {
   String get updateInstall => 'इंस्टॉल करें';
 
   @override
-  String get updateInstallHint =>
-      'Android इंस्टॉल की पुष्टि करने को कहेगा। अपडेट के बाद ऐप फिर से खोलें।';
+  String get updateInstallHint => 'Android इंस्टॉल की पुष्टि करने को कहेगा। अपडेट के बाद ऐप फिर से खोलें।';
 
   @override
   String get updatePermissionTitle => 'अपडेट इंस्टॉल करने की अनुमति दें';
 
   @override
-  String get updatePermissionBody =>
-      'अगले पेज पर इस ऐप के लिए «इस स्रोत से अनुमति दें» चालू करें, फिर वापस आएँ।';
+  String get updatePermissionBody => 'अगले पेज पर इस ऐप के लिए «इस स्रोत से अनुमति दें» चालू करें, फिर वापस आएँ।';
 
   @override
   String get updateOpenSettings => 'सेटिंग्स खोलें';
 
   @override
-  String get updateChecksum =>
-      'डाउनलोड की गई फ़ाइल खराब थी और हटा दी गई। फिर से कोशिश करें।';
+  String get updateChecksum => 'डाउनलोड की गई फ़ाइल खराब थी और हटा दी गई। फिर से कोशिश करें।';
 
   @override
   String get updateFailed => 'डाउनलोड नहीं हो सका। फिर से कोशिश करें।';
@@ -2107,8 +2070,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get pettyCashRow => 'आपकी छोटी नकदी की अमानत';
 
   @override
-  String get pettyNone =>
-      'अभी आपके पास कोई छोटी नकदी की अमानत नहीं है। ऑफ़िस इसे शाखा के खज़ाने से देता है।';
+  String get pettyNone => 'अभी आपके पास कोई छोटी नकदी की अमानत नहीं है। ऑफ़िस इसे शाखा के खज़ाने से देता है।';
 
   @override
   String get pettyBalance => 'अमानत की शेष राशि';
@@ -2243,16 +2205,13 @@ class AppLocalizationsHi extends AppLocalizations {
   String get companyChange => 'मेरा चुनाव बदलें';
 
   @override
-  String get companyNone =>
-      'अभी कोई कंपनी उपलब्ध नहीं है। ऑफ़िस से संपर्क करें।';
+  String get companyNone => 'अभी कोई कंपनी उपलब्ध नहीं है। ऑफ़िस से संपर्क करें।';
 
   @override
-  String get endOrdersKept =>
-      'यह सहेजा जाएगा और आज की रिपोर्ट में दिखेगा, जहाँ आप बाकी भरेंगे';
+  String get endOrdersKept => 'यह सहेजा जाएगा और आज की रिपोर्ट में दिखेगा, जहाँ आप बाकी भरेंगे';
 
   @override
-  String get languageFirst =>
-      'ऐप की भाषा चुनें। आप इसे बाद में सेटिंग्स में बदल सकते हैं।';
+  String get languageFirst => 'ऐप की भाषा चुनें। आप इसे बाद में सेटिंग्स में बदल सकते हैं।';
 
   @override
   String get schemeKindPick => 'पहले चुनें कि आपको कैसे भुगतान मिलेगा';
@@ -2347,8 +2306,7 @@ class AppLocalizationsHi extends AppLocalizations {
       'ऑफिस आपका अनुरोध देखेगा; मंज़ूरी के बाद आपके प्लेटफ़ॉर्म की योजनाएँ यहाँ दिखेंगी ताकि आप नई चुनें।';
 
   @override
-  String get schemeChangePending =>
-      'योजना बदलने का आपका अनुरोध ऑफिस के पास लंबित है';
+  String get schemeChangePending => 'योजना बदलने का आपका अनुरोध ऑफिस के पास लंबित है';
 
   @override
   String schemeChangeRejected(String note) {
@@ -2378,8 +2336,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get offerTitle => 'अपने लिए सही योजना चुनें';
 
   @override
-  String get offerSub =>
-      'वेतन योजना की हर जानकारी एक जगह। ऑफिस आपकी पसंद कंपनी अनुरोध के साथ देखेगा।';
+  String get offerSub => 'वेतन योजना की हर जानकारी एक जगह। ऑफिस आपकी पसंद कंपनी अनुरोध के साथ देखेगा।';
 
   @override
   String get offerKwd => 'KWD';
@@ -2432,8 +2389,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get offerNext => 'आगे: वेतन योजना चुनें';
 
   @override
-  String get offerNone =>
-      'इस कंपनी में चुनने के लिए योजना नहीं है: ऑफिस आपकी तय करेगा।';
+  String get offerNone => 'इस कंपनी में चुनने के लिए योजना नहीं है: ऑफिस आपकी तय करेगा।';
 
   @override
   String get offerPickOne => 'पहले एक योजना चुनें';

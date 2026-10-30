@@ -278,4 +278,23 @@ void main() {
     expect(body['occurred_at'], '2026-10-04T06:00:00.000Z', reason: 'the time of the accident, not of the sending');
     expect(server.calls('/api/v1/driver/files'), hasLength(4));
   });
+
+  test('an item that cannot be read on the phone is parked for the driver and holds back nothing after it', () async {
+    final (db, _, api, server) = await session();
+    final box = Outbox(db);
+    server.on(
+      'POST',
+      '/api/v1/driver/files',
+      (req) => (201, {'sha256': 'a' * 64, 'size_bytes': 7, 'content_type': 'image/jpeg'}),
+    );
+    server.on('POST', '/api/v1/driver/odometer', (req) => (201, {'id': 'r1'}));
+    final gone = await photo();
+    final first = await box.add('odometer', reading(), {'photo_sha256': gone});
+    await File(gone).delete(); // its photo removed from the phone
+    await box.add('odometer', reading()..['kind'] = 'end_day', {'photo_sha256': await photo()});
+    expect(await box.flush(api), 1); // the one after it still went
+    final left = await box.items();
+    expect(left.single.id, first);
+    expect((left.single.state, left.single.lastError), ('parked', 'local'));
+  });
 }

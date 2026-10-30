@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/state.dart';
-import '../../core/errors.dart';
 import '../../core/models.dart';
 import '../../l10n/app_localizations.dart';
 import '../photos.dart';
@@ -51,8 +50,8 @@ class _StatementScreenState extends State<StatementScreen> {
   Future<void> _reload() async {
     try {
       await widget.state.loadStatements();
-    } on ApiError {
-      // offline: the last state stays
+    } catch (_) {
+      // offline, or an answer it could not read: the last state stays, never a spinner for good
     }
     if (!mounted) return;
     final s = widget.state.statements;
@@ -242,15 +241,26 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
   @override
   void initState() {
     super.initState();
+    widget.state.addListener(_changed); // the automatic reload's answers (an objection decided meanwhile) show
     _reload();
+  }
+
+  @override
+  void dispose() {
+    widget.state.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _reload() async {
     try {
       await widget.state.loadPayslips();
       await widget.state.loadObjections();
-    } on ApiError {
-      // offline: the last list stays
+    } catch (_) {
+      // offline, or an answer it could not read: the last list stays
     }
     if (mounted) setState(() {});
   }

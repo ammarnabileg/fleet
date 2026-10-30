@@ -340,6 +340,11 @@ class Updater extends ChangeNotifier {
     } on FileSystemException {
       stage = UpdateStage.failed;
       error = 'storage';
+    } catch (_) {
+      // anything else (a TLS handshake, a malformed answer): failed with a retry, never "downloading" for good, which
+      // left the update button doing nothing until the app was killed
+      stage = UpdateStage.failed;
+      error = 'network';
     } finally {
       notifyListeners();
     }

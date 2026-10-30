@@ -299,6 +299,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       await widget.state.loadDocuments();
     } on ApiError catch (e) {
       if (mounted) showError(context, widget.state, e);
+    } catch (_) {
+      // an answer it could not read: the list as it was, never a spinner for good
     }
     if (mounted) setState(() => loading = false);
   }

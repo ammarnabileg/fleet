@@ -803,8 +803,8 @@ class AppState extends ChangeNotifier {
     if (updateStringsAtStart) unawaited(translations.check(api, lang)); // at most every 15 minutes
     unawaited(updater.resumed()); // back from the installer or the "install unknown apps" setting
     if (checkUpdates) unawaited(updater.check()); // at most every 15 minutes
+    await reloadData(force: true); // what changed while he was away, whatever screen he is on
     if (phase != Phase.ready) return;
-    await reloadData(force: true); // what changed while he was away
     await loadLiveStatus();
     notifyListeners();
   }
@@ -1246,7 +1246,8 @@ class AppState extends ChangeNotifier {
       final token = await hook(
         config,
         onRefresh: (t) => unawaited(_sendPushToken(t)),
-        onMessage: () => unawaited(_quietly(loadNotices)),
+        // a push says something changed on the office's side: everything is read again, not only the notices
+        onMessage: () => unawaited(reloadData(force: true)),
       );
       if (token == null) return;
       if (!force && await db.get('push_token') == '$token|$lang') return;
@@ -1395,17 +1396,46 @@ class AppState extends ChangeNotifier {
 
   Future<void> reloadLocal() => _readLocal();
 
+  /// The screens that wait for the office: asked again every [dataEvery], when he comes back, and on a push.
+  static const _rechecked = {Phase.waiting, Phase.company, Phase.blocked};
+
+  /// His company request as the office answered it (approved, refused): the home card shows it as it is now.
+  Future<void> _reloadCompany() async {
+    company = CompanyChoice.fromJson(await api.get('/driver/platform-request') as Map<String, dynamic>);
+  }
+
   /// Everything the screens show, read again from the server without a spinner: by itself every [dataEvery] while
   /// the app is open, at once when he comes back to it, and when he pulls a screen down. Offline, what is shown stays.
   Future<void> reloadData({bool force = false}) async {
-    if (phase != Phase.ready || _reloading) return;
+    if (_reloading) return;
     final at = _dataAt;
     if (!force && at != null && DateTime.now().difference(at) < dataEvery) return;
+    // waiting for the office (his registration, his company) or stopped by it: asked again, so its answer opens the
+    // next screen by itself, without closing the app. Not while he fills his registration, nor before the start.
+    if (_rechecked.contains(phase)) {
+      _reloading = true;
+      _dataAt = DateTime.now();
+      try {
+        await refresh();
+      } finally {
+        _reloading = false;
+      }
+      return;
+    }
+    if (phase != Phase.ready) return;
     _reloading = true;
     _dataAt = DateTime.now();
+    final vehicleReads = _vehicleReads;
     try {
       await Future.wait([
         _quietly(loadToday),
+        if (company != null) _quietly(_reloadCompany),
+        if (shows('fines')) _quietly(loadFines),
+        if (statements != null) _quietly(loadStatements),
+        // read again once a screen has shown them: a payslip, an objection's answer, a document's renewal
+        if (payslips.isNotEmpty || objections.isNotEmpty) _quietly(loadPayslips),
+        if (objections.isNotEmpty) _quietly(loadObjections),
+        if (documents.isNotEmpty) _quietly(loadDocuments),
         if (shows('cash')) _quietly(loadCash),
         if (shows('daily_report')) _quietly(loadReports),
         if (shows('maintenance')) _quietly(loadMaintenance),
@@ -1417,6 +1447,8 @@ class AppState extends ChangeNotifier {
         _quietly(loadProfile),
         if (schemes != null) _quietly(loadSchemes),
       ]);
+      // his car as the office keeps it now (plate, documents, readings), even when the custody did not change
+      if (_vehicleReads == vehicleReads) await _quietly(() => _reloadVehicle(stale: false));
     } on SessionEnded {
       return; // already sent to sign-in
     } catch (e, st) {

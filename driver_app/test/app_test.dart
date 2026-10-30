@@ -4675,4 +4675,77 @@ void reviewWidgetTests() {
     await settle(tester);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('waiting for the office: its answer opens the next screen by itself, without closing the app', (
+    tester,
+  ) async {
+    final w = (await tester.runAsync(
+      () => world(
+        onboarding: {
+          'required': false,
+          'status': 'submitted',
+          'data': {},
+          'review_note': null,
+          'required_documents': [],
+          'vehicle_photos': [],
+          'document_types': [],
+        },
+      ),
+    ))!;
+    await pumpApp(tester, w);
+    expect(w.state.phase, Phase.waiting);
+    w.server.on(
+      'GET',
+      '/api/v1/driver/onboarding',
+      (r) => (
+        200,
+        {
+          'required': false,
+          'status': 'approved',
+          'data': {},
+          'review_note': null,
+          'required_documents': [],
+          'vehicle_photos': [],
+          'document_types': [],
+        },
+      ),
+    );
+    await tester.runAsync(() => w.state.reloadData()); // asked again: the periodic look, not only a restart
+    await settle(tester);
+    expect(w.state.phase, Phase.ready);
+  });
+
+  testWidgets('a push while the app is open reads everything again, not only the notices', (tester) async {
+    void Function()? arrived;
+    final w = (await tester.runAsync(
+      () => world(
+        pushToken: (config, {required onRefresh, required onMessage}) async {
+          arrived = onMessage;
+          return 'fcm-token-1';
+        },
+      ),
+    ))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/app-config',
+      (r) => (
+        200,
+        {
+          'phone_codes': true,
+          'hidden_screens': [],
+          'splash': null,
+          'push': {'project_id': 'fleet-test', 'app_id': '1:1:android:a', 'api_key': 'k', 'sender_id': '1'},
+        },
+      ),
+    );
+    await pumpApp(tester, w);
+    await tester.runAsync(() => w.state.registerPush());
+    expect(arrived, isNotNull);
+    final cash = w.server.calls('/api/v1/driver/cash').length, car = w.server.calls('/api/v1/driver/vehicle').length;
+    arrived!();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+    await settle(tester);
+    expect(w.server.calls('/api/v1/driver/cash').length, greaterThan(cash));
+    expect(w.server.calls('/api/v1/driver/vehicle').length, greaterThan(car)); // his car as the office keeps it now
+  });
 }
