@@ -234,7 +234,21 @@ class NoticeTap {
   final String target;
 }
 
-const openTargets = {'inbox', 'maintenance', 'accident', 'cash', 'documents', 'leave'};
+const openTargets = {
+  'inbox',
+  'maintenance',
+  'accident',
+  'cash',
+  'documents',
+  'leave',
+  'car',
+  'fines',
+  'payslips',
+  'fuel',
+  'petty',
+  'work',
+  'schemes',
+};
 
 /// Reads a tap from the plugin's response: an unknown button or a damaged payload only opens the app.
 NoticeTap noticeTap(String? actionId, String? payload) {
