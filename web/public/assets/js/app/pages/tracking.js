@@ -9,6 +9,7 @@
 
   function mapFailed(el) { BT.render(el, BT.empty('map', 'تعذر تحميل الخريطة', 'حدّث الصفحة. إن تكرر: المتصفح لا يدعم WebGL أو ملفات الخريطة غير منشورة على الخادم')); }
 
+  var LIST_MAX = 100; // صفوف القائمة المرسومة: آلاف الصفوف كانت عشرات آلاف العناصر تُعاد كل 15 ثانية؛ البحث يصل لأي سيارة
   var GLIDE_MS = 1200, FOCUS_ZOOM = 16; // انزلاق العلامة للموقع الجديد، والتقريب عند اختيار سيارة
 
   /* حالة السيارة كما تُعرض: لا يظهر موقع قديم كأنه حالي، عمره بجانبه دائماً */
@@ -59,8 +60,11 @@
     }
     function drawList() {
       drawChips();
-      var rows = visible();
-      BT.render(listEl, rows.length ? h`${rows.map(function (r) {
+      var all = visible(), rows = all.slice(0, LIST_MAX);
+      var sel = state.selected && state.byId[state.selected];
+      if (sel && rows.indexOf(sel) < 0 && matches(sel)) rows.unshift(sel); // the chosen car stays in the list
+      var more = all.length - rows.length;
+      BT.render(listEl, rows.length ? h`${more > 0 ? h`<div class="muted fs-sm" data-list-more style="padding:6px 4px">تُعرض <span class="num">${fmt.int(rows.length)}</span> من <span class="num">${fmt.int(all.length)}</span>: ابحث باللوحة أو اسم السائق للوصول لأي سيارة</div>` : ''}${rows.map(function (r) {
         var st = vehicleState(r);
         return h`<button type="button" class="li${state.selected === r.vehicle.id ? ' active' : ''}" aria-pressed="${state.selected === r.vehicle.id ? 'true' : 'false'}" data-veh="${r.vehicle.id}" style="width:100%;text-align:start"><span class="sdot ${st.tone}" style="margin-top:6px"></span><div class="li-main"><div class="li-t"><span class="plate">${r.vehicle.plate_number}</span> <bdi>${api.name(r.driver && r.driver.name)}</bdi></div><div class="li-d" data-veh-state>${st.text}</div></div></button>`;
       })}` : BT.empty('map', 'لا توجد سيارات', state.rows.length ? 'غيّر البحث أو التصفية' : 'لا توجد عهد مفتوحة الآن'));
@@ -72,7 +76,11 @@
        التصفية أو دخلتها (يرسل الآن / انقطاع)، فالقائمة كلها */
     function updateRows(ids) {
       drawChips();
-      var rebuild = ids.some(function (id) { var r = state.byId[id]; return r && !!state.rowEls[id] !== matches(r); });
+      var shown = Object.keys(state.rowEls).length;
+      var rebuild = ids.some(function (id) { // a row to drop, or one to add while the list has room
+        var r = state.byId[id], on = !!state.rowEls[id];
+        return r && (on ? !matches(r) : matches(r) && shown < LIST_MAX);
+      });
       if (rebuild) { drawList(); return; }
       ids.forEach(function (id) {
         var r = state.byId[id], b = state.rowEls[id];
@@ -173,8 +181,8 @@
         if (!flushT) flushT = setTimeout(function () { drawLive(); flush(); }, 250);
         if (map && state.follow && r.vehicle.id === state.selected) map.view([m.lat, m.lng], map.zoom(), GLIDE_MS);
       });
-      var poll = setInterval(function () { if (!document.hidden) refresh(); }, 30000); // الانقطاع والسيارات الجديدة من الخادم
-      var tick = setInterval(function () { if (!document.hidden) { drawList(); drawMarkers(); } }, 15000); // عمر كل موقع يتقدم
+      var poll = setInterval(function () { if (!document.hidden) refresh(); }, 60000); // الانقطاع والسيارات الجديدة من الخادم (المواقع نفسها من البث)
+      var tick = setInterval(function () { if (!document.hidden) { updateRows(Object.keys(state.rowEls)); drawMarkers(); } }, 15000); // عمر كل موقع يتقدم: نص الصفوف المرسومة في مكانه
       A.onLeave(function () { es.close(); clearInterval(poll); clearInterval(tick); clearTimeout(flushT); clearTimeout(listT); clearTimeout(unknownT); });
     }
     function mapTools() {

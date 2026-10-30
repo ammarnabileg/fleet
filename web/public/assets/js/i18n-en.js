@@ -4196,5 +4196,7 @@ window.BT_EN = {
 "إغلاق الكل": "Close all",
 "لا يوجد تنبيه مفتوح هنا": "No open alert here",
 "مثال: راجعنا الكل وأبلغنا السائقين": "e.g. We reviewed them all and told the drivers",
-"أُغلقت التنبيهات": "Alerts closed"
+"أُغلقت التنبيهات": "Alerts closed",
+"تُعرض": "Showing",
+": ابحث باللوحة أو اسم السائق للوصول لأي سيارة": ": search by plate or driver name to reach any car"
 };

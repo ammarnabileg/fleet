@@ -36,6 +36,7 @@ test('the live map ages every position, follows the stream and switches list/map
 
   await admin.goto('/admin.html#/tracking');
   await settled(admin);
+  await admin.locator('[data-q]').fill(n.slice(-5)); // the list draws the first 100: a fleet of hundreds is searched
   const item = (car) => admin.locator(`[data-veh="${car.vehicle.id}"]`);
   await expect(item(fresh).locator('[data-veh-state]')).toContainText('يرسل · آخر موقع منذ');
   await expect(item(silent).locator('[data-veh-state]')).toContainText(/انقطاع · آخر موقع معروف منذ 3\d د/);
