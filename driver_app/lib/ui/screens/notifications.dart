@@ -28,6 +28,24 @@ IconData noticeIcon(String kind) => switch (kind) {
 };
 
 /// The design's five groups of messages, each with its icon and accent: alerts; cash and reports; the car and
+/// Where a notice takes the driver when he taps it (the push on the phone, or the notice in the inbox): the screen
+/// it is about. A kind this app does not know opens the inbox.
+String noticeTarget(String kind) {
+  if (kind.startsWith('vehicle_')) return 'car';
+  if (kind.startsWith('maintenance_')) return 'maintenance';
+  if (kind.startsWith('accident_')) return 'accident';
+  if (kind == 'fine_charged') return 'fines';
+  if (['deduction_added', 'payslip_ready', 'objection_updated'].contains(kind)) return 'payslips';
+  if (kind.startsWith('receipt_')) return 'cash';
+  if (kind.startsWith('fuel_')) return 'fuel';
+  if (kind.startsWith('petty_')) return 'petty';
+  if (kind.startsWith('report_')) return 'work';
+  if (kind.startsWith('document_')) return 'documents';
+  if (kind.startsWith('scheme_') || kind.startsWith('platform_request')) return 'schemes';
+  if (kind.startsWith('leave_')) return 'leave';
+  return 'inbox';
+}
+
 /// custody; maintenance and deductions; documents and payslip. A kind this app does not know is an alert.
 String noticeCategory(String kind) {
   if (kind.startsWith('vehicle_')) return 'car';
@@ -224,7 +242,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             for (final n in items) ...[
               n.kind == 'broadcast'
                   ? BroadcastCard(notice: n, state: s, fresh: fresh.contains(n.id))
-                  : _NoticeItem(notice: n, fresh: fresh.contains(n.id)),
+                  : InkWell(
+                      key: Key('notice-open-${n.id}'),
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: noticeTarget(n.kind) == 'inbox' ? null : () => s.navigate(noticeTarget(n.kind)),
+                      child: _NoticeItem(notice: n, fresh: fresh.contains(n.id)),
+                    ),
               const SizedBox(height: 10),
             ],
           ],

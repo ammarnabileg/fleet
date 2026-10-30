@@ -14,6 +14,9 @@ import 'package:fleet_driver/ui/widgets/live_status.dart' show StatusCardView;
 import 'package:fleet_driver/tracking/system_notices.dart';
 import 'package:fleet_driver/ui/screens/fuel.dart';
 import 'package:fleet_driver/ui/screens/petty.dart';
+import 'package:fleet_driver/ui/screens/fines.dart';
+import 'package:fleet_driver/ui/screens/notifications.dart' show noticeTarget;
+import 'package:fleet_driver/ui/screens/statement.dart' show PayslipsScreen;
 import 'package:fleet_driver/ui/photos.dart';
 import 'package:fleet_driver/ui/theme.dart';
 import 'package:fleet_driver/ui/widgets/common.dart' show DCard;
@@ -4674,6 +4677,58 @@ void reviewWidgetTests() {
     await tester.runAsync(() => w.state.reloadData(force: true)); // offline: nothing breaks, the screen stays
     await settle(tester);
     expect(tester.takeException(), isNull);
+  });
+
+  test('each notice opens the screen it is about; one this app does not know, the inbox', () {
+    expect(noticeTarget('vehicle_handed_over'), 'car');
+    expect(noticeTarget('maintenance_ready'), 'maintenance');
+    expect(noticeTarget('accident_charged'), 'accident');
+    expect(noticeTarget('fine_charged'), 'fines');
+    expect(noticeTarget('payslip_ready'), 'payslips');
+    expect(noticeTarget('objection_updated'), 'payslips');
+    expect(noticeTarget('receipt_issued'), 'cash');
+    expect(noticeTarget('report_rejected'), 'work');
+    expect(noticeTarget('document_renewal_approved'), 'documents');
+    expect(noticeTarget('scheme_request_approved'), 'schemes');
+    expect(noticeTarget('platform_request_approved'), 'schemes');
+    expect(noticeTarget('broadcast'), 'inbox');
+    expect(noticeTarget('something_new'), 'inbox');
+  });
+
+  testWidgets('a notice tapped (in the inbox, or a push on the phone) opens its screen', (tester) async {
+    final w = (await tester.runAsync(() => world()))!;
+    w.server.on(
+      'GET',
+      '/api/v1/driver/notifications',
+      (r) => (
+        200,
+        {
+          'unread': 1,
+          'items': [
+            {
+              'id': 'n9',
+              'kind': 'fine_charged',
+              'message': 'مخالفة جديدة على سيارتك',
+              'entity_type': 'fine',
+              'entity_id': 'f1',
+              'created_at': '2026-10-04T07:00:00Z',
+              'read': false,
+            },
+          ],
+        },
+      ),
+    );
+    await pumpApp(tester, w);
+    w.state.navigate('inbox');
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('notice-open-n9')));
+    await settle(tester);
+    expect(find.byType(FinesScreen), findsOneWidget);
+    // a push tapped: the same screen choice, from its kind
+    w.state.navigate(noticeTarget('payslip_ready'));
+    await settle(tester);
+    expect(find.byType(PayslipsScreen), findsOneWidget);
+    expect(find.byType(FinesScreen), findsNothing); // back to home first, then there
   });
 
   testWidgets('waiting for the office: its answer opens the next screen by itself, without closing the app', (

@@ -64,8 +64,24 @@ class _HomeScreenState extends State<HomeScreen> {
         push(LeaveScreen(state: s));
       case 'cash' when s.shows('cash'):
         _go('cash');
+      case 'work' when s.shows('daily_report'):
+        _go('work');
       case 'documents':
-        _go('account');
+        push(DocumentsScreen(state: s));
+      case 'car':
+        push(MyCarScreen(state: s));
+      case 'fines':
+        push(FinesScreen(state: s));
+      case 'payslips':
+        push(PayslipsScreen(state: s));
+      case 'schemes':
+        push(SchemesScreen(state: s));
+      case 'fuel' when s.shows('fuel'):
+        push(FuelScreen(state: s));
+      case 'petty' when s.shows('petty'):
+        push(PettyScreen(state: s));
+      default:
+        push(NotificationsScreen(state: s)); // a screen hidden for him: the inbox, where the notice is
     }
   }
 

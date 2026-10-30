@@ -24,6 +24,7 @@ import 'tracking/system_notices.dart';
 import 'ui/screens/company.dart';
 import 'ui/screens/home.dart';
 import 'ui/screens/language.dart';
+import 'ui/screens/notifications.dart' show noticeTarget;
 import 'ui/screens/onboarding.dart';
 import 'ui/screens/permissions.dart';
 import 'ui/screens/sign_in.dart';
@@ -113,8 +114,9 @@ Future<void> _main(AppDb db) async {
     acknowledge: state.acknowledgeContact,
     open: state.navigate,
   );
-  // a tapped push from the office (a broadcast, a notice): its place is the inbox
-  FirebasePush.onOpened = (_) => state.navigate('inbox');
+  // a tapped push from the office: the screen it is about (his car, a payslip, a maintenance request...), the inbox
+  // for a broadcast or a kind this app does not know
+  FirebasePush.onOpened = (data) => state.navigate(noticeTarget('${data['kind'] ?? ''}'));
   // Firebase started: Remote Config (the newest version the office announced) fetched in the background
   FirebasePush.onReady = () => unawaited(FirebaseRemoteVersion.prefetch());
   NotificationResponse? launched;
