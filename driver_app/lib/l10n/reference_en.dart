@@ -100,11 +100,9 @@ const Map<String, String> englishMessages = {
   'startDayTitle': "Start of day",
   'endDayDone': "Day ended",
   'startAgain': "Start again",
-  'reportAddsToDay':
-      "This report adds to what you already sent today ({orders} orders). Enter only this session's orders and cash.",
+  'reportAddsToDay': "This report adds to what you already sent today ({orders} orders). Enter only this session's orders and cash.",
   'reportSession': "Session {n}",
-  'endReadingIntro':
-      "Before today's report: the end-of-day odometer photo and reading. The reading goes first, then the report.",
+  'endReadingIntro': "Before today's report: the end-of-day odometer photo and reading. The reading goes first, then the report.",
   'status_returned': "Sent back for correction",
   'editReportTitle': "Edit the report",
   'changeReportTitle': "Ask to change an approved report",
@@ -326,8 +324,7 @@ const Map<String, String> englishMessages = {
   'schemeNextMonth': "From next month: {name}",
   'schemeOthers': "Other schemes on your platform",
   'schemeAsk': "Ask for this scheme",
-  'schemeAskBody':
-      "You are asking for “{name}” from {month}. The office reviews it and you get the answer here and on WhatsApp.",
+  'schemeAskBody': "You are asking for “{name}” from {month}. The office reviews it and you get the answer here and on WhatsApp.",
   'schemeNoteHint': "A note for the office (optional)",
   'schemeSend': "Send the request",
   'schemeSent': "Your request was sent to the office",
@@ -370,8 +367,7 @@ const Map<String, String> englishMessages = {
   'payWhyTier': "{orders} orders: the {from} tier",
   'payWhyMissing': "{missing} orders short of {target} × {rate} KWD",
   'payWhyMarks': "{marks} attendance marks",
-  'payWhyUncovered':
-      "Deductions above the month's pay are not taken, the net never goes below zero: the office reviews the rest",
+  'payWhyUncovered': "Deductions above the month's pay are not taken, the net never goes below zero: the office reviews the rest",
   'noticesTitle': "Notifications",
   'noticesNone': "No notifications yet",
   'nameLabel': "Name",
@@ -460,8 +456,7 @@ const Map<String, String> englishMessages = {
   'vehicleChangePlateHint': "12-34567",
   'vehicleChangePendingFor': "Your request to change to {plate} is under review",
   'claimVehicle': "Register a new car",
-  'claimVehicleHint':
-      "Took a car? Register it here with its odometer reading; your custody starts when the office approves.",
+  'claimVehicleHint': "Took a car? Register it here with its odometer reading; your custody starts when the office approves.",
   'claimTitle': "Register a new car",
   'claimPlate': "The car's plate number",
   'claimIntro': "Take the odometer photo with the camera and enter the reading. The request goes to the office; once approved, the car is yours from the photo's time.",
@@ -675,11 +670,9 @@ const Map<String, String> englishMessages = {
   'schemeMarksRow': "{marks} marks: − {amount} KWD",
   'schemeMarkEach': "− {amount} KWD for each red mark",
   'schemeReducedStarDay': "A red mark on a star day: every order of the month at {rate} KWD instead of the salary and bonuses, the deductions still taken",
-  'schemeReducedMarks':
-      "More than {marks} red marks: every order of the month at {rate} KWD instead of the salary and bonuses",
+  'schemeReducedMarks': "More than {marks} red marks: every order of the month at {rate} KWD instead of the salary and bonuses",
   'schemeRequiredDays': "{days} valid days needed in the month",
-  'schemePlatformAmounts':
-      "Tips are added to your pay; food damage, adjustments and the platform's discount are deducted",
+  'schemePlatformAmounts': "Tips are added to your pay; food damage, adjustments and the platform's discount are deducted",
   'schemeDriverPays': "On you: {items}",
   'schemeChange': "Ask to change scheme",
   'schemeChangeBody': "The office reviews your request; once approved, your platform's schemes appear here for you to pick your new one.",
@@ -688,8 +681,7 @@ const Map<String, String> englishMessages = {
   'schemePickFirst': "Pick the pay scheme you work on",
   'schemePickAllowed': "Approved: pick your new scheme, it starts from {month}",
   'schemePick': "Pick this scheme",
-  'schemePickConfirm':
-      "You pick “{name}”, starting {month}. After that only a new request to the office can change it.",
+  'schemePickConfirm': "You pick “{name}”, starting {month}. After that only a new request to the office can change it.",
   'schemePicked': "Your scheme is set",
   'offerTitle': "Pick the scheme that suits you",
   'offerSub': "Every detail of the pay scheme in one place. The office reviews your pick with your company request.",
