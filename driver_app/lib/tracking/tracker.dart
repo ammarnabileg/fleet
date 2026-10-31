@@ -1,0 +1,478 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
+
+import '../core/api.dart';
+import '../core/config.dart';
+import '../core/db.dart';
+import '../core/driver_data.dart';
+import '../core/error_log.dart';
+import '../core/errors.dart';
+import '../core/outbox.dart';
+import 'positions.dart';
+
+/// One location fix, whatever produced it (the GPS plugin on the phone, a fake in tests).
+class Fix {
+  Fix({
+    required this.at,
+    required this.lat,
+    required this.lng,
+    this.accuracyM,
+    this.speedKmh,
+    this.heading,
+    this.isMock = false,
+  });
+
+  final DateTime at;
+  final double lat;
+  final double lng;
+  final double? accuracyM;
+  final double? speedKmh;
+  final int? heading;
+  final bool isMock;
+}
+
+/// What the ongoing notification adds from the driver's live status (the service keeps it after each heartbeat):
+/// when the shift started, whether he ended his day and the orders he reported, the car at a center.
+class NoticeInfo {
+  const NoticeInfo({
+    this.shiftStartedAt,
+    this.dayEnded = false,
+    this.ordersToday,
+    this.inMaintenance = false,
+    this.center,
+    this.stage,
+  });
+
+  final DateTime? shiftStartedAt;
+  final bool dayEnded;
+  final int? ordersToday;
+  final bool inMaintenance;
+  final String? center;
+  final String? stage;
+
+  List<Object?> get key => [
+    shiftStartedAt?.toUtc().toIso8601String(),
+    dayEnded,
+    ordersToday,
+    inMaintenance,
+    center,
+    stage,
+  ];
+}
+
+/// What the ongoing notification shows.
+class WorkState {
+  const WorkState({
+    required this.company,
+    required this.working,
+    required this.tracking,
+    this.lastFixAt,
+    this.lastSentAt,
+    this.info,
+  });
+
+  final Map<String, dynamic>? company;
+  final bool working;
+  final String tracking; // active / stale / off
+  final DateTime? lastFixAt;
+  final DateTime? lastSentAt; // the last upload the server confirmed
+  final NoticeInfo? info;
+}
+
+typedef FixStream = Stream<Fix> Function(Duration interval);
+typedef HealthProbe = Future<Map<String, dynamic>> Function({
+  required bool trackingRunning,
+  required int queueSize,
+  String? lastUploadAt,
+});
+
+/// The background work: a heartbeat tells the server the phone's health and tells the phone whether to track
+/// (only during a custody) and how often; fixes go to the queue; the queue and the outbox are sent regularly.
+/// No plugin code here, so the whole behaviour runs in tests.
+class Tracker {
+  Tracker({
+    required this.db,
+    required this.api,
+    required this.fixes,
+    required this.health,
+    this.notify,
+    this.notifyState,
+    this.checkAlerts,
+    this.onSessionEnded,
+    DateTime Function()? clock,
+    this.heartbeatEvery = const Duration(minutes: 5),
+    this.syncEvery = const Duration(minutes: 1),
+  }) : _now = clock ?? DateTime.now,
+       queue = PositionQueue(db, clock: clock),
+       outbox = Outbox(db, clock: clock),
+       errors = ErrorLog(db, clock: clock);
+
+  final AppDb db;
+  final Api api;
+  final FixStream fixes;
+  final HealthProbe health;
+
+  /// The ongoing notification: the driver's company and whether he is at work (shown only when either changes).
+  final void Function(Map<String, dynamic>? company, bool working)? notify;
+
+  /// The same, with the real tracking state (active / stale / off): shown again only when one of them changes.
+  final void Function(WorkState state)? notifyState;
+
+  /// After each heartbeat that reached the server: the driver's live status and its important alerts. Whatever it
+  /// finds never switches tracking on: only the heartbeat's answer (a custody) does.
+  final Future<void> Function()? checkAlerts;
+  final void Function()? onSessionEnded;
+  final DateTime Function() _now;
+  final Duration heartbeatEvery;
+  final Duration syncEvery;
+  final PositionQueue queue;
+  final Outbox outbox;
+  final ErrorLog errors;
+
+  bool required = false;
+  bool onDuty = false; // day started and not ended (the server's rule, as on the live map)
+  Map<String, dynamic>? company; // the driver's company name, by language
+  Duration moving = const Duration(seconds: 30);
+  Duration stationary = const Duration(seconds: 300);
+  Duration? _interval;
+  bool _parked = false;
+  StreamSubscription<Fix>? _sub;
+  DateTime? _lastKept;
+  DateTime? _stillSince;
+  Fix? _prev; // the last fix received, kept or not, to work out a speed the phone did not measure
+  DateTime? lastFixAt;
+  DateTime? _fixSeenAt;
+  DateTime? _listeningSince;
+  String? _shown; // the state the notification shows now (without its times)
+  DateTime? _shownAt;
+  String? _times;
+  NoticeInfo? _info;
+  Timer? _beat;
+  Timer? _sync;
+  bool _stopped = false;
+  bool _syncing = false;
+
+  static const stillSpeedKmh = 3.0;
+  static const movingSpeedKmh = 8.0;
+  static const stillFor = Duration(minutes: 2);
+
+  /// No fix for this long while tracking is wanted: the notification says the location is not coming through.
+  static const staleAfter = Duration(minutes: 10);
+
+  /// The notification is shown again at once when its state changes; only its times ("last sent 10:42") wait this
+  /// long, so it is not redrawn with every point.
+  static const noticeTimesEvery = Duration(minutes: 5);
+
+  /// What the phone itself can tell: off when nothing is to be tracked, active while fixes come, stale otherwise.
+  String get trackingState {
+    if (!required) return 'off';
+    // when a fix last ARRIVED on this phone (a fix's own time may be older, from the platform's cache); before the
+    // first fix, the GPS just asked is given the same grace instead of "not coming through" from the first second
+    final last = _fixSeenAt ?? _listeningSince;
+    return _sub == null || last == null || _now().difference(last) > staleAfter ? 'stale' : 'active';
+  }
+
+  Future<void> start() async {
+    // what the last run knew: an offline restart (the phone rebooted, Android killed the service) during a custody
+    // goes on tracking with the last intervals, and shows the right notification
+    try {
+      final saved = await db.get('tracking_state');
+      if (saved != null) {
+        final m = jsonDecode(saved) as Map<String, dynamic>;
+        required = m['required'] == true;
+        onDuty = m['on_duty'] == true;
+        company = (m['company'] as Map?)?.cast<String, dynamic>();
+        final mv = m['moving_s'], st = m['stationary_s'];
+        if (mv is num && mv > 0) moving = Duration(seconds: mv.toInt());
+        if (st is num && st > 0) stationary = Duration(seconds: st.toInt());
+      }
+    } catch (e, st) {
+      await errors.record('tracker.restore', e, st); // a damaged state: start from the server's answer
+    }
+    await heartbeat();
+    await sync();
+    _beat = Timer.periodic(heartbeatEvery, (_) => unawaited(heartbeat()));
+    _sync = Timer.periodic(syncEvery, (_) => unawaited(sync()));
+  }
+
+  Future<void> stop() async {
+    _stopped = true;
+    _beat?.cancel();
+    _sync?.cancel();
+    await _sub?.cancel();
+    _sub = null;
+    _interval = null;
+  }
+
+  /// Reports health; the answer switches tracking on or off and sets the intervals (from the server settings).
+  /// Never throws (it runs from a timer in the service): an answer it cannot read keeps the last decision, as no
+  /// network does, and is written to the local error log.
+  Future<void> heartbeat() async {
+    if (_stopped) return;
+    try {
+      final state = await health(
+        trackingRunning: _sub != null,
+        queueSize: await queue.size(),
+        lastUploadAt: await db.get('last_upload_at'),
+      );
+      final r = await api.post('/driver/status', body: state);
+      if (r is! Map ||
+          r['tracking_required'] is! bool ||
+          r['interval_moving_s'] is! num ||
+          r['interval_stationary_s'] is! num) {
+        throw const FormatException('bad_response');
+      }
+      final ms = (r['interval_moving_s'] as num).toInt(), ss = (r['interval_stationary_s'] as num).toInt();
+      required = r['tracking_required'] as bool;
+      if (ms > 0) moving = Duration(seconds: ms);
+      if (ss > 0) stationary = Duration(seconds: ss);
+      onDuty = r['on_duty'] == true; // an older server: not at work
+      company = (r['company'] is Map ? (r['company'] as Map).cast<String, dynamic>() : null) ?? company;
+      if (checkAlerts != null) unawaited(_checkAlerts());
+    } on ApiError {
+      // offline: keep the last known decision (a custody does not end because the network did)
+    } on SessionEnded {
+      await _ended();
+      return;
+    } catch (e, st) {
+      await errors.record('tracker.heartbeat', e, st);
+    }
+    try {
+      await _apply();
+    } catch (e, st) {
+      await errors.record('tracker.apply', e, st);
+    }
+  }
+
+  /// How often a point is kept: the stationary interval only while parked.
+  Duration get _keepEvery => _parked ? stationary : moving;
+
+  /// How often the GPS is asked: always the moving interval, parked or not (parking only thins the points kept,
+  /// [_keepEvery]). The stream is never restarted to park or wake: on Android, cancelling it removes the plugin's
+  /// NMEA listener with a synchronous call on the main thread, and a stalled GNSS service blocked that call long
+  /// enough for an ANR. It restarts only when tracking starts or stops, or the office changes the moving interval.
+  Duration get _wanted => moving;
+
+  Future<void> _apply() async {
+    if (!required) {
+      await _sub?.cancel();
+      _sub = null;
+      _interval = null;
+      _parked = false;
+      _stillSince = null;
+      _listeningSince = _fixSeenAt = null; // the next custody's start gets its grace again
+    } else if (_interval != _wanted) {
+      _listen(_wanted); // started, or the office changed the intervals: applied at once
+    }
+    await _publish();
+  }
+
+  Future<void> _checkAlerts() async {
+    try {
+      await checkAlerts!();
+    } on ApiError {
+      // offline: next heartbeat
+    } on SessionEnded {
+      // the heartbeat sees it too
+    } catch (e, st) {
+      await errors.record('tracker.alerts', e, st);
+    }
+  }
+
+  void _listen(Duration interval) {
+    _sub?.cancel();
+    _interval = interval;
+    _listeningSince ??= _now();
+    _sub = fixes(interval).listen(
+      (f) => unawaited(_onFix(f)),
+      onError: (Object e, StackTrace st) => unawaited(errors.record('tracker.gps', e, st)),
+    );
+  }
+
+  Future<void> _onFix(Fix f) async {
+    if (!required || _stopped) return;
+    lastFixAt = f.at;
+    _fixSeenAt = _now();
+    final speed = f.speedKmh ?? _derivedSpeed(_prev, f, maxGap: _gapLimit);
+    // parked, the fixes are far apart: a clear move away from the last one wakes the tracker whatever the speed
+    final moved = _parked && _prev != null && _farFrom(_prev!, f);
+    _prev = f;
+    final wasParked = _parked;
+    _adapt(f, moved ? movingSpeedKmh : speed); // before the throttle: a parked car that drives off wakes at once
+    final woke = wasParked && !_parked;
+    // the platform may deliver faster than asked, and parked fixes come more often than kept: one point per interval
+    if (!woke && _lastKept != null && f.at.difference(_lastKept!) < _keepEvery * 0.8) return;
+    _lastKept = f.at;
+    try {
+      await queue.add(
+        recordedAt: f.at,
+        lat: f.lat,
+        lng: f.lng,
+        accuracyM: f.accuracyM,
+        speedKmh: speed,
+        heading: f.heading,
+        isMock: f.isMock, // sent as it is: the server rejects it and alerts the supervisors
+      );
+    } catch (e, st) {
+      // the database refused it (locked past its timeout, full): this point is lost, the tracking goes on
+      await errors.record('tracker.fix', e, st);
+      return;
+    }
+    unawaited(sync()); // each point goes at once (the live map moves with it); offline it waits in the queue
+  }
+
+  /// Parked for a while: ask for fewer fixes (battery); moving again: back to the moving interval. An unknown speed
+  /// (first fix, no measurement) neither parks nor wakes.
+  void _adapt(Fix f, double? speed) {
+    if (speed == null) {
+      _stillSince = null; // two minutes of stillness must be two minutes known still
+      return;
+    }
+    if (speed < stillSpeedKmh) {
+      _stillSince ??= f.at;
+      if (!_parked && f.at.difference(_stillSince!) >= stillFor) _parked = true;
+    } else {
+      _stillSince = null;
+      if (speed >= movingSpeedKmh) _parked = false;
+    }
+    if (_interval != _wanted) _listen(_wanted);
+  }
+
+  /// The longest gap a speed is worked out over: a little more than the interval asked for (the parked one may be
+  /// set long), never under 10 minutes.
+  Duration get _gapLimit {
+    final asked = (_interval ?? moving) * 1.5;
+    return asked > const Duration(minutes: 10) ? asked : const Duration(minutes: 10);
+  }
+
+  /// A move clearly beyond both positions' accuracy (approximate positions are not trusted for it).
+  static bool _farFrom(Fix a, Fix b) {
+    if ((a.accuracyM ?? 0) > 100 || (b.accuracyM ?? 0) > 100) return false;
+    return _metres(a.lat, a.lng, b.lat, b.lng) > math.max(150, 2 * math.max(a.accuracyM ?? 0, b.accuracyM ?? 0));
+  }
+
+  /// The speed between two fixes when the phone measured none (km/h), or null when it cannot be told: too close in
+  /// time or too far apart, approximate positions (over 100 m), or an impossible jump. Within the positions' own
+  /// accuracy it is a stop, not wifi jitter, but only over a window long enough for that to mean under the still
+  /// speed (a few metres in a few seconds may well be a slow crawl).
+  static double? _derivedSpeed(Fix? a, Fix b, {Duration maxGap = const Duration(minutes: 10)}) {
+    if (a == null) return null;
+    final secs = b.at.difference(a.at).inMilliseconds / 1000;
+    if (secs < 3 || secs > maxGap.inSeconds) return null;
+    if ((a.accuracyM ?? 0) > 100 || (b.accuracyM ?? 0) > 100) return null;
+    final metres = _metres(a.lat, a.lng, b.lat, b.lng);
+    final within = math.max(20.0, math.max(a.accuracyM ?? 0, b.accuracyM ?? 0));
+    if (metres < within) return within / secs * 3.6 < stillSpeedKmh ? 0 : null;
+    final kmh = metres / secs * 3.6;
+    return kmh > 250 ? null : kmh;
+  }
+
+  static double _metres(double lat1, double lng1, double lat2, double lng2) {
+    const r = 6371000.0;
+    double rad(double d) => d * math.pi / 180;
+    final dLat = rad(lat2 - lat1), dLng = rad(lng2 - lng1);
+    final h =
+        math.pow(math.sin(dLat / 2), 2) + math.cos(rad(lat1)) * math.cos(rad(lat2)) * math.pow(math.sin(dLng / 2), 2);
+    return 2 * r * math.asin(math.sqrt(h));
+  }
+
+  /// Sends the outbox (readings, reports) then the queued points. Network errors simply wait for next time.
+  Future<void> sync() async {
+    if (_stopped || _syncing) return;
+    _syncing = true;
+    try {
+      await outbox.flush(api);
+      await queue.upload(api);
+    } on ApiError {
+      // offline or server trouble: everything stays queued
+    } on SessionEnded {
+      await _ended();
+    } catch (e, st) {
+      // an answer it cannot read, a database error: everything stays queued for the next round
+      await errors.record('tracker.sync', e, st);
+    } finally {
+      _syncing = false;
+    }
+    try {
+      await _publish();
+    } catch (e, st) {
+      await errors.record('tracker.publish', e, st);
+    }
+  }
+
+  /// The session ended (signed out, another phone): what was kept for this driver goes, never sent by the next one.
+  Future<void> _ended() async {
+    await stop();
+    try {
+      await forgetDriver(db);
+    } catch (e, st) {
+      await errors.record('tracker.forget', e, st);
+    }
+    onSessionEnded?.call();
+  }
+
+  /// What the notification adds from the live status: shown again when it changes ([publish] false: kept for the
+  /// first showing, before [start]).
+  Future<void> setInfo(NoticeInfo info, {bool publish = true}) async {
+    _info = info;
+    if (!publish || _stopped) return;
+    try {
+      await _publish();
+    } catch (e, st) {
+      await errors.record('tracker.publish', e, st);
+    }
+  }
+
+  /// The state the UI shows (it runs in the other engine, so it reads it from the database).
+  Future<void> _publish() async {
+    final size = await queue.size();
+    final last = await db.get('last_upload_at');
+    await db.put(
+      'tracking_state',
+      jsonEncode({
+        'required': required,
+        'running': _sub != null,
+        'interval_s': _interval?.inSeconds,
+        'moving_s': moving.inSeconds,
+        'stationary_s': stationary.inSeconds,
+        'last_fix_at': lastFixAt?.toUtc().toIso8601String(),
+        'last_upload_at': last,
+        'queue': size,
+        'updated_at': _now().toUtc().toIso8601String(),
+        'app_version': AppConfig.reportedVersion,
+        'on_duty': onDuty,
+        'company': company,
+        'tracking': trackingState,
+      }),
+    );
+    final tracking = trackingState;
+    final sentAt = last == null ? null : DateTime.tryParse(last);
+    // the driver changed language: shown again in it; the state at once when it changes, its times now and then
+    final shown = jsonEncode([
+      company,
+      onDuty,
+      api.lang,
+      if (notifyState != null) ...[tracking, lastFixAt == null, _info?.key],
+    ]);
+    final times = jsonEncode([lastFixAt?.toIso8601String(), last]);
+    final now = _now();
+    final due = _shownAt == null || now.difference(_shownAt!) >= noticeTimesEvery;
+    if (shown != _shown || (notifyState != null && times != _times && due)) {
+      if (shown != _shown) notify?.call(company, onDuty);
+      _shown = shown;
+      _times = times;
+      _shownAt = now;
+      notifyState?.call(
+        WorkState(
+          company: company,
+          working: onDuty,
+          tracking: tracking,
+          lastFixAt: lastFixAt,
+          lastSentAt: sentAt,
+          info: _info,
+        ),
+      );
+    }
+  }
+}

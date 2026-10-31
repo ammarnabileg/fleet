@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>الصفحة مش موجودة · Page not found</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#102c39;--deep:#09212c;--orange:#ef713c;--cream:#f5f4ef;--muted:#b4c5ce}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--navy);color:#fff;
+  font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;position:relative;overflow-x:hidden}
+body:before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 15% 70%,#235166,transparent 60%);pointer-events:none}
+.box{position:relative;max-width:560px;width:100%;text-align:center}
+.mark{width:43px;height:47px;margin:0 auto 26px;background:var(--orange);clip-path:polygon(50% 0,100% 100%,72% 100%,50% 50%,28% 100%,0 100%)}
+.code{font-size:clamp(64px,12vw,110px);font-weight:700;line-height:1;letter-spacing:-3px;color:var(--orange)}
+h1{font-size:clamp(24px,4vw,34px);font-weight:600;margin:18px 0 8px;line-height:1.4}
+p{color:var(--muted);margin:0;line-height:1.9}
+.en{direction:ltr;margin-top:22px;padding-top:22px;border-top:1px solid #ffffff22}
+.en h1{font-size:20px;margin-top:0}
+.btn{display:inline-flex;align-items:center;gap:14px;margin-top:30px;padding:15px 24px;border:0;border-radius:5px;background:var(--orange);
+  color:#fff;font:inherit;font-weight:600;font-size:14px;text-decoration:none;cursor:pointer;transition:transform .2s,background .2s}
+.btn:hover{transform:translateY(-3px);background:#d65e2b}
+.btn:focus-visible{outline:3px solid var(--orange);outline-offset:5px}
+</style>
+</head>
+<body>
+<main class="box">
+  <div class="mark" aria-hidden="true"></div>
+  <div class="code">404</div>
+  <h1>الصفحة مش موجودة</h1>
+  <p>الرابط ده غلط أو الصفحة اتنقلت.</p>
+  <div class="en"><h1>Page not found</h1><p>This link is wrong or the page has moved.</p></div>
+  <a class="btn" href="/">الرئيسية · Home <span aria-hidden="true">↖</span></a>
+</main>
+</body>
+</html>

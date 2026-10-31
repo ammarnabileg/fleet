@@ -42,7 +42,7 @@ button { cursor: pointer; background: none; border: 0; }
 table { border-collapse: collapse; }
 hr { border: 0; border-top: 1px solid var(--border); margin: 12px 0; }
 ::selection { background: var(--primary-soft); color: var(--text); }
-:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 6px; }
+:focus-visible { outline: 2px solid var(--focus, var(--primary)); outline-offset: 2px; border-radius: 6px; }
 
 /* Scrollbars */
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }

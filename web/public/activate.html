@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <title>تفعيل تطبيق السائق</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230A6CFF'/%3E%3Cpath d='M12 5l6 7-6 7-6-7z' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="assets/css/fonts.css">
+  <link rel="stylesheet" href="assets/css/tokens.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <style>
+    .act { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+    .act-box { width: 100%; max-width: 420px; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 28px 22px; box-shadow: var(--shadow-sm); text-align: center; }
+    .act-box h1 { font-size: 22px; margin-bottom: 8px; }
+    .act-box p { line-height: 1.8; color: var(--muted); }
+    .act-steps { text-align: start; margin: 18px 0; display: grid; gap: 10px; font-size: 14px; }
+  </style>
+</head>
+<body class="bt-bg">
+  <!--
+    Driver activation link: https://<domain>/activate#t=<token>
+    - The token is after "#": browsers and WhatsApp's link-preview robot never send it to a server.
+    - The driver app registers https://<domain>/activate as an Android App Link (assetlinks.json, to add with the
+      app), so tapping the link in WhatsApp opens the app directly; this page is the fallback.
+    - The app reads the token and calls POST /api/v1/driver/auth/activate with its own device id. This page never
+      calls the API: binding needs the app's device id.
+  -->
+  <main class="act">
+    <div class="act-box">
+      <div id="ok" hidden>
+        <h1>تفعيل تطبيق السائق</h1>
+        <p>اضغط الزر ليفتح التطبيق ويرتبط بهاتفك. الرابط يعمل مرة واحدة فقط.</p>
+        <p dir="ltr" lang="en">Tap the button to open the app on this phone. The link works once.</p>
+        <a id="open" class="btn btn-primary btn-lg btn-block mt-16" href="#">فتح التطبيق · Open the app</a>
+        <div class="act-steps">
+          <div>١. إذا لم يكن التطبيق مثبتاً: ثبّته أولاً.</div>
+          <div>٢. ارجع إلى رسالة واتساب واضغط الرابط مرة أخرى.</div>
+          <div>٣. إذا ظهر أن الرابط غير صالح: اطلب رابطاً جديداً من المشرف.</div>
+        </div>
+        <div class="act-steps" dir="ltr" lang="en">
+          <div>1. If the app is not installed, install it first.</div>
+          <div>2. Go back to the WhatsApp message and tap the link again.</div>
+          <div>3. If the link is no longer valid, ask your supervisor for a new one.</div>
+        </div>
+      </div>
+      <div id="bad" hidden>
+        <h1>الرابط غير مكتمل</h1>
+        <p>افتح الرابط من رسالة واتساب كما هو، أو اطلب رابطاً جديداً من المشرف.</p>
+        <p dir="ltr" lang="en">Open the link from the WhatsApp message as it is, or ask your supervisor for a new one.</p>
+      </div>
+    </div>
+  </main>
+  <script>
+    (function () {
+      var m = /(?:^|&)t=([A-Za-z0-9_-]{20,100})(?:&|$)/.exec(location.hash.slice(1));
+      if (!m) { document.getElementById('bad').hidden = false; return; }
+      // the token leaves the address bar (screenshots, shared tabs) and stays only in the button
+      history.replaceState(null, '', location.pathname);
+      document.getElementById('open').href = 'btfleet://activate?t=' + m[1];
+      document.getElementById('ok').hidden = false;
+    })();
+  </script>
+</body>
+</html>
