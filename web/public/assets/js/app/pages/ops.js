@@ -317,13 +317,16 @@
     });
   }
   A.receipt = function (driver) {
+    var ref = null; // this form's receipt id, kept across a retry
     var dlg = A.formModal({
       title: 'استلام كاش بإيصال', icon: 'hand-coins', size: 'sm', submitText: 'استلام وطباعة الإيصال', done: false,
       body: h`<div class="form">${driverSearch(driver)}${BT.f.money({ name: 'amount', label: 'المبلغ المستلم', required: true, min: 0.001 })}<div class="hint">يُرحّل فوراً: ينقص رصيد السائق ويزيد خزينة فرعه، ويصل الإيصال لتطبيق السائق ليؤكده.</div></div>`,
       submit: function (v) {
         var did = driver ? driver.id : v.driver_id;
         if (!did) { BT.toast('ابحث عن السائق واختره من النتائج', { type: 'error' }); return false; }
-        return api.post('/cash/receipts', { driver_id: did, amount: String(v.amount) }).then(function (rc) {
+        // one id per receipt form: a double click or a resent request gives back the same receipt
+        ref = ref || (window.crypto && crypto.randomUUID ? crypto.randomUUID() : null);
+        return api.post('/cash/receipts', { driver_id: did, amount: String(v.amount), client_ref: ref }).then(function (rc) {
           BT.toast('إيصال رقم ' + rc.receipt_no, { sub: fmt.money(rc.amount) + ' ' + BT.config.currency });
           A.printReceipt(rc);
           refreshCash();

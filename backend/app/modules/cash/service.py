@@ -386,16 +386,26 @@ def _reversed_receipts(db: Session, receipt_ids: Iterable[int]) -> set[int]:
     )
 
 
-def record_receipt(db: Session, driver: people.EmployeeRef, *, amount: Decimal, actor_user_id: int) -> dict:
-    """The driver hands cash to the cashier: a numbered receipt and a posted deposit (spec T-LED-07)."""
+def record_receipt(
+    db: Session, driver: people.EmployeeRef, *, amount: Decimal, actor_user_id: int, client_ref=None
+) -> dict:
+    """The driver hands cash to the cashier: a numbered receipt and a posted deposit (spec T-LED-07). With the panel's
+    client_ref, the same request sent again (a double click, a retry) gives back the receipt already recorded."""
     if amount <= 0:
         raise AppError(422, "amount_must_be_positive")
+    if client_ref is not None:
+        done = db.scalar(select(Receipt).where(Receipt.client_ref == client_ref))
+        if done is not None:
+            if done.driver_id != driver.id or done.amount != Decimal(amount).quantize(Decimal("0.001")):
+                raise AppError(409, "receipt_ref_reused")
+            return receipt_print(db, done, done.id in _reversed_receipts(db, [done.id]))
     _check_month(db, today())  # the month's lock before the receipt number's and the treasury's
     from app.modules.fleet import service as fleet
 
     custody = fleet.open_custody_for_driver(db, driver.id)  # the car he works with now (a replacement too)
     plate = fleet.vehicles(db, [custody.vehicle_id])[custody.vehicle_id].plate_number if custody else None
     receipt = Receipt(
+        client_ref=client_ref,
         branch_id=driver.branch_id,
         receipt_no=_next_receipt_no(db, driver.branch_id),
         driver_id=driver.id,
@@ -859,6 +869,9 @@ def settle(
     if not driver.is_terminal:
         raise AppError(409, "settlement_needs_end_of_service")
     acc = account(db, "driver", driver_id=driver.id)
+    # one settlement at a time, and no receipt between the balance read here and the account's closing
+    if db.scalar(select(Account.closed_at).where(Account.id == acc).with_for_update()) is not None:
+        raise AppError(409, "account_closed")
     pending = db.scalar(
         select(func.count())
         .select_from(Journal)
@@ -914,6 +927,21 @@ def settle(
                 reason=reason,
                 post=True,
             )
+        )
+    if payroll_amount:  # taken from his final pay: the deduction payroll applies
+        from app.modules.payroll import service as payroll
+
+        payroll.create_deduction(
+            db,
+            employee_id=driver.id,
+            company_id=driver.company_id,
+            source_type="cash",
+            source_id=driver.id,
+            reason=reason or "cash settlement",
+            total=payroll_amount,
+            installments=1,
+            start_month=today(),
+            actor_user_id=actor_user_id,
         )
     db.execute(update(Account).where(Account.id == acc).values(closed_at=func.now()))
     if balance < 0:

@@ -709,7 +709,8 @@
       "advance": "अग्रिम",
       "fine": "जुर्माना",
       "other": "अन्य",
-      "sim": "सिम कार्ड"
+      "sim": "सिम कार्ड",
+      "cash": "सेवा समाप्ति पर नकद निपटान"
     },
     "driver_notice": {
       "accident_charged": "दुर्घटना संख्या {number}: {amount} KWD आपसे लिए जाएँगे, {installments} मासिक किस्तों में काटे जाएँगे।",
@@ -1345,7 +1346,8 @@
       "insurer_inactive": "यह बीमा कंपनी निष्क्रिय है",
       "insurer_not_found": "बीमा कंपनी नहीं मिली",
       "insurer_name_taken": "इस नाम की बीमा कंपनी पहले से दर्ज है",
-      "reset_phrase_mismatch": "वाक्यांश ठीक वैसा ही लिखें: امسح كل البيانات"
+      "reset_phrase_mismatch": "वाक्यांश ठीक वैसा ही लिखें: امسح كل البيانات",
+      "receipt_ref_reused": "यह रसीद पहले ही किसी दूसरी राशि या ड्राइवर के साथ दर्ज है"
     },
     "finance_source": {
       "cash_journal": "कैश लेजर: {kind} {reason}",

@@ -720,7 +720,8 @@
     "insurer_inactive": "This insurance company is deactivated",
     "insurer_not_found": "Insurance company not found",
     "insurer_name_taken": "An insurance company with this name is already registered",
-    "reset_phrase_mismatch": "Type the phrase exactly: امسح كل البيانات"
+    "reset_phrase_mismatch": "Type the phrase exactly: امسح كل البيانات",
+    "receipt_ref_reused": "This receipt was already recorded with another amount or driver"
   },
   "settings": {
     "branding": "Branding",
@@ -1135,7 +1136,8 @@
     "fine": "Fine",
     "other": "Other",
     "advance": "Advance",
-    "sim": "SIM card"
+    "sim": "SIM card",
+    "cash": "End-of-service cash settlement"
   },
   "deduction_status": {
     "approved": "Approved",

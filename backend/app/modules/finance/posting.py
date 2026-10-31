@@ -239,7 +239,8 @@ def documents(db: Session, first: date, last: date) -> list[Doc]:
                 {"source": d["source_type"], "reason": d["reason"]},
             )
             .debit("employee_receivable", d["amount"])
-            .credit(f"deduction_{d['source_type']}", d["amount"])
+            # an ending driver's cash recovered through payroll clears the account his settlement filled
+            .credit("payroll_recovery" if d["source_type"] == "cash" else f"deduction_{d['source_type']}", d["amount"])
         )
 
     for f in fines.paid_for_posting(db, first, last):

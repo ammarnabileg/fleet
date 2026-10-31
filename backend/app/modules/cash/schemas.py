@@ -15,6 +15,7 @@ class ReceiptIn(BaseModel):
 
     driver_id: str
     amount: Amount
+    client_ref: uuid.UUID | None = None  # the panel's id for this receipt: sent again, the same receipt comes back
 
 
 class ReceiptOut(BaseModel):

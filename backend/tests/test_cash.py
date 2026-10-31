@@ -346,9 +346,20 @@ def test_tled12_uat18_end_of_service_settles_the_account_to_zero(admin_client, c
         text("SELECT payload FROM integrations.outbox WHERE event_type = 'cash.settlement.posted'")
     ).scalar()
     assert event["payroll_amount"] == "60.000"
+    # what payroll recovers is a deduction of its own, taken from his final pay (not just an event nobody read)
+    ded = db.execute(
+        text(
+            "SELECT source_type, total, installments, status FROM payroll.deductions d"
+            " JOIN people.employees e ON e.id = d.employee_id WHERE e.public_id = :e AND d.source_type = 'cash'"
+        ),
+        {"e": earlier["id"]},
+    ).one()
+    assert (ded.source_type, ded.total, ded.installments, ded.status) == ("cash", D("60.000"), 1, "approved")
     r = admin_client.post(
         "/api/v1/cash/adjustments", json={"driver_id": earlier["id"], "amount": "1", "reason": "late"}
     )
+    assert r.status_code == 409 and r.json()["code"] == "account_closed"
+    r = admin_client.post("/api/v1/cash/settlements", json=body)  # settled once, not twice
     assert r.status_code == 409 and r.json()["code"] == "account_closed"
     total = db.execute(
         text(
@@ -371,3 +382,19 @@ def test_settlement_pays_out_what_the_company_owes(admin_client, driver):
     r = admin_client.post("/api/v1/cash/settlements", json={"driver_id": driver["id"]})
     assert r.status_code == 201 and D(r.json()["posted"]) == D("0")
     assert D(admin_client.get("/api/v1/cash/treasury").json()[0]["treasury"]) == D("-7.000")
+
+
+def test_a_receipt_sent_twice_is_recorded_once(admin_client, earlier):
+    import uuid
+
+    ref = str(uuid.uuid4())
+    body = {"driver_id": earlier["id"], "amount": "25", "client_ref": ref}
+    before = admin_client.get(f"/api/v1/cash/drivers/{earlier['id']}/statement").json()["posted"]
+    first = admin_client.post("/api/v1/cash/receipts", json=body)
+    again = admin_client.post("/api/v1/cash/receipts", json=body)  # a double click, a resent request
+    assert first.status_code == 201 and again.status_code == 201
+    assert first.json()["receipt_no"] == again.json()["receipt_no"]
+    after = admin_client.get(f"/api/v1/cash/drivers/{earlier['id']}/statement").json()["posted"]
+    assert D(before) - D(after) == D("25.000")  # taken once
+    r = admin_client.post("/api/v1/cash/receipts", json=body | {"amount": "30"})  # the same id for another amount
+    assert r.status_code == 409 and r.json()["code"] == "receipt_ref_reused"

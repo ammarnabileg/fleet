@@ -709,7 +709,8 @@
       "advance": "Malipo ya awali",
       "fine": "Faini",
       "other": "Nyingine",
-      "sim": "Laini ya simu"
+      "sim": "Laini ya simu",
+      "cash": "Malipo ya pesa taslimu ya mwisho wa huduma"
     },
     "driver_notice": {
       "accident_charged": "Ajali nambari {number}: unadaiwa {amount} KWD, zitakatwa kwa awamu {installments} za kila mwezi.",
@@ -1345,7 +1346,8 @@
       "insurer_inactive": "Kampuni hii ya bima imesimamishwa",
       "insurer_not_found": "Kampuni ya bima haipatikani",
       "insurer_name_taken": "Kampuni ya bima yenye jina hili tayari imesajiliwa",
-      "reset_phrase_mismatch": "Andika maneno hasa kama yalivyo: امسح كل البيانات"
+      "reset_phrase_mismatch": "Andika maneno hasa kama yalivyo: امسح كل البيانات",
+      "receipt_ref_reused": "Risiti hii tayari imerekodiwa kwa kiasi au dereva mwingine"
     },
     "finance_source": {
       "cash_journal": "Leja ya pesa taslimu: {kind} {reason}",

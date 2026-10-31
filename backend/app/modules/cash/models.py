@@ -151,6 +151,7 @@ class Receipt(Base):
     driver_name: Mapped[dict | None] = mapped_column(JSONB)
     civil_id: Mapped[str | None] = mapped_column(Text)
     plate_number: Mapped[str | None] = mapped_column(Text)
+    client_ref: Mapped[uuid.UUID | None] = mapped_column(UUID, unique=True)  # the panel's id: a resend is recognised
 
 
 class FuelClaim(Base):

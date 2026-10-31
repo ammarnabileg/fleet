@@ -71,6 +71,7 @@ SOURCE_COLUMN = {
     "advance": "advance",
     "sim": "sim",
     "other": "other_deductions",
+    "cash": "cash_shortage",  # what an ending driver still owed in cash, settled through his final pay
 }
 MONTH_ITEMS = ("cancelled_orders", "platform_deductions", "late", "cash_shortage")
 IDENTITY = ("platform_driver_id", "name", "job_title", "civil_id", "iban", "bank_name", "payment_method", "blank")

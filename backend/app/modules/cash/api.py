@@ -124,7 +124,11 @@ def record_receipt(
     db: Session = Depends(get_session),
 ):
     return service.record_receipt(
-        db, _driver(db, body.driver_id, principal), amount=body.amount, actor_user_id=principal.user_id
+        db,
+        _driver(db, body.driver_id, principal),
+        amount=body.amount,
+        client_ref=body.client_ref,
+        actor_user_id=principal.user_id,
     )
 
 

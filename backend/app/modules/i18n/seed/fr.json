@@ -709,7 +709,8 @@
       "advance": "Avance",
       "fine": "Amende",
       "other": "Autre",
-      "sim": "Carte SIM"
+      "sim": "Carte SIM",
+      "cash": "Règlement de caisse de fin de service"
     },
     "driver_notice": {
       "accident_charged": "Accident n° {number} : {amount} KWD sont à votre charge, retenus en {installments} mensualités.",
@@ -1345,7 +1346,8 @@
       "insurer_inactive": "Cette compagnie d'assurance est désactivée",
       "insurer_not_found": "Compagnie d'assurance introuvable",
       "insurer_name_taken": "Une compagnie d'assurance porte déjà ce nom",
-      "reset_phrase_mismatch": "Tapez la phrase exactement : امسح كل البيانات"
+      "reset_phrase_mismatch": "Tapez la phrase exactement : امسح كل البيانات",
+      "receipt_ref_reused": "Ce reçu a déjà été enregistré avec un autre montant ou chauffeur"
     },
     "finance_source": {
       "cash_journal": "Registre des espèces : {kind} {reason}",
