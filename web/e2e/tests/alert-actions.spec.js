@@ -16,8 +16,11 @@ test('a registration is approved from the bell, straight from its alert', async 
   for (const code of view.required_documents) {
     documents.push({ type_code: code, number: 'N-' + code, expiry_date: '2030-01-31', front_sha256: await ph.photo(), back_sha256: await ph.photo() });
   }
+  // the last step: his company and his scheme, approved with the rest
+  const company0 = view.choice.platforms[0], scheme0 = view.choice.schemes.find((s) => s.platform_id === company0.id);
   await ph.call('PUT', '/driver/onboarding', {
     civil_id: '29' + n + '000', nationality: 'الهند', iban: IBAN, bank_name: 'NBK', documents, no_vehicle: true,
+    platform_id: company0.id, scheme_id: scheme0.id,
   });
   await ph.call('POST', '/driver/onboarding/submit');
   const top = () => admin.locator('.overlay[data-open]').last();
@@ -35,13 +38,15 @@ test('a registration is approved from the bell, straight from its alert', async 
   const drawer = top();
   await expect(drawer).toContainText(driver.name.ar);
   await expect(drawer).toContainText('الهند');
+  await expect(drawer).toContainText(company0.name.ar); // what he chose, approved with it
+  await expect(drawer).toContainText(scheme0.name.ar);
   await drawer.locator('[data-x=approve]').click();
   await clearToasts(admin);
   await top().getByRole('button', { name: 'اعتماد', exact: true }).click();
   await expect(admin.locator('.toast').last()).toContainText('تم اعتماد التسجيل');
   await expect(onDashboard).toHaveCount(0); // the alert closed itself and the dashboard was redrawn
   const emp = await api.get('/employees/' + driver.id);
-  expect([emp.civil_id, emp.nationality, emp.bank_name]).toEqual(['29' + n + '000', 'الهند', 'NBK']);
+  expect([emp.civil_id, emp.nationality, emp.bank_name, emp.platform_id]).toEqual(['29' + n + '000', 'الهند', 'NBK', company0.id]);
   const open = await api.get('/alerts?limit=200');
   expect(open.filter((a) => a.kind === 'onboarding_submitted' && a.params.driver === driver.name.ar)).toEqual([]); // closed itself
 });

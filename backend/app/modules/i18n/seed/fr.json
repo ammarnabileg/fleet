@@ -700,7 +700,8 @@
     "offerSelected": "Choisie",
     "offerNext": "Suivant : choisissez votre formule",
     "offerNone": "Cette société n'a pas de formule à choisir : le bureau fixe la vôtre.",
-    "offerPickOne": "Choisissez d'abord une formule"
+    "offerPickOne": "Choisissez d'abord une formule",
+    "obStepCompany": "Société et formule"
   },
   "server": {
     "deduction_source": {

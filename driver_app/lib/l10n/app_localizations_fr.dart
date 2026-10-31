@@ -156,6 +156,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get obStepVehicle => 'Véhicule';
 
   @override
+  String get obStepCompany => 'Société et formule';
+
+  @override
   String get obStepReview => 'Vérification';
 
   @override

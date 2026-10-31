@@ -151,6 +151,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get obStepVehicle => 'السيارة';
 
   @override
+  String get obStepCompany => 'الشركة والنظام';
+
+  @override
   String get obStepReview => 'المراجعة';
 
   @override

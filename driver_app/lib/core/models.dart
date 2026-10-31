@@ -303,9 +303,11 @@ class Onboarding {
     this.schemeRequired = false,
     this.known = const KnownRecord(),
     this.nationalities = const [],
+    this.choice,
   });
 
   factory Onboarding.fromJson(Map<String, dynamic> j) => Onboarding(
+    choice: j['choice'] == null ? null : RegistrationChoice.fromJson(j['choice'] as Map<String, dynamic>),
     required: j['required'] as bool,
     status: j['status'] as String,
     data: Map<String, dynamic>.from(j['data'] as Map? ?? {}),
@@ -337,6 +339,9 @@ class Onboarding {
 
   /// The list entry for a saved value (null for a value typed before the list, which he picks again).
   Nationality? nationality(String? value) => nationalities.where((n) => n.value == value).firstOrNull;
+
+  /// The registration's last step: his company and his pay scheme, approved with it (null: an older server).
+  final RegistrationChoice? choice;
 
   /// The server says "required" only while the driver may still edit (draft, or sent back with a reason).
   bool get mustFill => required;
@@ -717,10 +722,12 @@ class PayScheme {
     required this.companyCovers,
     required this.steps,
     this.blocks,
+    this.platformId,
   });
 
   factory PayScheme.fromJson(Map<String, dynamic> j) => PayScheme(
     id: j['id'] as String,
+    platformId: (j['platform_id'] as num?)?.toInt(),
     code: j['code'] as String,
     name: Map<String, String>.from(j['name'] as Map),
     description: j['description'] == null ? null : Map<String, String>.from(j['description'] as Map),
@@ -739,6 +746,7 @@ class PayScheme {
   );
 
   final String id;
+  final int? platformId; // the company that offers it
   final String code;
   final Map<String, String> name;
   final Map<String, String>? description;
@@ -1288,4 +1296,20 @@ class CompanyChoice {
 
   /// Picked, the office not answered yet: the daily report asks that company's fields meanwhile.
   bool get pending => company == null && status == 'pending';
+}
+
+/// What the registration's last step offers: his company when the office set it (he picks only a scheme), else the
+/// companies he may pick, and the schemes they offer.
+class RegistrationChoice {
+  RegistrationChoice({this.fixed, required this.companies, required this.schemes});
+
+  factory RegistrationChoice.fromJson(Map<String, dynamic> j) => RegistrationChoice(
+    fixed: j['platform'] == null ? null : Company.fromJson(j['platform'] as Map<String, dynamic>),
+    companies: [for (final p in j['platforms'] as List? ?? const []) Company.fromJson(p as Map<String, dynamic>)],
+    schemes: [for (final s in j['schemes'] as List? ?? const []) PayScheme.fromJson(s as Map<String, dynamic>)],
+  );
+
+  final Company? fixed;
+  final List<Company> companies;
+  final List<PayScheme> schemes;
 }

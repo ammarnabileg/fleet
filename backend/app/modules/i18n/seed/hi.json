@@ -700,7 +700,8 @@
     "offerSelected": "चुनी गई",
     "offerNext": "आगे: वेतन योजना चुनें",
     "offerNone": "इस कंपनी में चुनने के लिए योजना नहीं है: ऑफिस आपकी तय करेगा।",
-    "offerPickOne": "पहले एक योजना चुनें"
+    "offerPickOne": "पहले एक योजना चुनें",
+    "obStepCompany": "कंपनी और योजना"
   },
   "server": {
     "deduction_source": {

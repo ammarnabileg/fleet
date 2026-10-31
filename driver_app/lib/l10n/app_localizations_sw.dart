@@ -154,6 +154,9 @@ class AppLocalizationsSw extends AppLocalizations {
   String get obStepVehicle => 'Gari';
 
   @override
+  String get obStepCompany => 'Kampuni na mpango';
+
+  @override
   String get obStepReview => 'Ukaguzi';
 
   @override

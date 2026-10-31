@@ -39,8 +39,16 @@ def up(client, headers, *, source="camera", data=None):
     return r.json()["sha256"]
 
 
+def choice(client, h) -> dict:
+    """The registration's last step: the first company offered (or his own) and its first scheme."""
+    c = client.get("/api/v1/driver/onboarding", headers=h).json()["choice"]
+    platform = c["platform"] or c["platforms"][0]
+    scheme = next(s for s in c["schemes"] if s["platform_id"] == platform["id"])
+    return {"platform_id": platform["id"], "scheme_id": scheme["id"]}
+
+
 def full_draft(client, h, plate, *, km=40_000, positions=("front", "back", "left", "right")):
-    return {
+    return choice(client, h) | {
         "civil_id": "290010112399",
         "nationality": "الهند",
         "iban": "KW81CBKU0000000000001234560101",
@@ -372,3 +380,37 @@ def test_review_needs_the_permission_and_follows_company_scope(admin_client, cli
         .all()
     )
     assert granted == ["hr", "supervisor"]
+
+
+def test_his_company_and_scheme_are_chosen_with_the_registration_and_approved_with_it(admin_client, client, setup):
+    d, h = setup["driver"], setup["h"]
+    view = client.get("/api/v1/driver/onboarding", headers=h).json()
+    assert view["choice"]["platform"] is None and len(view["choice"]["platforms"]) >= 1  # he picks the company
+    draft = full_draft(client, h, "45678")
+    picked = {k: draft.pop(k) for k in ("platform_id", "scheme_id")}
+    save(client, h, draft)
+    r = client.post("/api/v1/driver/onboarding/submit", headers=h)
+    assert r.status_code == 422 and {"platform", "scheme"} <= set(r.json()["params"]["missing"].split(", "))
+    other = next(s for s in view["choice"]["schemes"] if s["platform_id"] != picked["platform_id"])
+    save(client, h, draft | {"platform_id": picked["platform_id"], "scheme_id": other["id"]})  # another company's
+    r = client.post("/api/v1/driver/onboarding/submit", headers=h)
+    assert r.status_code == 422 and "scheme" in r.json()["params"]["missing"]
+    save(client, h, draft | picked)
+    assert client.post("/api/v1/driver/onboarding/submit", headers=h).status_code == 200
+    # one approval: his details, his company and his scheme
+    assert admin_client.post(f"/api/v1/onboarding/{submission_id(admin_client)}/approve").status_code == 200
+    emp = admin_client.get(f"/api/v1/employees/{d['id']}").json()
+    assert emp["platform_id"] == picked["platform_id"]
+    mine = admin_client.get(f"/api/v1/employees/{d['id']}/schemes").json()
+    assert picked["scheme_id"] in str(mine)
+    # the app's company screen is not due any more
+    assert client.get("/api/v1/driver/platform-request", headers=h).json()["ask"] is False
+
+
+def test_a_driver_the_office_put_on_a_company_picks_only_his_scheme(admin_client, client, company):
+    platforms = admin_client.get("/api/v1/payroll/platforms").json()
+    driver = make_driver(admin_client, company["id"], platform_id=platforms[0]["id"])
+    h, _ = activate(admin_client, client, driver)
+    c = client.get("/api/v1/driver/onboarding", headers=h).json()["choice"]
+    assert c["platform"]["id"] == platforms[0]["id"] and [p["id"] for p in c["platforms"]] == [platforms[0]["id"]]
+    assert {s["platform_id"] for s in c["schemes"]} == {platforms[0]["id"]}

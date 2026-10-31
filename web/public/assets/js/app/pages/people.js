@@ -536,6 +536,12 @@
       dlg.setBody(h`${r.status === 'rejected' ? h`<div class="banner warn fs-sm mb-12">${icon('rotate-ccw', 15)}<div>أُعيد للسائق: ${r.review_note || ''}</div></div>` : ''}
         ${r.status === 'approved' ? h`<div class="banner success fs-sm mb-12">${icon('circle-check', 15)}<div>معتمد ${r.reviewed_at ? fmt.dt(r.reviewed_at) : ''}</div></div>` : ''}
         <div class="label mb-8">البيانات</div>${BT.kv([['الحالة', A.pill('onboarding_status', r.status)], ['الجوال', A.phoneShow(r.phone)], ['الرقم المدني', data.civil_id ? h`<span class="num">${data.civil_id}</span>` : '—'], ['الجنسية', data.nationality || '—'], ['أُرسل', r.submitted_at ? fmt.dt(r.submitted_at) : '—']])}
+        <div class="label mt-16 mb-8">الشركة ونظام الدفع</div>
+        ${BT.kv([
+          ['الشركة', r.choice && r.choice.platform ? h`${api.name(r.choice.platform.name)}${r.choice.platform_set_by_office ? h` <span class="muted fs-sm">(حددها المكتب)</span>` : ''}` : raw('<span class="muted">لم يختر</span>')],
+          ['النظام', r.choice && r.choice.scheme ? api.name(r.choice.scheme.name) : raw('<span class="muted">لم يختر</span>')]
+        ])}
+        ${r.status === 'submitted' ? h`<div class="banner info fs-sm mt-8">${icon('badge-check', 15)}<div>الاعتماد يضعه على هذه الشركة وهذا النظام معاً؛ لتغييرهما أعد الطلب للسائق مع السبب.</div></div>` : ''}
         <div class="label mt-16 mb-8">المستندات</div>
         ${(data.documents || []).length ? h`<div class="list">${data.documents.map(function (d) {
           var n = d.expiry_date ? BT.date.daysLeft(d.expiry_date) : null;

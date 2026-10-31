@@ -88,6 +88,30 @@ def offered_schemes(db: Session, platform_id: int | None) -> list[dict]:
     return [schemas.DriverSchemeOut.model_validate(s).model_dump(mode="json") for s in offered]
 
 
+def registration_options(db: Session, employee_id: int) -> dict:
+    from app.modules.payroll import platform_requests
+
+    return platform_requests.registration_options(db, employee_id)
+
+
+def check_registration_choice(db: Session, employee_id: int, platform_id, scheme_public_id) -> list[str]:
+    from app.modules.payroll import platform_requests
+
+    return platform_requests.check_registration_choice(db, employee_id, platform_id, scheme_public_id)
+
+
+def apply_registration_choice(db: Session, employee_id: int, platform_id, scheme_public_id, **kw) -> None:
+    from app.modules.payroll import platform_requests
+
+    platform_requests.apply_registration_choice(db, employee_id, platform_id, scheme_public_id, **kw)
+
+
+def registration_choice_names(db: Session, employee_id: int, platform_id, scheme_public_id) -> dict:
+    from app.modules.payroll import platform_requests
+
+    return platform_requests.registration_choice_names(db, employee_id, platform_id, scheme_public_id)
+
+
 def scheme_from_registration(db: Session, driver: people.EmployeeRef, scheme_public_id, *, actor_user_id: int) -> bool:
     """In the caller's transaction: the scheme the driver chose in his self-registration, from this month, unless the
     office already put him on one. False when it did, or when the choice no longer holds (the scheme was withdrawn or

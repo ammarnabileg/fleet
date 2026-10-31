@@ -44,6 +44,7 @@
   "obStepData": "जानकारी",
   "obStepDocs": "दस्तावेज़",
   "obStepVehicle": "गाड़ी",
+  "obStepCompany": "कंपनी और योजना",
   "obStepReview": "जाँच",
   "civilId": "सिविल आईडी",
   "civilIdInvalid": "सिविल आईडी में 12 अंक होते हैं",

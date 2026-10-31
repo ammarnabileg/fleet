@@ -50,6 +50,7 @@ class Draft(BaseModel):
     documents: list[DocumentEntry] = Field(default_factory=list, max_length=10)
     vehicle: VehicleEntry | None = None
     no_vehicle: bool = False  # the driver does not hold a vehicle yet
+    platform_id: int | None = None  # the company he works with (unless the office set it)
     scheme_id: Annotated[str, StringConstraints(pattern=r"^[0-9a-f-]{36}$")] | None = None  # his pay scheme
 
 
@@ -89,6 +90,8 @@ class DriverView(BaseModel):
     document_types: list[DocumentTypeOut]
     schemes: list[dict] = []  # the pay schemes his platform offers, with their terms
     scheme_required: bool = False  # choose one to submit
+    # the last step: {"platform": his company when the office set it, "platforms": what he may pick, "schemes": theirs}
+    choice: dict | None = None
 
 
 class PersonRef(BaseModel):
@@ -118,6 +121,7 @@ class SubmissionDetail(SubmissionOut):
     phone: str | None
     data: dict
     vehicle: VehicleMatch | None
+    choice: dict | None = None  # the company and pay scheme he chose, approved with the registration
 
 
 class RejectIn(BaseModel):

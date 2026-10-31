@@ -370,6 +370,12 @@ abstract class AppLocalizations {
   /// **'السيارة'**
   String get obStepVehicle;
 
+  /// No description provided for @obStepCompany.
+  ///
+  /// In ar, this message translates to:
+  /// **'الشركة والنظام'**
+  String get obStepCompany;
+
   /// No description provided for @obStepReview.
   ///
   /// In ar, this message translates to:

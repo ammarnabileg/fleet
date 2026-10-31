@@ -700,7 +700,8 @@
     "offerSelected": "Napili",
     "offerNext": "Susunod: piliin ang pay scheme",
     "offerNone": "Walang scheme na mapipili sa kompanyang ito: ang opisina ang magtatakda.",
-    "offerPickOne": "Pumili muna ng scheme"
+    "offerPickOne": "Pumili muna ng scheme",
+    "obStepCompany": "Kompanya at scheme"
   },
   "server": {
     "deduction_source": {

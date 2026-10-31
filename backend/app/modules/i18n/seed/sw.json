@@ -700,7 +700,8 @@
     "offerSelected": "Imechaguliwa",
     "offerNext": "Ifuatayo: chagua mpango wa malipo",
     "offerNone": "Kampuni hii haina mipango ya kuchagua: ofisi itaweka wako.",
-    "offerPickOne": "Chagua mpango kwanza"
+    "offerPickOne": "Chagua mpango kwanza",
+    "obStepCompany": "Kampuni na mpango"
   },
   "server": {
     "deduction_source": {

@@ -155,6 +155,9 @@ class AppLocalizationsFil extends AppLocalizations {
   String get obStepVehicle => 'Sasakyan';
 
   @override
+  String get obStepCompany => 'Kompanya at scheme';
+
+  @override
   String get obStepReview => 'Pagsusuri';
 
   @override

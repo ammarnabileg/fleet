@@ -64,10 +64,12 @@ def for_driver(db: Session, employee_id: int) -> dict:
     return {
         "known": people.registration_known(db, employee_id),
         "nationalities": people.nationalities(),
-        # the pay scheme is picked with the company (or first on the schemes screen), not in the registration: none
-        # listed here, so an app that still shows them in the registration shows nothing to pick
+        # the registration's last step: his company (or the one the office set) and his pay scheme, required, so the
+        # office approves all of it at once. Not in the details step: "schemes" stays empty for the apps that showed
+        # them there; the step reads "choice"
         "schemes": [],
         "scheme_required": False,
+        "choice": payroll.registration_options(db, employee_id),
         "required": submission is not None and submission.status in OPEN,
         "status": submission.status if submission else "none",
         "data": submission.data if submission else {},
@@ -140,6 +142,7 @@ def _missing(db: Session, data: dict, driver: people.EmployeeRef) -> list[str]:
         if not doc.get("front_sha256") or (types[code] and not doc.get("expiry_date")):
             missing.append(f"document.{code}")
     missing += [f"document.{code}" for code in settings.required_documents if code in types and code not in docs]
+    missing += payroll.check_registration_choice(db, driver.id, data.get("platform_id"), data.get("scheme_id"))
     if settings.require_bank:
         missing += [f for f in ("iban", "bank_name") if not data.get(f) and f not in locked]
     if not data.get("no_vehicle"):
@@ -246,6 +249,9 @@ def detail(db: Session, public_id, **scope) -> dict:
     known = people.registration_known(db, s.employee_id)
     data = s.data | {f: known[f] for f in ("civil_id", "nationality", "bank_name") if f in known["locked"]}
     out = _out(s, people.names(db, [s.employee_id])) | {"phone": driver.phone, "data": data, "vehicle": None}
+    out["choice"] = payroll.registration_choice_names(
+        db, s.employee_id, s.data.get("platform_id"), s.data.get("scheme_id")
+    )
     vehicle = None if s.data.get("no_vehicle") else s.data.get("vehicle")
     if vehicle and vehicle.get("plate_number"):
         found = fleet.vehicle_by_plate(db, vehicle["plate_number"])
@@ -287,8 +293,9 @@ def approve(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
     data, custody = s.data, None
     try:
         people.apply_self_registration(db, driver.id, data, actor_user_id=actor_user_id)
-        if data.get("scheme_id"):
-            payroll.scheme_from_registration(db, driver, data["scheme_id"], actor_user_id=actor_user_id)
+        payroll.apply_registration_choice(
+            db, driver.id, data.get("platform_id"), data.get("scheme_id"), actor_user_id=actor_user_id, **scope
+        )
         owner = documents.Owner("employee", driver.id, str(driver.public_id), driver.company_id, driver.name)
         for doc in data.get("documents") or ():
             documents.add(

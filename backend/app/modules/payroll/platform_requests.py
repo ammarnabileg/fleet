@@ -301,3 +301,61 @@ def reject(db: Session, public_id, *, version: int | None, note: str, actor_user
     db.commit()
     db.refresh(r)
     return _out(db, [r])[0]
+
+
+# ------------------------------------------------------------------ chosen with the registration
+
+
+def registration_options(db: Session, employee_id: int) -> dict:
+    """What the registration's last step offers: his company when the office already set it (he picks only a scheme),
+    else the companies he may pick; and every scheme they offer, each with its company."""
+    driver = people.ref(db, employee_id)
+    mine = db.get(Platform, driver.platform_id) if driver.platform_id else None
+    plats = [mine] if mine else _offered(db)
+    return {
+        "platform": _brief(mine),
+        "platforms": [_brief(p) for p in plats],
+        "schemes": [s for p in plats for s in pay_schemes.list_schemes(db, platform_id=p.id, offered_only=True)],
+    }
+
+
+def check_registration_choice(db: Session, employee_id: int, platform_id: int | None, scheme_public_id) -> list[str]:
+    """What is missing or no longer offered in the registration's company and scheme (both are required)."""
+    driver = people.ref(db, employee_id)
+    pid = driver.platform_id or platform_id
+    missing = []
+    p = db.get(Platform, pid) if pid else None
+    if p is None or not p.is_active:
+        missing.append("platform")
+    scheme = db.scalar(select(Scheme).where(Scheme.public_id == scheme_public_id)) if scheme_public_id else None
+    if scheme is None or not (scheme.is_active and scheme.driver_selectable) or (p and scheme.platform_id != p.id):
+        missing.append("scheme")
+    return missing
+
+
+def apply_registration_choice(
+    db: Session, employee_id: int, platform_id: int | None, scheme_public_id, *, actor_user_id: int, **scope
+) -> None:
+    """In the caller's transaction, at the registration's approval: his company (unless the office set one), then his
+    scheme from the first month still open, when it is still offered on that company."""
+    driver = people.ref(db, employee_id)
+    if not driver.platform_id and platform_id:
+        p = db.get(Platform, platform_id)
+        if p is None or not p.is_active:
+            raise AppError(422, "platform_not_found")
+        people.put_on_platform(
+            db, driver.public_id, platform_id=p.id, platform_driver_id=None, actor_user_id=actor_user_id,
+            commit=False, **scope,
+        )  # fmt: skip
+        driver = people.ref(db, employee_id)
+    scheme = db.scalar(select(Scheme).where(Scheme.public_id == scheme_public_id)) if scheme_public_id else None
+    if scheme is not None and scheme.is_active and scheme.platform_id == driver.platform_id:
+        pay_schemes.set_first(db, driver, scheme, actor_user_id=actor_user_id)
+
+
+def registration_choice_names(db: Session, employee_id: int, platform_id: int | None, scheme_public_id) -> dict:
+    """For the reviewer: the company (his own when the office set it) and the scheme the registration names."""
+    driver = people.ref(db, employee_id)
+    p = db.get(Platform, driver.platform_id or platform_id) if (driver.platform_id or platform_id) else None
+    scheme = db.scalar(select(Scheme).where(Scheme.public_id == scheme_public_id)) if scheme_public_id else None
+    return {"platform": _brief(p), "scheme": _scheme(scheme), "platform_set_by_office": bool(driver.platform_id)}

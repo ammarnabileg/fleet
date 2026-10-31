@@ -3621,6 +3621,72 @@ void main() {
     expect(saved!.containsKey('scheme_id'), isFalse);
   });
 
+  testWidgets('the registration ends with his company and his scheme, sent with it for one approval', (tester) async {
+    final keeta = {
+      'id': 1,
+      'code': 'keeta',
+      'name': {'ar': 'كيتا', 'en': 'Keeta'},
+      'is_core': true,
+    };
+    final talabat = {
+      'id': 2,
+      'code': 'talabat',
+      'name': {'ar': 'طلبات', 'en': 'Talabat'},
+      'is_core': true,
+    };
+    final ob = {
+      'required': true,
+      'status': 'draft',
+      'data': {'no_vehicle': true},
+      'review_note': null,
+      'required_documents': [],
+      'vehicle_photos': [],
+      'document_types': [],
+      'choice': {
+        'platform': null,
+        'platforms': [keeta, talabat],
+        'schemes': [
+          {...fixedScheme, 'platform_id': 1},
+          {...batchScheme, 'platform_id': 2},
+        ],
+      },
+    };
+    final w = (await tester.runAsync(() => world(onboarding: ob)))!;
+    Map<String, dynamic>? saved;
+    w.server.on('PUT', '/api/v1/driver/onboarding', (r) {
+      saved = jsonDecode(r.body) as Map<String, dynamic>;
+      return (200, {...ob, 'data': saved});
+    });
+    tester.view.physicalSize = const Size(1080, 4400);
+    addTearDown(tester.view.resetPhysicalSize);
+    await pumpApp(tester, w);
+    for (var i = 0; i < 3; i++) {
+      // details, documents, vehicle (no car)
+      await reveal(tester, find.byKey(const Key('ob-next')));
+      await tester.tap(find.byKey(const Key('ob-next')));
+      await idle(tester);
+    }
+    expect(find.text('الشركة والنظام'), findsWidgets); // the new step, before the review
+    await tester.tap(find.byKey(const Key('ob-company-talabat')));
+    await settle(tester);
+    expect(find.byKey(Key('ob-scheme-${batchScheme['code']}')), findsOneWidget); // only Talabat's
+    expect(find.byKey(Key('ob-scheme-${fixedScheme['code']}')), findsNothing);
+    await reveal(tester, find.byKey(const Key('ob-next')));
+    await tester.tap(find.byKey(const Key('ob-next')));
+    await idle(tester);
+    // no scheme yet: the review lists it and the send button waits
+    expect(find.textContaining('نظام الدفع'), findsWidgets); // listed as missing on the review
+    await tester.tap(find.byType(BackButtonIcon));
+    await settle(tester);
+    await reveal(tester, find.byKey(Key('offer-pick-${batchScheme['code']}')));
+    await tester.tap(find.byKey(Key('offer-pick-${batchScheme['code']}')));
+    await settle(tester);
+    await reveal(tester, find.byKey(const Key('ob-next')));
+    await tester.tap(find.byKey(const Key('ob-next')));
+    await idle(tester);
+    expect((saved!['platform_id'], saved!['scheme_id']), (2, batchScheme['id']));
+  });
+
   testWidgets('the splash screen the office designed shows when the app opens, from the next launch', (tester) async {
     final w = (await tester.runAsync(() => world()))!;
     final png = base64Decode(

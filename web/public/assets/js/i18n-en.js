@@ -4218,5 +4218,9 @@ window.BT_EN = {
 "ملاحظات (المدة المتوقعة للإصلاح مثلاً)": "Notes (the expected repair time, for example)",
 "يعتمد مدير الصيانة التقدير قبل استخدامه؛ لا يمكن تعديله بعد الإرسال إلا إذا رُفض.": "The maintenance manager approves the estimate before it is used; it cannot be edited once sent unless it is rejected.",
 "محالة من": "Referred by",
-"مستخدم المركز": "Center user"
+"مستخدم المركز": "Center user",
+"الشركة ونظام الدفع": "Company and pay scheme",
+"(حددها المكتب)": "(set by the office)",
+"لم يختر": "Not chosen",
+"الاعتماد يضعه على هذه الشركة وهذا النظام معاً؛ لتغييرهما أعد الطلب للسائق مع السبب.": "Approving puts him on this company and this scheme together; to change them, send the request back to the driver with the reason."
 };

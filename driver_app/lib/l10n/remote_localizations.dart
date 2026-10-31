@@ -100,6 +100,8 @@ class RemoteLocalizations extends AppLocalizations {
   @override
   String get obStepVehicle => _remote.text('obStepVehicle') ?? _base.obStepVehicle;
   @override
+  String get obStepCompany => _remote.text('obStepCompany') ?? _base.obStepCompany;
+  @override
   String get obStepReview => _remote.text('obStepReview') ?? _base.obStepReview;
   @override
   String get civilId => _remote.text('civilId') ?? _base.civilId;

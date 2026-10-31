@@ -47,6 +47,7 @@ const Map<String, String> englishMessages = {
   'obStepData': "Details",
   'obStepDocs': "Documents",
   'obStepVehicle': "Vehicle",
+  'obStepCompany': "Company & scheme",
   'obStepReview': "Review",
   'civilId': "Civil ID",
   'civilIdInvalid': "The civil ID has 12 digits",

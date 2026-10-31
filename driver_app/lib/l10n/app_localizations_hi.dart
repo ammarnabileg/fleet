@@ -154,6 +154,9 @@ class AppLocalizationsHi extends AppLocalizations {
   String get obStepVehicle => 'गाड़ी';
 
   @override
+  String get obStepCompany => 'कंपनी और योजना';
+
+  @override
   String get obStepReview => 'जाँच';
 
   @override

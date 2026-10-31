@@ -44,6 +44,7 @@
   "obStepData": "Informations",
   "obStepDocs": "Documents",
   "obStepVehicle": "Véhicule",
+  "obStepCompany": "Société et formule",
   "obStepReview": "Vérification",
   "civilId": "Carte d'identité civile",
   "civilIdInvalid": "La carte d'identité civile comporte 12 chiffres",

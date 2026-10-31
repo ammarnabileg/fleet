@@ -6,6 +6,8 @@ import '../../core/models.dart';
 import '../photos.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'scheme_offers.dart';
+import 'schemes.dart' show SchemeKindPicker;
 
 /// First launch after the activation link: details, documents (both sides), the vehicle the driver holds and its
 /// photos. Every photo is uploaded as soon as it is taken and the draft is saved on the server, so nothing is lost
@@ -57,6 +59,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       ],
       'vehicle': Map<String, dynamic>.from(d['vehicle'] as Map? ?? {'photos': []}),
       'no_vehicle': d['no_vehicle'] ?? false,
+      'platform_id': d['platform_id'],
+      'scheme_id': d['scheme_id'],
     };
     (draft['vehicle'] as Map)['photos'] ??= [];
     // what the office has is shown as it is on file (locked); the rest is his draft
@@ -111,6 +115,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'documents': docs,
       'no_vehicle': draft['no_vehicle'],
       'vehicle': draft['no_vehicle'] == true ? null : vehicle,
+      // the last step, only from a server that offers it
+      if (ob.choice != null) ...{
+        'platform_id': ob.choice!.fixed == null ? draft['platform_id'] : null,
+        'scheme_id': draft['scheme_id'],
+      },
     };
   }
 
@@ -179,6 +188,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           (t?.requiresExpiry == true && doc['expiry_date'] == null)) {
         out.add(name);
       }
+    }
+    if (ob.choice != null) {
+      if (_company == null) out.add(l.companyLabel);
+      if (draft['scheme_id'] == null || !_schemes.any((x) => x.id == draft['scheme_id'])) out.add(l.schemeChoose);
     }
     if (draft['no_vehicle'] != true) {
       final photos = {for (final p in (vehicle['photos'] as List).cast<Map>()) p['position']};
@@ -265,7 +278,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final l = context.l;
-    final steps = [l.obStepData, l.obStepDocs, l.obStepVehicle, l.obStepReview];
+    final steps = [l.obStepData, l.obStepDocs, l.obStepVehicle, if (ob.choice != null) l.obStepCompany, l.obStepReview];
+    final last = steps.length - 1; // the review
     return Scaffold(
       appBar: AppBar(
         title: Text(l.obTitle),
@@ -312,13 +326,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 if (step == 0) ..._dataStep(),
                 if (step == 1) ..._docsStep(),
                 if (step == 2) ..._vehicleStep(),
-                if (step == 3) ..._reviewStep(),
+                if (step == 3 && step < last) ..._companyStep(),
+                if (step == last) ..._reviewStep(),
               ],
             ),
           ),
           SafeArea(
             minimum: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-            child: step < 3
+            child: step < last
                 ? BusyButton(key: const Key('ob-next'), label: l.continueBtn, onPressed: _next)
                 : BusyButton(
                     key: const Key('ob-submit'),
@@ -329,6 +344,82 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ],
       ),
     );
+  }
+
+  /// His company: the one the office set, or the one he picked.
+  int? get _company => ob.choice?.fixed?.id ?? draft['platform_id'] as int?;
+
+  /// The schemes his company offers.
+  List<PayScheme> get _schemes => [
+    for (final x in ob.choice?.schemes ?? const <PayScheme>[])
+      if (x.platformId == _company) x,
+  ];
+
+  String? _kind;
+
+  /// The registration's last step: his company (unless the office set it) and his pay scheme, both required; the
+  /// office approves them with the rest of his registration, at once.
+  List<Widget> _companyStep() {
+    final l = context.l;
+    final c = ob.choice!;
+    final lang = state.lang;
+    final company = c.companies.where((x) => x.id == _company).firstOrNull;
+    final all = _schemes;
+    final kinds = SchemeKindPicker.of(all);
+    final kind = kinds.contains(_kind) ? _kind : kinds.firstOrNull;
+    final shown = kinds.length > 1
+        ? [
+            for (final x in all)
+              if (x.payKind == kind) x,
+          ]
+        : all;
+    return [
+      Text(l.companyTitle, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 10),
+      if (c.fixed != null)
+        Banner2(key: const Key('ob-company-fixed'), text: c.fixed!.nameIn(lang), tone: BannerTone.info)
+      else
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final x in c.companies)
+              ChoiceChip(
+                key: Key('ob-company-${x.code}'),
+                label: Text(x.nameIn(lang)),
+                selected: _company == x.id,
+                onSelected: (_) => setState(() {
+                  if (draft['platform_id'] != x.id) draft['scheme_id'] = null; // another company: its own schemes
+                  draft['platform_id'] = x.id;
+                }),
+              ),
+          ],
+        ),
+      const SizedBox(height: 18),
+      if (company != null) ...[
+        Text(l.schemeChoose, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text(l.schemeChooseHint, style: const TextStyle(color: AppColors.muted, height: 1.5)),
+        const SizedBox(height: 12),
+        if (all.isEmpty) Banner2(key: const Key('ob-schemes-none'), text: l.offerNone, tone: BannerTone.warn),
+        if (kinds.length > 1) ...[
+          SchemeKindPicker(kinds: kinds, value: kind, onChanged: (k) => setState(() => _kind = k)),
+          const SizedBox(height: 4),
+        ],
+        for (final x in shown)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: SchemeOfferCard(
+              key: Key('ob-scheme-${x.code}'),
+              scheme: x,
+              company: company.nameIn(lang),
+              lang: lang,
+              selected: draft['scheme_id'] == x.id,
+              onPick: () => setState(() => draft['scheme_id'] = x.id),
+            ),
+          ),
+      ],
+    ];
   }
 
   List<Widget> _dataStep() {

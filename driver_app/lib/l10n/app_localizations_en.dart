@@ -155,6 +155,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get obStepVehicle => 'Vehicle';
 
   @override
+  String get obStepCompany => 'Company & scheme';
+
+  @override
   String get obStepReview => 'Review';
 
   @override
