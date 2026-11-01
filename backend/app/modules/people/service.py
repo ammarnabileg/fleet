@@ -918,7 +918,25 @@ def _profile(e: Employee, s: EmploymentStatus) -> dict:
         "platform_driver_id": e.platform_driver_id,
         "is_working": s.is_working,
         "is_terminal": s.is_terminal,
+        "hire_date": e.hire_date,
+        "ended_on": None,
     }
+
+
+def _with_end(db: Session, profiles: list[dict]) -> list[dict]:
+    """The day a departed employee's service ended: when he last moved to his current (terminal) status."""
+    gone = [p["id"] for p in profiles if p["is_terminal"]]
+    if gone:
+        rows = db.execute(
+            select(StatusHistory.employee_id, func.max(StatusHistory.changed_at))
+            .join(Employee, Employee.id == StatusHistory.employee_id)
+            .where(StatusHistory.employee_id.in_(gone), StatusHistory.status_code == Employee.status_code)
+            .group_by(StatusHistory.employee_id)
+        )
+        ended = {i: at.date() for i, at in rows if at is not None}
+        for p in profiles:
+            p["ended_on"] = ended.get(p["id"])
+    return profiles
 
 
 def payroll_profiles(db: Session, *, company_id: int, employee_ids: Iterable[int] = ()) -> list[dict]:
@@ -931,7 +949,7 @@ def payroll_profiles(db: Session, *, company_id: int, employee_ids: Iterable[int
         .where(or_(EmploymentStatus.is_working.is_(True), Employee.id.in_(extra)))
         .order_by(Employee.employee_number)
     )
-    return [_profile(e, s) for e, s in db.execute(q)]
+    return _with_end(db, [_profile(e, s) for e, s in db.execute(q)])
 
 
 def platform_profiles(
@@ -957,7 +975,7 @@ def platform_profiles(
         all_companies,
         company_ids,
     )
-    return [_profile(e, s) for e, s in db.execute(q)]
+    return _with_end(db, [_profile(e, s) for e, s in db.execute(q)])
 
 
 def payroll_profile(db: Session, employee_id: int) -> dict:

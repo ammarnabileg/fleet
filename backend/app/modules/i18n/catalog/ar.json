@@ -777,6 +777,8 @@
     "driver_app.splash_color": "لون الخلفية حول الصورة",
     "driver_app.splash_seconds": "مدة الظهور (ثانية)",
     "payroll.absence_deduction": "خصم أيام الغياب والإجازة بدون راتب — قرار العميل",
+    "payroll.prorate_part_month": "تقسيم الراتب الأساسي على أيام العمل لمن يبدأ أو يترك العمل في نص الشهر",
+    "payroll.approval_figures": "أرقام المسير أثناء مراحل الاعتماد",
     "finance": "المحاسبة",
     "finance.entry_approval": "اعتماد القيود",
     "finance.fiscal_year_start_month": "شهر بداية السنة المالية",

@@ -577,3 +577,36 @@ def test_a_name_that_looks_like_a_formula_stays_text_in_the_bank_file(admin_clie
     wb = openpyxl.load_workbook(io.BytesIO(admin_client.get(f"{P}/runs/{run['id']}/export").content))
     cells = [c for ws in wb for row in ws.iter_rows(min_row=2) for c in row if c.value == evil]
     assert cells and all(c.data_type == "s" for c in cells)
+
+
+def test_the_settings_net_cap_and_part_month_proration():
+    from datetime import date as d_
+
+    class _D:
+        def __init__(self, i, src):
+            self.id, self.start_month, self.source_type = i, d_(2026, 1, 1), src
+
+    # net: 10% of what the month leaves after its own charges (300 - 100 platform deductions = 200 -> 20)
+    dues = [runs.Due(_D(1, "accident"), Decimal("100"))]
+    st = _S(platform_deductions=Decimal("100"))
+    gross = _compute(_P(), st, dues=dues, percent="10", base="gross")
+    net = _compute(_P(), st, dues=dues, percent="10", base="net")
+    assert gross.cells["car_repair"] == Decimal("30.000") and net.cells["car_repair"] == Decimal("20.000")
+
+    # hired on the 21st of a 30-day month: 10 days of the basic
+    p = {"hire_date": d_(2026, 4, 21), "ended_on": None}
+    assert runs._employed(p, d_(2026, 4, 1)) == (10, 30)
+    assert runs._employed({"hire_date": d_(2025, 1, 1), "ended_on": d_(2026, 4, 5)}, d_(2026, 4, 1)) == (5, 30)
+    assert runs._employed({"hire_date": None, "ended_on": None}, d_(2026, 4, 1)) == (30, 30)
+    c = runs.compute(
+        _profile(),
+        _P(),
+        _S(),
+        {"working_days": 0, "orders": 0},
+        [],
+        cap_percent=Decimal("10"),
+        cap_base="gross",
+        name_lang="ar",
+        employed=(10, 30),
+    )
+    assert c.gross == Decimal("100.000")

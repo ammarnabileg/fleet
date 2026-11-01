@@ -221,7 +221,7 @@ class Run(Base):
     __table_args__ = (
         CheckConstraint("extract(day FROM month) = 1", name="month"),
         CheckConstraint("status IN ('draft', 'approved', 'paid')", name="status"),
-        CheckConstraint("cap_base IN ('basic', 'gross')", name="cap_base"),
+        CheckConstraint("cap_base IN ('basic', 'gross', 'net')", name="cap_base"),
         CheckConstraint("status = 'draft' OR approved_at IS NOT NULL", name="approved"),
         CheckConstraint("status <> 'paid' OR paid_at IS NOT NULL", name="paid"),
         UniqueConstraint("company_id", "month", name="runs_company_id_key"),

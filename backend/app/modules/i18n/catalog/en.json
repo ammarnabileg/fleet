@@ -777,6 +777,8 @@
     "driver_app.splash_color": "Background around the image",
     "driver_app.splash_seconds": "Shown for (seconds)",
     "payroll.absence_deduction": "Absence and unpaid leave days — the client's decision",
+    "payroll.prorate_part_month": "Prorate the basic salary by days employed for anyone hired or leaving mid-month",
+    "payroll.approval_figures": "Run figures during the approval steps",
     "finance": "Accounting",
     "finance.entry_approval": "Entry approval",
     "finance.fiscal_year_start_month": "Fiscal year starts in month",

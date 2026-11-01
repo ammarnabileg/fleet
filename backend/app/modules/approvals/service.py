@@ -260,6 +260,16 @@ def withdrawn(db: Session, process: str, document_ids: Iterable[int], *, note: s
         _cancel_pending(db, select(Request).where(Request.process == process, Request.document_id.in_(ids)), note)
 
 
+def started(db: Session, process: str, document_id: int) -> bool:
+    """Whether a document's pending approval already has a step decided."""
+    req = db.scalar(
+        select(Request).where(
+            Request.process == process, Request.document_id == document_id, Request.status == "pending"
+        )
+    )
+    return req is not None and bool(_decisions(db, [req.id]).get(req.id))
+
+
 def gate(
     db: Session,
     process: str,

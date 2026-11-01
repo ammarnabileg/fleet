@@ -24,6 +24,7 @@ missing or waiting for review) and locks the run and the month's statements. Wha
 took in approved months is what the next months build on. Reopening is for the latest approved month only.
 """
 
+import calendar
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
@@ -117,14 +118,18 @@ def compute(
     absence_rule: str = "none",
     inputs: month_inputs.Inputs | None = None,
     personal_rate: Decimal | None = None,
+    employed: tuple[int, int] | None = None,
 ) -> Computed:
     """One salary line. Pure: everything it needs is passed in. With `rules` (the driver's scheme this month) the
     scheme's calculator, or its version's rule blocks, gives the earnings and the penalties; `needs_scheme`: his
     platform has schemes, so a driver on none is flagged rather than paid on the platform's rates. The platform's own
     rates run as the same blocks (rules/convert.py). `inputs`: the month's values of the platform's fields, its
-    daily totals and the driver's approved exceptions; `personal_rate`: a price agreed with him on his scheme."""
+    daily totals and the driver's approved exceptions; `personal_rate`: a price agreed with him on his scheme;
+    `employed`: (days employed, days in the month) when the settings prorate a part month."""
     approved = statement if statement is not None and statement.status == "approved" else None
     basic = money(profile["basic_salary"])
+    if employed is not None and employed[0] < employed[1]:  # hired or left during the month
+        basic = money(basic * employed[0] / employed[1])
     pay_basic = platform.pay_basic if platform else True
     daily_valid = bool(platform and "valid_day" in platform.daily_fields)  # the driver sends it in each daily report
     needs_statement = bool(
@@ -224,7 +229,8 @@ def compute(
     taken = min(charges, max(gross, ZERO))
     uncollected = charges - taken + (result.uncovered if result else ZERO)
     room = gross - taken
-    allowed = min(month_cap(basic if cap_base == "basic" else max(earned, ZERO), cap_percent), room)
+    base = basic if cap_base == "basic" else max(earned - month_items if cap_base == "net" else earned, ZERO)
+    allowed = min(month_cap(base, cap_percent), room)
     for d in sorted(dues, key=lambda x: (x.deduction.start_month, x.deduction.id)):
         d.deducted = min(d.due, allowed)
         allowed -= d.deducted
@@ -399,6 +405,7 @@ def _fill(db: Session, run: Run) -> None:
     personal = month_inputs.personal_rates(db, ids, month)
     lang = i18n.default_language(db).code
     absence_rule = org.get_section(db, "payroll").absence_deduction
+    prorate = org.get_section(db, "payroll").prorate_part_month
     totals = {"lines": 0, "gross": ZERO, "deductions": ZERO, "net": ZERO, "blocking": 0, "by_platform": {}}
     month_ids = rider_ids.for_employees(db, {p["platform_id"] for p in profiles}, month)
     for p in profiles:
@@ -425,6 +432,7 @@ def _fill(db: Session, run: Run) -> None:
             absence_rule=absence_rule,
             inputs=inputs[p["id"]],
             personal_rate=personal.get(p["id"]) if scheme else None,
+            employed=_employed(p, month) if prorate else None,
         )
         line = Line(
             run_id=run.id,
@@ -454,6 +462,14 @@ def _fill(db: Session, run: Run) -> None:
         totals["by_platform"][key] = totals["by_platform"].get(key, 0) + 1
     run.totals = {k: (str(v) if isinstance(v, Decimal) else v) for k, v in totals.items()}
     db.flush()
+
+
+def _employed(profile: dict, month: date) -> tuple[int, int]:
+    """(days he was employed in the month, its days): from his hire date and the day his service ended."""
+    last = date(month.year, month.month, calendar.monthrange(month.year, month.month)[1])
+    start = max(profile.get("hire_date") or month, month)
+    end = min(profile.get("ended_on") or last, last)
+    return max(0, (end - start).days + 1), last.day
 
 
 def _settings(db: Session) -> tuple[Decimal, str]:
@@ -599,7 +615,11 @@ def approve(db: Session, public_id, *, actor_user_id: int, **scope) -> dict:
     if db.scalar(select(Run.id).where(Run.company_id == run.company_id, Run.month > run.month, Run.status != "draft")):
         raise AppError(409, "later_run_approved")
     run.cap_percent, run.cap_base = _settings(db)
-    _fill(db, run)  # what is approved is what the data says now
+    frozen = org.get_section(db, "payroll").approval_figures == "first_step" and approvals.started(
+        db, "payroll_run", run.id
+    )
+    if not frozen:  # the settings may freeze the figures the first approver signed
+        _fill(db, run)  # what is approved is what the data says now
     blocking = int(run.totals["blocking"])
     if blocking:
         db.commit()  # the recomputed lines show what blocks

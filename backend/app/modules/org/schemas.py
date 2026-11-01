@@ -182,9 +182,16 @@ class PayrollSettings(_Section):
     # the share of a month's salary payroll may deduct; the rest moves to the next month (FR-PAY-03). Set by the client
     # after legal advice (BR-16): no default, and payroll will not run without it
     max_deduction_percent: Decimal | None = Field(None, gt=0, le=100, max_digits=5, decimal_places=2)
-    # what the share is taken of: the basic salary, or the salary earned that month (after days the platform did
-    # not count). Also the client's decision (BR-16)
-    deduction_cap_base: Literal["basic", "gross"] = "gross"
+    # what the share is taken of: the basic salary, the salary earned that month (after days the platform did not
+    # count), or the net (also after the month's own charges: the platform's deductions, a cash shortage, lateness).
+    # Also the client's decision (BR-16)
+    deduction_cap_base: Literal["basic", "gross", "net"] = "gross"
+    # an employee hired or leaving during the month: his basic salary for the days he was employed (calendar days),
+    # or the whole month's. Off by default: the client's decision
+    prorate_part_month: bool = False
+    # an approval in several steps: the figures are recomputed at each step (the last approves what the data says
+    # then), or frozen at the first step (every approver signs the same figures; a change needs the run reopened)
+    approval_figures: Literal["each_step", "first_step"] = "each_step"
     # absence days and unpaid leave days (BR-18, FR-PAY-01): not deducted until the client decides (BRD 7.2); or a
     # day's wage each (the basic salary over the platform's day divisor, 30 without a platform)
     absence_deduction: Literal["none", "daily_wage"] = "none"

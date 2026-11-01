@@ -263,7 +263,9 @@ def test_withdrawn_switched_off_and_changed_amounts(admin_client, company, peopl
     acc2_id = db.scalar(text("SELECT id FROM identity.users WHERE username = 'acc2'"))
     configure(admin_client, "payroll_run", [step("أولى", role="accountant"), step("ثانية", role="accountant")])
     doc = {"document_id": 999_001, "document_key": uuid.uuid4(), "document_ref": "TEST-1", "company_id": None}
+    assert not service.started(db, "payroll_run", 999_001)
     assert service.gate(db, "payroll_run", **doc, amount=D("100"), actor_user_id=acc1_id) is False
+    assert service.started(db, "payroll_run", 999_001)  # what freezes a run's figures when the settings ask
     assert service.gate(db, "payroll_run", **doc, amount=D("120"), actor_user_id=acc2_id) is False  # step 1 again
     db.commit()
     rows = db.execute(text("SELECT status, cancel_note, current FROM approvals.requests WHERE document_id = 999001 "
