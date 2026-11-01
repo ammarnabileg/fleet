@@ -3270,6 +3270,8 @@ window.BT_EN = {
 "لا يُخصم شيء": "Nothing is deducted",
 "ملف السائق ومستنداته": "Driver file and documents",
 "لم يختر نظاماً.": "He picked no scheme.",
+"لم يختر نظاماً": "Picked no scheme",
+"النظام الذي اختاره:": "Scheme he picked:",
 "شروط النظام:": "Scheme terms:",
 "الصافي بعد خصومات الشهر": "Net after the month's deductions",
 "تُعاد حسبتها في كل مرحلة": "Recomputed at each step",

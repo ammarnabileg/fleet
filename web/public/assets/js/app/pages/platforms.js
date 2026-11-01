@@ -204,7 +204,7 @@
     return h`<button type="button" class="btn btn-sm btn-outline" data-req-act="details" data-req="${data}">${icon('eye', 14)} التفاصيل</button> <button type="button" class="btn btn-sm btn-primary" data-req-act="approve" data-req="${data}">موافقة</button> <button type="button" class="btn btn-sm btn-outline" data-req-act="reject" data-req="${data}">رفض</button>`;
   }
   function reqRow(r, canDecide) {
-    return h`<div class="between mb-12" data-pending-id="${r.id}"><div class="flex-1">${A.person(r.employee)}<span class="sub">${r.driver_note || ''} · ${fmt.dt(r.created_at)}</span></div><div class="nowrap">${canDecide ? actBtns(r) : ''}</div></div>`;
+    return h`<div class="between mb-12" data-pending-id="${r.id}"><div class="flex-1">${A.person(r.employee)}<span class="sub">${r.scheme ? h`النظام الذي اختاره: <b data-req-scheme>${api.name(r.scheme.name)}</b> · ` : h`<span class="text-warn">لم يختر نظاماً</span> · `}${r.driver_note ? r.driver_note + ' · ' : ''}${fmt.dt(r.created_at)}</span></div><div class="nowrap">${canDecide ? actBtns(r) : ''}</div></div>`;
   }
   function decide(kind, r, after) {
     if (kind === 'details') { A.employee(r.employee.id); return; } // his data and documents before deciding
