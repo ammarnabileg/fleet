@@ -3269,6 +3269,8 @@ window.BT_EN = {
 "لا يُخصم أي قسط بعد الإلغاء. يبقى في السجل بسببه.": "No installments are deducted after cancellation. It stays in the log with its reason.",
 "لا يُخصم شيء": "Nothing is deducted",
 "ملف السائق ومستنداته": "Driver file and documents",
+"لم يختر نظاماً.": "He picked no scheme.",
+"شروط النظام:": "Scheme terms:",
 "الصافي بعد خصومات الشهر": "Net after the month's deductions",
 "تُعاد حسبتها في كل مرحلة": "Recomputed at each step",
 "تتجمد عند أول مرحلة": "Frozen at the first step",

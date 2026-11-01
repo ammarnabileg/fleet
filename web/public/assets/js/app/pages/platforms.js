@@ -214,12 +214,14 @@
         run: function (reason) { return api.post('/payroll/platform-requests/' + r.id + '/reject', { version: r.version, note: reason }); }, done: 'رُفض الطلب', after: done });
       return;
     }
-    A.platforms().then(function (plats) {
+    Promise.all([A.platforms(), r.scheme ? api.get('/payroll/schemes').catch(function () { return []; }) : []]).then(function (res) {
+      var plats = res[0], picked = r.scheme && res[1].find(function (s) { return s.id === r.scheme.id; });
       A.formModal({
-        title: 'موافقة: ' + api.name(r.employee.name), subtitle: 'اختار ' + api.name(r.platform.name), icon: 'building-2', size: 'sm', submitText: 'موافقة', done: 'وُوفق الطلب: الشركة والمعرّف محفوظان',
+        title: 'موافقة: ' + api.name(r.employee.name), subtitle: 'اختار ' + api.name(r.platform.name), icon: 'building-2', size: 'lg', submitText: 'موافقة', done: 'وُوفق الطلب: الشركة والمعرّف محفوظان',
         body: h`<div class="form"><button type="button" class="btn btn-sm btn-outline" data-req-file>${icon('user-round', 14)} ملف السائق ومستنداته</button>${BT.f.select({ name: 'platform_id', label: 'الشركة', value: String(r.platform.id), placeholder: false, options: plats.filter(function (p) { return p.is_active; }).map(function (p) { return { v: String(p.id), t: api.name(p.name) }; }) })}
           ${BT.f.input({ name: 'platform_driver_id', label: 'معرّفه في المنصة', optional: true, hint: 'يمكن إضافته لاحقاً من «السواقين ومعرّفاتهم»' })}
-          ${r.scheme ? h`<div class="banner info fs-sm" data-picked-scheme>${icon('banknote', 15)}<div>${BT.lang === 'en' ? 'Picked the scheme «' + api.name(r.scheme.name) + '»: set on him from this month with the approval (not if you change the company: then set his scheme from his file).' : 'اختار نظام «' + api.name(r.scheme.name) + '»: يوضع عليه من هذا الشهر مع الموافقة (إن غيّرت الشركة لا يوضع، فحدد نظامه من ملفه).'}</div></div>` : ''}</div>`,
+          ${r.scheme ? h`<div class="banner info fs-sm" data-picked-scheme>${icon('banknote', 15)}<div>${BT.lang === 'en' ? 'Picked the scheme «' + api.name(r.scheme.name) + '»: set on him from this month with the approval (not if you change the company: then set his scheme from his file).' : 'اختار نظام «' + api.name(r.scheme.name) + '»: يوضع عليه من هذا الشهر مع الموافقة (إن غيّرت الشركة لا يوضع، فحدد نظامه من ملفه).'}</div></div>` : h`<div class="banner warn fs-sm">${icon('alert-triangle', 15)}<div>لم يختر نظاماً.</div></div>`}
+          ${picked && A.schemeTerms ? h`<div class="card" data-picked-terms><div class="card-h"><div class="card-t">شروط النظام: <b>${api.name(picked.name)}</b></div></div><div class="card-b">${BT.kv(A.schemeTerms(picked))}</div></div>` : ''}</div>`,
         onOpen: function (dlg) { var b = dlg.panel.querySelector('[data-req-file]'); if (b) b.onclick = function () { A.employee(r.employee.id); }; },
         submit: function (v) { return api.post('/payroll/platform-requests/' + r.id + '/approve', { version: r.version, platform_id: +v.platform_id, platform_driver_id: v.platform_driver_id || null }); },
         after: done
