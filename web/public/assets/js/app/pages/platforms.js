@@ -192,6 +192,7 @@
         { key: 'created_at', label: 'الطلب', render: function (r) { return h`<span class="num">${fmt.dt(r.created_at)}</span>${r.driver_note ? h`<span class="sub">${r.driver_note}</span>` : ''}`; } },
         { key: 'act', label: '', render: function (r) { return r.status === 'pending' && canDecide ? h`<span class="nowrap">${actBtns(r)}</span>` : ''; } }
       ],
+      rowClick: function (r) { if (r.employee) A.employee(r.employee.id); },
       empty: { icon: 'building-2', title: 'لا طلبات هنا', text: '' }
     });
     A.delegate(el, 'click', '[data-req-act]', function (e, b) { e.stopPropagation(); act(b, function () { t.refresh(); }); });
@@ -200,12 +201,13 @@
   }
   function actBtns(r) {
     var data = JSON.stringify({ id: r.id, version: r.version, platform: r.platform, scheme: r.scheme, employee: r.employee });
-    return h`<button type="button" class="btn btn-sm btn-primary" data-req-act="approve" data-req="${data}">موافقة</button> <button type="button" class="btn btn-sm btn-outline" data-req-act="reject" data-req="${data}">رفض</button>`;
+    return h`<button type="button" class="btn btn-sm btn-outline" data-req-act="details" data-req="${data}">${icon('eye', 14)} التفاصيل</button> <button type="button" class="btn btn-sm btn-primary" data-req-act="approve" data-req="${data}">موافقة</button> <button type="button" class="btn btn-sm btn-outline" data-req-act="reject" data-req="${data}">رفض</button>`;
   }
   function reqRow(r, canDecide) {
     return h`<div class="between mb-12" data-pending-id="${r.id}"><div class="flex-1">${A.person(r.employee)}<span class="sub">${r.driver_note || ''} · ${fmt.dt(r.created_at)}</span></div><div class="nowrap">${canDecide ? actBtns(r) : ''}</div></div>`;
   }
   function decide(kind, r, after) {
+    if (kind === 'details') { A.employee(r.employee.id); return; } // his data and documents before deciding
     var done = function () { A.refreshCounts(); if (after) after(); };
     if (kind === 'reject') {
       A.confirmRun({ title: 'رفض طلب ' + api.name(r.employee.name), message: 'يرى السائق السبب في التطبيق ويختار من جديد.', tone: 'danger', confirmText: 'رفض', reason: { label: 'السبب', required: true },
@@ -215,9 +217,10 @@
     A.platforms().then(function (plats) {
       A.formModal({
         title: 'موافقة: ' + api.name(r.employee.name), subtitle: 'اختار ' + api.name(r.platform.name), icon: 'building-2', size: 'sm', submitText: 'موافقة', done: 'وُوفق الطلب: الشركة والمعرّف محفوظان',
-        body: h`<div class="form">${BT.f.select({ name: 'platform_id', label: 'الشركة', value: String(r.platform.id), placeholder: false, options: plats.filter(function (p) { return p.is_active; }).map(function (p) { return { v: String(p.id), t: api.name(p.name) }; }) })}
+        body: h`<div class="form"><button type="button" class="btn btn-sm btn-outline" data-req-file>${icon('user-round', 14)} ملف السائق ومستنداته</button>${BT.f.select({ name: 'platform_id', label: 'الشركة', value: String(r.platform.id), placeholder: false, options: plats.filter(function (p) { return p.is_active; }).map(function (p) { return { v: String(p.id), t: api.name(p.name) }; }) })}
           ${BT.f.input({ name: 'platform_driver_id', label: 'معرّفه في المنصة', optional: true, hint: 'يمكن إضافته لاحقاً من «السواقين ومعرّفاتهم»' })}
           ${r.scheme ? h`<div class="banner info fs-sm" data-picked-scheme>${icon('banknote', 15)}<div>${BT.lang === 'en' ? 'Picked the scheme «' + api.name(r.scheme.name) + '»: set on him from this month with the approval (not if you change the company: then set his scheme from his file).' : 'اختار نظام «' + api.name(r.scheme.name) + '»: يوضع عليه من هذا الشهر مع الموافقة (إن غيّرت الشركة لا يوضع، فحدد نظامه من ملفه).'}</div></div>` : ''}</div>`,
+        onOpen: function (dlg) { var b = dlg.panel.querySelector('[data-req-file]'); if (b) b.onclick = function () { A.employee(r.employee.id); }; },
         submit: function (v) { return api.post('/payroll/platform-requests/' + r.id + '/approve', { version: r.version, platform_id: +v.platform_id, platform_driver_id: v.platform_driver_id || null }); },
         after: done
       });
