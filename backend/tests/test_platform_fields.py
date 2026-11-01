@@ -160,11 +160,13 @@ def test_daily_fields_add_up_in_the_month_review(admin_client, client, company, 
     for back, grocery, uniform in ((2, 3, True), (1, 4, False), (0, 5, True)):
         extra = {"grocery": grocery, "uniform": uniform, "tips_cash": "0.500"}
         sent.append(send(client, h, today() - timedelta(days=back), orders_count=10, valid_day=True, extra=extra))
-    for i, r in enumerate(sent):
-        owner_db.execute(
-            text("UPDATE daily_ops.reports SET business_date = :d WHERE public_id = :id"),
-            {"d": MONTH + timedelta(days=i), "id": r.json()["id"]},
-        )
+    # moved out of the way first, so early in a month a report does not land on a day another one still holds
+    for shift in (timedelta(days=-400), timedelta(0)):
+        for i, r in enumerate(sent):
+            owner_db.execute(
+                text("UPDATE daily_ops.reports SET business_date = :d WHERE public_id = :id"),
+                {"d": MONTH + shift + timedelta(days=i), "id": r.json()["id"]},
+            )
     owner_db.commit()
     for r in sent[:2]:
         admin_client.post(f"/api/v1/daily-reports/{r.json()['id']}/approve", json={})

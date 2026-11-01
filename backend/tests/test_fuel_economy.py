@@ -11,7 +11,7 @@ from app.core.clock import today, utcnow
 from tests.conftest import hand_over, make_vehicle
 from tests.test_finance import approve as approve_expense
 from tests.test_finance import expense
-from tests.test_fuel_claims import C, P, claim, driver_of, scheme
+from tests.test_fuel_claims import MONTH, C, P, assign, claim, driver_of, scheme
 
 E = "/api/v1/cash/fuel-economy"
 DAY = 24 * 60
@@ -43,6 +43,8 @@ def economy(admin_client, **params):
 def long_custody(admin_client, client, company, world):
     """A driver who has held his car for almost a week (claims may be up to a week old)."""
     s = driver_of(admin_client, client, company, world, custody=False)
+    # his fills go back almost a week: early in a month that is last month, and its scheme decides who pays
+    assign(admin_client, world["gas"], s["driver"], (MONTH - timedelta(days=1)).replace(day=1))
     s["vehicle"] = make_vehicle(admin_client, company["id"], km=10_000)
     at = (utcnow() - timedelta(days=6, hours=20)).isoformat()
     hand_over(admin_client, s["vehicle"], s["driver"], km=10_000, started_at=at)

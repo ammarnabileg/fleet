@@ -92,11 +92,20 @@ def test_the_month_comes_from_the_approved_daily_reports(admin_client, client, c
         send(client, h, today() - timedelta(days=back), orders_count=n, valid_day=v).json()
         for back, n, v in ((2, 20, True), (1, 25, True), (0, 5, False))
     ]
+
+    def move(report, day):
+        sql = text("UPDATE daily_ops.reports SET business_date = :d WHERE public_id = :id")
+        owner_db.execute(sql, {"d": day, "id": report["id"]})
+
+    away = MONTH - timedelta(days=400)  # out of the way, so early in a month no report lands on a day another holds
+    for i, report in enumerate(sent):
+        move(report, away + timedelta(days=i))
+    owner_db.commit()
+    # one more, sent now (the app takes today or the two days before) and kept out of the month until it is run once
+    late = send(client, h, today(), orders_count=9, valid_day=True).json()
+    move(late, away + timedelta(days=10))
     for i, report in enumerate(sent):  # the first three days of this month, whatever today is
-        owner_db.execute(
-            text("UPDATE daily_ops.reports SET business_date = :d WHERE public_id = :id"),
-            {"d": MONTH + timedelta(days=i), "id": report["id"]},
-        )
+        move(report, MONTH + timedelta(days=i))
     owner_db.commit()
     for report in sent:
         assert admin_client.post(f"/api/v1/daily-reports/{report['id']}/approve", json={}).status_code == 200
@@ -109,11 +118,7 @@ def test_the_month_comes_from_the_approved_daily_reports(admin_client, client, c
     assert (line["gross"], line["net"], line["flags"]) == ("317.500", "307.500", [])  # no monthly statement needed
 
     # a report still waiting for review: its orders, valid day and cash are not counted yet, so the month waits
-    late = send(client, h, today(), orders_count=9, valid_day=True).json()
-    owner_db.execute(
-        text("UPDATE daily_ops.reports SET business_date = :d WHERE public_id = :id"),
-        {"d": MONTH + timedelta(days=3), "id": late["id"]},
-    )
+    move(late, MONTH + timedelta(days=3))
     owner_db.commit()
     run = admin_client.post(f"{P}/runs/{run['id']}/recompute").json()
     line = next(x for x in run["lines"] if x["employee"]["id"] == d["id"])
