@@ -755,6 +755,11 @@ def update_role(db: Session, principal: Principal, code: str, *, version: int, c
     return after
 
 
+def employees_with_app(db: Session) -> set[int]:
+    """The employees using the app on a phone now (a bound device, not revoked)."""
+    return set(db.scalars(select(Device.employee_id).where(Device.revoked_at.is_(None))))
+
+
 def device_ids_of(db: Session, employee_id: int) -> set[int]:
     """Every phone the driver has used, signed out or replaced ones too (what it uploaded is still his)."""
     return set(db.scalars(select(Device.id).where(Device.employee_id == employee_id)))

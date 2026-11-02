@@ -236,6 +236,7 @@ def list_employees(
     status_code: str | None = None,
     is_driver: bool | None = None,
     platform_id: int | None = None,
+    has_platform_id: bool | None = None,
     no_phone: bool = False,
     branch_id: int | None = None,
     department: str | None = None,
@@ -263,6 +264,9 @@ def list_employees(
         query = query.where(Employee.is_driver.is_(is_driver))
     if platform_id is not None:
         query = query.where(Employee.platform_id == platform_id)
+    if has_platform_id is not None:  # his ID in his platform is on file (or not)
+        on_file = Employee.platform_driver_id.is_not(None) & (Employee.platform_driver_id != "")
+        query = query.where(on_file if has_platform_id else ~on_file)
     if no_phone:  # imported drivers still waiting for a phone (no app, no activation link)
         query = query.where(Employee.phone.is_(None))
     if branch_id is not None:

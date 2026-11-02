@@ -66,14 +66,25 @@ def list_employees(
     department: Annotated[str | None, Query(max_length=100)] = None,
     job_title: Annotated[str | None, Query(max_length=100)] = None,
     has_vehicle: bool | None = None,
+    has_platform_id: bool | None = None,
+    on_app: bool | None = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     principal: Principal = Depends(require_permission("employees.view")),
     db: Session = Depends(get_session),
 ):
-    # with a vehicle = in an open custody now (BRD FR-HR-03)
-    holders = None if has_vehicle is None else {c.driver_id for c in fleet.open_custodies(db)}
+    only: set[int] | None = None
+    except_ids: set[int] = set()
+    # with a vehicle = in an open custody now (BRD FR-HR-03); on the app = a phone bound to him now
+    for wanted, ids in (
+        (has_vehicle, lambda: {c.driver_id for c in fleet.open_custodies(db)}),
+        (on_app, lambda: identity.employees_with_app(db)),
+    ):
+        if wanted is True:
+            only = ids() if only is None else only & ids()
+        elif wanted is False:
+            except_ids |= ids()
     return service.list_employees(
         db,
         show_salary=principal.has(SALARY),
@@ -81,12 +92,13 @@ def list_employees(
         status_code=status_code,
         is_driver=is_driver,
         platform_id=platform_id,
+        has_platform_id=has_platform_id,
         no_phone=no_phone,
         branch_id=branch_id,
         department=department,
         job_title=job_title,
-        only_ids=holders if has_vehicle else None,
-        except_ids=holders if has_vehicle is False else None,
+        only_ids=only,
+        except_ids=except_ids,
         q=q,
         limit=limit,
         offset=offset,

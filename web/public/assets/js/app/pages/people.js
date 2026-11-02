@@ -83,11 +83,12 @@
     q = q || {};
     var el = document.getElementById('emp-table');
     var facets = api.get('/employees/facets').then(null, function () { return { departments: [], job_titles: [] }; });
-    Promise.all([loadStatuses().then(null, function () { return []; }), facets]).then(function (r) {
-      var f = r[1];
+    var plats = A.platforms ? A.platforms().then(null, function () { return []; }) : Promise.resolve([]);
+    Promise.all([loadStatuses().then(null, function () { return []; }), facets, plats]).then(function (r) {
+      var f = r[1], platforms = r[2] || [];
       // FR-HR-03: status, company, branch, department, job, driver or not, with a vehicle or without
       // from the dashboard: one status at a time (FR-DSH-06), the drivers, those with no vehicle
-      var filters = { status: status || '', company: '', branch: '', department: '', job: '', vehicle: q.vehicle === 'true' || q.vehicle === 'false' ? q.vehicle : '' };
+      var filters = { status: status || '', company: '', branch: '', department: '', job: '', vehicle: q.vehicle === 'true' || q.vehicle === 'false' ? q.vehicle : '', platform: q.platform || '', reg: q.reg || '' };
       var select = function (key, label, all, options) { return h`<select class="select" data-f="${key}" aria-label="${label}"><option value="">${all}</option>${options.map(function (o) { return h`<option value="${o.v}" ${String(o.v) === filters[key] ? raw('selected') : ''}>${o.t}</option>`; })}</select>`; };
       var plain = function (list) { return list.map(function (x) { return { v: x, t: x }; }); };
       var tools = h`${select('status', 'الحالة', 'كل الحالات', (statuses || []).map(function (s) { return { v: s.code, t: api.name(s.name) }; }))}
@@ -95,13 +96,17 @@
         ${api.branches.length > 1 ? select('branch', 'الفرع', 'كل الفروع', api.branches.map(function (b) { return { v: b.id, t: api.name(b.name) }; })) : ''}
         ${f.departments.length ? select('department', 'القسم', 'كل الأقسام', plain(f.departments)) : ''}
         ${f.job_titles.length ? select('job', 'الوظيفة', 'كل الوظائف', plain(f.job_titles)) : ''}
-        ${select('vehicle', 'السيارة', 'بسيارة وبدونها', [{ v: 'true', t: 'معه سيارة الآن' }, { v: 'false', t: 'بلا سيارة' }])}`;
+        ${select('vehicle', 'السيارة', 'بسيارة وبدونها', [{ v: 'true', t: 'معه سيارة الآن' }, { v: 'false', t: 'بلا سيارة' }])}
+        ${platforms.length ? select('platform', 'المنصة', 'كل المنصات', platforms.map(function (p) { return { v: p.id, t: api.name(p.name) }; })) : ''}
+        ${select('reg', 'التسجيل', 'مسجّل وغير مسجّل', [{ v: 'app', t: 'سجّل على التطبيق' }, { v: 'id_only', t: 'له معرّف ولم يسجّل' }, { v: 'not_app', t: 'لم يسجّل على التطبيق' }])}`;
       var t = BT.table(el, {
         fetch: function (s) {
           return api.get('/employees', {
             q: s.q, is_driver: { 'true': true, 'false': false, no_phone: true }[s.chip], no_phone: s.chip === 'no_phone' || null,
             status_code: filters.status, company_id: filters.company, branch_id: filters.branch, department: filters.department, job_title: filters.job,
-            has_vehicle: filters.vehicle, limit: s.limit, offset: s.offset
+            has_vehicle: filters.vehicle, platform_id: filters.platform || null,
+            on_app: { app: true, id_only: false, not_app: false }[filters.reg], has_platform_id: filters.reg === 'id_only' || null,
+            limit: s.limit, offset: s.offset
           });
         },
         search: { placeholder: 'الاسم أو الرقم الوظيفي أو الجوال أو رقم المنصة…' },

@@ -53,3 +53,24 @@ def test_facets_stay_within_the_users_companies(admin_client, new_client, compan
     assert "قسم أ فقط" in facets["departments"] and "قسم ب فقط" not in facets["departments"]
     assert "وظيفة ب فقط" not in facets["job_titles"]
     assert ids(c, department="قسم ب فقط") == set()
+
+
+def test_by_platform_and_whether_registered_on_the_app(admin_client, client, companies):
+    from tests.conftest import bind_device
+
+    a = companies["a"]["id"]
+    r = admin_client.post("/api/v1/payroll/platforms", json={"code": "regf", "name": name("كيتا ف", "Keeta f")})
+    assert r.status_code == 201, r.text
+    plat = r.json()["id"]
+    on_app = make_driver(admin_client, a, platform_id=plat, platform_driver_id="K-1")
+    id_only = make_driver(admin_client, a, platform_id=plat, platform_driver_id="K-2")
+    nothing = make_driver(admin_client, a, platform_id=plat)
+    elsewhere = make_driver(admin_client, a, platform_driver_id=None)
+    bind_device(client, on_app["phone"])
+
+    mine = {on_app["id"], id_only["id"], nothing["id"], elsewhere["id"]}
+    assert ids(admin_client, platform_id=plat) == {on_app["id"], id_only["id"], nothing["id"]}
+    assert ids(admin_client, platform_id=plat, on_app=True) == {on_app["id"]}
+    # the ones the platform knows (an ID on file) who have not registered on the app yet
+    assert ids(admin_client, has_platform_id=True, on_app=False) & mine == {id_only["id"]}
+    assert ids(admin_client, on_app=False) & mine == {id_only["id"], nothing["id"], elsewhere["id"]}
