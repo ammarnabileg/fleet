@@ -211,7 +211,7 @@
       after: function () { t.refresh(); }
     });
     if (api.can('custody.assign')) {
-      var changeRow = function (x) { return h`${A.person(x.driver)} ${A.plate(x.vehicle_plate, x.vehicle_id)}${x.requested_plate ? h` <span class="muted">←</span> ${A.requestedCar(x)}` : ''} <span class="muted fs-sm">${fmt.dt(x.created_at)}</span><div class="fs-sm">السبب: ${x.reason}</div>`; };
+      var changeRow = function (x) { return h`${A.person(x.driver)} ${A.plate(x.vehicle_plate, x.vehicle_id)}${x.requested_plate ? h` <span class="muted">←</span> ${A.requestedCar(x)}` : ''} <span class="muted fs-sm">${fmt.dt(x.created_at)}</span><div class="fs-sm"><span>السبب:</span> <bdi data-no-tr>${x.reason}</bdi></div>`; };
       var closeAction = { label: 'إغلاق دون تغيير', title: 'إغلاق الطلب دون تغيير السيارة', message: 'يُغلق الطلب بدون تسليم السيارة المطلوبة (مثلاً: اتصلحت عربيته)، ويصل السبب للسائق.', reason: { label: 'السبب' }, done: 'أُغلق الطلب', run: function (x, reason) { return api.post('/vehicle-change-requests/' + x.id + '/close', { note: reason }); } };
       var rejectAction = { label: 'رفض', tone: 'danger', title: 'رفض طلب تغيير السيارة', message: 'يصل السبب للسائق في التطبيق.', reason: { label: 'السبب' }, done: 'رُفض الطلب', run: function (x, reason) { return api.post('/vehicle-change-requests/' + x.id + '/reject', { note: reason }); } };
       var changesAfter = function () { t.refresh(); if (changes) changes.refresh(); };

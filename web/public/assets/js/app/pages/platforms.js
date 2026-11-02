@@ -192,7 +192,6 @@
         { key: 'created_at', label: 'الطلب', render: function (r) { return h`<span class="num">${fmt.dt(r.created_at)}</span>${r.driver_note ? h`<span class="sub">${r.driver_note}</span>` : ''}`; } },
         { key: 'act', label: '', render: function (r) { return r.status === 'pending' && canDecide ? h`<span class="nowrap">${actBtns(r)}</span>` : ''; } }
       ],
-      rowClick: function (r) { if (r.employee) A.employee(r.employee.id); },
       empty: { icon: 'building-2', title: 'لا طلبات هنا', text: '' }
     });
     A.delegate(el, 'click', '[data-req-act]', function (e, b) { e.stopPropagation(); act(b, function () { t.refresh(); }); });
@@ -220,7 +219,7 @@
         title: 'موافقة: ' + api.name(r.employee.name), subtitle: 'اختار ' + api.name(r.platform.name), icon: 'building-2', size: 'lg', submitText: 'موافقة', done: 'وُوفق الطلب: الشركة والمعرّف محفوظان',
         body: h`<div class="form"><button type="button" class="btn btn-sm btn-outline" data-req-file>${icon('user-round', 14)} ملف السائق ومستنداته</button>${BT.f.select({ name: 'platform_id', label: 'الشركة', value: String(r.platform.id), placeholder: false, options: plats.filter(function (p) { return p.is_active; }).map(function (p) { return { v: String(p.id), t: api.name(p.name) }; }) })}
           ${BT.f.input({ name: 'platform_driver_id', label: 'معرّفه في المنصة', optional: true, hint: 'يمكن إضافته لاحقاً من «السواقين ومعرّفاتهم»' })}
-          ${r.scheme ? h`<div class="banner info fs-sm" data-picked-scheme>${icon('banknote', 15)}<div>${BT.lang === 'en' ? 'Picked the scheme «' + api.name(r.scheme.name) + '»: set on him from this month with the approval (not if you change the company: then set his scheme from his file).' : 'اختار نظام «' + api.name(r.scheme.name) + '»: يوضع عليه من هذا الشهر مع الموافقة (إن غيّرت الشركة لا يوضع، فحدد نظامه من ملفه).'}</div></div>` : h`<div class="banner warn fs-sm">${icon('alert-triangle', 15)}<div>لم يختر نظاماً.</div></div>`}
+          ${r.scheme ? h`<div class="banner info fs-sm" data-picked-scheme>${icon('banknote', 15)}<div>${BT.lang === 'en' ? 'Picked the scheme «' + api.name(r.scheme.name) + '»: set on him from this month with the approval (not if you change the company: then set his scheme from his file).' : 'اختار نظام «' + api.name(r.scheme.name) + '»: يوضع عليه من هذا الشهر مع الموافقة (إن غيّرت الشركة لا يوضع، فحدد نظامه من ملفه).'}</div></div>` : h`<div class="banner warn fs-sm">${icon('triangle-alert', 15)}<div>لم يختر نظاماً.</div></div>`}
           ${picked && A.schemeTerms ? h`<div class="card" data-picked-terms><div class="card-h"><div class="card-t">شروط النظام: <b>${api.name(picked.name)}</b></div></div><div class="card-b">${BT.kv(A.schemeTerms(picked))}</div></div>` : ''}</div>`,
         onOpen: function (dlg) { var b = dlg.panel.querySelector('[data-req-file]'); if (b) b.onclick = function () { A.employee(r.employee.id); }; },
         submit: function (v) { return api.post('/payroll/platform-requests/' + r.id + '/approve', { version: r.version, platform_id: +v.platform_id, platform_driver_id: v.platform_driver_id || null }); },
@@ -258,7 +257,7 @@
               ['التقرير اليومي', (p.daily_fields || []).length ? p.daily_fields.map(function (f) { return api.t('daily_field', f); }).join('، ') : 'لقطة الشاشة فقط'],
               ['كشف الشهر من السائق', p.driver_fields.length ? p.driver_fields.map(function (f) { return api.t('driver_field', f); }).join('، ') + ' مع لقطات الشاشة' : 'لا يُطلب: الشهر من التقارير اليومية المعتمدة'],
               ['طريقة الحساب', h`<a href="#/platforms/${p.id}?tab=schemes">أنظمة الدفع ← مصمم القواعد</a>`],
-              ['أعمدة الكشف', p.columns.length ? p.columns.length + ' عموداً: ' + p.columns.slice(0, 4).map(function (c) { return c.header; }).join('، ') + '…' : 'كل الأعمدة (لا نموذج)']
+              ['أعمدة الكشف', p.columns.length ? h`<span class="num">${p.columns.length}</span> <span>عموداً:</span> <bdi data-no-tr>${p.columns.slice(0, 4).map(function (c) { return c.header; }).join('، ')}…</bdi>` : 'كل الأعمدة (لا نموذج)']
             ])}</div></div>`;
         })}</div>` : h`<div class="card"><div class="card-b">${BT.empty('banknote', 'لا توجد منصات بعد', 'أضف منصة جديدة واختر ما يرسله السائق في تقريره اليومي، أو ارفع نموذج كشف الرواتب الذي تستخدمونه (Excel): كل ورقة فيه تصبح منصة بأعمدتها وترتيبها.')}</div></div>`}`;
     }).catch(function () {});

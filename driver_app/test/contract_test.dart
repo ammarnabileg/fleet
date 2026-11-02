@@ -464,6 +464,18 @@ void main() {
         'bank_name': 'NBK',
       });
       await admin.call('PUT', '/employees/${driver['id']}/app-access', {'app_access': 'active'});
+      // the registration's last step: the company he works with and one of its pay schemes, both required
+      final platform = await admin.call('POST', '/payroll/platforms', {
+        'code': 'r$n',
+        'name': {'ar': 'منصة التسجيل', 'en': 'Registration platform'},
+      });
+      final scheme = await admin.call('POST', '/payroll/schemes', {
+        'platform_id': platform['id'],
+        'code': 'reg',
+        'name': {'ar': 'سعر ثابت', 'en': 'Fixed'},
+        'calculator': 'per_order',
+        'per_order': '0.350',
+      });
       final vehicle = await admin.call('POST', '/vehicles', {
         'plate_number': '88/$n',
         'company_id': company,
@@ -487,6 +499,11 @@ void main() {
       );
       expect(ob.known.locked, ['iban', 'bank_name']);
       final india = ob.nationalities.firstWhere((x) => x.en == 'India');
+      final choice = ob.choice!;
+      expect(choice.fixed, isNull, reason: 'no company set by the office: he picks one');
+      expect(choice.companies.map((c) => c.id), contains(platform['id']));
+      final picked = choice.schemes.firstWhere((x) => x.id == scheme['id']);
+      expect(picked.platformId, platform['id']);
 
       // the payload exactly as the registration screen builds it
       Future<String> up(String name, String source) async =>
@@ -515,6 +532,8 @@ void main() {
             for (final p in ob.vehiclePhotos) {'position': p, 'sha256': await up(p, 'camera')},
           ],
         },
+        'platform_id': platform['id'],
+        'scheme_id': picked.id,
       };
       await state.api.put('/driver/onboarding', body: draft);
       await state.api.post('/driver/onboarding/submit');
