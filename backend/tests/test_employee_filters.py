@@ -74,3 +74,16 @@ def test_by_platform_and_whether_registered_on_the_app(admin_client, client, com
     # the ones the platform knows (an ID on file) who have not registered on the app yet
     assert ids(admin_client, has_platform_id=True, on_app=False) & mine == {id_only["id"]}
     assert ids(admin_client, on_app=False) & mine == {id_only["id"], nothing["id"], elsewhere["id"]}
+
+
+def test_clearing_platform_and_id_for_the_chosen_drivers(admin_client, companies):
+    a = companies["a"]["id"]
+    plat = admin_client.post("/api/v1/payroll/platforms", json={"code": "clr", "name": name("ت", "c")}).json()["id"]
+    on = make_driver(admin_client, a, platform_id=plat, platform_driver_id="K-9")
+    other = make_driver(admin_client, a, platform_id=plat, platform_driver_id="K-10")
+    r = admin_client.post(f"{E}/platform", json={"employee_ids": [on["id"]], "platform_id": None})
+    assert r.status_code == 200 and r.json()["updated"] == 1, r.text
+    e = admin_client.get(f"{E}/{on['id']}").json()
+    assert (e["platform_id"], e["platform_driver_id"]) == (None, None)
+    e = admin_client.get(f"{E}/{other['id']}").json()  # only the chosen ones
+    assert (e["platform_id"], e["platform_driver_id"]) == (plat, "K-10")

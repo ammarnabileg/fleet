@@ -117,6 +117,12 @@
           api.can('devices.manage') ? { label: 'إرسال رابط التفعيل على واتساب', icon: 'send', cls: 'btn-primary', run: function (rows, clear) { A.bulkLinks(rows.filter(function (r) { return r.is_driver; }), clear); } } : null,
           api.can('devices.manage') ? { label: 'الدخول بالرقم المدني', icon: 'key-round', cls: 'btn-outline', run: function (rows, clear) { A.claimForm(rows.filter(function (r) { return r.is_driver; }), clear); } } : null,
           api.can('employees.update') ? { label: 'تعيين منصة', icon: 'store', cls: 'btn-outline', run: function (rows, clear) { A.assignPlatform(rows, function () { clear(); t.refresh(); }); } } : null,
+          api.can('employees.update') ? { label: 'مسح المنصة والمعرّف', icon: 'trash-2', cls: 'btn-outline', run: function (rows, clear) {
+            var drivers = rows.filter(function (r) { return r.is_driver; });
+            A.confirmRun({ title: 'مسح المنصة والمعرّف', message: 'يُشال السائقون المحددون من منصتهم ويُمسح معرّفهم فيها. لا يغيّر شيئاً في رواتب الأشهر المعتمدة.', tone: 'danger', confirmText: 'مسح',
+              run: function () { return api.post('/employees/platform', { employee_ids: drivers.map(function (d) { return d.id; }), platform_id: null }); },
+              done: 'تم المسح', after: function () { clear(); t.refresh(); } });
+          } } : null,
           api.can('payroll.schemes') ? { label: 'نظام الدفع', icon: 'banknote', cls: 'btn-outline', run: function (rows, clear) { A.assignScheme(rows, clear); } } : null
         ].filter(Boolean),
         columns: [
