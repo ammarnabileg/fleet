@@ -1,0 +1,1537 @@
+[
+ {
+  "code": "talabat_batch_plan",
+  "platform_hint": "talabat",
+  "name": {
+   "ar": "طلبات — نظام الباتش (حسب الوثيقة)",
+   "en": "Talabat — batch (plan document)"
+  },
+  "description": {
+   "ar": "سعر الطلب حسب الباتش: 1=0.700، 2=0.675، 3=0.600، 4=0.525، 5 و6 و7=0.400. الطلبات قد تأتي مقسمة على أكثر من باتش في الشهر، وكل باتش بسعره. في كل الباتشات يتحمل السائق البنزين وشريحة الهاتف.",
+   "en": "Price per order by batch: 1=0.700, 2=0.675, 3=0.600, 4=0.525, 5, 6 and 7=0.400. A month's orders may be split by batch, each at its own price. In every batch the driver pays the fuel and the SIM."
+  },
+  "needs_confirmation": true,
+  "blocks": [
+   {
+    "type": "batch_rate",
+    "params": {
+     "rates": [
+      {
+       "batch": 1,
+       "rate": "0.700"
+      },
+      {
+       "batch": 2,
+       "rate": "0.675"
+      },
+      {
+       "batch": 3,
+       "rate": "0.600"
+      },
+      {
+       "batch": 4,
+       "rate": "0.525"
+      },
+      {
+       "batch": 5,
+       "rate": "0.400"
+      },
+      {
+       "batch": 6,
+       "rate": "0.400"
+      },
+      {
+       "batch": 7,
+       "rate": "0.400"
+      }
+     ],
+     "personal_rate": true
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "gas",
+     "responsibility": "driver"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "phone",
+     "responsibility": "driver"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   }
+  ]
+ },
+ {
+  "code": "talabat_batch_paid",
+  "platform_hint": "talabat",
+  "name": {
+   "ar": "طلبات — نظام الباتش (كما صُرف فعلياً)",
+   "en": "Talabat — batch (as actually paid)"
+  },
+  "description": {
+   "ar": "كما صُرف آخر شهر: 1=0.750، 2=0.700، 3=0.650، 4=0.550، 5 و6=0.450، والطلبات مقسمة على الباتشات داخل الشهر. بعض السائقين بسعر خاص ثابت لكل الباتشات.",
+   "en": "As paid last month: 1=0.750, 2=0.700, 3=0.650, 4=0.550, 5 and 6=0.450, orders split by batch within the month. Some drivers have a personal flat rate across batches."
+  },
+  "needs_confirmation": false,
+  "blocks": [
+   {
+    "type": "batch_rate",
+    "params": {
+     "rates": [
+      {
+       "batch": 1,
+       "rate": "0.750"
+      },
+      {
+       "batch": 2,
+       "rate": "0.700"
+      },
+      {
+       "batch": 3,
+       "rate": "0.650"
+      },
+      {
+       "batch": 4,
+       "rate": "0.550"
+      },
+      {
+       "batch": 5,
+       "rate": "0.450"
+      },
+      {
+       "batch": 6,
+       "rate": "0.450"
+      }
+     ],
+     "personal_rate": true
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   }
+  ]
+ },
+ {
+  "code": "talabat_fixed_350",
+  "platform_hint": "talabat",
+  "name": {
+   "ar": "طلبات — سعر ثابت 0.350",
+   "en": "Talabat — fixed price 0.350"
+  },
+  "description": {
+   "ar": "كل طلب بـ 0.350، الشركة تتحمل الصيانة والسكن والبنزين والهاتف (للعلم، لا خصم تلقائي)، ولا خصم على نقص التارجت.",
+   "en": "Each order at 0.350; the company bears maintenance, housing, gas and phone (for information, never deducted automatically); no missing-target deduction."
+  },
+  "needs_confirmation": true,
+  "blocks": [
+   {
+    "type": "per_order",
+    "params": {
+     "rate": "0.350",
+     "source": "orders"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "maintenance",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "housing",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "gas",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "phone",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   }
+  ]
+ },
+ {
+  "code": "talabat_fixed_550",
+  "platform_hint": "talabat",
+  "name": {
+   "ar": "طلبات — سعر ثابت 0.550",
+   "en": "Talabat — fixed price 0.550"
+  },
+  "description": {
+   "ar": "كل طلب بـ 0.550، السائق يتحمل البنزين والهاتف (للعلم، لا خصم تلقائي)، ولا خصم على نقص التارجت.",
+   "en": "Each order at 0.550; the driver bears gas and phone (for information, never deducted automatically); no missing-target deduction."
+  },
+  "needs_confirmation": true,
+  "blocks": [
+   {
+    "type": "per_order",
+    "params": {
+     "rate": "0.550",
+     "source": "orders"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "maintenance",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "housing",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "gas",
+     "responsibility": "driver"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "phone",
+     "responsibility": "driver"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   }
+  ]
+ },
+ {
+  "code": "talabat_fixed_680",
+  "platform_hint": "talabat",
+  "name": {
+   "ar": "طلبات — سعر ثابت 0.680",
+   "en": "Talabat — fixed price 0.680"
+  },
+  "description": {
+   "ar": "كل طلب بـ 0.680، السائق يتحمل الصيانة والسكن والبنزين والهاتف (للعلم، لا خصم تلقائي)، ولا خصم على نقص التارجت.",
+   "en": "Each order at 0.680; the driver bears maintenance, housing, gas and phone (for information, never deducted automatically); no missing-target deduction."
+  },
+  "needs_confirmation": true,
+  "blocks": [
+   {
+    "type": "per_order",
+    "params": {
+     "rate": "0.680",
+     "source": "orders"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "maintenance",
+     "responsibility": "driver"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "housing",
+     "responsibility": "driver"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "gas",
+     "responsibility": "driver"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "phone",
+     "responsibility": "driver"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   }
+  ]
+ },
+ {
+  "code": "keeta_batches",
+  "platform_hint": "keeta",
+  "default": true,
+  "name": {
+   "ar": "كيتا — نظام الباتشات (تارجت 420)",
+   "en": "Keeta — batches (target 420)"
+  },
+  "description": {
+   "ar": "سعر الطلب حسب باتش السائق (تحدده كيتا وقد يتغير خلال الشهر، وكل صف باتش بسعره): 1=0.475، 2=0.392، 3=0.350، بلا راتب أساسي ولا بونص. التارجت 420 طلباً في الشهر: كل طلب ناقص يُخصم بسعر الباتش الحالي (آخر باتش في الشهر). تفويت Star Day يُخصم منه 100، وكل علامة حضور (X) تُخصم 20. الأيام الصالحة للعلم فقط (تُفعّل من القاعدة عند الحاجة).",
+   "en": "Price per order by the driver's batch (set by Keeta, it may change during the month, each batch row at its own price): 1=0.475, 2=0.392, 3=0.350; no basic salary, no bonus. Target 420 orders a month: each missing order is deducted at his current batch's price (the month's latest batch). A missed star day takes 100, each attendance mark (X) 20. Valid days for information only (switch the rule on when needed)."
+  },
+  "needs_confirmation": false,
+  "blocks": [
+   {
+    "type": "batch_rate",
+    "params": {
+     "rates": [
+      {
+       "batch": 1,
+       "rate": "0.475"
+      },
+      {
+       "batch": 2,
+       "rate": "0.392"
+      },
+      {
+       "batch": 3,
+       "rate": "0.350"
+      }
+     ],
+     "personal_rate": true
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "star_day",
+    "params": {},
+    "condition": [],
+    "on_exception": "neutralize",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "special_day_violation",
+    "params": {
+     "amount": "100.000",
+     "when": "month_invalid"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "missing_orders",
+    "params": {
+     "source": "orders",
+     "target": 420,
+     "rate_from": "batch",
+     "batch_pick": "last"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "attendance_marks",
+    "params": {
+     "mode": "per_mark",
+     "amount": "20.000"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "required_days",
+    "params": {
+     "days": 28,
+     "invalidates": false,
+     "deduction": "none"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   }
+  ]
+ },
+ {
+  "code": "keeta_plan",
+  "platform_hint": "keeta",
+  "name": {
+   "ar": "كيتا — سعر أساسي وشرائح وعقوبات (حسب الوثيقة)",
+   "en": "Keeta — base price, tiers and penalties (plan document)"
+  },
+  "description": {
+   "ar": "0.350 للطلب، تارجت 420 و28 يوماً صالحاً، شرائح 450←50، 540←90، 620←130، 710←200 (الأعلى فقط)، علامات 3←10 و4←30، أكثر من 4 علامات أو تفويت Star Day: كل الطلبات بـ 0.200 بلا بونص، وكل طلب ناقص 0.350. القرارات A–J.",
+   "en": "0.350 per order, target 420 and 28 valid days, tiers 450→50, 540→90, 620→130, 710→200 (highest only), marks 3→10 and 4→30; more than 4 marks or a missed star day: every order at 0.200 with no bonus, and 0.350 per missing order. Decisions A–J."
+  },
+  "needs_confirmation": true,
+  "blocks": [
+   {
+    "type": "exception_days",
+    "params": {
+     "effect": "count_valid"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "per_order",
+    "params": {
+     "rate": "0.350",
+     "source": "orders"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "star_day",
+    "params": {},
+    "condition": [],
+    "on_exception": "neutralize",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "price_change",
+    "params": {
+     "rate": "0.200",
+     "mode": "replace"
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_true"
+     }
+    ],
+    "on_exception": "none",
+    "group": "reduced",
+    "label": null
+   },
+   {
+    "type": "price_change",
+    "params": {
+     "rate": "0.200",
+     "mode": "replace"
+    },
+    "condition": [
+     {
+      "fact": "marks",
+      "op": "gt",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": "reduced",
+    "label": null
+   },
+   {
+    "type": "tier_bonus",
+    "params": {
+     "source": "orders",
+     "mode": "highest",
+     "tiers": [
+      {
+       "from": 450,
+       "amount": "50.000"
+      },
+      {
+       "from": 540,
+       "amount": "90.000"
+      },
+      {
+       "from": 620,
+       "amount": "130.000"
+      },
+      {
+       "from": 710,
+       "amount": "200.000"
+      }
+     ]
+    },
+    "condition": [
+     {
+      "fact": "price_changed",
+      "op": "is_false"
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "required_days",
+    "params": {
+     "days": 28,
+     "invalidates": false,
+     "deduction": "none"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "missing_orders",
+    "params": {
+     "source": "orders",
+     "target": 420,
+     "rate": "0.350"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "attendance_marks",
+    "params": {
+     "mode": "table",
+     "table": [
+      {
+       "from": 3,
+       "amount": "10.000"
+      },
+      {
+       "from": 4,
+       "amount": "30.000"
+      }
+     ]
+    },
+    "condition": [
+     {
+      "fact": "price_changed",
+      "op": "is_false"
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   }
+  ],
+  "legacy": true
+ },
+ {
+  "code": "keeta_per_order_350",
+  "platform_hint": "keeta",
+  "name": {
+   "ar": "كيتا — بالطلب 350 فلس مع شرائح البونص",
+   "en": "Keeta — 0.350 per order with bonus tiers"
+  },
+  "description": {
+   "ar": "0.350 د.ك لكل طلب. التارجت 420 طلباً: كل طلب ناقص يُخصم 0.350. مطلوب 28 يوماً صالحاً، وأيام النجمة إلزامية. البونص الشهري لأعلى شريحة فقط: 450 طلباً 50، 540 طلباً 90، 620 طلباً 130، 710 طلباً 200 د.ك. العلامات الحمراء: 1–2 بلا خصم، 3 علامات − 10، 4 علامات − 30. أكثر من 4 علامات أو علامة في يوم نجمة: كل الطلبات بـ 0.200 بلا بونص، ويستمر خصم نقص التارجت (إلا إذا ثبت أن الخطأ ليس منه). البقشيش يُضاف، وتلف الطعام والتعديل الآخر وخصم المنصة تُخصم. السكن والخط وصيانة السيارة والبنزين على الشركة.",
+   "en": "0.350 KWD per order. Target 420 orders: each order short is deducted 0.350. 28 valid days required and star days are mandatory. Monthly bonus for the highest tier only: 450 orders 50, 540 orders 90, 620 orders 130, 710 orders 200 KWD. Red marks: 1–2 free, 3 marks − 10, 4 marks − 30. More than 4 marks or a mark on a star day: every order at 0.200 with no bonus, the shortfall still deducted (unless shown not to be his fault). Tips are added; food damage, other adjustments and the platform discount are deducted. Housing, phone line, car maintenance and fuel are on the company."
+  },
+  "needs_confirmation": false,
+  "blocks": [
+   {
+    "type": "exception_days",
+    "params": {
+     "effect": "count_valid"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "per_order",
+    "params": {
+     "rate": "0.350",
+     "source": "orders"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "star_day",
+    "params": {},
+    "condition": [],
+    "on_exception": "neutralize",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "price_change",
+    "params": {
+     "rate": "0.200",
+     "mode": "replace"
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_true"
+     }
+    ],
+    "on_exception": "none",
+    "group": "reduced",
+    "label": null
+   },
+   {
+    "type": "price_change",
+    "params": {
+     "rate": "0.200",
+     "mode": "replace"
+    },
+    "condition": [
+     {
+      "fact": "marks",
+      "op": "gt",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": "reduced",
+    "label": null
+   },
+   {
+    "type": "tier_bonus",
+    "params": {
+     "source": "orders",
+     "mode": "highest",
+     "tiers": [
+      {
+       "from": 450,
+       "amount": "50.000"
+      },
+      {
+       "from": 540,
+       "amount": "90.000"
+      },
+      {
+       "from": 620,
+       "amount": "130.000"
+      },
+      {
+       "from": 710,
+       "amount": "200.000"
+      }
+     ]
+    },
+    "condition": [
+     {
+      "fact": "price_changed",
+      "op": "is_false"
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "required_days",
+    "params": {
+     "days": 28,
+     "invalidates": false,
+     "deduction": "none"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "missing_orders",
+    "params": {
+     "source": "orders",
+     "target": 420,
+     "rate": "0.350",
+     "rate_from": "fixed"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "attendance_marks",
+    "params": {
+     "mode": "table",
+     "table": [
+      {
+       "from": 3,
+       "amount": "10.000"
+      },
+      {
+       "from": 4,
+       "amount": "30.000"
+      }
+     ]
+    },
+    "condition": [
+     {
+      "fact": "price_changed",
+      "op": "is_false"
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "platform_amounts",
+    "params": {
+     "tips": true,
+     "food_damage": true,
+     "other_adjustment": true,
+     "platform_discount": true
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "housing",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "phone",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "maintenance",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "gas",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   }
+  ]
+ },
+ {
+  "code": "keeta_paid",
+  "platform_hint": "keeta",
+  "name": {
+   "ar": "كيتا — كما صُرف فعلياً (أساسي العقد ± 0.500 حول 310)",
+   "en": "Keeta — as actually paid (contract basic ± 0.500 around 310)"
+  },
+  "description": {
+   "ar": "الراتب الأساسي من عقد السائق، + 0.500 لكل طلب فوق 310 و− 0.500 لكل طلب تحته، − 20 لكل علامة حضور، − 100 إذا كان الشهر غير صالح (تفويت Star Day). المخالفات والتصليح والإكراميات من الخصومات وكشف المنصة.",
+   "en": "The basic salary of the driver's contract, + 0.500 per order above 310 and − 0.500 per order below it, − 20 per attendance mark, − 100 when the month is invalid (star day missed). Fines, repairs and tips come from the deductions and the platform statement."
+  },
+  "needs_confirmation": false,
+  "blocks": [
+   {
+    "type": "fixed_salary",
+    "params": {
+     "mode": "contract"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "target_overage",
+    "params": {
+     "source": "orders",
+     "threshold": 310,
+     "rate": "0.500",
+     "below_rate": "0.500"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "attendance_marks",
+    "params": {
+     "mode": "per_mark",
+     "amount": "20.000"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "star_day",
+    "params": {},
+    "condition": [],
+    "on_exception": "neutralize",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "special_day_violation",
+    "params": {
+     "amount": "100.000",
+     "when": "month_invalid"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   }
+  ],
+  "legacy": true
+ },
+ {
+  "code": "keeta_fixed_200",
+  "platform_hint": "keeta",
+  "name": {
+   "ar": "كيتا — راتب ثابت 200 (فوق 3 سنوات)",
+   "en": "Keeta — fixed salary 200 (over 3 years)"
+  },
+  "description": {
+   "ar": "راتب ثابت 200 د.ك، التارجت 420 طلباً: كل طلب زيادة + 0.476 وكل طلب ناقص − 0.476. بونص 50 عند 510 طلباً و100 عند 610. يومان إجازة بالشهر: علامتان حمراوان بلا خصم، 3 علامات − 10، 4 علامات − 30 (خارج أيام النجمة). علامة في يوم نجمة أو أكثر من 4 علامات: الشهر كله بالطلب 0.200 بلا راتب ولا بونص، والخصومات عليه. البقشيش يُضاف، وتلف الطعام والتعديل الآخر وخصم المنصة تُخصم. السكن والخط وصيانة السيارة والبنزين على الشركة.",
+   "en": "Fixed salary 200 KWD, target 420 orders: + 0.476 per order above it and − 0.476 per order below. Bonus 50 at 510 orders and 100 at 610. Two days off a month: two red marks cost nothing, 3 marks − 10, 4 marks − 30 (outside star days). A mark on a star day, or more than 4 marks: the whole month at 0.200 per order with no salary or bonus, the deductions still taken. Tips are added; food damage, other adjustments and the platform's discount are deducted. Housing, phone line, car maintenance and fuel are on the company."
+  },
+  "needs_confirmation": false,
+  "blocks": [
+   {
+    "type": "star_day",
+    "params": {},
+    "condition": [],
+    "on_exception": "neutralize",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "per_order",
+    "params": {
+     "rate": "0.200",
+     "source": "orders"
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_true"
+     }
+    ],
+    "on_exception": "none",
+    "group": "reduced",
+    "label": null
+   },
+   {
+    "type": "per_order",
+    "params": {
+     "rate": "0.200",
+     "source": "orders"
+    },
+    "condition": [
+     {
+      "fact": "marks",
+      "op": "gt",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": "reduced",
+    "label": null
+   },
+   {
+    "type": "fixed_salary",
+    "params": {
+     "mode": "amount",
+     "amount": "200.000"
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_false"
+     },
+     {
+      "fact": "marks",
+      "op": "lte",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "target_overage",
+    "params": {
+     "source": "orders",
+     "threshold": 420,
+     "rate": "0.476",
+     "below_rate": "0.476"
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_false"
+     },
+     {
+      "fact": "marks",
+      "op": "lte",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "tier_bonus",
+    "params": {
+     "source": "orders",
+     "mode": "highest",
+     "tiers": [
+      {
+       "from": 510,
+       "amount": "50.000"
+      },
+      {
+       "from": 610,
+       "amount": "100.000"
+      }
+     ]
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_false"
+     },
+     {
+      "fact": "marks",
+      "op": "lte",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "attendance_marks",
+    "params": {
+     "mode": "table",
+     "table": [
+      {
+       "from": 3,
+       "amount": "10.000"
+      },
+      {
+       "from": 4,
+       "amount": "30.000"
+      }
+     ]
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_false"
+     },
+     {
+      "fact": "marks",
+      "op": "lte",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "platform_amounts",
+    "params": {
+     "tips": true,
+     "food_damage": true,
+     "other_adjustment": true,
+     "platform_discount": true
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "housing",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "phone",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "maintenance",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "gas",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   }
+  ]
+ },
+ {
+  "code": "keeta_fixed_165",
+  "platform_hint": "keeta",
+  "name": {
+   "ar": "كيتا — راتب ثابت 165 (من سنتين إلى 3 سنوات)",
+   "en": "Keeta — fixed salary 165 (2 to 3 years)"
+  },
+  "description": {
+   "ar": "راتب ثابت 165 د.ك، التارجت 420 طلباً: كل طلب زيادة + 0.393 وكل طلب ناقص − 0.393. بونص 50 عند 510 طلباً و100 عند 610. يومان إجازة بالشهر: علامتان حمراوان بلا خصم، 3 علامات − 10، 4 علامات − 30 (خارج أيام النجمة). علامة في يوم نجمة أو أكثر من 4 علامات: الشهر كله بالطلب 0.200 بلا راتب ولا بونص، والخصومات عليه. البقشيش يُضاف، وتلف الطعام والتعديل الآخر وخصم المنصة تُخصم. السكن والخط وصيانة السيارة والبنزين على الشركة.",
+   "en": "Fixed salary 165 KWD, target 420 orders: + 0.393 per order above it and − 0.393 per order below. Bonus 50 at 510 orders and 100 at 610. Two days off a month: two red marks cost nothing, 3 marks − 10, 4 marks − 30 (outside star days). A mark on a star day, or more than 4 marks: the whole month at 0.200 per order with no salary or bonus, the deductions still taken. Tips are added; food damage, other adjustments and the platform's discount are deducted. Housing, phone line, car maintenance and fuel are on the company."
+  },
+  "needs_confirmation": false,
+  "blocks": [
+   {
+    "type": "star_day",
+    "params": {},
+    "condition": [],
+    "on_exception": "neutralize",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "per_order",
+    "params": {
+     "rate": "0.200",
+     "source": "orders"
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_true"
+     }
+    ],
+    "on_exception": "none",
+    "group": "reduced",
+    "label": null
+   },
+   {
+    "type": "per_order",
+    "params": {
+     "rate": "0.200",
+     "source": "orders"
+    },
+    "condition": [
+     {
+      "fact": "marks",
+      "op": "gt",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": "reduced",
+    "label": null
+   },
+   {
+    "type": "fixed_salary",
+    "params": {
+     "mode": "amount",
+     "amount": "165.000"
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_false"
+     },
+     {
+      "fact": "marks",
+      "op": "lte",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "target_overage",
+    "params": {
+     "source": "orders",
+     "threshold": 420,
+     "rate": "0.393",
+     "below_rate": "0.393"
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_false"
+     },
+     {
+      "fact": "marks",
+      "op": "lte",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "tier_bonus",
+    "params": {
+     "source": "orders",
+     "mode": "highest",
+     "tiers": [
+      {
+       "from": 510,
+       "amount": "50.000"
+      },
+      {
+       "from": 610,
+       "amount": "100.000"
+      }
+     ]
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_false"
+     },
+     {
+      "fact": "marks",
+      "op": "lte",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "attendance_marks",
+    "params": {
+     "mode": "table",
+     "table": [
+      {
+       "from": 3,
+       "amount": "10.000"
+      },
+      {
+       "from": 4,
+       "amount": "30.000"
+      }
+     ]
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_false"
+     },
+     {
+      "fact": "marks",
+      "op": "lte",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "platform_amounts",
+    "params": {
+     "tips": true,
+     "food_damage": true,
+     "other_adjustment": true,
+     "platform_discount": true
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "housing",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "phone",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "maintenance",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "gas",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   }
+  ]
+ },
+ {
+  "code": "keeta_fixed_140",
+  "platform_hint": "keeta",
+  "name": {
+   "ar": "كيتا — راتب ثابت 140 (أقل من سنتين)",
+   "en": "Keeta — fixed salary 140 (under 2 years)"
+  },
+  "description": {
+   "ar": "راتب ثابت 140 د.ك، التارجت 420 طلباً: كل طلب زيادة + 0.333 وكل طلب ناقص − 0.333. بونص 50 عند 510 طلباً و100 عند 610. يومان إجازة بالشهر: علامتان حمراوان بلا خصم، 3 علامات − 10، 4 علامات − 30 (خارج أيام النجمة). علامة في يوم نجمة أو أكثر من 4 علامات: الشهر كله بالطلب 0.200 بلا راتب ولا بونص، والخصومات عليه. البقشيش يُضاف، وتلف الطعام والتعديل الآخر وخصم المنصة تُخصم. السكن والخط وصيانة السيارة والبنزين على الشركة.",
+   "en": "Fixed salary 140 KWD, target 420 orders: + 0.333 per order above it and − 0.333 per order below. Bonus 50 at 510 orders and 100 at 610. Two days off a month: two red marks cost nothing, 3 marks − 10, 4 marks − 30 (outside star days). A mark on a star day, or more than 4 marks: the whole month at 0.200 per order with no salary or bonus, the deductions still taken. Tips are added; food damage, other adjustments and the platform's discount are deducted. Housing, phone line, car maintenance and fuel are on the company."
+  },
+  "needs_confirmation": false,
+  "blocks": [
+   {
+    "type": "star_day",
+    "params": {},
+    "condition": [],
+    "on_exception": "neutralize",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "per_order",
+    "params": {
+     "rate": "0.200",
+     "source": "orders"
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_true"
+     }
+    ],
+    "on_exception": "none",
+    "group": "reduced",
+    "label": null
+   },
+   {
+    "type": "per_order",
+    "params": {
+     "rate": "0.200",
+     "source": "orders"
+    },
+    "condition": [
+     {
+      "fact": "marks",
+      "op": "gt",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": "reduced",
+    "label": null
+   },
+   {
+    "type": "fixed_salary",
+    "params": {
+     "mode": "amount",
+     "amount": "140.000"
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_false"
+     },
+     {
+      "fact": "marks",
+      "op": "lte",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "target_overage",
+    "params": {
+     "source": "orders",
+     "threshold": 420,
+     "rate": "0.333",
+     "below_rate": "0.333"
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_false"
+     },
+     {
+      "fact": "marks",
+      "op": "lte",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "tier_bonus",
+    "params": {
+     "source": "orders",
+     "mode": "highest",
+     "tiers": [
+      {
+       "from": 510,
+       "amount": "50.000"
+      },
+      {
+       "from": 610,
+       "amount": "100.000"
+      }
+     ]
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_false"
+     },
+     {
+      "fact": "marks",
+      "op": "lte",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "attendance_marks",
+    "params": {
+     "mode": "table",
+     "table": [
+      {
+       "from": 3,
+       "amount": "10.000"
+      },
+      {
+       "from": 4,
+       "amount": "30.000"
+      }
+     ]
+    },
+    "condition": [
+     {
+      "fact": "month_invalid",
+      "op": "is_false"
+     },
+     {
+      "fact": "marks",
+      "op": "lte",
+      "value": 4
+     }
+    ],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "platform_amounts",
+    "params": {
+     "tips": true,
+     "food_damage": true,
+     "other_adjustment": true,
+     "platform_discount": true
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "housing",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "phone",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "maintenance",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   },
+   {
+    "type": "expense",
+    "params": {
+     "kind": "gas",
+     "responsibility": "company"
+    },
+    "condition": [],
+    "on_exception": "none",
+    "group": null,
+    "label": null
+   }
+  ]
+ }
+]

@@ -1,0 +1,11 @@
+{
+  "name": "fleet-admin-e2e",
+  "private": true,
+  "description": "The admin panel in a real browser against a real backend (CI job web-e2e)",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.0"
+  }
+}

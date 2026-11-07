@@ -64,7 +64,10 @@
 
   /* ---------- Icons (lucide) ----------
      BT.icon('car', 16)  أو في HTML: <i data-icon="car" data-size="16"></i> */
+  // الأسهم مرسومة لاتجاه العربي: في الإنجليزي (من اليسار) تنعكس
+  var MIRROR = { 'chevron-left': 'chevron-right', 'chevron-right': 'chevron-left', 'arrow-left': 'arrow-right', 'arrow-right': 'arrow-left', 'chevrons-left': 'chevrons-right', 'chevrons-right': 'chevrons-left' };
   BT.icon = function (name, size, cls) {
+    if (BT.lang === 'en' && MIRROR[name]) name = MIRROR[name];
     var body = (BT.ICONS || {})[name];
     if (!body) { if (window.console) console.warn('BT.icon: missing icon "' + name + '"'); body = '<circle cx="12" cy="12" r="9"/>'; }
     size = size || 16;
@@ -109,19 +112,25 @@
     ltr: function (s) { return '\u2066' + s + '\u2069'; },
     month: function (y, m) { return AR_MONTHS[m - 1] + ' ' + y; },
     dateLong: function (s) { var d = parseDate(s); return AR_DAYS[d.getUTCDay()] + ' ' + BT.fmt.date(s); },
-    ago: function (sec) {
-      if (sec < 60) return 'منذ ' + sec + ' ث';
-      if (sec < 3600) return 'منذ ' + Math.round(sec / 60) + ' د';
-      if (sec < 86400) return 'منذ ' + Math.round(sec / 3600) + ' س';
-      return 'منذ ' + Math.round(sec / 86400) + ' يوم';
+    // مدة بالعربية الصحيحة: دقيقة، دقيقتان، 3 دقائق، 11 دقيقة… (span بلا «منذ»، ago معها)
+    count: function (n, one, two, few, many) {
+      if (n === 1) return one;
+      if (n === 2) return two;
+      return n + ' ' + (n % 100 >= 3 && n % 100 <= 10 ? few : many);
     },
+    span: function (sec) {
+      var c = BT.fmt.count;
+      if (sec < 60) return 'لحظات';
+      if (sec < 3600) return c(Math.round(sec / 60), 'دقيقة', 'دقيقتين', 'دقائق', 'دقيقة');
+      if (sec < 86400) return c(Math.round(sec / 3600), 'ساعة', 'ساعتين', 'ساعات', 'ساعة');
+      return c(Math.round(sec / 86400), 'يوم', 'يومين', 'أيام', 'يوماً');
+    },
+    ago: function (sec) { return 'منذ ' + BT.fmt.span(sec); },
     daysLabel: function (n) {
-      if (n < 0) return 'منتهي منذ ' + (-n) + ' يوم';
+      var c = BT.fmt.count;
+      if (n < 0) return 'منتهي منذ ' + c(-n, 'يوم', 'يومين', 'أيام', 'يوماً');
       if (n === 0) return 'ينتهي اليوم';
-      if (n === 1) return 'بعد يوم';
-      if (n === 2) return 'بعد يومين';
-      if (n <= 10) return 'بعد ' + n + ' أيام';
-      return 'بعد ' + n + ' يوماً';
+      return 'بعد ' + c(n, 'يوم', 'يومين', 'أيام', 'يوماً');
     },
     bytes: function (b) { return b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(0) + ' KB' : (b / 1048576).toFixed(1) + ' MB'; },
     initials: function (name) { return String(name).split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w[0]; }).join('').toUpperCase(); }

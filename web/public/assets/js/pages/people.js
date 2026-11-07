@@ -16,7 +16,7 @@
   BT.pages['employees'] = function (p, q) {
     A.setTitle('الموظفون');
     var c = function (s) { return D.employees.filter(function (e) { return e.status === s; }).length; };
-    var docs = D.docsExpiring(30), tab = q.tab || 'list';
+    var docs = D.docsExpiring(30), tab = q.tab || 'list', regs = A.registrations();
     BT.render(A.view(), h`
       ${A.head('ملف لكل موظف', 'الحالات والمستندات والخصومات في مكان واحد',
         h`${A.btn('استيراد من Excel', { icon: 'file-spreadsheet', cls: 'btn-outline', action: 'soon', arg: 'استيراد الموظفين' })}${A.btn('تصدير', { icon: 'download', cls: 'btn-outline', action: 'export', arg: 'قائمة الموظفين' })}${A.btn('إضافة موظف', { icon: 'user-plus', cls: 'btn-primary', action: 'employee-new' })}`)}
@@ -26,9 +26,10 @@
         ${BT.kpi({ label: 'تحت إجراء الفيزا', value: fmt.int(c('تحت إجراء الفيزا')), dot: 'o', action: 'emp-chip', arg: 'تحت إجراء الفيزا' })}
         ${BT.kpi({ label: 'مستقيل', value: fmt.int(c('مستقيل')), sub: 'حسابات معطّلة', dot: 'n', action: 'emp-chip', arg: 'مستقيل' })}
       </div>
-      ${BT.tabs('emp', [['list', 'الموظفون'], ['docs', 'مستندات تنتهي خلال 30 يوماً', docs.length]], tab, 'tabs-line')}
+      ${BT.tabs('emp', [['list', 'الموظفون'], ['docs', 'مستندات تنتهي خلال 30 يوماً', docs.length], ['reg', 'طلبات التسجيل', regs.filter(function (r) { return r.status === 'بانتظار المراجعة'; }).length || null]], tab, 'tabs-line')}
       <div data-panel="list" data-group="emp" class="${tab === 'list' ? 'active' : ''}"><div class="card"><div id="emp-table"></div></div></div>
-      <div data-panel="docs" data-group="emp" class="${tab === 'docs' ? 'active' : ''}"><div class="card"><div id="doc-table"></div></div></div>`);
+      <div data-panel="docs" data-group="emp" class="${tab === 'docs' ? 'active' : ''}"><div class="card"><div id="doc-table"></div></div></div>
+      <div data-panel="reg" data-group="emp" class="${tab === 'reg' ? 'active' : ''}"><div class="banner info fs-sm mb-12">${icon('info', 15)}<div>ما يرسله السائق من التطبيق بعد رابط التفعيل. لا يدخل شيء في السجلات قبل الاعتماد، والاعتماد يسجّل البيانات والمستندات والعهدة معاً أو لا شيء.</div></div><div class="card"><div id="reg-table"></div></div></div>`);
     var t = BT.table(document.getElementById('emp-table'), {
       rows: function () { return D.employees; },
       search: { placeholder: 'الاسم أو الرقم الوظيفي أو الجوال…', text: function (e) { return e.name + ' ' + e.id + ' ' + e.phone + ' ' + (e.vehicleId || ''); } },
@@ -56,10 +57,60 @@
       ],
       rowClick: function (d) { A.employee(d.emp, 'docs'); }
     });
+    BT.table(document.getElementById('reg-table'), {
+      rows: function () { return regs; }, pageSize: 0,
+      columns: [
+        { key: 'emp', label: 'السائق', sort: function (r) { return r.emp.name; }, render: function (r) { return BT.person(r.emp.name, r.emp.id); } },
+        { key: 'plate', label: 'السيارة', render: function (r) { return r.plate ? BT.plate(r.plate) : raw('<span class="muted">بلا سيارة</span>'); } },
+        { key: 'at', label: 'أُرسل', render: function (r) { return h`<span class="num">${r.at}</span>`; } },
+        { key: 'status', label: 'الحالة', render: function (r) { return BT.pill(r.status, { 'بانتظار المراجعة': 'b', 'يحتاج تصحيحاً': 'o', 'معتمد': 'g' }[r.status]); } }
+      ],
+      rowClick: function (r) { A.reviewRegistration(r); }
+    });
     BT.actions['emp-chip'] = function (s) { t.setChip(s); };
     BT.on(A.view(), 'click', '[data-renew]', function (ev, b) { var x = b.getAttribute('data-renew').split('|'); A.renewDoc(emp(x[0]), x[1]); });
   };
   BT.actions['employee-open'] = function (id) { A.employee(emp(id)); };
+
+  /* ---------- طلبات التسجيل الذاتي (بيانات تجريبية) ----------
+     API: GET /api/v1/onboarding · GET /api/v1/onboarding/{id} · GET .../files/{sha256}
+          POST /api/v1/onboarding/{id}/approve · POST /api/v1/onboarding/{id}/reject {reason}  (صلاحية employees.onboarding) */
+  var REGS;
+  A.registrations = function () {
+    if (REGS) return REGS;
+    var drivers = D.employees.filter(function (e) { return e.role === 'سائق'; }).slice(-3);
+    var free = D.vehicles.filter(function (v) { return v.status === 'بلا سائق'; });
+    REGS = drivers.map(function (e, i) {
+      return { emp: e, plate: i === 2 ? null : free[i].plate, odo: free[i].odo, at: fmt.date(BT.date.add(cfg.today, -i)), status: i === 1 ? 'يحتاج تصحيحاً' : 'بانتظار المراجعة', civil: '29' + String(1000000000 + i * 7919).slice(0, 10), nat: e.nationality };
+    });
+    return REGS;
+  };
+  function shot(label) { return h`<div class="cam-tile" style="min-height:74px;cursor:default"><span class="cam-ic">${icon('image', 16)}</span><span class="fs-sm">${label}</span></div>`; }
+  A.reviewRegistration = function (r) {
+    var e = r.emp, sides = [['أمام', 'front'], ['خلف', 'back'], ['يمين', 'right'], ['يسار', 'left']];
+    var dlg = BT.drawer.open({
+      title: h`<bdi>${e.name}</bdi>`, subtitle: 'طلب تسجيل · أُرسل ' + r.at, icon: 'user-round-check', size: 'lg',
+      body: h`${r.status === 'يحتاج تصحيحاً' ? h`<div class="banner warn fs-sm mb-12">${icon('triangle-alert', 15)}<div>أُعيد للسائق: صورة الإقامة غير واضحة. بانتظار إعادة الإرسال.</div></div>` : ''}
+        <div class="label mb-8">البيانات</div>${BT.kv([['الجوال', h`<bdi dir="ltr" class="num">+965 ${e.phone}</bdi>`], ['الرقم المدني', h`<span class="num">${r.civil}</span>`], ['الجنسية', r.nat]])}
+        <div class="label mt-16 mb-8">المستندات</div>
+        <div class="list">${['الإقامة', 'رخصة القيادة', 'جواز السفر'].map(function (t, i) { return h`<div class="li"><span class="li-ic">${icon('file-badge', 16)}</span><div class="li-main"><div class="li-t">${t}</div><div class="li-d">ينتهي ${fmt.date(BT.date.add(cfg.today, 120 + i * 200))}</div></div><div class="flex gap-8" style="width:150px">${shot('الوجه')}${shot('الظهر')}</div></div>`; })}</div>
+        <div class="label mt-16 mb-8">السيارة</div>
+        ${r.plate ? h`${BT.kv([['اللوحة', BT.plate(r.plate)], ['في النظام', BT.pill('موجودة · بلا سائق', 'g')], ['العداد', h`<span class="num">${fmt.km(r.odo)}</span>`]])}
+          <div class="cam-grid mt-12" style="grid-template-columns:repeat(5,minmax(0,1fr))">${shot('العداد')}${sides.map(function (s) { return shot(s[0]); })}</div>
+          <div class="banner info fs-sm mt-12">${icon('key-round', 15)}<div>عند الاعتماد تبدأ عهدة السائق من وقت الإرسال، بقراءة العداد وصور الحالة هذه.</div></div>` : BT.empty('car', 'لا توجد سيارة مع السائق', 'يُعتمد بدون عهدة')}`,
+      buttons: r.status !== 'بانتظار المراجعة' ? [{ label: 'إغلاق', cls: 'btn-secondary' }] : [
+        { label: 'رفض مع السبب', cls: 'btn-outline', icon: 'x', close: false, onClick: function () {
+          BT.confirm({ title: 'إعادة الطلب للسائق', message: 'يصل السبب للسائق على واتساب وفي التطبيق، فيصحح ويرسل من جديد.', confirmText: 'إعادة للسائق', tone: 'warn', icon: 'rotate-ccw', reason: { label: 'السبب', required: true, placeholder: 'مثال: صورة الإقامة غير واضحة' } })
+            .then(function (x) { if (!x.ok) return; r.status = 'يحتاج تصحيحاً'; BT.closeAll(); BT.toast('أُعيد الطلب إلى ' + e.name, { sub: x.reason }); A.router.refresh(); });
+        } },
+        { label: 'اعتماد', cls: 'btn-primary', icon: 'check', close: false, onClick: function () {
+          BT.confirm({ title: 'اعتماد التسجيل', message: h`تُسجَّل البيانات و3 مستندات${r.plate ? h` وعهدة السيارة <b class="plate">${r.plate}</b>` : ''} معاً. إذا فشل أي جزء (رخصة منتهية، سيارة مع سائق آخر…) لا يُسجَّل شيء ويظهر السبب.`, confirmText: 'اعتماد', tone: 'success', icon: 'check' })
+            .then(function (x) { if (!x.ok) return; r.status = 'معتمد'; BT.closeAll(); BT.toast('تم اعتماد ' + e.name, { sub: r.plate ? 'بدأت العهدة ' + r.plate + ' والتتبع' : 'بدون عهدة' }); A.router.refresh(); });
+        } }
+      ]
+    });
+    return dlg;
+  };
 
   /* ---------- ملف الموظف ---------- */
   A.employee = function (e, tab) {
@@ -74,7 +125,8 @@
         <div data-panel="ded" data-group="empd" class="${tab === 'ded' ? 'active' : ''}">${ded.length ? BT.chart.table(['السبب', 'الإجمالي', 'الأقساط', 'الشهري'], ded.map(function (d) { return [d.reason, fmt.kwd(d.total), d.paid + ' / ' + d.count, fmt.kwd(d.per)]; })) : BT.empty('circle-check', 'لا توجد خصومات', '')}
           <div class="mt-12">${A.btn('إضافة خصم', { icon: 'plus', cls: 'btn-sm btn-soft', action: 'emp-ded', arg: e.id })}</div></div>
         <div data-panel="device" data-group="empd" class="${tab === 'device' ? 'active' : ''}">${e.device ? h`${BT.kv([['الحالة', e.device.bound ? BT.pill('مربوط برمز OTP', 'g') : BT.pill('غير مربوط', 'o')], ['الجهاز', e.device.model], ['منذ', fmt.date(e.device.since)], ['آخر دخول', 'اليوم']])}
-          <div class="banner info mt-12 fs-sm">${icon('shield-check', 15)}<div>حساب السائق مربوط بهاتف واحد. عند تغيير الهاتف يُعاد الربط برمز OTP جديد على الجوال المسجل.</div></div>` : BT.empty('smartphone', 'لا يوجد هاتف مربوط', '')}</div>
+          <div class="banner info mt-12 fs-sm">${icon('shield-check', 15)}<div>حساب السائق مربوط بهاتف واحد. عند تغيير الهاتف: أرسل رابط تفعيل جديداً على واتساب، أو يدخل السائق برمز يصله على واتساب الرقم المسجل.</div></div>` : BT.empty('smartphone', 'لا يوجد هاتف مربوط', e.role === 'سائق' ? 'أرسل رابط التفعيل على واتساب: يفتحه السائق فيرتبط هاتفه دون رمز' : '')}
+          ${e.role === 'سائق' ? h`<div class="mt-12">${A.btn('رابط التفعيل', { icon: 'send', cls: 'btn-sm btn-soft', action: 'emp-activation', arg: e.id })}</div>` : ''}</div>
         <div data-panel="log" data-group="empd" class="${tab === 'log' ? 'active' : ''}"><div class="timeline">
           <div class="tl-item"><span class="tl-ic g">${icon('check', 13)}</span><div><div class="tl-t">${e.status}</div><div class="tl-d">منذ ${fmt.date(e.join)} · نورة الشمري</div></div></div>
           <div class="tl-item"><span class="tl-ic">${icon('user-plus', 13)}</span><div><div class="tl-t">إنشاء الملف</div><div class="tl-d">${fmt.date(e.join)}</div></div></div></div></div>
@@ -88,6 +140,30 @@
     BT.on(dlg.el, 'click', '[data-renew-d]', function (ev, b) { A.renewDoc(e, b.getAttribute('data-renew-d')); });
   };
   BT.actions['emp-ded'] = function (id) { A.addDeduction(emp(id)); };
+  BT.actions['emp-activation'] = function (id) { A.activationLink(emp(id)); };
+
+  /* رابط تفعيل لمرة واحدة (24 ساعة) يربط هاتف السائق دون رمز OTP.
+     API: POST /api/v1/employees/{id}/activation-link  {channel: "whatsapp" | "manual"}
+     واتساب يذهب دائماً للرقم المسجل ولا يُعرض الرابط للمرسل؛ "manual" يعرض الرابط (رمز QR في المكتب). */
+  A.activationLink = function (e) {
+    var d = BT.modal.open({
+      title: 'رابط تفعيل التطبيق', subtitle: e.name, icon: 'send', size: 'sm',
+      body: h`<div class="form">
+        ${BT.kv([['يُرسل إلى', h`<bdi dir="ltr" class="num">+965 ${e.phone}</bdi> <span class="muted fs-sm">(الرقم المسجل)</span>`], ['الصلاحية', 'مرة واحدة · 24 ساعة']])}
+        <div class="banner info fs-sm mt-12">${icon('shield-check', 15)}<div>يفتح السائق الرابط من واتساب فيرتبط هاتفه مباشرة دون رمز. أي رابط سابق لم يُستخدم يُلغى، وإن كان له هاتف مربوط يُفصل ويصلك تنبيه.</div></div>
+        <div id="act-manual" class="hidden mt-12"><div class="banner warn fs-sm">${icon('triangle-alert', 15)}<div>الرابط اليدوي يفعّل حساب السائق لمن يملكه: اعرضه للسائق نفسه فقط.</div></div>
+          <div class="mt-8 num fs-sm" style="word-break:break-all" id="act-url"></div></div></div>`,
+      buttons: [
+        { label: 'عرض الرابط يدوياً', cls: 'btn-ghost', icon: 'eye', close: false, onClick: function () {
+          d.el.querySelector('#act-manual').classList.remove('hidden');
+          d.el.querySelector('#act-url').textContent = location.origin + '/activate#t=' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+        } },
+        { label: 'إرسال على واتساب', cls: 'btn-primary', icon: 'send', onClick: function () {
+          BT.toast('أُرسل رابط التفعيل على واتساب — ' + e.name, { sub: '+965 ' + e.phone.slice(0, 2) + '••••' + e.phone.slice(-2) + ' · صالح 24 ساعة' });
+        } }
+      ]
+    });
+  };
   A.renewDoc = function (e, type) {
     BT.modal.open({
       title: 'تحديث ' + type, subtitle: e.name, icon: 'file-badge', size: 'sm', form: true,

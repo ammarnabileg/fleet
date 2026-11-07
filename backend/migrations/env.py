@@ -19,6 +19,7 @@ def run() -> None:
         )
         with context.begin_transaction():
             context.run_migrations()
+    engine.dispose()  # no pooled connection left behind (tests copy the migrated database as a template)
 
 
 run()

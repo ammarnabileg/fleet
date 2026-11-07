@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the app's updates (lib/core/updater.dart): only the downloaded APKs in the cache are shared, with the installer -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+</paths>

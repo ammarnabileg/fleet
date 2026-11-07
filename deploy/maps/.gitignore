@@ -1,0 +1,3 @@
+# the map file is downloaded on the server (update-map.sh), never committed
+*.pmtiles
+*.pmtiles.new

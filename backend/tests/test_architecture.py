@@ -5,7 +5,7 @@ import pathlib
 
 APP = pathlib.Path(__file__).resolve().parents[1] / "app"
 MODULES = APP / "modules"
-PUBLIC = {"service", "events", "schemas"}
+PUBLIC = {"service", "events", "schemas", "transfer"}  # transfer: its configuration in a transfer file
 READ_ALL = {"reports"}  # reports may read from every module
 
 

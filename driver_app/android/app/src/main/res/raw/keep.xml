@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the tracking notification names its icon from Dart: keep it in a shrunk release build -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@drawable/ic_bg_service_small" />

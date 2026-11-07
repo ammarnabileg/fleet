@@ -68,7 +68,12 @@
       });
     }
     draw();
-    if (window.ResizeObserver) { var ro = new ResizeObserver(BT.debounce(function () { if (document.contains(el)) draw(); else ro.disconnect(); }, 120)); ro.observe(el); }
+    // one size watcher per element: the chart drawn before this one (another tab's numbers) stops redrawing itself
+    if (el._chartSize) el._chartSize.disconnect();
+    if (window.ResizeObserver) {
+      var ro = el._chartSize = new ResizeObserver(BT.debounce(function () { if (el._chartSize !== ro) return; if (document.contains(el)) draw(); else ro.disconnect(); }, 120));
+      ro.observe(el);
+    }
     return { redraw: draw };
   };
 
