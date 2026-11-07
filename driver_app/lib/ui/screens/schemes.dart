@@ -303,9 +303,10 @@ class SchemeKindPicker extends StatelessWidget {
 
 /// The notes the office wrote into a scheme (rule blocks of type "note"), as it styled them: size, bold, colour.
 class SchemeNotes extends StatelessWidget {
-  const SchemeNotes({super.key, required this.blocks});
+  const SchemeNotes({super.key, required this.blocks, required this.lang});
 
   final List<Map<String, dynamic>>? blocks;
+  final String lang; // Arabic reads the Arabic text; every other language the English one, when written
 
   static const _sizes = {'small': 13.0, 'normal': 15.0, 'large': 19.0};
   static const _colors = {
@@ -331,7 +332,7 @@ class SchemeNotes extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              '${n['text'] ?? ''}',
+              '${(lang == 'ar' ? null : n['text_en']) ?? n['text'] ?? ''}',
               key: const Key('scheme-note'),
               style: TextStyle(
                 fontSize: _sizes[n['size']] ?? 15,
@@ -397,7 +398,7 @@ class SchemeCard extends StatelessWidget {
               ],
               const SizedBox(height: 6),
               for (final line in terms(l, s, lang)) Padding(padding: const EdgeInsets.only(top: 3), child: Text(line)),
-              SchemeNotes(blocks: s.blocks),
+              SchemeNotes(blocks: s.blocks, lang: lang),
               if (action != null) ...[const SizedBox(height: 8), action!],
             ],
           ),

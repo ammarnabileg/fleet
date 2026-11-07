@@ -696,6 +696,8 @@ def test_a_note_is_kept_as_written_and_pays_nothing():
     }
     out = go([note, PAY], orders=10)
     assert lines(out) == [("orders_pay", D("3.500"))] and out.trace[0]["skipped"] == "note"
+    en = validate([blk("note", text="عربي", text_en=" English "), PAY])[0]["params"]
+    assert (en["text"], en["text_en"]) == ("عربي", "English")
     for bad in ("", "   ", "x" * 1001, "a\x00b", 5):
         with pytest.raises(AppError):
             validate([blk("note", text=bad), PAY])

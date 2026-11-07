@@ -24,7 +24,8 @@
   A.noteView = function (x) {
     x = x || {};
     var style = 'white-space:pre-wrap;font-size:' + (NOTE_SIZE[x.size] || NOTE_SIZE.normal) + ';font-weight:' + (x.bold ? '700' : '400') + (NOTE_COLOR[x.color] ? ';color:' + NOTE_COLOR[x.color] : '');
-    return h`<div class="scheme-note" data-no-tr data-note style="${style}">${x.text || ''}</div>`;
+    var text = BT.lang === 'en' && x.text_en ? x.text_en : x.text; // Arabic, else the English when written
+    return h`<div class="scheme-note" data-no-tr data-note style="${style}">${text || ''}</div>`;
   };
   A.schemeNotes = function (s) { return (s.blocks || []).filter(function (b) { return b.type === 'note'; }).map(function (b) { return A.noteView(b.params); }); };
 

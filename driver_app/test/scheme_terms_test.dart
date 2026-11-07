@@ -68,18 +68,32 @@ void main() {
       ...fromTemplate('keeta_fixed_200').blocks!,
       {
         'type': 'note',
-        'params': {'text': 'التسليم آخر يوم في الشهر', 'size': 'large', 'bold': true, 'color': 'red'},
+        'params': {
+          'text': 'التسليم آخر يوم في الشهر',
+          'text_en': 'Hand over on the last day of the month',
+          'size': 'large',
+          'bold': true,
+          'color': 'red',
+        },
         'condition': <Object>[],
       },
     ];
     final l = await AppLocalizations.delegate.load(const Locale('ar'));
     expect(SchemeCard.blockTerms(l, blocks, 'ar').any((x) => x.contains('التسليم')), isFalse);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(body: SchemeNotes(blocks: blocks)),
-      ),
-    );
-    final t = tester.widget<Text>(find.byKey(const Key('scheme-note')));
+    Future<Text> shown(String lang) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SchemeNotes(blocks: blocks, lang: lang),
+          ),
+        ),
+      );
+      return tester.widget<Text>(find.byKey(const Key('scheme-note')));
+    }
+
+    expect((await shown('en')).data, 'Hand over on the last day of the month');
+    expect((await shown('hi')).data, 'Hand over on the last day of the month'); // every language but Arabic
+    final t = await shown('ar');
     expect(t.data, 'التسليم آخر يوم في الشهر');
     expect((t.style!.fontSize, t.style!.fontWeight, t.style!.color), (19.0, FontWeight.w700, const Color(0xFFB8261F)));
   });

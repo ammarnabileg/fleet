@@ -1403,10 +1403,11 @@
     "food_damage": "Deduct food damage compensation",
     "other_adjustment": "Deduct other adjustment",
     "platform_discount": "Deduct platform discount",
-    "text": "Text",
+    "text": "Arabic text",
     "size": "Font size",
     "bold": "Bold",
-    "color": "Colour"
+    "color": "Colour",
+    "text_en": "English text (shown in every language but Arabic)"
   },
   "rule_choice": {
     "amount": "Fixed amount",

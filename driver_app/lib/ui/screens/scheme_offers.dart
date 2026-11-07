@@ -402,7 +402,7 @@ class SchemeOfferCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(l.offerBonusTop, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
               ],
-              SchemeNotes(blocks: s.blocks),
+              SchemeNotes(blocks: s.blocks, lang: lang),
               if (f.covers.isNotEmpty) ...[
                 const SizedBox(height: 14),
                 Text(l.offerCovers, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),

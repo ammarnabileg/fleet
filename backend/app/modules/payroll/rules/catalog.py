@@ -289,7 +289,8 @@ TYPES: dict[str, BlockType] = {
             "note",
             "note",
             (
-                Param("text", "text"),
+                Param("text", "text"),  # Arabic
+                Param("text_en", "text", required=False),  # English: what every other language reads
                 Param("size", "choice", default="normal", options=NOTE_SIZES),
                 Param("bold", "bool", required=False, default=False),
                 Param("color", "choice", default="default", options=NOTE_COLORS),
