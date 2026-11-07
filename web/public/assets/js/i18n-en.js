@@ -3269,6 +3269,8 @@ window.BT_EN = {
 "لا يُخصم أي قسط بعد الإلغاء. يبقى في السجل بسببه.": "No installments are deducted after cancellation. It stays in the log with its reason.",
 "لا يُخصم شيء": "Nothing is deducted",
 "ملف السائق ومستنداته": "Driver file and documents",
+"حفظ من شهر آخر…": "Save from another month…",
+"حُفظت القواعد": "Rules saved",
 "مسح المنصة والمعرّف": "Clear platform and ID",
 "تم المسح": "Cleared",
 "يُشال السائقون المحددون من منصتهم ويُمسح معرّفهم فيها. لا يغيّر شيئاً في رواتب الأشهر المعتمدة.": "The selected drivers are taken off their platform and their ID on it is cleared. Approved months' payroll is not changed.",

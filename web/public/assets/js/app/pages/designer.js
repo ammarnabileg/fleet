@@ -151,7 +151,7 @@
             ${list ? h`<div data-blocks>${list.map(function (b, i) { return blockRow(b, i, editable); })}</div>
               <div class="card mb-8" style="border-inline-start:4px solid var(--border)"><div class="card-h"><span class="num muted">${(list.length || 0) + 1}</span><div class="card-t">الصافي لا يقل عن صفر</div>${BT.pill('دائماً الأخيرة', 'n')}</div>
                 <div class="card-b fs-sm">${editable ? BT.f.check({ name: 'floor', label: 'العقوبات لا تنزل بالشهر تحت الصفر، وما لم يُخصم يظهر «خصومات غير محصلة» للمراجعة (القرار D)', checked: floor }) : (shown.floor_at_zero !== false ? 'العقوبات لا تنزل بالشهر تحت الصفر (القرار D)' : 'بلا حد أدنى')}</div></div>
-              ${editable ? h`<div class="flex gap-8 wrap mt-12">${A.btn('قاعدة', { icon: 'plus', cls: 'btn-outline', id: 'ds-add' })}<span class="spacer"></span>${A.btn('حفظ كنسخة جديدة', { icon: 'check', cls: 'btn-primary', id: 'ds-save' })}</div>` : ''}`
+              ${editable ? h`<div class="flex gap-8 wrap mt-12">${A.btn('قاعدة', { icon: 'plus', cls: 'btn-outline', id: 'ds-add' })}<span class="spacer"></span>${A.btn('حفظ من شهر آخر…', { icon: 'calendar', cls: 'btn-outline', id: 'ds-save' })}${A.btn('حفظ', { icon: 'check', cls: 'btn-primary', id: 'ds-save-now' })}</div>` : ''}`
               : h`<div class="card"><div class="card-h"><div class="card-t">نسخة بنظام الحساب القديم (للعرض فقط)</div></div><div class="card-b">${BT.kv(A.schemeTerms ? A.schemeTerms(Object.assign({ calculator: d.scheme.calculator }, shown.terms || {})) : [])}</div></div>`}
             ${shown.note ? h`<div class="muted fs-sm mt-8">ملاحظة النسخة: ${shown.note}</div>` : ''}
           </div>
@@ -169,6 +169,15 @@
     A.delegate(el, 'click', '[data-del]', function (e, b) { draft.splice(+b.getAttribute('data-del'), 1); render(); });
     A.delegate(el, 'click', '[data-edit-block]', function (e, b) { var i = +b.getAttribute('data-edit-block'); blockForm(cat, draft[i], ctx, function (nb) { draft[i] = nb; render(); }); });
     A.delegate(el, 'click', '#ds-add', function () { palette(cat, function (type) { blockForm(cat, { type: type, params: {}, condition: [], on_exception: 'none', group: null, label: null }, ctx, function (nb) { draft.push(nb); render(); }); }); });
+    // one click: from the first month that may still change (the current version is replaced when it starts then)
+    A.delegate(el, 'click', '#ds-save-now', function (e, b) {
+      b.disabled = true;
+      var month = d.used ? String(d.change_from).slice(0, 10) : null;
+      api.post('/payroll/schemes/' + d.scheme.id + '/blocks', { version: d.scheme.version, blocks: draft, floor_at_zero: floor, effective_month: month, note: null }).then(function (nd) {
+        d = nd; versions = d.versions; shown = versions[0]; startDraft(shown); render();
+        BT.toast(month ? 'حُفظت القواعد: تسري من ' + monthLabel(month) : 'حُفظت القواعد');
+      }, function (err) { b.disabled = false; api.fail(err); });
+    });
     A.delegate(el, 'click', '#ds-save', function () {
       var latest = versions[0];
       A.formModal({
