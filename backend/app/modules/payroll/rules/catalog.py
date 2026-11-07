@@ -8,7 +8,7 @@ rule_fact.<fact>, rule_op.<op>, payroll_column.<line code>."""
 import re
 from dataclasses import dataclass
 
-CATEGORIES = ("pay", "incentive", "attendance", "deduction", "expense", "exception", "priority")
+CATEGORIES = ("pay", "incentive", "attendance", "deduction", "expense", "exception", "priority", "note")
 # facts a block reads its count from: the month's figures, and any number field the platform defines (its key)
 BUILTIN_SOURCES = (
     "orders",
@@ -26,13 +26,16 @@ EXCEPTION_KINDS = ("accepted_excuse", "company_error", "exception_day")
 EXCUSES = ("star_day", "marks", "lateness", "absence", "valid_days")
 EXPENSE_KINDS = ("gas", "maintenance", "phone", "housing", "advance")
 ON_EXCEPTION = ("none", "neutralize", "count_valid")
+NOTE_SIZES = ("small", "normal", "large")
+NOTE_COLORS = ("default", "red", "green", "blue", "orange")
+NOTE_MAX = 1000  # characters
 BATCH_PICKS = ("last", "most_orders")  # whose price a missing order takes when the month has several batches
 
 
 @dataclass(frozen=True)
 class Param:
     name: str
-    kind: str  # money | int | bool | choice | source | key | rows
+    kind: str  # money | int | bool | choice | source | key | rows | text
     required: bool = True
     default: object = None
     options: tuple[str, ...] = ()
@@ -278,6 +281,19 @@ TYPES: dict[str, BlockType] = {
             "exception_days",
             "exception",
             (Param("effect", "choice", default="count_valid", options=("count_valid", "excuse_attendance")),),
+            (),
+        ),
+        # ---------------------------------------------------------------- note
+        # text the office writes into the scheme, shown with its terms (panel and app) as it styled it; pays nothing
+        BlockType(
+            "note",
+            "note",
+            (
+                Param("text", "text"),
+                Param("size", "choice", default="normal", options=NOTE_SIZES),
+                Param("bold", "bool", required=False, default=False),
+                Param("color", "choice", default="default", options=NOTE_COLORS),
+            ),
             (),
         ),
     )

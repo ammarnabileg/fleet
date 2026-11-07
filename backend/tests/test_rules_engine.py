@@ -677,3 +677,27 @@ def test_every_block_param_choice_fact_and_line_has_its_labels():
         assert set(BUILTIN_SOURCES) <= cat["rule_source"].keys()
         assert set(EXCEPTION_KINDS) | set(ON_EXCEPTION) | {"any"} <= cat["rule_choice"].keys()
         assert {c for c in BY_CODE if c != "blank"} <= cat["payroll_column"].keys()
+
+
+def test_a_note_is_kept_as_written_and_pays_nothing():
+    note = blk("note", text="  الشهر يبدأ يوم 1\r\nوالتسليم آخر الشهر  ", size="large", bold=True, color="red")
+    [stored, _] = validate([note, PAY])
+    assert stored["params"] == {
+        "text": "الشهر يبدأ يوم 1\nوالتسليم آخر الشهر",
+        "size": "large",
+        "bold": True,
+        "color": "red",
+    }
+    assert validate([blk("note", text="عادي"), PAY])[0]["params"] == {
+        "text": "عادي",
+        "size": "normal",
+        "bold": False,
+        "color": "default",
+    }
+    out = go([note, PAY], orders=10)
+    assert lines(out) == [("orders_pay", D("3.500"))] and out.trace[0]["skipped"] == "note"
+    for bad in ("", "   ", "x" * 1001, "a\x00b", 5):
+        with pytest.raises(AppError):
+            validate([blk("note", text=bad), PAY])
+    with pytest.raises(AppError):
+        validate([blk("note", text="x", color="purple"), PAY])

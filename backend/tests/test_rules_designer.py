@@ -9,7 +9,16 @@ MONTH = today().replace(day=1)
 
 def test_the_catalog_lists_the_seven_categories_and_the_templates(admin_client, new_client):
     cat = admin_client.get(f"{P}/rules/catalog").json()
-    assert cat["categories"] == ["pay", "incentive", "attendance", "deduction", "expense", "exception", "priority"]
+    assert cat["categories"] == [
+        "pay",
+        "incentive",
+        "attendance",
+        "deduction",
+        "expense",
+        "exception",
+        "priority",
+        "note",
+    ]
     assert {t["type"] for t in cat["types"]} >= {"per_order", "price_change", "missing_orders", "special_day_violation"}
     price = next(t for t in cat["types"] if t["type"] == "price_change")
     assert price["needs_condition"] and [p["name"] for p in price["params"]] == ["rate", "mode"]

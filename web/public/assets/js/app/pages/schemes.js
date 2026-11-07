@@ -18,10 +18,22 @@
   function thisMonth() { return BT.config.today.slice(0, 7); }
 
   /* ما يقرؤه المكتب والسائق: شروط النظام في سطور */
+  /* نص توضيحي في النظام (قاعدة «نص توضيحي»): كما كتبه المكتب، بالحجم والعرض واللون الذي اختاره */
+  var NOTE_SIZE = { small: '13px', normal: '15px', large: '19px' };
+  var NOTE_COLOR = { red: 'var(--danger)', green: 'var(--success)', blue: 'var(--info)', orange: 'var(--warning)' };
+  A.noteView = function (x) {
+    x = x || {};
+    var style = 'white-space:pre-wrap;font-size:' + (NOTE_SIZE[x.size] || NOTE_SIZE.normal) + ';font-weight:' + (x.bold ? '700' : '400') + (NOTE_COLOR[x.color] ? ';color:' + NOTE_COLOR[x.color] : '');
+    return h`<div class="scheme-note" data-no-tr data-note style="${style}">${x.text || ''}</div>`;
+  };
+  A.schemeNotes = function (s) { return (s.blocks || []).filter(function (b) { return b.type === 'note'; }).map(function (b) { return A.noteView(b.params); }); };
+
   A.schemeTerms = function (s) {
     if (s.blocks) { // built in the rules designer: its rules in their order
-      return [['القواعد بالترتيب', s.blocks.map(function (b, i) { return (i + 1) + '. ' + (b.label || api.t('rule_block', b.type)); }).join(' ← ')],
-        ['على الشركة', s.company_covers && s.company_covers.length ? s.company_covers.map(function (c) { return api.t('expense', c); }).join('، ') : 'لا شيء (على السائق)']];
+      var notes = A.schemeNotes(s), rules = s.blocks.filter(function (b) { return b.type !== 'note'; });
+      return [['القواعد بالترتيب', rules.map(function (b, i) { return (i + 1) + '. ' + (b.label || api.t('rule_block', b.type)); }).join(' ← ')],
+        notes.length ? ['ملاحظات', h`${notes}`] : null,
+        ['على الشركة', s.company_covers && s.company_covers.length ? s.company_covers.map(function (c) { return api.t('expense', c); }).join('، ') : 'لا شيء (على السائق)']].filter(Boolean);
     }
     var steps = function (kind) { return (s.steps || []).filter(function (x) { return x.kind === kind; }); };
     var out = [];
@@ -93,6 +105,7 @@
       var m = A.schemeSummary(s);
       body = h`<div class="sc-price">${m.head ? h`<b class="num">${m.head}</b><span>${m.unit}</span>` : h`<span class="muted">قواعد مخصصة</span>`}</div>
         <ul class="sc-rows">${m.rows.map(function (r) { return h`<li>${icon(r[0], 16)}<div><b>${r[1]}</b><span>${r[2]}</span></div></li>`; })}</ul>
+        ${A.schemeNotes(s).length ? h`<div class="sc-notes mt-8">${A.schemeNotes(s)}</div>` : ''}
         <div class="sc-exp">${m.company.length ? h`<div><small>على الشركة</small>${m.company.map(function (x) { return h`<span class="pill g">${x}</span>`; })}</div>` : ''}${m.driver.length ? h`<div><small>على السائق</small>${m.driver.map(function (x) { return h`<span class="pill n">${x}</span>`; })}</div>` : ''}</div>`;
     } else {
       body = h`<div class="sc-legacy">${BT.kv(A.schemeTerms(s))}</div>`;

@@ -20,6 +20,7 @@ from app.modules.payroll.rules.catalog import (
     FACT_NEEDS,
     FACTS,
     KEY,
+    NOTE_MAX,
     SETS_INVALID,
     TYPES,
     Param,
@@ -134,6 +135,13 @@ def _param(p: Param, raw, *, sources: set[str] | None):
         if not isinstance(raw, str) or not KEY.match(raw):
             raise ValueError
         return raw
+    if p.kind == "text":  # plain text: lines kept, control characters refused
+        if not isinstance(raw, str):
+            raise ValueError
+        text = "\n".join(line.rstrip() for line in raw.replace("\r\n", "\n").strip().split("\n"))
+        if not text or len(text) > NOTE_MAX or any(ord(c) < 32 and c != "\n" for c in text):
+            raise ValueError
+        return text
     if p.kind == "rows":
         if not isinstance(raw, list) or not raw or len(raw) > 50:
             raise ValueError
@@ -495,6 +503,8 @@ def _batch_price(prices: list, pick: str) -> tuple:
 def _apply(st: _State, facts: Facts, b: dict, pos: int, v: dict) -> str | None:
     """Runs one block whose condition holds; None when it applied, else the reason it did nothing."""
     t, p = b["type"], b["params"]
+    if t == "note":
+        return "note"  # read by people, not by the payroll
     if t == "per_order":
         source = p.get("source", "orders")
         n, rate = _d(_value(v, source)), Decimal(p["rate"])

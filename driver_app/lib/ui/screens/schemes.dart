@@ -301,6 +301,51 @@ class SchemeKindPicker extends StatelessWidget {
   }
 }
 
+/// The notes the office wrote into a scheme (rule blocks of type "note"), as it styled them: size, bold, colour.
+class SchemeNotes extends StatelessWidget {
+  const SchemeNotes({super.key, required this.blocks});
+
+  final List<Map<String, dynamic>>? blocks;
+
+  static const _sizes = {'small': 13.0, 'normal': 15.0, 'large': 19.0};
+  static const _colors = {
+    'red': AppColors.danger,
+    'green': AppColors.success,
+    'blue': AppColors.info,
+    'orange': AppColors.warning,
+  };
+
+  static List<Map<String, dynamic>> of(List<Map<String, dynamic>>? blocks) => [
+    for (final b in blocks ?? const <Map<String, dynamic>>[])
+      if (b['type'] == 'note') Map<String, dynamic>.from(b['params'] as Map? ?? const {}),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final notes = of(blocks);
+    if (notes.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final n in notes)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              '${n['text'] ?? ''}',
+              key: const Key('scheme-note'),
+              style: TextStyle(
+                fontSize: _sizes[n['size']] ?? 15,
+                fontWeight: n['bold'] == true ? FontWeight.w700 : FontWeight.w400,
+                color: _colors[n['color']],
+                height: 1.5,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// A scheme's terms in plain lines: what an order pays, tiers, marks, target, and who pays the expenses.
 class SchemeCard extends StatelessWidget {
   const SchemeCard({super.key, required this.scheme, required this.lang, this.action, this.selected, this.onTap});
@@ -352,6 +397,7 @@ class SchemeCard extends StatelessWidget {
               ],
               const SizedBox(height: 6),
               for (final line in terms(l, s, lang)) Padding(padding: const EdgeInsets.only(top: 3), child: Text(line)),
+              SchemeNotes(blocks: s.blocks),
               if (action != null) ...[const SizedBox(height: 8), action!],
             ],
           ),

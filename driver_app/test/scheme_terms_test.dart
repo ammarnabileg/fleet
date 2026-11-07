@@ -62,4 +62,25 @@ void main() {
     expect(fixed.first, 'Per order: 0.350 KWD');
     expect(fixed.last, 'The company pays: maintenance, housing, gas, SIM');
   });
+
+  testWidgets('a note the office wrote shows as it styled it, and is not one of the terms', (tester) async {
+    final blocks = [
+      ...fromTemplate('keeta_fixed_200').blocks!,
+      {
+        'type': 'note',
+        'params': {'text': 'التسليم آخر يوم في الشهر', 'size': 'large', 'bold': true, 'color': 'red'},
+        'condition': <Object>[],
+      },
+    ];
+    final l = await AppLocalizations.delegate.load(const Locale('ar'));
+    expect(SchemeCard.blockTerms(l, blocks, 'ar').any((x) => x.contains('التسليم')), isFalse);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: SchemeNotes(blocks: blocks)),
+      ),
+    );
+    final t = tester.widget<Text>(find.byKey(const Key('scheme-note')));
+    expect(t.data, 'التسليم آخر يوم في الشهر');
+    expect((t.style!.fontSize, t.style!.fontWeight, t.style!.color), (19.0, FontWeight.w700, const Color(0xFFB8261F)));
+  });
 }

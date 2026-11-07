@@ -1317,7 +1317,8 @@
     "deduction": "Deductions",
     "expense": "Expenses",
     "exception": "Exceptions",
-    "priority": "Priority"
+    "priority": "Priority",
+    "note": "Note"
   },
   "rule_block": {
     "per_order": "Price per order",
@@ -1340,7 +1341,8 @@
     "price_change": "Change the price of all orders",
     "expense": "Expense",
     "exception_days": "Approved exceptions",
-    "platform_amounts": "Platform sheet amounts"
+    "platform_amounts": "Platform sheet amounts",
+    "note": "Note"
   },
   "rule_block_help": {
     "per_order": "Count × price: the orders or any number field of the platform.",
@@ -1363,7 +1365,8 @@
     "price_change": "Changes the price of every order when its condition holds: replaces the base price, or a separate line with the difference.",
     "expense": "Who bears the expense (informational). An actual deduction only with an explicit, approved amount. Advances stay in deductions.",
     "exception_days": "The driver's approved exceptions this month: counted as valid days, or excusing attendance violations.",
-    "platform_amounts": "From the platform sheet: tips added; food damage compensation, other adjustments and the platform discount deducted."
+    "platform_amounts": "From the platform sheet: tips added; food damage compensation, other adjustments and the platform discount deducted.",
+    "note": "Text you write, shown with the scheme's terms on the panel and in the app in the size and colour you pick. It pays nothing."
   },
   "rule_param": {
     "rate": "Price",
@@ -1399,7 +1402,11 @@
     "tips": "Add tips",
     "food_damage": "Deduct food damage compensation",
     "other_adjustment": "Deduct other adjustment",
-    "platform_discount": "Deduct platform discount"
+    "platform_discount": "Deduct platform discount",
+    "text": "Text",
+    "size": "Font size",
+    "bold": "Bold",
+    "color": "Colour"
   },
   "rule_choice": {
     "amount": "Fixed amount",
@@ -1434,7 +1441,15 @@
     "any": "Any exception",
     "batch": "The price per order of the driver's batch",
     "most_orders": "The batch with the most orders",
-    "last": "His current batch (the month's latest)"
+    "last": "His current batch (the month's latest)",
+    "small": "Small",
+    "normal": "Normal",
+    "large": "Large",
+    "default": "Default",
+    "red": "Red",
+    "green": "Green",
+    "blue": "Blue",
+    "orange": "Orange"
   },
   "rule_fact": {
     "star_day_failed": "Star day missed",

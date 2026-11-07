@@ -9,7 +9,7 @@
   'use strict';
   var BT = window.BT, h = BT.h, raw = BT.raw, icon = BT.icon, fmt = BT.fmt, api = BT.api, A = BT.A;
 
-  var CAT_TONE = { pay: 'g', incentive: 'b', attendance: 'o', deduction: 'r', expense: 'n', exception: 'p', priority: 'n' };
+  var CAT_TONE = { pay: 'g', incentive: 'b', attendance: 'o', deduction: 'r', expense: 'n', exception: 'p', priority: 'n', note: 'p' };
   var NUMBER_OPS = ['gt', 'gte', 'lt', 'lte', 'eq'];
   function thisMonth() { return BT.config.today.slice(0, 7); }
   function monthLabel(iso) { var m = String(iso).split('-'); return fmt.month(+m[0], +m[1]); }
@@ -137,7 +137,7 @@
         <div class="card-h"><span class="num muted">${i + 1}</span><div class="card-t">${b.label || api.t('rule_block', b.type)}</div>${BT.pill(api.t('rule_category', t.category), CAT_TONE[t.category])}
           ${b.group ? BT.pill('أولوية: ' + b.group, 'p') : ''}${b.on_exception && b.on_exception !== 'none' ? BT.pill(api.t('rule_choice', b.on_exception), 'b') : ''}
           ${editable ? h`<span class="ms-auto nowrap"><button type="button" class="btn btn-sm btn-ghost" data-up="${i}" title="لأعلى"${i === 0 ? raw(' disabled') : ''}>${icon('arrow-up', 14)}</button><button type="button" class="btn btn-sm btn-ghost" data-down="${i}" title="لأسفل"${i === draft.length - 1 ? raw(' disabled') : ''}>${icon('arrow-down', 14)}</button><button type="button" class="btn btn-sm btn-ghost" data-edit-block="${i}">${icon('pencil', 14)} تعديل</button><button type="button" class="btn btn-sm btn-ghost" data-del="${i}" title="حذف">${icon('x', 14)}</button></span>` : ''}</div>
-        <div class="card-b fs-sm"><div>${blockSummary(cat, b, ctx) || h`<span class="muted">${api.t('rule_block_help', b.type)}</span>`}</div>
+        <div class="card-b fs-sm"><div>${b.type === 'note' && A.noteView ? A.noteView(b.params) : blockSummary(cat, b, ctx) || h`<span class="muted">${api.t('rule_block_help', b.type)}</span>`}</div>
           ${b.condition && b.condition.length ? h`<div class="mt-4"><span class="muted">${icon('filter', 13)} عندما: </span>${b.condition.map(function (c, j) { return h`${j ? ' و ' : ''}<b>${clauseText(c, ctx)}</b>`; })}</div>` : ''}</div></div>`;
     }
     function render() {
@@ -258,6 +258,7 @@
       if (p.kind === 'choice') return BT.f.select(Object.assign(o, { placeholder: false, options: p.options.map(function (x) { return { v: x, t: api.t('rule_choice', x) }; }) }));
       if (p.kind === 'source') return BT.f.select(Object.assign(o, { placeholder: false, options: sourceOptions(ctx) }));
       if (p.kind === 'key') return BT.f.input(o);
+      if (p.kind === 'text') return BT.f.textarea(Object.assign(o, { full: true, rows: 4, maxlength: 1000 }));
       if (p.kind === 'rows') return h`<div class="field full"><label>${label}</label>${rowsEditor(p, v || [], ctx)}</div>`;
       return '';
     }
